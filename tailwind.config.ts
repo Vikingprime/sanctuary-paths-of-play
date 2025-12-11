@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        display: ['Fredoka', 'sans-serif'],
+        body: ['Nunito', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -47,6 +51,17 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Farm-specific colors
+        wheat: "hsl(var(--wheat))",
+        barn: "hsl(var(--barn))",
+        sage: "hsl(var(--sage))",
+        sky: "hsl(var(--sky))",
+        cream: "hsl(var(--cream))",
+        earth: "hsl(var(--earth))",
+        sunset: "hsl(var(--sunset))",
+        pig: "hsl(var(--pig))",
+        cow: "hsl(var(--cow))",
+        bird: "hsl(var(--bird))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -65,25 +80,31 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+        wiggle: {
+          "0%, 100%": { transform: "rotate(-3deg)" },
+          "50%": { transform: "rotate(3deg)" },
+        },
+        hop: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-8px)" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        wiggle: "wiggle 0.5s ease-in-out infinite",
+        hop: "hop 0.6s ease-in-out infinite",
+      },
+      boxShadow: {
+        'warm': '0 4px 20px -2px hsl(var(--primary) / 0.2)',
+        'warm-lg': '0 10px 40px -5px hsl(var(--primary) / 0.3)',
       },
     },
   },
