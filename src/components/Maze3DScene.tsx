@@ -1,7 +1,7 @@
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Sky, PerspectiveCamera } from '@react-three/drei';
-import { Vector3, Euler } from 'three';
+import { Vector3 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { CornWall } from './CornWall';
 import { PlayerCube } from './PlayerCube';
@@ -11,6 +11,8 @@ interface Maze3DSceneProps {
   animalType: AnimalType;
   playerPos: { x: number; y: number };
   playerRotation: number;
+  cameraRotation: number;
+  onCameraRotationChange: (rotation: number) => void;
 }
 
 const Ground = ({ width, height }: { width: number; height: number }) => (
@@ -41,7 +43,7 @@ const MazeWalls = ({ maze }: { maze: Maze }) => {
         <CornWall
           key={index}
           position={[wall.x + 0.5, 0, wall.z + 0.5]}
-          size={[1, 2.5, 1]}
+          size={[1.2, 3, 1.2]}
         />
       ))}
     </>
@@ -113,16 +115,16 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
 
 const CameraController = ({ 
   playerPos, 
-  playerRotation,
+  cameraRotation,
   maze
 }: { 
   playerPos: { x: number; y: number }; 
-  playerRotation: number;
+  cameraRotation: number;
   maze: Maze;
 }) => {
   const { camera } = useThree();
-  const targetPosition = useRef(new Vector3());
   const currentPosition = useRef(new Vector3());
+  const currentLookAt = useRef(new Vector3());
   
   // Check if a position is inside a wall
   const isInWall = (x: number, z: number): boolean => {
@@ -130,7 +132,7 @@ const CameraController = ({
     const gridZ = Math.floor(z);
     
     if (gridX < 0 || gridZ < 0 || gridZ >= maze.grid.length || gridX >= maze.grid[0].length) {
-      return true; // Out of bounds counts as wall
+      return true;
     }
     
     return maze.grid[gridZ]?.[gridX]?.isWall ?? false;
@@ -139,55 +141,54 @@ const CameraController = ({
   useFrame(() => {
     const playerX = playerPos.x + 0.5;
     const playerZ = playerPos.y + 0.5;
-    const height = 2.5;
+    const height = 2.2;
     
-    // Try different distances to find a valid camera position
-    const maxDistance = 3;
-    const minDistance = 0.8;
-    const steps = 8;
+    // Find valid camera position at desired distance
+    const maxDistance = 4;
+    const minDistance = 1.5;
     
-    let validCamX = playerX;
-    let validCamZ = playerZ;
-    let foundValid = false;
+    let bestDistance = minDistance;
     
-    // Start from max distance and move closer until we find a valid spot
-    for (let i = 0; i <= steps && !foundValid; i++) {
-      const distance = maxDistance - (i * (maxDistance - minDistance) / steps);
-      const camX = playerX - Math.sin(playerRotation) * distance;
-      const camZ = playerZ - Math.cos(playerRotation) * distance;
+    // Check from max to min distance to find the furthest valid position
+    for (let dist = maxDistance; dist >= minDistance; dist -= 0.3) {
+      const testX = playerX - Math.sin(cameraRotation) * dist;
+      const testZ = playerZ - Math.cos(cameraRotation) * dist;
       
-      // Check multiple points along the camera ray to ensure no wall intersection
-      let rayBlocked = false;
-      for (let t = 0; t <= 1; t += 0.2) {
-        const checkX = playerX + (camX - playerX) * t;
-        const checkZ = playerZ + (camZ - playerZ) * t;
+      // Check if this position and path to it is clear
+      let pathClear = true;
+      for (let t = 0.3; t <= 1; t += 0.15) {
+        const checkX = playerX + (testX - playerX) * t;
+        const checkZ = playerZ + (testZ - playerZ) * t;
         if (isInWall(checkX, checkZ)) {
-          rayBlocked = true;
+          pathClear = false;
           break;
         }
       }
       
-      if (!rayBlocked) {
-        validCamX = camX;
-        validCamZ = camZ;
-        foundValid = true;
+      if (pathClear) {
+        bestDistance = dist;
+        break;
       }
     }
     
-    targetPosition.current.set(validCamX, height, validCamZ);
+    const camX = playerX - Math.sin(cameraRotation) * bestDistance;
+    const camZ = playerZ - Math.cos(cameraRotation) * bestDistance;
+    
+    const targetPosition = new Vector3(camX, height, camZ);
+    const targetLookAt = new Vector3(playerX, 0.6, playerZ);
     
     // Smooth camera movement
-    currentPosition.current.lerp(targetPosition.current, 0.15);
-    camera.position.copy(currentPosition.current);
+    currentPosition.current.lerp(targetPosition, 0.08);
+    currentLookAt.current.lerp(targetLookAt, 0.12);
     
-    // Look at player
-    camera.lookAt(playerX, 0.5, playerZ);
+    camera.position.copy(currentPosition.current);
+    camera.lookAt(currentLookAt.current);
   });
 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerPos, playerRotation }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerPos, playerRotation, cameraRotation, onCameraRotationChange }: Maze3DSceneProps) => {
   const items = useMemo(() => {
     const powerUps: [number, number, number][] = [];
     const stations: [number, number, number][] = [];
@@ -250,7 +251,7 @@ const Scene = ({ maze, animalType, playerPos, playerRotation }: Maze3DSceneProps
       />
       
       {/* Camera */}
-      <CameraController playerPos={playerPos} playerRotation={playerRotation} maze={maze} />
+      <CameraController playerPos={playerPos} cameraRotation={cameraRotation} maze={maze} />
     </>
   );
 };

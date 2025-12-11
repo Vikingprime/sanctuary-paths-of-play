@@ -35,7 +35,8 @@ export const MazeGame3D = ({
 
   const startPos = findStart();
   const [playerPos, setPlayerPos] = useState(startPos);
-  const [playerRotation, setPlayerRotation] = useState(0); // Radians, 0 = facing +Z
+  const [playerRotation, setPlayerRotation] = useState(0); // Player facing direction
+  const [cameraRotation, setCameraRotation] = useState(0); // Independent camera orbit
   const [timeLeft, setTimeLeft] = useState(maze.timeLimit);
   const [previewTimeLeft, setPreviewTimeLeft] = useState(maze.previewTime);
   const [isPreviewing, setIsPreviewing] = useState(true);
@@ -109,7 +110,7 @@ export const MazeGame3D = ({
     [maze, collectedPowerUps, timeLeft, onComplete]
   );
 
-  // Movement
+  // Movement - now based on camera direction, not player rotation
   const move = useCallback(
     (direction: 'forward' | 'back' | 'left' | 'right') => {
       if (isPreviewing || gameOver || showMiniMap) return;
@@ -117,14 +118,14 @@ export const MazeGame3D = ({
       let dx = 0;
       let dy = 0;
 
-      // Calculate movement based on player rotation
+      // Calculate movement based on camera rotation (player moves relative to view)
       const forward = {
-        x: Math.sin(playerRotation),
-        y: Math.cos(playerRotation),
+        x: Math.sin(cameraRotation),
+        y: Math.cos(cameraRotation),
       };
       const right = {
-        x: Math.cos(playerRotation),
-        y: -Math.sin(playerRotation),
+        x: Math.cos(cameraRotation),
+        y: -Math.sin(cameraRotation),
       };
 
       switch (direction) {
@@ -159,14 +160,14 @@ export const MazeGame3D = ({
       setPlayerPos({ x: newX, y: newY });
       checkCell(newX, newY);
     },
-    [playerPos, playerRotation, isPreviewing, gameOver, showMiniMap, maze, checkCell]
+    [playerPos, cameraRotation, isPreviewing, gameOver, showMiniMap, maze, checkCell]
   );
 
-  const rotate = useCallback(
+  const rotateCamera = useCallback(
     (direction: 'left' | 'right') => {
       if (isPreviewing || gameOver || showMiniMap) return;
-      const rotationSpeed = Math.PI / 4; // 45 degrees
-      setPlayerRotation((prev) =>
+      const rotationSpeed = Math.PI / 6; // 30 degrees for smoother rotation
+      setCameraRotation((prev) =>
         direction === 'left' ? prev - rotationSpeed : prev + rotationSpeed
       );
     },
@@ -196,17 +197,17 @@ export const MazeGame3D = ({
           move('right');
           break;
         case 'q':
-          rotate('left');
+          rotateCamera('left');
           break;
         case 'e':
-          rotate('right');
+          rotateCamera('right');
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [move, rotate, isPreviewing, gameOver]);
+  }, [move, rotateCamera, isPreviewing, gameOver]);
 
   // Use ability
   const useAbility = () => {
@@ -220,10 +221,10 @@ export const MazeGame3D = ({
       // Cow: show full map
       setShowMiniMap(true);
     } else if (animalType === 'bird') {
-      // Bird: fly over one wall forward
+      // Bird: fly over one wall forward (based on camera direction)
       const forward = {
-        x: Math.round(Math.sin(playerRotation)),
-        y: Math.round(Math.cos(playerRotation)),
+        x: Math.round(Math.sin(cameraRotation)),
+        y: Math.round(Math.cos(cameraRotation)),
       };
       
       const wallX = playerPos.x + forward.x;
@@ -308,6 +309,8 @@ export const MazeGame3D = ({
         animalType={animalType}
         playerPos={playerPos}
         playerRotation={playerRotation}
+        cameraRotation={cameraRotation}
+        onCameraRotationChange={setCameraRotation}
       />
 
       {/* HUD */}
@@ -321,7 +324,7 @@ export const MazeGame3D = ({
       />
 
       {/* Mobile Controls */}
-      <MobileControls onMove={move} onRotate={rotate} />
+      <MobileControls onMove={move} onRotate={rotateCamera} />
 
       {/* Mini Map Overlay */}
       <MiniMap
