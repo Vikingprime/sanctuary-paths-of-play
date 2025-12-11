@@ -125,41 +125,61 @@ const CameraController = ({
   const { camera } = useThree();
   const currentPosition = useRef(new Vector3());
   const currentLookAt = useRef(new Vector3());
+  const initialized = useRef(false);
   
-  // Check if a position is inside a wall
-  const isInWall = (x: number, z: number): boolean => {
-    const gridX = Math.floor(x);
-    const gridZ = Math.floor(z);
+  // Check if a position is inside or too close to a wall (accounting for wall thickness)
+  const isNearWall = (x: number, z: number, margin: number = 0.6): boolean => {
+    // Check the cell itself and neighboring cells for wall proximity
+    const checkPoints = [
+      { x, z },
+      { x: x + margin, z },
+      { x: x - margin, z },
+      { x, z: z + margin },
+      { x, z: z - margin },
+    ];
     
-    if (gridX < 0 || gridZ < 0 || gridZ >= maze.grid.length || gridX >= maze.grid[0].length) {
-      return true;
+    for (const point of checkPoints) {
+      const gridX = Math.floor(point.x);
+      const gridZ = Math.floor(point.z);
+      
+      if (gridX < 0 || gridZ < 0 || gridZ >= maze.grid.length || gridX >= maze.grid[0].length) {
+        return true;
+      }
+      
+      if (maze.grid[gridZ]?.[gridX]?.isWall) {
+        return true;
+      }
     }
     
-    return maze.grid[gridZ]?.[gridX]?.isWall ?? false;
+    return false;
   };
   
   useFrame(() => {
     const playerX = playerPos.x + 0.5;
     const playerZ = playerPos.y + 0.5;
-    const height = 2.2;
+    const height = 2.5;
     
-    // Find valid camera position at desired distance
-    const maxDistance = 4;
-    const minDistance = 1.5;
+    // Find valid camera position - start close and work outward to find the best distance
+    const maxDistance = 3.5;
+    const minDistance = 1.2;
     
     let bestDistance = minDistance;
     
-    // Check from max to min distance to find the furthest valid position
-    for (let dist = maxDistance; dist >= minDistance; dist -= 0.3) {
+    // Check from min to max distance - use the furthest clear position
+    for (let dist = minDistance; dist <= maxDistance; dist += 0.2) {
       const testX = playerX - Math.sin(cameraRotation) * dist;
       const testZ = playerZ - Math.cos(cameraRotation) * dist;
       
-      // Check if this position and path to it is clear
+      // Check multiple points along the ray from player to camera
       let pathClear = true;
-      for (let t = 0.3; t <= 1; t += 0.15) {
+      const numChecks = Math.ceil(dist / 0.3);
+      
+      for (let i = 1; i <= numChecks; i++) {
+        const t = i / numChecks;
         const checkX = playerX + (testX - playerX) * t;
         const checkZ = playerZ + (testZ - playerZ) * t;
-        if (isInWall(checkX, checkZ)) {
+        
+        if (isNearWall(checkX, checkZ, 0.5)) {
           pathClear = false;
           break;
         }
@@ -167,6 +187,8 @@ const CameraController = ({
       
       if (pathClear) {
         bestDistance = dist;
+      } else {
+        // Stop searching once we hit a wall
         break;
       }
     }
@@ -175,11 +197,18 @@ const CameraController = ({
     const camZ = playerZ - Math.cos(cameraRotation) * bestDistance;
     
     const targetPosition = new Vector3(camX, height, camZ);
-    const targetLookAt = new Vector3(playerX, 0.6, playerZ);
+    const targetLookAt = new Vector3(playerX, 0.5, playerZ);
     
-    // Smooth camera movement
-    currentPosition.current.lerp(targetPosition, 0.08);
-    currentLookAt.current.lerp(targetLookAt, 0.12);
+    // Initialize immediately on first frame
+    if (!initialized.current) {
+      currentPosition.current.copy(targetPosition);
+      currentLookAt.current.copy(targetLookAt);
+      initialized.current = true;
+    }
+    
+    // Smooth camera movement - faster lerp for more responsive feel
+    currentPosition.current.lerp(targetPosition, 0.12);
+    currentLookAt.current.lerp(targetLookAt, 0.15);
     
     camera.position.copy(currentPosition.current);
     camera.lookAt(currentLookAt.current);
