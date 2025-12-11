@@ -4,7 +4,7 @@ import { animals } from '@/data/animals';
 import { mazes } from '@/data/mazes';
 import { AnimalCard } from '@/components/AnimalCard';
 import { LevelSelect } from '@/components/LevelSelect';
-import { MazeGame } from '@/components/MazeGame';
+import { MazeGame3D } from '@/components/MazeGame3D';
 import { ProgressTracker } from '@/components/ProgressTracker';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
@@ -51,6 +51,18 @@ const Index = () => {
     setSelectedMaze(null);
   };
 
+  // Full screen game view
+  if (screen === 'playing' && selectedAnimal && selectedMaze) {
+    return (
+      <MazeGame3D
+        maze={selectedMaze}
+        animalType={selectedAnimal}
+        onComplete={handleGameComplete}
+        onQuit={handleBackToHome}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Header totalMeals={mealsUnlocked} score={totalScore} />
@@ -65,7 +77,7 @@ const Index = () => {
                 Sanctuary Run
               </h1>
               <p className="text-lg text-muted-foreground max-w-md mx-auto">
-                Navigate corn mazes with adorable farm animals and help unlock
+                Navigate 3D corn mazes with adorable farm animals and help unlock
                 real meals for sanctuary residents!
               </p>
             </div>
@@ -116,26 +128,33 @@ const Index = () => {
               <h3 className="font-display text-lg font-bold text-foreground mb-4 text-center">
                 How It Works
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
                 <div className="space-y-2">
                   <div className="text-3xl">👀</div>
                   <h4 className="font-semibold text-foreground">Memorize</h4>
                   <p className="text-sm text-muted-foreground">
-                    Study the maze before it disappears
+                    Study the maze from above
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <div className="text-3xl">🏃</div>
-                  <h4 className="font-semibold text-foreground">Navigate</h4>
+                  <div className="text-3xl">🌽</div>
+                  <h4 className="font-semibold text-foreground">Explore 3D</h4>
                   <p className="text-sm text-muted-foreground">
-                    Guide your animal to the exit
+                    Navigate from inside the corn maze
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-3xl">📍</div>
+                  <h4 className="font-semibold text-foreground">Find Stations</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Lost? Find map stations for help
                   </p>
                 </div>
                 <div className="space-y-2">
                   <div className="text-3xl">🍽️</div>
                   <h4 className="font-semibold text-foreground">Unlock Meals</h4>
                   <p className="text-sm text-muted-foreground">
-                    Earn points to feed real sanctuary animals
+                    Feed real sanctuary animals
                   </p>
                 </div>
               </div>
@@ -148,15 +167,6 @@ const Index = () => {
             mazes={mazes}
             onSelect={handleLevelSelect}
             onBack={handleBackToHome}
-          />
-        )}
-
-        {screen === 'playing' && selectedAnimal && selectedMaze && (
-          <MazeGame
-            maze={selectedMaze}
-            animalType={selectedAnimal}
-            onComplete={handleGameComplete}
-            onQuit={handleBackToHome}
           />
         )}
       </main>
