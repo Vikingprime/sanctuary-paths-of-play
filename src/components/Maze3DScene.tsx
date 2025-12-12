@@ -117,7 +117,7 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-// Over-the-shoulder camera with wall collision avoidance
+// Over-the-shoulder camera with wall collision avoidance and smooth interpolation
 const OverShoulderCameraController = ({ 
   playerPos,
   playerRotation,
@@ -129,11 +129,17 @@ const OverShoulderCameraController = ({
 }) => {
   const { camera } = useThree();
   
+  // Smooth interpolation refs
+  const currentPosition = useRef(new Vector3());
+  const currentLookAt = useRef(new Vector3());
+  const initialized = useRef(false);
+  
   // Camera settings
   const CAMERA_DISTANCE = 2.5; // How far behind the player
   const CAMERA_HEIGHT = 1.8; // Height above ground
   const LOOK_AHEAD = 1.5; // How far ahead of player to look
   const LOOK_HEIGHT = 0.8; // Height of look target
+  const SMOOTHING = 0.08; // Lower = smoother but laggier
 
   // Check if a world position is inside a wall
   const isInWall = (x: number, z: number): boolean => {
@@ -154,7 +160,6 @@ const OverShoulderCameraController = ({
     idealZ: number,
     height: number
   ): Vector3 => {
-    // Check multiple points along the line from player to ideal camera position
     const steps = 10;
     let safeX = playerX;
     let safeZ = playerZ;
@@ -165,7 +170,6 @@ const OverShoulderCameraController = ({
       const testZ = playerZ + (idealZ - playerZ) * t;
       
       if (isInWall(testX, testZ)) {
-        // Stop just before the wall
         break;
       }
       safeX = testX;
@@ -180,20 +184,33 @@ const OverShoulderCameraController = ({
     const playerZ = playerPos.y;
     
     // Calculate ideal camera position behind player based on rotation
-    // Player rotation: 0 = facing -Z, so camera should be at +Z relative to player
     const behindX = playerX - Math.sin(playerRotation) * CAMERA_DISTANCE;
     const behindZ = playerZ + Math.cos(playerRotation) * CAMERA_DISTANCE;
     
-    // Get safe position that doesn't clip through walls
-    const safePos = getSafeCameraPosition(playerX, playerZ, behindX, behindZ, CAMERA_HEIGHT);
+    // Get safe target position that doesn't clip through walls
+    const targetPos = getSafeCameraPosition(playerX, playerZ, behindX, behindZ, CAMERA_HEIGHT);
     
-    // Set camera position
-    camera.position.copy(safePos);
+    // Calculate look target
+    const targetLookAt = new Vector3(
+      playerX + Math.sin(playerRotation) * LOOK_AHEAD,
+      LOOK_HEIGHT,
+      playerZ - Math.cos(playerRotation) * LOOK_AHEAD
+    );
     
-    // Look at point ahead of player in their facing direction
-    const lookX = playerX + Math.sin(playerRotation) * LOOK_AHEAD;
-    const lookZ = playerZ - Math.cos(playerRotation) * LOOK_AHEAD;
-    camera.lookAt(lookX, LOOK_HEIGHT, lookZ);
+    // Initialize on first frame
+    if (!initialized.current) {
+      currentPosition.current.copy(targetPos);
+      currentLookAt.current.copy(targetLookAt);
+      initialized.current = true;
+    }
+    
+    // Smooth interpolation
+    currentPosition.current.lerp(targetPos, SMOOTHING);
+    currentLookAt.current.lerp(targetLookAt, SMOOTHING);
+    
+    // Apply to camera
+    camera.position.copy(currentPosition.current);
+    camera.lookAt(currentLookAt.current);
   });
 
   return null;
