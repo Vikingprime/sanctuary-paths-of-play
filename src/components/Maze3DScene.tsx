@@ -138,7 +138,14 @@ const CameraController = ({
     currentPosition.current.lerp(targetPosition, 0.15);
     
     camera.position.copy(currentPosition.current);
-    camera.lookAt(playerX, 0, playerZ);
+    
+    // Look straight down from current camera position (not at player)
+    // This prevents angle changes during movement
+    camera.lookAt(
+      currentPosition.current.x, 
+      0, 
+      currentPosition.current.z
+    );
   });
 
   return null;
