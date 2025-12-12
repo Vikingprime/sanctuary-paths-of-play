@@ -35,8 +35,6 @@ export const MazeGame3D = ({
 
   const startPos = findStart();
   const [playerPos, setPlayerPos] = useState(startPos);
-  const [playerRotation, setPlayerRotation] = useState(0); // Player facing direction
-  const [cameraRotation, setCameraRotation] = useState(0); // Independent camera orbit
   const [timeLeft, setTimeLeft] = useState(maze.timeLimit);
   const [previewTimeLeft, setPreviewTimeLeft] = useState(maze.previewTime);
   const [isPreviewing, setIsPreviewing] = useState(true);
@@ -110,7 +108,7 @@ export const MazeGame3D = ({
     [maze, collectedPowerUps, timeLeft, onComplete]
   );
 
-  // Movement - now based on camera direction, not player rotation
+  // Movement - fixed overhead camera, so directions are absolute
   const move = useCallback(
     (direction: 'forward' | 'back' | 'left' | 'right') => {
       if (isPreviewing || gameOver || showMiniMap) return;
@@ -118,32 +116,19 @@ export const MazeGame3D = ({
       let dx = 0;
       let dy = 0;
 
-      // Calculate movement based on camera rotation (player moves relative to view)
-      const forward = {
-        x: Math.sin(cameraRotation),
-        y: Math.cos(cameraRotation),
-      };
-      const right = {
-        x: Math.cos(cameraRotation),
-        y: -Math.sin(cameraRotation),
-      };
-
+      // With overhead camera, forward = -Z (up on screen), right = +X
       switch (direction) {
         case 'forward':
-          dx = Math.round(forward.x);
-          dy = Math.round(forward.y);
+          dy = -1; // Move up (negative Y in grid)
           break;
         case 'back':
-          dx = -Math.round(forward.x);
-          dy = -Math.round(forward.y);
+          dy = 1; // Move down
           break;
         case 'left':
-          dx = -Math.round(right.x);
-          dy = -Math.round(right.y);
+          dx = -1; // Move left
           break;
         case 'right':
-          dx = Math.round(right.x);
-          dy = Math.round(right.y);
+          dx = 1; // Move right
           break;
       }
 
@@ -160,20 +145,8 @@ export const MazeGame3D = ({
       setPlayerPos({ x: newX, y: newY });
       checkCell(newX, newY);
     },
-    [playerPos, cameraRotation, isPreviewing, gameOver, showMiniMap, maze, checkCell]
+    [playerPos, isPreviewing, gameOver, showMiniMap, maze, checkCell]
   );
-
-  const rotateCamera = useCallback(
-    (direction: 'left' | 'right') => {
-      if (isPreviewing || gameOver || showMiniMap) return;
-      const rotationSpeed = Math.PI / 6; // 30 degrees for smoother rotation
-      setCameraRotation((prev) =>
-        direction === 'left' ? prev - rotationSpeed : prev + rotationSpeed
-      );
-    },
-    [isPreviewing, gameOver, showMiniMap]
-  );
-
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -196,18 +169,12 @@ export const MazeGame3D = ({
         case 'd':
           move('right');
           break;
-        case 'q':
-          rotateCamera('left');
-          break;
-        case 'e':
-          rotateCamera('right');
-          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [move, rotateCamera, isPreviewing, gameOver]);
+  }, [move, isPreviewing, gameOver]);
 
   // Use ability
   const useAbility = () => {
@@ -221,11 +188,8 @@ export const MazeGame3D = ({
       // Cow: show full map
       setShowMiniMap(true);
     } else if (animalType === 'bird') {
-      // Bird: fly over one wall forward (based on camera direction)
-      const forward = {
-        x: Math.round(Math.sin(cameraRotation)),
-        y: Math.round(Math.cos(cameraRotation)),
-      };
+      // Bird: fly over one wall in a chosen direction - for now, fly forward (-Y)
+      const forward = { x: 0, y: -1 };
       
       const wallX = playerPos.x + forward.x;
       const wallY = playerPos.y + forward.y;
@@ -308,9 +272,6 @@ export const MazeGame3D = ({
         maze={maze}
         animalType={animalType}
         playerPos={playerPos}
-        playerRotation={playerRotation}
-        cameraRotation={cameraRotation}
-        onCameraRotationChange={setCameraRotation}
       />
 
       {/* HUD */}
@@ -324,7 +285,7 @@ export const MazeGame3D = ({
       />
 
       {/* Mobile Controls */}
-      <MobileControls onMove={move} onRotate={rotateCamera} />
+      <MobileControls onMove={move} />
 
       {/* Mini Map Overlay */}
       <MiniMap

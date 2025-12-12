@@ -2,10 +2,9 @@ import { Button } from '@/components/ui/button';
 
 interface MobileControlsProps {
   onMove: (direction: 'forward' | 'back' | 'left' | 'right') => void;
-  onRotate: (direction: 'left' | 'right') => void;
 }
 
-export const MobileControls = ({ onMove, onRotate }: MobileControlsProps) => {
+export const MobileControls = ({ onMove }: MobileControlsProps) => {
   return (
     <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-40 md:hidden">
       <div className="flex flex-col items-center gap-2">
@@ -22,15 +21,6 @@ export const MobileControls = ({ onMove, onRotate }: MobileControlsProps) => {
 
         {/* Middle row: Left, Back, Right */}
         <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="lg"
-            onTouchStart={() => onRotate('left')}
-            onClick={() => onRotate('left')}
-            className="w-14 h-14 rounded-xl text-xl"
-          >
-            ↺
-          </Button>
           <Button
             variant="secondary"
             size="lg"
@@ -57,15 +47,6 @@ export const MobileControls = ({ onMove, onRotate }: MobileControlsProps) => {
             className="w-14 h-14 rounded-xl text-xl"
           >
             →
-          </Button>
-          <Button
-            variant="secondary"
-            size="lg"
-            onTouchStart={() => onRotate('right')}
-            onClick={() => onRotate('right')}
-            className="w-14 h-14 rounded-xl text-xl"
-          >
-            ↻
           </Button>
         </div>
       </div>
