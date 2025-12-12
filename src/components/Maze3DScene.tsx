@@ -1,10 +1,16 @@
-import { useRef, useMemo, useEffect, useState } from 'react';
+import { useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Sky, PerspectiveCamera } from '@react-three/drei';
 import { Vector3 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { CornWall } from './CornWall';
 import { PlayerCube } from './PlayerCube';
+import { 
+  CameraVolumeController, 
+  CameraVolumeDebug, 
+  CameraVolumeConfig,
+  createCameraVolume 
+} from './CameraVolumeSystem';
 
 interface Maze3DSceneProps {
   maze: Maze;
@@ -110,7 +116,12 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-const CameraController = ({ 
+// Simple overhead camera fallback (kept for easy rollback)
+// Set USE_CAMERA_VOLUMES to false to use this instead
+const USE_CAMERA_VOLUMES = true;
+const SHOW_VOLUME_DEBUG = false; // Set to true to see volume boundaries
+
+const OverheadCameraController = ({ 
   playerPos, 
 }: { 
   playerPos: { x: number; y: number }; 
@@ -123,24 +134,16 @@ const CameraController = ({
     const playerX = playerPos.x + 0.5;
     const playerZ = playerPos.y + 0.5;
     
-    // Overhead camera - stays just below wall height so walls block view
-    const height = 2.4; // Walls are 3 units tall, so this stays below them
-    
+    const height = 2.4;
     const targetPosition = new Vector3(playerX, height, playerZ);
     
-    // Initialize immediately on first frame
     if (!initialized.current) {
       currentPosition.current.copy(targetPosition);
       initialized.current = true;
     }
     
-    // Smooth camera follow
     currentPosition.current.lerp(targetPosition, 0.15);
-    
     camera.position.copy(currentPosition.current);
-    
-    // Look straight down from current camera position (not at player)
-    // This prevents angle changes during movement
     camera.lookAt(
       currentPosition.current.x, 
       0, 
@@ -152,6 +155,43 @@ const CameraController = ({
 };
 
 const Scene = ({ maze, animalType, playerPos }: Maze3DSceneProps) => {
+  // Generate camera volumes based on maze layout
+  // You can customize these or add more volumes for specific areas
+  const cameraVolumes = useMemo<CameraVolumeConfig[]>(() => {
+    const mazeWidth = maze.grid[0].length;
+    const mazeHeight = maze.grid.length;
+    
+    // Example volumes - customize these for your maze!
+    return [
+      // Main maze area - slight angle for better depth perception
+      createCameraVolume(
+        'main-area',
+        [mazeWidth / 2, 1.5, mazeHeight / 2],
+        [mazeWidth + 2, 3, mazeHeight + 2],
+        'custom',
+        {
+          cameraOffset: [0, 2.2, 1.2], // Slightly behind and above
+          lookAtOffset: [0, 0, -0.5], // Look slightly ahead
+          fov: 65,
+          priority: 1,
+        }
+      ),
+      // Start area - wider view to help orient
+      createCameraVolume(
+        'start-area',
+        [maze.grid[0].findIndex((_, i) => !maze.grid[0][i]?.isWall) + 0.5, 1.5, 1],
+        [3, 3, 3],
+        'custom',
+        {
+          cameraOffset: [0, 2.4, 0.8],
+          lookAtOffset: [0, 0, -0.3],
+          fov: 70,
+          priority: 2,
+        }
+      ),
+    ];
+  }, [maze]);
+
   const items = useMemo(() => {
     const powerUps: [number, number, number][] = [];
     const stations: [number, number, number][] = [];
@@ -213,8 +253,19 @@ const Scene = ({ maze, animalType, playerPos }: Maze3DSceneProps) => {
         position={[playerPos.x + 0.5, 0, playerPos.y + 0.5]}
       />
       
-      {/* Camera */}
-      <CameraController playerPos={playerPos} />
+      {/* Camera System - Toggle USE_CAMERA_VOLUMES to switch */}
+      {USE_CAMERA_VOLUMES ? (
+        <>
+          <CameraVolumeController 
+            playerPos={playerPos} 
+            volumes={cameraVolumes}
+            transitionSpeed={0.2}
+          />
+          <CameraVolumeDebug volumes={cameraVolumes} visible={SHOW_VOLUME_DEBUG} />
+        </>
+      ) : (
+        <OverheadCameraController playerPos={playerPos} />
+      )}
     </>
   );
 };
