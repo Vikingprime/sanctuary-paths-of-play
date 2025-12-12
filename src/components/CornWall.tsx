@@ -1,5 +1,5 @@
-import { useMemo, useRef } from 'react';
-import { InstancedMesh, Object3D, Color } from 'three';
+import { useEffect, useRef } from 'react';
+import { InstancedMesh, Object3D } from 'three';
 
 interface CornWallProps {
   position: [number, number, number];
@@ -27,8 +27,8 @@ interface InstancedWallsProps {
 export const InstancedWalls = ({ positions, size = [1.2, 3, 1.2] }: InstancedWallsProps) => {
   const meshRef = useRef<InstancedMesh>(null);
   
-  useMemo(() => {
-    if (!meshRef.current) return;
+  useEffect(() => {
+    if (!meshRef.current || positions.length === 0) return;
     
     const dummy = new Object3D();
     
