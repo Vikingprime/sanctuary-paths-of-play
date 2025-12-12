@@ -6,6 +6,7 @@ import { AnimalType } from '@/types/game';
 interface PlayerCubeProps {
   animalType: AnimalType;
   position: [number, number, number];
+  rotation?: number; // Y-axis rotation in radians
 }
 
 const animalColors: Record<AnimalType, string | string[]> = {
@@ -14,23 +15,25 @@ const animalColors: Record<AnimalType, string | string[]> = {
   bird: '#FFD700', // Yellow/Gold
 };
 
-export const PlayerCube = ({ animalType, position }: PlayerCubeProps) => {
-  const meshRef = useRef<Mesh>(null);
+export const PlayerCube = ({ animalType, position, rotation = 0 }: PlayerCubeProps) => {
+  const groupRef = useRef<any>(null);
   const bobOffset = useRef(0);
 
   useFrame((state, delta) => {
-    if (meshRef.current) {
+    if (groupRef.current) {
       // Gentle bobbing animation
       bobOffset.current += delta * 3;
-      meshRef.current.position.y = position[1] + Math.sin(bobOffset.current) * 0.05;
+      groupRef.current.position.y = position[1] + Math.sin(bobOffset.current) * 0.05;
+      // Apply rotation
+      groupRef.current.rotation.y = rotation;
     }
   });
 
   if (animalType === 'cow') {
     // Cow has spots pattern
     return (
-      <group position={position}>
-        <mesh ref={meshRef} position={[0, 0.4, 0]}>
+      <group ref={groupRef} position={position}>
+        <mesh position={[0, 0.4, 0]}>
           <boxGeometry args={[0.6, 0.6, 0.6]} />
           <meshStandardMaterial color="#f5f5f5" />
         </mesh>
@@ -57,8 +60,8 @@ export const PlayerCube = ({ animalType, position }: PlayerCubeProps) => {
   }
 
   return (
-    <group position={position}>
-      <mesh ref={meshRef} position={[0, 0.4, 0]}>
+    <group ref={groupRef} position={position}>
+      <mesh position={[0, 0.4, 0]}>
         <boxGeometry args={[0.6, 0.6, 0.6]} />
         <meshStandardMaterial color={animalColors[animalType] as string} />
       </mesh>
