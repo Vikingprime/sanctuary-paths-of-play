@@ -16,7 +16,7 @@ const buttonVariants = cva(
         ghost: "hover:bg-muted hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         farm: "bg-sage text-cream hover:bg-sage/90 hover:scale-105 shadow-warm",
-        sunset: "bg-gradient-to-r from-primary to-sunset text-primary-foreground hover:scale-105 shadow-warm-lg",
+        sunset: "bg-primary text-primary-foreground hover:scale-105 shadow-warm-lg",
         animal: "bg-card border-2 border-border hover:border-primary hover:scale-105 text-foreground shadow-md",
       },
       size: {
