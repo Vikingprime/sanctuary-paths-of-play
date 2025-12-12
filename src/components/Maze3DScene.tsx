@@ -16,6 +16,7 @@ interface Maze3DSceneProps {
   maze: Maze;
   animalType: AnimalType;
   playerPos: { x: number; y: number };
+  playerRotation?: number; // radians, 0 = facing -Z
 }
 
 const Ground = ({ width, height }: { width: number; height: number }) => (
@@ -154,7 +155,7 @@ const OverheadCameraController = ({
   return null;
 };
 
-const Scene = ({ maze, animalType, playerPos }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerPos, playerRotation = 0 }: Maze3DSceneProps) => {
   // Generate camera volumes based on maze layout
   // You can customize these or add more volumes for specific areas
   const cameraVolumes = useMemo<CameraVolumeConfig[]>(() => {
@@ -237,7 +238,8 @@ const Scene = ({ maze, animalType, playerPos }: Maze3DSceneProps) => {
       {/* Player */}
       <PlayerCube
         animalType={animalType}
-        position={[playerPos.x + 0.5, 0, playerPos.y + 0.5]}
+        position={[playerPos.x, 0, playerPos.y]}
+        rotation={playerRotation}
       />
       
       {/* Camera System - Toggle USE_CAMERA_VOLUMES to switch */}
