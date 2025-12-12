@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Sky, PerspectiveCamera } from '@react-three/drei';
 import { Vector3 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
-import { CornWall } from './CornWall';
+import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { 
   CameraVolumeController, 
@@ -41,17 +41,7 @@ const MazeWalls = ({ maze }: { maze: Maze }) => {
     return wallPositions;
   }, [maze]);
 
-  return (
-    <>
-      {walls.map((wall, index) => (
-        <CornWall
-          key={index}
-          position={[wall.x + 0.5, 0, wall.z + 0.5]}
-          size={[1.2, 3, 1.2]}
-        />
-      ))}
-    </>
-  );
+  return <InstancedWalls positions={walls} />;
 };
 
 const PowerUp = ({ position }: { position: [number, number, number] }) => {
