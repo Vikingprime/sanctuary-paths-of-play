@@ -117,10 +117,9 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-// Simple overhead camera fallback (kept for easy rollback)
-// Set USE_CAMERA_VOLUMES to false to use this instead
-const USE_CAMERA_VOLUMES = true;
-const SHOW_VOLUME_DEBUG = false; // Set to true to see volume boundaries
+// Simple overhead camera - no interpolation to avoid wall clipping
+// Set USE_CAMERA_VOLUMES to false to use the volume system instead
+const USE_CAMERA_VOLUMES = false; // Disabled - overhead camera works better
 
 const OverheadCameraController = ({ 
   playerPos, 
@@ -128,28 +127,11 @@ const OverheadCameraController = ({
   playerPos: { x: number; y: number }; 
 }) => {
   const { camera } = useThree();
-  const currentPosition = useRef(new Vector3());
-  const initialized = useRef(false);
   
   useFrame(() => {
-    const playerX = playerPos.x + 0.5;
-    const playerZ = playerPos.y + 0.5;
-    
-    const height = 2.4;
-    const targetPosition = new Vector3(playerX, height, playerZ);
-    
-    if (!initialized.current) {
-      currentPosition.current.copy(targetPosition);
-      initialized.current = true;
-    }
-    
-    currentPosition.current.lerp(targetPosition, 0.15);
-    camera.position.copy(currentPosition.current);
-    camera.lookAt(
-      currentPosition.current.x, 
-      0, 
-      currentPosition.current.z
-    );
+    // Directly set camera position above player - no lerp = no wall clipping
+    camera.position.set(playerPos.x, 2.4, playerPos.y);
+    camera.lookAt(playerPos.x, 0, playerPos.y);
   });
 
   return null;
@@ -241,19 +223,8 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0 }: Maze3DSceneP
         rotation={playerRotation}
       />
       
-      {/* Camera System - Toggle USE_CAMERA_VOLUMES to switch */}
-      {USE_CAMERA_VOLUMES ? (
-        <>
-          <CameraVolumeController 
-            playerPos={playerPos} 
-            volumes={cameraVolumes}
-            transitionSpeed={0.2}
-          />
-          <CameraVolumeDebug volumes={cameraVolumes} visible={SHOW_VOLUME_DEBUG} />
-        </>
-      ) : (
-        <OverheadCameraController playerPos={playerPos} />
-      )}
+      {/* Camera - simple overhead, no interpolation */}
+      <OverheadCameraController playerPos={playerPos} />
     </>
   );
 };
