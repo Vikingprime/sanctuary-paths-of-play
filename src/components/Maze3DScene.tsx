@@ -163,30 +163,17 @@ const Scene = ({ maze, animalType, playerPos }: Maze3DSceneProps) => {
     
     // Example volumes - customize these for your maze!
     return [
-      // Main maze area - slight angle for better depth perception
+      // Main maze area - mostly overhead with slight forward tilt for depth
       createCameraVolume(
         'main-area',
         [mazeWidth / 2, 1.5, mazeHeight / 2],
         [mazeWidth + 2, 3, mazeHeight + 2],
         'custom',
         {
-          cameraOffset: [0, 2.2, 1.2], // Slightly behind and above
-          lookAtOffset: [0, 0, -0.5], // Look slightly ahead
-          fov: 65,
+          cameraOffset: [0, 2.4, 0.3], // Almost directly above, tiny offset forward
+          lookAtOffset: [0, 0, 0], // Look at player
+          fov: 62,
           priority: 1,
-        }
-      ),
-      // Start area - wider view to help orient
-      createCameraVolume(
-        'start-area',
-        [maze.grid[0].findIndex((_, i) => !maze.grid[0][i]?.isWall) + 0.5, 1.5, 1],
-        [3, 3, 3],
-        'custom',
-        {
-          cameraOffset: [0, 2.4, 0.8],
-          lookAtOffset: [0, 0, -0.3],
-          fov: 70,
-          priority: 2,
         }
       ),
     ];
