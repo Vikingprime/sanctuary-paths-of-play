@@ -24,8 +24,9 @@ export const PlayerCube = ({ animalType, position, rotation = 0 }: PlayerCubePro
       // Gentle bobbing animation
       bobOffset.current += delta * 3;
       groupRef.current.position.y = position[1] + Math.sin(bobOffset.current) * 0.05;
-      // Apply rotation
-      groupRef.current.rotation.y = rotation;
+      // Apply rotation - add PI so model faces movement direction
+      // (model's front is +Z, but movement forward is -Z at rotation 0)
+      groupRef.current.rotation.y = rotation + Math.PI;
     }
   });
 

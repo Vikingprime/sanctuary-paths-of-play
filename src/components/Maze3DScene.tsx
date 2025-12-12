@@ -162,18 +162,17 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0 }: Maze3DSceneP
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
     
-    // Example volumes - customize these for your maze!
+    // Main volume - pure overhead to avoid wall collisions
     return [
-      // Main maze area - mostly overhead with slight forward tilt for depth
       createCameraVolume(
         'main-area',
         [mazeWidth / 2, 1.5, mazeHeight / 2],
         [mazeWidth + 2, 3, mazeHeight + 2],
         'custom',
         {
-          cameraOffset: [0, 2.4, 0.3], // Almost directly above, tiny offset forward
-          lookAtOffset: [0, 0, 0], // Look at player
-          fov: 62,
+          cameraOffset: [0, 2.4, 0], // Directly above player
+          lookAtOffset: [0, 0, 0], // Look straight down at player
+          fov: 60,
           priority: 1,
         }
       ),
