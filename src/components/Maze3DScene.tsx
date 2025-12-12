@@ -117,21 +117,83 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-// Simple overhead camera - no interpolation to avoid wall clipping
-// Set USE_CAMERA_VOLUMES to false to use the volume system instead
-const USE_CAMERA_VOLUMES = false; // Disabled - overhead camera works better
-
-const OverheadCameraController = ({ 
-  playerPos, 
+// Over-the-shoulder camera with wall collision avoidance
+const OverShoulderCameraController = ({ 
+  playerPos,
+  playerRotation,
+  maze,
 }: { 
-  playerPos: { x: number; y: number }; 
+  playerPos: { x: number; y: number };
+  playerRotation: number;
+  maze: Maze;
 }) => {
   const { camera } = useThree();
   
+  // Camera settings
+  const CAMERA_DISTANCE = 2.5; // How far behind the player
+  const CAMERA_HEIGHT = 1.8; // Height above ground
+  const LOOK_AHEAD = 1.5; // How far ahead of player to look
+  const LOOK_HEIGHT = 0.8; // Height of look target
+
+  // Check if a world position is inside a wall
+  const isInWall = (x: number, z: number): boolean => {
+    const gridX = Math.floor(x);
+    const gridZ = Math.floor(z);
+    
+    if (gridZ < 0 || gridZ >= maze.grid.length) return true;
+    if (gridX < 0 || gridX >= maze.grid[0].length) return true;
+    
+    return maze.grid[gridZ][gridX].isWall;
+  };
+
+  // Find safe camera position by moving closer to player if blocked
+  const getSafeCameraPosition = (
+    playerX: number,
+    playerZ: number,
+    idealX: number,
+    idealZ: number,
+    height: number
+  ): Vector3 => {
+    // Check multiple points along the line from player to ideal camera position
+    const steps = 10;
+    let safeX = playerX;
+    let safeZ = playerZ;
+    
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const testX = playerX + (idealX - playerX) * t;
+      const testZ = playerZ + (idealZ - playerZ) * t;
+      
+      if (isInWall(testX, testZ)) {
+        // Stop just before the wall
+        break;
+      }
+      safeX = testX;
+      safeZ = testZ;
+    }
+    
+    return new Vector3(safeX, height, safeZ);
+  };
+  
   useFrame(() => {
-    // Directly set camera position above player - no lerp = no wall clipping
-    camera.position.set(playerPos.x, 2.4, playerPos.y);
-    camera.lookAt(playerPos.x, 0, playerPos.y);
+    const playerX = playerPos.x;
+    const playerZ = playerPos.y;
+    
+    // Calculate ideal camera position behind player based on rotation
+    // Player rotation: 0 = facing -Z, so camera should be at +Z relative to player
+    const behindX = playerX - Math.sin(playerRotation) * CAMERA_DISTANCE;
+    const behindZ = playerZ + Math.cos(playerRotation) * CAMERA_DISTANCE;
+    
+    // Get safe position that doesn't clip through walls
+    const safePos = getSafeCameraPosition(playerX, playerZ, behindX, behindZ, CAMERA_HEIGHT);
+    
+    // Set camera position
+    camera.position.copy(safePos);
+    
+    // Look at point ahead of player in their facing direction
+    const lookX = playerX + Math.sin(playerRotation) * LOOK_AHEAD;
+    const lookZ = playerZ - Math.cos(playerRotation) * LOOK_AHEAD;
+    camera.lookAt(lookX, LOOK_HEIGHT, lookZ);
   });
 
   return null;
@@ -223,8 +285,12 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0 }: Maze3DSceneP
         rotation={playerRotation}
       />
       
-      {/* Camera - simple overhead, no interpolation */}
-      <OverheadCameraController playerPos={playerPos} />
+      {/* Camera - over-the-shoulder with wall collision avoidance */}
+      <OverShoulderCameraController 
+        playerPos={playerPos} 
+        playerRotation={playerRotation}
+        maze={maze}
+      />
     </>
   );
 };
