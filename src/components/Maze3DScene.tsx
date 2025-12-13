@@ -55,10 +55,10 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
   
   return (
     <group>
-      {/* Solid brown plane just below tile level to fill gaps between tiles */}
+      {/* Solid brown plane to fill seams between tiles */}
       <mesh 
         rotation={[-Math.PI / 2, 0, 0]} 
-        position={[centerX, 0.005, centerZ]}
+        position={[centerX, 0.01, centerZ]}
         receiveShadow
       >
         <planeGeometry args={[planeWidth, planeHeight]} />
