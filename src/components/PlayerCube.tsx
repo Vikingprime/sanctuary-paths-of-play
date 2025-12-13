@@ -70,13 +70,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
     };
   }, [animalType, cowAnimations, clonedCowScene]);
   
-  // Control animation based on movement
+  // Control animation based on movement with smooth transitions
   useEffect(() => {
     if (gallopActionRef.current) {
       if (isMoving) {
-        gallopActionRef.current.play();
+        gallopActionRef.current.reset().fadeIn(0.15).play();
       } else {
-        gallopActionRef.current.stop();
+        gallopActionRef.current.fadeOut(0.2);
       }
     }
   }, [isMoving]);
