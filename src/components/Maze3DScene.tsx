@@ -1,7 +1,7 @@
 import { useRef, useMemo, MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
@@ -255,45 +255,58 @@ finalColor = mix(finalColor, mudColor, transition * 0.2);
   return <primitive object={material} attach="material" />;
 };
 
-// 3D Rocks scattered on ground for visual depth - uses shared positions
+// 3D Rocks using InstancedMesh for performance
 const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
-  const seededRandom = (seed: number) => {
-    const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
-    return x - Math.floor(x);
-  };
+  const meshRef = useRef<InstancedMesh>(null);
+  
+  const { geometry, material } = useMemo(() => {
+    const geo = new DodecahedronGeometry(1, 0);
+    const mat = new MeshStandardMaterial({ color: "#7A6350", roughness: 0.9 });
+    return { geometry: geo, material: mat };
+  }, []);
+  
+  // Set up instances once
+  useMemo(() => {
+    if (!meshRef.current || rocks.length === 0) return;
+    
+    const tempObject = new Object3D();
+    const seededRandom = (seed: number) => {
+      const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    };
+    
+    rocks.forEach((rock, i) => {
+      const scale = rock.radius * 2;
+      const seed = Math.floor(rock.x * 1000 + rock.z);
+      const rotation = seededRandom(seed + 4) * Math.PI * 2;
+      
+      tempObject.position.set(rock.x, scale * 0.3, rock.z);
+      tempObject.rotation.set(0, rotation, 0);
+      tempObject.scale.set(scale * 1.2, scale * 0.6, scale);
+      tempObject.updateMatrix();
+      meshRef.current!.setMatrixAt(i, tempObject.matrix);
+    });
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  }, [rocks]);
+  
+  if (rocks.length === 0) return null;
   
   return (
-    <>
-      {rocks.map((rock, i) => {
-        const scale = rock.radius * 2; // Convert radius back to scale
-        const seed = Math.floor(rock.x * 1000 + rock.z);
-        const rotation = seededRandom(seed + 4) * Math.PI * 2;
-        return (
-          <mesh 
-            key={i} 
-            position={[rock.x, scale * 0.3, rock.z]}
-            rotation={[0, rotation, 0]}
-            scale={[scale * 1.2, scale * 0.6, scale]}
-            castShadow
-          >
-            <dodecahedronGeometry args={[1, 0]} />
-            <meshStandardMaterial 
-              color={i % 3 === 0 ? "#8B7355" : i % 3 === 1 ? "#6B5344" : "#A08060"} 
-              roughness={0.9}
-            />
-          </mesh>
-        );
-      })}
-    </>
+    <instancedMesh 
+      ref={meshRef} 
+      args={[geometry, material, rocks.length]}
+      castShadow
+    />
   );
 };
 
-// 3D Grass tufts using GLB models - placed right at wall base inside the wall cell
+// 3D Grass tufts - memoized clones for performance
 const GrassTufts = ({ maze }: { maze: Maze }) => {
   const grass231 = useGLTF('/models/Grass_231.glb');
   const grass232 = useGLTF('/models/Grass_232.glb');
   
-  const tufts = useMemo(() => {
+  // Pre-clone scenes once and memoize
+  const { tufts, clonedScenes } = useMemo(() => {
     const positions: { x: number; z: number; scale: number; rotation: number; type: 1 | 2 }[] = [];
     const seededRandom = (seed: number) => {
       const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
@@ -306,17 +319,15 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
     // Place grass consistently along each wall edge facing paths
     for (let y = 1; y < mazeHeight - 1; y++) {
       for (let x = 1; x < mazeWidth - 1; x++) {
-        if (!maze.grid[y][x].isWall) continue; // Only process wall cells
+        if (!maze.grid[y][x].isWall) continue;
         
         const seed = x * 2000 + y + 5000;
         
-        // Check which adjacent cells are paths
         const pathRight = x < mazeWidth - 1 && !maze.grid[y][x+1].isWall;
         const pathLeft = x > 0 && !maze.grid[y][x-1].isWall;
         const pathDown = y < mazeHeight - 1 && !maze.grid[y+1][x].isWall;
         const pathUp = y > 0 && !maze.grid[y-1][x].isWall;
         
-        // Place 1 grass tuft per wall edge (consistent coverage)
         if (pathRight) {
           positions.push({
             x: x + 0.55 + seededRandom(seed) * 0.2,
@@ -355,19 +366,24 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
         }
       }
     }
-    return positions;
-  }, [maze]);
+    
+    // Pre-clone all scenes once
+    const scenes = positions.map((tuft) => {
+      const scene = (tuft.type === 1 ? grass231 : grass232).scene.clone();
+      scene.position.set(tuft.x, 0, tuft.z);
+      scene.rotation.set(0, tuft.rotation, 0);
+      const s = tuft.scale * 0.04;
+      scene.scale.set(s, s, s);
+      return scene;
+    });
+    
+    return { tufts: positions, clonedScenes: scenes };
+  }, [maze, grass231, grass232]);
   
   return (
     <>
-      {tufts.map((tuft, i) => (
-        <primitive 
-          key={i}
-          object={(tuft.type === 1 ? grass231 : grass232).scene.clone()}
-          position={[tuft.x, 0, tuft.z]}
-          rotation={[0, tuft.rotation, 0]}
-          scale={[tuft.scale * 0.04, tuft.scale * 0.04, tuft.scale * 0.04]}
-        />
+      {clonedScenes.map((scene, i) => (
+        <primitive key={i} object={scene} />
       ))}
     </>
   );
@@ -534,13 +550,7 @@ const RefBasedPlayer = ({
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   const accumulatedTime = useRef(0);
   const FIXED_TIMESTEP = 1 / 60; // Fixed 60fps physics
-  const MAX_ACCUMULATED = 0.1; // Cap to prevent spiral of death
-  
-  // Interpolation state for smooth rendering between fixed updates
-  const prevPosition = useRef({ x: 0, y: 0 });
-  const currentPosition = useRef({ x: 0, y: 0 });
-  const prevRotationState = useRef(0);
-  const currentRotationState = useRef(0);
+  const MAX_ACCUMULATED = 0.05; // Cap to prevent spiral of death
   
   useFrame((state, delta) => {
     if (!groupRef.current) return;
@@ -561,10 +571,6 @@ const RefBasedPlayer = ({
       // Accumulate time and process in fixed steps
       accumulatedTime.current += Math.min(delta, MAX_ACCUMULATED);
       
-      // Store previous state for interpolation
-      prevPosition.current = { x: playerStateRef.current.x, y: playerStateRef.current.y };
-      prevRotationState.current = playerStateRef.current.rotation;
-      
       // Process physics in fixed timesteps
       while (accumulatedTime.current >= FIXED_TIMESTEP) {
         const prev = playerStateRef.current;
@@ -572,9 +578,6 @@ const RefBasedPlayer = ({
         playerStateRef.current = newState;
         accumulatedTime.current -= FIXED_TIMESTEP;
       }
-      
-      currentPosition.current = { x: playerStateRef.current.x, y: playerStateRef.current.y };
-      currentRotationState.current = playerStateRef.current.rotation;
       
       // Only check interactions when entering a new cell
       const currentCellX = Math.floor(playerStateRef.current.x);
@@ -585,22 +588,17 @@ const RefBasedPlayer = ({
       }
     }
     
-    // Interpolate position for smooth rendering
-    const alpha = accumulatedTime.current / FIXED_TIMESTEP;
-    const renderX = prevPosition.current.x + (currentPosition.current.x - prevPosition.current.x) * alpha;
-    const renderY = prevPosition.current.y + (currentPosition.current.y - prevPosition.current.y) * alpha;
+    // Update position directly (no interpolation - fixed timestep is consistent enough)
+    groupRef.current.position.x = playerStateRef.current.x;
+    groupRef.current.position.z = playerStateRef.current.y;
     
-    // Update position with interpolation
-    groupRef.current.position.x = renderX;
-    groupRef.current.position.z = renderY;
-    
-    // Smooth rotation with interpolation
+    // Smooth rotation
     const targetRotation = -playerStateRef.current.rotation + Math.PI;
     let rotDiff = targetRotation - smoothRotation.current;
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
     
-    // Consistent lerp factor based on fixed rate
+    // Consistent lerp factor
     smoothRotation.current += rotDiff * 0.15;
     
     // Normalize rotation
