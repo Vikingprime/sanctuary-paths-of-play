@@ -28,11 +28,14 @@ interface Maze3DSceneProps {
 const Ground = memo(({ width, height }: { width: number; height: number }) => {
   const { scene } = useGLTF('/models/Floor_Grass.glb');
   
+  console.log('Ground component rendering, scene:', scene?.uuid);
+  
   // Tile size - adjust based on the actual model size
   const tileSize = 1;
   
   // Generate tile positions in a grid - fully memoized with stable deps
   const tiles = useMemo(() => {
+    console.log('Tiles useMemo recalculating for width:', width, 'height:', height);
     const tilesX = Math.ceil((width + 10) / tileSize);
     const tilesZ = Math.ceil((height + 10) / tileSize);
     const positions: { x: number; z: number }[] = [];
@@ -47,15 +50,22 @@ const Ground = memo(({ width, height }: { width: number; height: number }) => {
         });
       }
     }
+    console.log('Generated', positions.length, 'tiles');
     return positions;
   }, [width, height]);
+
+  // Clone scene once and memoize
+  const clonedScene = useMemo(() => {
+    console.log('Cloning scene');
+    return scene.clone();
+  }, [scene]);
 
   return (
     <group>
       {tiles.map((pos, i) => (
-        <Clone 
+        <primitive 
           key={`grass-${i}`} 
-          object={scene} 
+          object={clonedScene.clone()} 
           position={[pos.x, 0, pos.z]} 
           scale={[tileSize, 1, tileSize]}
         />
