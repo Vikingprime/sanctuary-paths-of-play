@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AnimalType, Maze } from '@/types/game';
 import { animals } from '@/data/animals';
 import { mazes } from '@/data/mazes';
@@ -8,17 +8,23 @@ import { MazeGame3D } from '@/components/MazeGame3D';
 import { ProgressTracker } from '@/components/ProgressTracker';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
+import { useSave } from '@/hooks/useSave';
 
 type GameScreen = 'home' | 'levels' | 'playing';
 
 const Index = () => {
+  const { save, loading, completeLevel, addScore, unlockMeal } = useSave();
   const [screen, setScreen] = useState<GameScreen>('home');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
-  const [totalScore, setTotalScore] = useState(0);
-  const [mealsUnlocked, setMealsUnlocked] = useState(0);
   const [mealProgress, setMealProgress] = useState(35);
-  const [unlockedAnimals] = useState<AnimalType[]>(['pig', 'cow', 'bird']);
+
+  // Sync selected animal from save
+  useEffect(() => {
+    if (save.player.currentAnimal) {
+      setSelectedAnimal(save.player.currentAnimal as AnimalType);
+    }
+  }, [save.player.currentAnimal]);
 
   const handleAnimalSelect = (animalId: AnimalType) => {
     setSelectedAnimal(animalId);
@@ -35,11 +41,19 @@ const Index = () => {
     setScreen('playing');
   };
 
-  const handleGameComplete = (score: number) => {
-    setTotalScore((prev) => prev + score);
+  const handleGameComplete = async (score: number, timeUsed: number) => {
+    // Save level completion
+    if (selectedMaze) {
+      await completeLevel(selectedMaze.id, timeUsed);
+    }
+    
+    // Update score
+    await addScore(score);
+    
+    // Update meal progress
     const newProgress = mealProgress + Math.floor(score / 50);
     if (newProgress >= 100) {
-      setMealsUnlocked((prev) => prev + 1);
+      await unlockMeal();
       setMealProgress(newProgress - 100);
     } else {
       setMealProgress(newProgress);
@@ -65,7 +79,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header totalMeals={mealsUnlocked} score={totalScore} />
+      <Header totalMeals={save.player.totalMealsUnlocked} score={save.player.totalScore} />
 
       <main className="container max-w-4xl mx-auto px-4 py-8">
         {screen === 'home' && (
@@ -93,7 +107,7 @@ const Index = () => {
                     key={animal.id}
                     animal={animal}
                     isSelected={selectedAnimal === animal.id}
-                    isLocked={!unlockedAnimals.includes(animal.id)}
+                    isLocked={!save.player.unlockedAnimals.includes(animal.id)}
                     onClick={() => handleAnimalSelect(animal.id)}
                     delay={index + 1}
                   />
@@ -117,7 +131,7 @@ const Index = () => {
             {/* Progress Tracker */}
             <div className="max-w-sm mx-auto animate-fade-in-delay-3">
               <ProgressTracker
-                mealsUnlocked={mealsUnlocked}
+                mealsUnlocked={save.player.totalMealsUnlocked}
                 currentProgress={mealProgress}
                 targetMeals={5}
               />

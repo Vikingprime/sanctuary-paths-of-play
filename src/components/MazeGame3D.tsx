@@ -11,7 +11,7 @@ import { animals } from '@/data/animals';
 interface MazeGame3DProps {
   maze: Maze;
   animalType: AnimalType;
-  onComplete: (score: number) => void;
+  onComplete: (score: number, timeUsed: number) => void;
   onQuit: () => void;
 }
 
@@ -171,7 +171,8 @@ export const MazeGame3D = ({
         setHasWon(true);
         setGameOver(true);
         const score = Math.round(timeLeft * 100);
-        onComplete(score);
+        const timeUsed = maze.timeLimit - timeLeft;
+        onComplete(score, timeUsed);
       }
     },
     [maze, collectedPowerUps, timeLeft, onComplete]
