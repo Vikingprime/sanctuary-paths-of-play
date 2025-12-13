@@ -30,7 +30,7 @@ const Ground = ({ width, height }: { width: number; height: number }) => (
 const MazeWalls = ({ maze }: { maze: Maze }) => {
   const { interiorWalls, boundaryWalls } = useMemo(() => {
     const interior: { x: number; z: number }[] = [];
-    const boundary: { x: number; z: number }[] = [];
+    const boundary: { x: number; z: number; offsetX: number; offsetZ: number }[] = [];
     
     const maxX = maze.grid[0].length - 1;
     const maxZ = maze.grid.length - 1;
@@ -40,7 +40,14 @@ const MazeWalls = ({ maze }: { maze: Maze }) => {
         if (cell.isWall) {
           // Check if this is a boundary wall (on the edge of the maze)
           if (x === 0 || x === maxX || y === 0 || y === maxZ) {
-            boundary.push({ x, z: y });
+            // Calculate offset direction to push block OUTSIDE the maze
+            let offsetX = 0;
+            let offsetZ = 0;
+            if (x === 0) offsetX = -0.6;
+            if (x === maxX) offsetX = 0.6;
+            if (y === 0) offsetZ = -0.6;
+            if (y === maxZ) offsetZ = 0.6;
+            boundary.push({ x, z: y, offsetX, offsetZ });
           } else {
             interior.push({ x, z: y });
           }
