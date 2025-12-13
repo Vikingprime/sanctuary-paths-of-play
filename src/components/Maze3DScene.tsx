@@ -286,17 +286,24 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0, collectedPower
 
   return (
     <>
-      {/* Lighting */}
-      <ambientLight intensity={0.6} />
+      {/* Lighting - bright daylight scene */}
+      <ambientLight intensity={1.2} />
       <directionalLight
-        position={[10, 20, 10]}
-        intensity={1}
+        position={[10, 30, 10]}
+        intensity={2}
         castShadow
         shadow-mapSize={[2048, 2048]}
       />
+      {/* Fill light from opposite side */}
+      <directionalLight
+        position={[-10, 20, -10]}
+        intensity={0.8}
+      />
+      {/* Top-down light for even illumination */}
+      <pointLight position={[0, 15, 0]} intensity={1} distance={50} />
       
-      {/* Dark green background */}
-      <color attach="background" args={['#1a3d1a']} />
+      {/* Bright sky blue background */}
+      <color attach="background" args={['#87CEEB']} />
       
       {/* Ground */}
       <Ground width={maze.grid[0].length} height={maze.grid.length} />
