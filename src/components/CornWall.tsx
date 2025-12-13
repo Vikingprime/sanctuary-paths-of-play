@@ -51,8 +51,9 @@ const BOUNDARY_DEPTH = 2.5;
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
   const groupRef = useRef<Group>(null);
+  const meshesCreatedRef = useRef(false);
   
-  // Generate all stalk transforms
+  // Generate all stalk transforms - memoize based on positions only
   const stalkTransforms = useMemo(() => {
     const transforms: Matrix4[] = [];
     const dummy = new Object3D();
@@ -126,26 +127,22 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     return transforms;
   }, [positions, boundaryPositions, size]);
 
-  // Extract meshes from GLTF and create instanced versions
-  const instancedMeshes = useMemo(() => {
-    console.log('[CornWall] Creating instanced meshes, stalkTransforms:', stalkTransforms.length);
-    console.log('[CornWall] Scene object:', scene);
+  // Create instanced meshes once using useEffect
+  useEffect(() => {
+    if (!groupRef.current || stalkTransforms.length === 0 || meshesCreatedRef.current) return;
     
-    if (stalkTransforms.length === 0) {
-      console.log('[CornWall] No transforms, returning empty');
-      return [];
+    console.log('[CornWall] Creating instanced meshes once, transforms:', stalkTransforms.length);
+    
+    // Clear any existing children
+    while (groupRef.current.children.length > 0) {
+      groupRef.current.remove(groupRef.current.children[0]);
     }
     
-    const meshes: ThreeInstancedMesh[] = [];
-    
     scene.traverse((child) => {
-      console.log('[CornWall] Traversing child:', child.type, child.name);
       if ((child as Mesh).isMesh) {
         const originalMesh = child as Mesh;
-        console.log('[CornWall] Found mesh:', originalMesh.name, 'geometry:', originalMesh.geometry, 'material:', originalMesh.material);
-        
         const instancedMesh = new ThreeInstancedMesh(
-          originalMesh.geometry,
+          originalMesh.geometry.clone(),
           originalMesh.material,
           stalkTransforms.length
         );
@@ -158,23 +155,17 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
         instancedMesh.instanceMatrix.needsUpdate = true;
         instancedMesh.castShadow = true;
         instancedMesh.receiveShadow = true;
+        instancedMesh.frustumCulled = false; // Ensure visibility
         
-        console.log('[CornWall] Created instanced mesh with', stalkTransforms.length, 'instances');
-        meshes.push(instancedMesh);
+        groupRef.current!.add(instancedMesh);
       }
     });
     
-    console.log('[CornWall] Total instanced meshes created:', meshes.length);
-    return meshes;
+    meshesCreatedRef.current = true;
+    console.log('[CornWall] Meshes added to group, children:', groupRef.current.children.length);
   }, [scene, stalkTransforms]);
 
   if (stalkTransforms.length === 0) return null;
 
-  return (
-    <group ref={groupRef}>
-      {instancedMeshes.map((mesh, i) => (
-        <primitive key={i} object={mesh} />
-      ))}
-    </group>
-  );
+  return <group ref={groupRef} />;
 };
