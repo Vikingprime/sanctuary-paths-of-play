@@ -15,6 +15,7 @@ interface PlayerCubeProps {
 // Preload models
 useGLTF.preload('/models/Pig.glb');
 useGLTF.preload('/models/Cow.glb');
+useGLTF.preload('/models/Hen.glb');
 
 const animalColors: Record<AnimalType, string | string[]> = {
   pig: '#FFB6C1', // Pink (fallback)
@@ -30,8 +31,10 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
   // Load models
   const { scene: pigScene } = useGLTF('/models/Pig.glb');
   const { scene: cowScene, animations: cowAnimations } = useGLTF('/models/Cow.glb');
+  const { scene: henScene } = useGLTF('/models/Hen.glb');
   
   const clonedPigScene = useMemo(() => pigScene.clone(), [pigScene]);
+  const clonedHenScene = useMemo(() => henScene.clone(), [henScene]);
   
   // Use SkeletonUtils.clone for skinned meshes (cow has bones/skeleton)
   const clonedCowScene = useMemo(() => SkeletonUtils.clone(cowScene), [cowScene]);
@@ -116,28 +119,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
     );
   }
 
-  // Bird (default) - placeholder cube
+  // Bird/Chicken uses GLB model
   return (
     <group position={position} rotation={[0, visualRotation, 0]}>
       <group ref={innerGroupRef}>
-        <mesh>
-          <boxGeometry args={[0.6, 0.6, 0.6]} />
-          <meshStandardMaterial color={animalColors[animalType] as string} />
-        </mesh>
-        {/* Eyes */}
-        <mesh position={[0.12, 0.15, 0.31]}>
-          <boxGeometry args={[0.1, 0.1, 0.02]} />
-          <meshStandardMaterial color="#000" />
-        </mesh>
-        <mesh position={[-0.12, 0.15, 0.31]}>
-          <boxGeometry args={[0.1, 0.1, 0.02]} />
-          <meshStandardMaterial color="#000" />
-        </mesh>
-        {/* Beak */}
-        <mesh position={[0, 0, 0.4]}>
-          <boxGeometry args={[0.1, 0.08, 0.15]} />
-          <meshStandardMaterial color="#FF6600" />
-        </mesh>
+        <primitive object={clonedHenScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.1, 0]} />
       </group>
     </group>
   );
