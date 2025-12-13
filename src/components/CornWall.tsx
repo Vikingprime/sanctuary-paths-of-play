@@ -136,10 +136,11 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     return data;
   }, [positions, boundaryPositions]);
 
-  // Clone the scene for each stalk
+  // Clone the scene for each stalk - only regenerate when stalk count changes
   const clones = useMemo(() => {
     return stalkData.map(() => scene.clone());
-  }, [scene, stalkData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stalkData.length]);
 
   if (positions.length === 0 && boundaryPositions.length === 0) return null;
 
