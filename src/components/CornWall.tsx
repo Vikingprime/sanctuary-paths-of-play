@@ -25,6 +25,7 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
 // Optimized instanced walls using the corn model
 interface InstancedWallsProps {
   positions: { x: number; z: number }[];
+  boundaryPositions?: { x: number; z: number }[]; // Outer boundary walls (3x thicker)
   size?: [number, number, number];
 }
 
@@ -35,26 +36,50 @@ const STALK_SPACING = 0.22;
 const MIN_HEIGHT = 1.8;
 const MAX_HEIGHT = 3.0;
 
-export const InstancedWalls = ({ positions, size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
+// Boundary walls are 3x thicker
+const BOUNDARY_ROWS = 6;
+const BOUNDARY_STALKS_PER_ROW = 6;
+const BOUNDARY_SPACING = 0.18;
+
+export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
   const groupRef = useRef<Group>(null);
   
-  // Generate all stalk positions with staggered offset pattern and height variation
+  // Generate stalk data for regular walls
   const stalkData = useMemo(() => {
     const data: { pos: [number, number, number]; rotation: number; height: number }[] = [];
     
+    // Regular interior walls
     positions.forEach((wallPos) => {
       for (let row = 0; row < ROWS; row++) {
-        // Offset every other row by half spacing for staggered pattern
         const rowOffset = (row % 2) * (STALK_SPACING / 2);
-        
         for (let col = 0; col < STALKS_PER_ROW; col++) {
           const offsetX = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING + rowOffset;
           const offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
           const jitterX = (Math.random() - 0.5) * 0.03;
           const jitterZ = (Math.random() - 0.5) * 0.03;
           const rotation = Math.random() * Math.PI * 2;
-          // Mix of heights: some short, some full height to fill all gaps
+          const height = MIN_HEIGHT + Math.random() * (MAX_HEIGHT - MIN_HEIGHT);
+          
+          data.push({
+            pos: [wallPos.x + 0.5 + offsetX + jitterX, 0, wallPos.z + 0.5 + offsetZ + jitterZ],
+            rotation,
+            height
+          });
+        }
+      }
+    });
+    
+    // Boundary walls - 3x thicker
+    boundaryPositions.forEach((wallPos) => {
+      for (let row = 0; row < BOUNDARY_ROWS; row++) {
+        const rowOffset = (row % 2) * (BOUNDARY_SPACING / 2);
+        for (let col = 0; col < BOUNDARY_STALKS_PER_ROW; col++) {
+          const offsetX = (col - (BOUNDARY_STALKS_PER_ROW - 1) / 2) * BOUNDARY_SPACING + rowOffset;
+          const offsetZ = (row - (BOUNDARY_ROWS - 1) / 2) * BOUNDARY_SPACING;
+          const jitterX = (Math.random() - 0.5) * 0.03;
+          const jitterZ = (Math.random() - 0.5) * 0.03;
+          const rotation = Math.random() * Math.PI * 2;
           const height = MIN_HEIGHT + Math.random() * (MAX_HEIGHT - MIN_HEIGHT);
           
           data.push({
@@ -67,7 +92,7 @@ export const InstancedWalls = ({ positions, size = [0.6, 1, 0.6] }: InstancedWal
     });
     
     return data;
-  }, [positions]);
+  }, [positions, boundaryPositions]);
 
   // Clone the scene for each stalk
   const clones = useMemo(() => {
