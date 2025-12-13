@@ -27,10 +27,7 @@ interface Maze3DSceneProps {
 const Ground = ({ width, height }: { width: number; height: number }) => {
   const { scene } = useGLTF('/models/Fertile_soil.glb');
   
-  // Generate grid of soil tiles with checkerboard mirroring
-  // Scale up slightly so tiles overlap to eliminate seams
-  const TILE_SCALE = 1.02;
-  
+  // Generate grid of soil tiles with checkerboard mirroring (no scaling, natural size)
   const tiles = useMemo(() => {
     const result: { x: number; z: number; scaleX: number; scaleZ: number; clone: any }[] = [];
     for (let x = -2; x < width + 2; x++) {
@@ -41,8 +38,8 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
         result.push({ 
           x, 
           z, 
-          scaleX: flipX ? -TILE_SCALE : TILE_SCALE,
-          scaleZ: flipZ ? -TILE_SCALE : TILE_SCALE,
+          scaleX: flipX ? -1 : 1,
+          scaleZ: flipZ ? -1 : 1,
           clone: scene.clone() 
         });
       }
@@ -50,8 +47,25 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
     return result;
   }, [width, height, scene]);
   
+  // Ground plane dimensions to cover entire maze plus buffer
+  const planeWidth = width + 8;
+  const planeHeight = height + 8;
+  const centerX = width / 2;
+  const centerZ = height / 2;
+  
   return (
     <group>
+      {/* Solid brown plane underneath to hide any seams between tiles */}
+      <mesh 
+        rotation={[-Math.PI / 2, 0, 0]} 
+        position={[centerX, -0.01, centerZ]}
+        receiveShadow
+      >
+        <planeGeometry args={[planeWidth, planeHeight]} />
+        <meshStandardMaterial color="#8B6C5C" />
+      </mesh>
+      
+      {/* Soil tiles on top */}
       {tiles.map((tile, i) => (
         <primitive
           key={`soil-tile-${i}`}
