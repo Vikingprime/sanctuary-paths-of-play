@@ -54,13 +54,16 @@ export const MazeGame3D = ({
   const [hasWon, setHasWon] = useState(false);
   const [abilityUsed, setAbilityUsed] = useState(false);
   const [collectedPowerUps, setCollectedPowerUps] = useState<Set<string>>(new Set());
+  const [speedBoost, setSpeedBoost] = useState(false);
 
   // Track pressed keys for smooth movement
   const keysPressed = useRef<Set<string>>(new Set());
   const animationFrameRef = useRef<number>();
 
   // Movement settings
-  const MOVE_SPEED = 2.5; // units per second
+  const BASE_MOVE_SPEED = 2.5; // units per second
+  const BOOSTED_MOVE_SPEED = 4.5; // boosted speed
+  const MOVE_SPEED = speedBoost ? BOOSTED_MOVE_SPEED : BASE_MOVE_SPEED;
   const ROTATION_SPEED = 3.5; // radians per second
   const PLAYER_RADIUS = 0.25; // collision radius
 
@@ -150,10 +153,12 @@ export const MazeGame3D = ({
       const cell = maze.grid[gridY]?.[gridX];
       if (!cell) return;
 
-      // Power-up collection
+      // Power-up collection - speed boost
       if (cell.isPowerUp && !collectedPowerUps.has(`${gridX},${gridY}`)) {
         setCollectedPowerUps((prev) => new Set([...prev, `${gridX},${gridY}`]));
-        setTimeLeft((prev) => Math.min(prev + 15, maze.timeLimit + 30));
+        setSpeedBoost(true);
+        // Speed boost lasts 5 seconds
+        setTimeout(() => setSpeedBoost(false), 5000);
       }
 
       // Map station
@@ -387,6 +392,7 @@ export const MazeGame3D = ({
         animalType={animalType}
         playerPos={playerState}
         playerRotation={playerState.rotation}
+        collectedPowerUps={collectedPowerUps}
       />
 
       {/* HUD */}
