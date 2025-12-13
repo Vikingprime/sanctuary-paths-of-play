@@ -1,6 +1,6 @@
 import { useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PerspectiveCamera, useGLTF, Clone } from '@react-three/drei';
+import { PerspectiveCamera } from '@react-three/drei';
 import { Vector3 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
@@ -12,9 +12,6 @@ import {
   createCameraVolume 
 } from './CameraVolumeSystem';
 
-// Preload soil model
-useGLTF.preload('/models/Fertile_soil.glb');
-
 interface Maze3DSceneProps {
   maze: Maze;
   animalType: AnimalType;
@@ -24,45 +21,12 @@ interface Maze3DSceneProps {
   isMoving?: boolean; // Whether the player is moving (for animations)
 }
 
-const Ground = ({ width, height }: { width: number; height: number }) => {
-  const { scene } = useGLTF('/models/Fertile_soil.glb');
-  
-  // Calculate how many tiles we need to cover the ground
-  const tileSize = 2; // Size of each soil tile in world units
-  const tilesX = Math.ceil((width + 10) / tileSize);
-  const tilesZ = Math.ceil((height + 10) / tileSize);
-  
-  // Generate tile positions
-  const tiles = useMemo(() => {
-    const positions: { x: number; z: number }[] = [];
-    const startX = -5;
-    const startZ = -5;
-    
-    for (let x = 0; x < tilesX; x++) {
-      for (let z = 0; z < tilesZ; z++) {
-        positions.push({
-          x: startX + x * tileSize + tileSize / 2,
-          z: startZ + z * tileSize + tileSize / 2
-        });
-      }
-    }
-    return positions;
-  }, [tilesX, tilesZ]);
-
-  return (
-    <group>
-      {tiles.map((pos, i) => (
-        <Clone 
-          key={i} 
-          object={scene} 
-          position={[pos.x, -0.3, pos.z]} 
-          scale={[0.5, 0.3, 0.5]} 
-          rotation={[0, Math.random() * Math.PI * 2, 0]}
-        />
-      ))}
-    </group>
-  );
-};
+const Ground = ({ width, height }: { width: number; height: number }) => (
+  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, 0, height / 2]}>
+    <planeGeometry args={[width + 10, height + 10]} />
+    <meshStandardMaterial color="#5D4037" roughness={0.9} />
+  </mesh>
+);
 
 const MazeWalls = ({ maze }: { maze: Maze }) => {
   const { interiorWalls, boundaryWalls } = useMemo(() => {
