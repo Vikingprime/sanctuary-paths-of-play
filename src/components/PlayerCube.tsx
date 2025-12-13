@@ -38,6 +38,14 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
   const gallopActionRef = useRef<any>(null);
   
   useEffect(() => {
+    if (animalType === 'cow') {
+      console.log('Cow scene:', cowScene);
+      console.log('Cow scene children:', cowScene.children.length);
+      cowScene.traverse((child: any) => {
+        console.log('Cow child:', child.type, child.name, child.visible);
+      });
+    }
+    
     if (animalType === 'cow' && cowAnimations.length > 0) {
       console.log('Cow animations available:', cowAnimations.map(a => a.name));
       
@@ -112,10 +120,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
         <group ref={cowGroupRef} position={[0, 0.4, 0]}>
           {/* Debug cube */}
           <mesh>
-            <boxGeometry args={[0.5, 0.5, 0.5]} />
-            <meshStandardMaterial color="#f5f5f5" />
+            <boxGeometry args={[0.4, 0.4, 0.4]} />
+            <meshStandardMaterial color="#f5f5f5" transparent opacity={0.5} />
           </mesh>
-          <primitive object={clonedCowScene} scale={[0.5, 0.5, 0.5]} position={[0, 0, 0]} />
+          {/* Try larger scale */}
+          <primitive object={clonedCowScene} scale={[2, 2, 2]} position={[0, 0, 0]} />
         </group>
       </group>
     );
