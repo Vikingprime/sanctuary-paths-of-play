@@ -17,6 +17,12 @@ const boundaryMaterial = new MeshStandardMaterial({
   metalness: 0,
 });
 
+// Seeded random for stable randomness - avoids jitter from regenerating random values
+const seededRandom = (seed: number): number => {
+  const x = Math.sin(seed * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+
 // Single wall component for simple cases
 export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
@@ -53,33 +59,38 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
   const { scene } = useGLTF('/models/Corn.glb');
   const groupRef = useRef<Group>(null);
   
-  // Generate stalk data for walls
+  // Generate stalk data for walls - using seeded random for stable positions
   const stalkData = useMemo(() => {
     const data: { pos: [number, number, number]; rotation: number; height: number }[] = [];
+    let seedCounter = 0;
     
     // Regular interior walls
     positions.forEach((wallPos) => {
+      const baseSeed = wallPos.x * 1000 + wallPos.z; // Unique seed per wall position
       for (let row = 0; row < ROWS; row++) {
         const rowOffset = (row % 2) * (STALK_SPACING / 2);
         for (let col = 0; col < STALKS_PER_ROW; col++) {
+          const stalkSeed = baseSeed + row * 100 + col;
           const offsetX = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING + rowOffset;
           const offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
-          const jitterX = (Math.random() - 0.5) * 0.03;
-          const jitterZ = (Math.random() - 0.5) * 0.03;
-          const rotation = Math.random() * Math.PI * 2;
-          const height = MIN_HEIGHT + Math.random() * (MAX_HEIGHT - MIN_HEIGHT);
+          const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.03;
+          const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
+          const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
+          const height = MIN_HEIGHT + seededRandom(stalkSeed + 3) * (MAX_HEIGHT - MIN_HEIGHT);
           
           data.push({
             pos: [wallPos.x + 0.5 + offsetX + jitterX, 0, wallPos.z + 0.5 + offsetZ + jitterZ],
             rotation,
             height
           });
+          seedCounter++;
         }
       }
     });
     
     // Boundary walls - multiple layers extending outward
     boundaryPositions.forEach((wallPos) => {
+      const baseSeed = wallPos.x * 1000 + wallPos.z + 50000; // Different seed space for boundaries
       // Determine outward direction
       const dirX = wallPos.offsetX !== 0 ? Math.sign(wallPos.offsetX) : 0;
       const dirZ = wallPos.offsetZ !== 0 ? Math.sign(wallPos.offsetZ) : 0;
@@ -90,12 +101,13 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
         const depthOffset = (row / (BOUNDARY_ROWS - 1)) * BOUNDARY_DEPTH;
         
         for (let col = 0; col < BOUNDARY_STALKS_PER_ROW; col++) {
+          const stalkSeed = baseSeed + row * 100 + col;
           const offsetX = (col - (BOUNDARY_STALKS_PER_ROW - 1) / 2) * BOUNDARY_SPACING + rowOffset;
           const offsetZ = (col - (BOUNDARY_STALKS_PER_ROW - 1) / 2) * BOUNDARY_SPACING + rowOffset;
-          const jitterX = (Math.random() - 0.5) * 0.03;
-          const jitterZ = (Math.random() - 0.5) * 0.03;
-          const rotation = Math.random() * Math.PI * 2;
-          const height = MIN_HEIGHT + Math.random() * (MAX_HEIGHT - MIN_HEIGHT);
+          const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.03;
+          const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
+          const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
+          const height = MIN_HEIGHT + seededRandom(stalkSeed + 3) * (MAX_HEIGHT - MIN_HEIGHT);
           
           // Position corn: spread perpendicular to boundary, extend outward
           let posX = wallPos.x + 0.5 + jitterX;
@@ -116,6 +128,7 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             rotation,
             height
           });
+          seedCounter++;
         }
       }
     });
