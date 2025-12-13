@@ -28,24 +28,52 @@ interface InstancedWallsProps {
   size?: [number, number, number];
 }
 
-export const InstancedWalls = ({ positions, size = [1.2, 3, 1.2] }: InstancedWallsProps) => {
+// Number of corn stalks per wall cell for density
+const STALKS_PER_CELL = 9; // 3x3 grid
+const STALK_SPACING = 0.3;
+
+export const InstancedWalls = ({ positions, size = [0.8, 2.5, 0.8] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
   const groupRef = useRef<Group>(null);
   
-  // Clone the scene for each position
+  // Generate all stalk positions with slight randomization
+  const stalkData = useMemo(() => {
+    const data: { pos: [number, number, number]; rotation: number }[] = [];
+    const gridSize = Math.sqrt(STALKS_PER_CELL);
+    
+    positions.forEach((wallPos) => {
+      for (let gx = 0; gx < gridSize; gx++) {
+        for (let gz = 0; gz < gridSize; gz++) {
+          const offsetX = (gx - (gridSize - 1) / 2) * STALK_SPACING + (Math.random() - 0.5) * 0.1;
+          const offsetZ = (gz - (gridSize - 1) / 2) * STALK_SPACING + (Math.random() - 0.5) * 0.1;
+          const rotation = Math.random() * Math.PI * 2;
+          
+          data.push({
+            pos: [wallPos.x + 0.5 + offsetX, 0, wallPos.z + 0.5 + offsetZ],
+            rotation
+          });
+        }
+      }
+    });
+    
+    return data;
+  }, [positions]);
+
+  // Clone the scene for each stalk
   const clones = useMemo(() => {
-    return positions.map(() => scene.clone());
-  }, [scene, positions]);
+    return stalkData.map(() => scene.clone());
+  }, [scene, stalkData]);
 
   if (positions.length === 0) return null;
 
   return (
     <group ref={groupRef}>
-      {positions.map((pos, i) => (
+      {stalkData.map((stalk, i) => (
         <primitive 
           key={i}
           object={clones[i]} 
-          position={[pos.x + 0.5, 0, pos.z + 0.5]}
+          position={stalk.pos}
+          rotation={[0, stalk.rotation, 0]}
           scale={[size[0], size[1], size[2]]}
         />
       ))}
