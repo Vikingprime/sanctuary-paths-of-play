@@ -125,11 +125,17 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
       }
     }
     
-    // Bobbing for non-cow animals (cow has its own animation)
+    // Gentle bobbing for non-cow animals (cow has its own animation)
+    // Only bob when moving to avoid idle jitter
     if (innerGroupRef.current && animalType !== 'cow') {
-      bobOffset.current += delta * 3;
+      const isMoving = isMovingRef?.current ?? false;
+      if (isMoving) {
+        bobOffset.current += delta * 6; // Faster cycle when moving
+      }
       const baseHeight = 0.15;
-      innerGroupRef.current.position.y = baseHeight + Math.sin(bobOffset.current) * 0.03;
+      // Smoother sine wave with slightly larger amplitude
+      const bobAmount = Math.sin(bobOffset.current) * 0.04;
+      innerGroupRef.current.position.y = baseHeight + bobAmount;
     }
   });
 
