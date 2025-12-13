@@ -8,18 +8,23 @@ import { MobileControls } from './MobileControls';
 import { Button } from '@/components/ui/button';
 import { animals } from '@/data/animals';
 
+// Import pure game logic (Unity-portable)
+import {
+  GameConfig,
+  findStartPosition,
+  PlayerState,
+  MovementInput,
+  calculateMovement,
+  checkCellInteraction,
+  calculateScore,
+  executeAbility,
+} from '@/game';
+
 interface MazeGame3DProps {
   maze: Maze;
   animalType: AnimalType;
   onComplete: (score: number, timeUsed: number) => void;
   onQuit: () => void;
-}
-
-// Player state with continuous position and rotation
-interface PlayerState {
-  x: number;
-  y: number;
-  rotation: number; // radians, 0 = facing -Z (up)
 }
 
 export const MazeGame3D = ({
@@ -28,19 +33,9 @@ export const MazeGame3D = ({
   onComplete,
   onQuit,
 }: MazeGame3DProps) => {
-  // Find start position
-  const findStart = () => {
-    for (let y = 0; y < maze.grid.length; y++) {
-      for (let x = 0; x < maze.grid[y].length; x++) {
-        if (maze.grid[y][x].isStart) {
-          return { x: x + 0.5, y: y + 0.5 }; // Center of cell
-        }
-      }
-    }
-    return { x: 1.5, y: 1.5 };
-  };
-
-  const startPos = findStart();
+  // Initialize from pure game logic
+  const startPos = findStartPosition(maze);
+  
   const [playerState, setPlayerState] = useState<PlayerState>({
     x: startPos.x,
     y: startPos.y,
@@ -54,18 +49,11 @@ export const MazeGame3D = ({
   const [hasWon, setHasWon] = useState(false);
   const [abilityUsed, setAbilityUsed] = useState(false);
   const [collectedPowerUps, setCollectedPowerUps] = useState<Set<string>>(new Set());
-  const [speedBoost, setSpeedBoost] = useState(false);
+  const [speedBoostActive, setSpeedBoostActive] = useState(false);
 
   // Track pressed keys for smooth movement
   const keysPressed = useRef<Set<string>>(new Set());
   const animationFrameRef = useRef<number>();
-
-  // Movement settings
-  const BASE_MOVE_SPEED = 2.5; // units per second
-  const BOOSTED_MOVE_SPEED = 4.5; // boosted speed
-  const MOVE_SPEED = speedBoost ? BOOSTED_MOVE_SPEED : BASE_MOVE_SPEED;
-  const ROTATION_SPEED = 3.5; // radians per second
-  const PLAYER_RADIUS = 0.25; // collision radius
 
   // Preview countdown
   useEffect(() => {
@@ -103,74 +91,25 @@ export const MazeGame3D = ({
     return () => clearInterval(timer);
   }, [isPreviewing, gameOver]);
 
-  // Check if position collides with wall
-  const checkCollision = useCallback(
-    (x: number, y: number): boolean => {
-      // Check the grid cell at this position
-      const gridX = Math.floor(x);
-      const gridY = Math.floor(y);
-
-      // Check bounds
-      if (gridY < 0 || gridY >= maze.grid.length) return true;
-      if (gridX < 0 || gridX >= maze.grid[0].length) return true;
-
-      // Check current cell
-      if (maze.grid[gridY][gridX].isWall) return true;
-
-      // Check nearby cells based on player radius
-      const checkRadius = PLAYER_RADIUS + 0.1;
-      const offsets = [
-        [-checkRadius, 0],
-        [checkRadius, 0],
-        [0, -checkRadius],
-        [0, checkRadius],
-      ];
-
-      for (const [dx, dy] of offsets) {
-        const checkX = Math.floor(x + dx);
-        const checkY = Math.floor(y + dy);
-        if (
-          checkY >= 0 &&
-          checkY < maze.grid.length &&
-          checkX >= 0 &&
-          checkX < maze.grid[0].length &&
-          maze.grid[checkY][checkX].isWall
-        ) {
-          return true;
-        }
-      }
-
-      return false;
-    },
-    [maze]
-  );
-
-  // Check cell interactions
-  const checkCell = useCallback(
+  // Handle cell interactions (React-specific wrapper around pure logic)
+  const handleCellInteraction = useCallback(
     (x: number, y: number) => {
-      const gridX = Math.floor(x);
-      const gridY = Math.floor(y);
-      const cell = maze.grid[gridY]?.[gridX];
-      if (!cell) return;
+      const result = checkCellInteraction(maze, x, y, collectedPowerUps);
 
-      // Power-up collection - speed boost
-      if (cell.isPowerUp && !collectedPowerUps.has(`${gridX},${gridY}`)) {
-        setCollectedPowerUps((prev) => new Set([...prev, `${gridX},${gridY}`]));
-        setSpeedBoost(true);
-        // Speed boost lasts 5 seconds
-        setTimeout(() => setSpeedBoost(false), 5000);
+      if (result.collectPowerUp && result.powerUpKey) {
+        setCollectedPowerUps((prev) => new Set([...prev, result.powerUpKey!]));
+        setSpeedBoostActive(true);
+        setTimeout(() => setSpeedBoostActive(false), GameConfig.SPEED_BOOST_DURATION * 1000);
       }
 
-      // Map station
-      if (cell.isStation) {
+      if (result.triggerStation) {
         setShowMiniMap(true);
       }
 
-      // Win condition
-      if (cell.isEnd) {
+      if (result.reachedEnd) {
         setHasWon(true);
         setGameOver(true);
-        const score = Math.round(timeLeft * 100);
+        const score = calculateScore(timeLeft);
         const timeUsed = maze.timeLimit - timeLeft;
         onComplete(score, timeUsed);
       }
@@ -178,7 +117,7 @@ export const MazeGame3D = ({
     [maze, collectedPowerUps, timeLeft, onComplete]
   );
 
-  // Game loop for smooth movement
+  // Game loop - uses pure calculateMovement
   useEffect(() => {
     if (isPreviewing || gameOver || showMiniMap) return;
 
@@ -188,58 +127,24 @@ export const MazeGame3D = ({
       const deltaTime = (currentTime - lastTime) / 1000;
       lastTime = currentTime;
 
+      // Build input from pressed keys
+      const input: MovementInput = {
+        forward: keysPressed.current.has('w') || keysPressed.current.has('arrowup'),
+        backward: keysPressed.current.has('s') || keysPressed.current.has('arrowdown'),
+        rotateLeft: keysPressed.current.has('a') || keysPressed.current.has('arrowleft'),
+        rotateRight: keysPressed.current.has('d') || keysPressed.current.has('arrowright'),
+      };
+
       setPlayerState((prev) => {
-        let newRotation = prev.rotation;
-        let moveX = 0;
-        let moveY = 0;
+        // Use pure game logic for movement
+        const newState = calculateMovement(maze, prev, input, deltaTime, speedBoostActive);
 
-        // Rotation
-        if (keysPressed.current.has('a') || keysPressed.current.has('arrowleft')) {
-          newRotation -= ROTATION_SPEED * deltaTime;
-        }
-        if (keysPressed.current.has('d') || keysPressed.current.has('arrowright')) {
-          newRotation += ROTATION_SPEED * deltaTime;
+        // Check interactions if position changed
+        if (newState.x !== prev.x || newState.y !== prev.y) {
+          handleCellInteraction(newState.x, newState.y);
         }
 
-        // Forward/backward movement in facing direction
-        if (keysPressed.current.has('w') || keysPressed.current.has('arrowup')) {
-          moveX += Math.sin(newRotation) * MOVE_SPEED * deltaTime;
-          moveY -= Math.cos(newRotation) * MOVE_SPEED * deltaTime;
-        }
-        if (keysPressed.current.has('s') || keysPressed.current.has('arrowdown')) {
-          moveX -= Math.sin(newRotation) * MOVE_SPEED * deltaTime;
-          moveY += Math.cos(newRotation) * MOVE_SPEED * deltaTime;
-        }
-
-        // Try to move
-        let newX = prev.x + moveX;
-        let newY = prev.y + moveY;
-
-        // Wall sliding: try X and Y separately if combined fails
-        if (checkCollision(newX, newY)) {
-          // Try just X
-          if (!checkCollision(prev.x + moveX, prev.y)) {
-            newX = prev.x + moveX;
-            newY = prev.y;
-          }
-          // Try just Y
-          else if (!checkCollision(prev.x, prev.y + moveY)) {
-            newX = prev.x;
-            newY = prev.y + moveY;
-          }
-          // Can't move
-          else {
-            newX = prev.x;
-            newY = prev.y;
-          }
-        }
-
-        // Check cell interactions at new position
-        if (newX !== prev.x || newY !== prev.y) {
-          checkCell(newX, newY);
-        }
-
-        return { x: newX, y: newY, rotation: newRotation };
+        return newState;
       });
 
       animationFrameRef.current = requestAnimationFrame(gameLoop);
@@ -252,7 +157,7 @@ export const MazeGame3D = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPreviewing, gameOver, showMiniMap, checkCollision, checkCell]);
+  }, [isPreviewing, gameOver, showMiniMap, maze, speedBoostActive, handleCellInteraction]);
 
   // Keyboard controls
   useEffect(() => {
@@ -272,9 +177,8 @@ export const MazeGame3D = ({
     };
   }, []);
 
-  // Mobile controls - now for rotation and forward/back
+  // Mobile controls
   const handleMobileMove = useCallback((direction: 'forward' | 'back' | 'left' | 'right') => {
-    // Simulate key press briefly for mobile
     const keyMap = {
       forward: 'w',
       back: 's',
@@ -286,49 +190,23 @@ export const MazeGame3D = ({
     setTimeout(() => keysPressed.current.delete(key), 100);
   }, []);
 
-  // Use ability
+  // Use ability - wraps pure executeAbility
   const useAbility = () => {
     if (abilityUsed || gameOver) return;
-    setAbilityUsed(true);
 
-    if (animalType === 'pig') {
-      // Pig: reveal nearby power-ups for a few seconds (show minimap)
-      setShowMiniMap(true);
-    } else if (animalType === 'cow') {
-      // Cow: show full map
-      setShowMiniMap(true);
-    } else if (animalType === 'bird') {
-      // Bird: fly over one wall in the direction player is facing
-      setPlayerState((prev) => {
-        const forwardX = Math.sin(prev.rotation);
-        const forwardY = -Math.cos(prev.rotation);
-        
-        // Check one unit ahead (wall) and two units ahead (landing)
-        const wallX = Math.floor(prev.x + forwardX);
-        const wallY = Math.floor(prev.y + forwardY);
-        const beyondX = prev.x + forwardX * 2;
-        const beyondY = prev.y + forwardY * 2;
-        const beyondGridX = Math.floor(beyondX);
-        const beyondGridY = Math.floor(beyondY);
+    const result = executeAbility(animalType, maze, playerState);
 
-        // Check if there's a wall ahead and a path beyond
-        if (
-          wallY >= 0 &&
-          wallY < maze.grid.length &&
-          wallX >= 0 &&
-          wallX < maze.grid[0].length &&
-          maze.grid[wallY][wallX].isWall &&
-          beyondGridY >= 0 &&
-          beyondGridY < maze.grid.length &&
-          beyondGridX >= 0 &&
-          beyondGridX < maze.grid[0].length &&
-          !maze.grid[beyondGridY][beyondGridX].isWall
-        ) {
-          checkCell(beyondX, beyondY);
-          return { ...prev, x: beyondX, y: beyondY };
-        }
-        return prev;
-      });
+    if (result.success) {
+      setAbilityUsed(true);
+
+      if (result.newPlayerState) {
+        setPlayerState(result.newPlayerState);
+        handleCellInteraction(result.newPlayerState.x, result.newPlayerState.y);
+      }
+
+      if (result.showMap) {
+        setShowMiniMap(true);
+      }
     }
   };
 
@@ -357,7 +235,7 @@ export const MazeGame3D = ({
           {hasWon && (
             <div className="space-y-2">
               <p className="text-xl text-muted-foreground">
-                Score: <span className="font-bold text-primary">{Math.round(timeLeft * 100)}</span> points
+                Score: <span className="font-bold text-primary">{calculateScore(timeLeft)}</span> points
               </p>
               <p className="text-muted-foreground">
                 {animal.emoji} {animal.name} is proud of you!
@@ -381,9 +259,6 @@ export const MazeGame3D = ({
       </div>
     );
   }
-
-  // Convert playerState to the format expected by child components
-  const playerPos = { x: playerState.x - 0.5, y: playerState.y - 0.5 };
 
   return (
     <div className="fixed inset-0 bg-sky">
