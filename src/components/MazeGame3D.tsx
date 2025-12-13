@@ -228,7 +228,7 @@ export const MazeGame3D = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-sky">
+    <div className="fixed inset-0 bg-black">
       {/* 3D Scene - movement handled in useFrame for sync with rendering */}
       <Maze3DCanvas
         maze={maze}
