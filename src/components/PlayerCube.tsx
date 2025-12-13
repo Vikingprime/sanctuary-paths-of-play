@@ -127,9 +127,9 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
     
     // Bobbing for non-cow animals (cow has its own animation)
     if (innerGroupRef.current && animalType !== 'cow') {
-      bobOffset.current += delta * 3;
+      // Use elapsed time directly for consistent bobbing (avoids floating-point accumulation issues)
       const baseHeight = 0.15;
-      innerGroupRef.current.position.y = baseHeight + Math.sin(bobOffset.current) * 0.03;
+      innerGroupRef.current.position.y = baseHeight + Math.sin(state.clock.elapsedTime * 3) * 0.03;
     }
   });
 

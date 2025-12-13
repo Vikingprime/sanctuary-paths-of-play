@@ -531,6 +531,7 @@ const RefBasedPlayer = ({
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef(0);
+  const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   
   useFrame((state, delta) => {
     if (!groupRef.current) return;
@@ -556,8 +557,11 @@ const RefBasedPlayer = ({
       const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks);
       playerStateRef.current = newState;
       
-      // Check interactions if position changed
-      if (newState.x !== prev.x || newState.y !== prev.y) {
+      // Only check interactions when entering a new cell (avoids per-frame React calls)
+      const currentCellX = Math.floor(newState.x);
+      const currentCellY = Math.floor(newState.y);
+      if (currentCellX !== lastCellRef.current.x || currentCellY !== lastCellRef.current.y) {
+        lastCellRef.current = { x: currentCellX, y: currentCellY };
         onCellInteraction(newState.x, newState.y);
       }
     }
