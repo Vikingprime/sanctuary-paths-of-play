@@ -51,12 +51,13 @@ const BOUNDARY_DEPTH = 2.5;
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
   const [group, setGroup] = useState<Group | null>(null);
-  const meshesCreatedRef = useRef(false);
+  const lastGroupRef = useRef<Group | null>(null);
   
   // Callback ref to capture the group when it's mounted
   const groupRefCallback = useCallback((node: Group | null) => {
-    if (node) {
-      console.log('[CornWall] Group ref captured');
+    if (node && node !== lastGroupRef.current) {
+      console.log('[CornWall] Group ref captured (new group)');
+      lastGroupRef.current = node;
       setGroup(node);
     }
   }, []);
@@ -138,14 +139,15 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
 
   // Create instanced meshes once when group is available
   useEffect(() => {
-    if (!group || stalkTransforms.length === 0 || meshesCreatedRef.current) return;
+    if (!group || stalkTransforms.length === 0) return;
+    
+    // Check if this group already has children (already populated)
+    if (group.children.length > 0) {
+      console.log('[CornWall] Group already has children, skipping');
+      return;
+    }
     
     console.log('[CornWall] Creating instanced meshes, transforms:', stalkTransforms.length);
-    
-    // Clear any existing children
-    while (group.children.length > 0) {
-      group.remove(group.children[0]);
-    }
     
     scene.traverse((child) => {
       if ((child as Mesh).isMesh) {
@@ -173,7 +175,6 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
       }
     });
     
-    meshesCreatedRef.current = true;
     console.log('[CornWall] Total children in group:', group.children.length);
   }, [group, scene, stalkTransforms]);
 
