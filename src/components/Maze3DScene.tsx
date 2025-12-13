@@ -482,11 +482,11 @@ const OverShoulderCameraController = ({
   const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
   
-  // Camera settings - balanced for visibility and no wall clipping
-  const CAMERA_DISTANCE = 1.4;
-  const CAMERA_HEIGHT = 1.6;
-  const LOOK_AHEAD = 2.5;
-  const LOOK_HEIGHT = 0.4;
+  // Camera settings - show animal clearly from behind
+  const CAMERA_DISTANCE = 2.0;
+  const CAMERA_HEIGHT = 2.4;
+  const LOOK_AHEAD = 1.5;
+  const LOOK_HEIGHT = 0.5;
   const POSITION_SMOOTHING = 0.15;
   const ROTATION_SMOOTHING = 0.12;
   

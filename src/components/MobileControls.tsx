@@ -115,7 +115,7 @@ export const MobileControls = ({ onMove }: MobileControlsProps) => {
   }, [handleEnd]);
 
   return (
-    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40 md:hidden">
+    <div className="absolute bottom-6 left-6 z-40 md:hidden">
       <div
         ref={joystickRef}
         className="relative rounded-full bg-secondary/40 backdrop-blur-sm border-2 border-secondary/60"
