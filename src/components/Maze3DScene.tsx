@@ -336,12 +336,12 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
         const pathDown = y < mazeHeight - 1 && !maze.grid[y+1][x].isWall;
         const pathUp = y > 0 && !maze.grid[y-1][x].isWall;
         
-        // Place grass at wall edge facing path (inside wall cell)
+        // Place grass at wall edge facing path - offset deeper into wall cell
         if (pathRight) {
           for (let i = 0; i < 2; i++) {
             if (seededRandom(seed + i * 100) < 0.4) {
               positions.push({
-                x: x + 0.85 + seededRandom(seed + i * 100 + 1) * 0.12, // Right edge of wall
+                x: x + 0.6 + seededRandom(seed + i * 100 + 1) * 0.25, // Deeper into wall
                 z: y + 0.15 + seededRandom(seed + i * 100 + 2) * 0.7,
                 scale: 0.10 + seededRandom(seed + i * 100 + 3) * 0.06,
                 rotation: seededRandom(seed + i * 100 + 4) * Math.PI * 2,
@@ -354,7 +354,7 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
           for (let i = 0; i < 2; i++) {
             if (seededRandom(seed + 200 + i * 100) < 0.4) {
               positions.push({
-                x: x + 0.03 + seededRandom(seed + 200 + i * 100 + 1) * 0.12, // Left edge of wall
+                x: x + 0.15 + seededRandom(seed + 200 + i * 100 + 1) * 0.25, // Deeper into wall
                 z: y + 0.15 + seededRandom(seed + 200 + i * 100 + 2) * 0.7,
                 scale: 0.10 + seededRandom(seed + 200 + i * 100 + 3) * 0.06,
                 rotation: seededRandom(seed + 200 + i * 100 + 4) * Math.PI * 2,
@@ -368,7 +368,7 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
             if (seededRandom(seed + 400 + i * 100) < 0.4) {
               positions.push({
                 x: x + 0.15 + seededRandom(seed + 400 + i * 100 + 1) * 0.7,
-                z: y + 0.85 + seededRandom(seed + 400 + i * 100 + 2) * 0.12, // Bottom edge of wall
+                z: y + 0.6 + seededRandom(seed + 400 + i * 100 + 2) * 0.25, // Deeper into wall
                 scale: 0.10 + seededRandom(seed + 400 + i * 100 + 3) * 0.06,
                 rotation: seededRandom(seed + 400 + i * 100 + 4) * Math.PI * 2,
                 type: seededRandom(seed + 400 + i * 100 + 5) > 0.5 ? 1 : 2,
@@ -381,7 +381,7 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
             if (seededRandom(seed + 600 + i * 100) < 0.4) {
               positions.push({
                 x: x + 0.15 + seededRandom(seed + 600 + i * 100 + 1) * 0.7,
-                z: y + 0.03 + seededRandom(seed + 600 + i * 100 + 2) * 0.12, // Top edge of wall
+                z: y + 0.15 + seededRandom(seed + 600 + i * 100 + 2) * 0.25, // Deeper into wall
                 scale: 0.10 + seededRandom(seed + 600 + i * 100 + 3) * 0.06,
                 rotation: seededRandom(seed + 600 + i * 100 + 4) * Math.PI * 2,
                 type: seededRandom(seed + 600 + i * 100 + 5) > 0.5 ? 1 : 2,
