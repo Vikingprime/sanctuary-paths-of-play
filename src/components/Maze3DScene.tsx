@@ -548,15 +548,15 @@ const RefBasedPlayer = ({
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef(0);
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
-  const accumulatedTime = useRef(0);
-  const FIXED_TIMESTEP = 1 / 60; // Fixed 60fps physics
-  const MAX_ACCUMULATED = 0.05; // Cap to prevent spiral of death
   
   useFrame((state, delta) => {
     if (!groupRef.current) return;
     
-    // Handle movement with fixed timestep (prevents jitter from variable frame rates)
+    // Handle movement - use clamped delta for smooth per-frame updates
     if (!isPaused) {
+      // Clamp delta to prevent large jumps on frame drops
+      const clampedDelta = Math.min(delta, 0.05);
+      
       // Build input from pressed keys
       const input: MovementInput = {
         forward: keysPressed.current.has('w') || keysPressed.current.has('arrowup'),
@@ -568,37 +568,31 @@ const RefBasedPlayer = ({
       // Update isMoving ref
       isMovingRef.current = input.forward || input.backward;
       
-      // Accumulate time and process in fixed steps
-      accumulatedTime.current += Math.min(delta, MAX_ACCUMULATED);
-      
-      // Process physics in fixed timesteps
-      while (accumulatedTime.current >= FIXED_TIMESTEP) {
-        const prev = playerStateRef.current;
-        const newState = calculateMovement(maze, prev, input, FIXED_TIMESTEP, speedBoostActive, rocks);
-        playerStateRef.current = newState;
-        accumulatedTime.current -= FIXED_TIMESTEP;
-      }
+      // Calculate movement with clamped delta (smooth per-frame updates)
+      const prev = playerStateRef.current;
+      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks);
+      playerStateRef.current = newState;
       
       // Only check interactions when entering a new cell
-      const currentCellX = Math.floor(playerStateRef.current.x);
-      const currentCellY = Math.floor(playerStateRef.current.y);
+      const currentCellX = Math.floor(newState.x);
+      const currentCellY = Math.floor(newState.y);
       if (currentCellX !== lastCellRef.current.x || currentCellY !== lastCellRef.current.y) {
         lastCellRef.current = { x: currentCellX, y: currentCellY };
-        onCellInteraction(playerStateRef.current.x, playerStateRef.current.y);
+        onCellInteraction(newState.x, newState.y);
       }
     }
     
-    // Update position directly (no interpolation - fixed timestep is consistent enough)
+    // Update position directly every frame
     groupRef.current.position.x = playerStateRef.current.x;
     groupRef.current.position.z = playerStateRef.current.y;
     
-    // Smooth rotation
+    // Smooth rotation with fixed lerp factor (not delta-dependent)
     const targetRotation = -playerStateRef.current.rotation + Math.PI;
     let rotDiff = targetRotation - smoothRotation.current;
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
     
-    // Consistent lerp factor
+    // Fixed lerp factor for consistent rotation smoothing
     smoothRotation.current += rotDiff * 0.15;
     
     // Normalize rotation
