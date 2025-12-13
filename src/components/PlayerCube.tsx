@@ -30,7 +30,9 @@ export const PlayerCube = ({ animalType, position, rotation = 0 }: PlayerCubePro
   useFrame((state, delta) => {
     if (innerGroupRef.current) {
       bobOffset.current += delta * 3;
-      innerGroupRef.current.position.y = 0.4 + Math.sin(bobOffset.current) * 0.05;
+      // Keep pig higher off ground since model origin may be at feet
+      const baseHeight = animalType === 'pig' ? 0 : 0.4;
+      innerGroupRef.current.position.y = baseHeight + Math.sin(bobOffset.current) * 0.05;
     }
   });
 
@@ -41,8 +43,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0 }: PlayerCubePro
   if (animalType === 'pig') {
     return (
       <group position={position} rotation={[0, visualRotation, 0]}>
-        <group ref={innerGroupRef}>
-          <primitive object={clonedPigScene} scale={[0.5, 0.5, 0.5]} />
+        <group ref={innerGroupRef} position={[0, 0, 0]}>
+          <primitive object={clonedPigScene} scale={[1, 1, 1]} position={[0, 0, 0]} />
         </group>
       </group>
     );
