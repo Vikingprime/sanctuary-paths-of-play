@@ -280,7 +280,7 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
       const seed = Math.floor(rock.x * 1000 + rock.z);
       const rotation = seededRandom(seed + 4) * Math.PI * 2;
       
-      tempObject.position.set(rock.x, scale * 0.3, rock.z);
+      tempObject.position.set(rock.x, scale * 0.1, rock.z); // Sink rocks deeper into ground
       tempObject.rotation.set(0, rotation, 0);
       tempObject.scale.set(scale * 1.2, scale * 0.6, scale);
       tempObject.updateMatrix();
@@ -573,7 +573,7 @@ const RefBasedPlayer = ({
       
       // Calculate movement with clamped delta (smooth per-frame updates)
       const prev = playerStateRef.current;
-      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks);
+      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, []); // No rock collision
       playerStateRef.current = newState;
       
       // Only check interactions when entering a new cell
