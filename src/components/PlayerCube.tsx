@@ -85,6 +85,10 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
       // Only trigger animation change when state changes
       if (isMoving !== wasMovingRef.current) {
         if (isMoving) {
+          // Reset and enable the action before fading in
+          gallopActionRef.current.enabled = true;
+          gallopActionRef.current.setEffectiveTimeScale(1);
+          gallopActionRef.current.setEffectiveWeight(1);
           gallopActionRef.current.fadeIn(0.2).play();
         } else {
           gallopActionRef.current.fadeOut(0.3);
