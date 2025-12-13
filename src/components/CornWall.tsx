@@ -25,11 +25,6 @@ const cornFragmentShader = `
   varying vec2 vUv;
   varying vec3 vPosition;
   
-  // Pseudo-random function using world position for stability
-  float random(vec2 st) {
-    return fract(sin(dot(floor(st * 20.0), vec2(12.9898, 78.233))) * 43758.5453123);
-  }
-  
   void main() {
     // Base corn colors - dark green to golden yellow
     vec3 darkGreen = vec3(0.15, 0.35, 0.1);
@@ -37,30 +32,30 @@ const cornFragmentShader = `
     vec3 golden = vec3(0.6, 0.5, 0.2);
     vec3 brown = vec3(0.3, 0.2, 0.1);
     
-    // Vertical stalks pattern - use floor to prevent sub-pixel jitter
-    float stalkPattern = sin(floor(vUv.x * 40.0) / 40.0 * 40.0) * 0.5 + 0.5;
+    // Vertical stalks pattern - stable sine wave
+    float stalkX = vUv.x * 40.0;
+    float stalkPattern = sin(stalkX) * 0.5 + 0.5;
     stalkPattern = pow(stalkPattern, 0.3);
     
-    // Height-based color variation (darker at bottom, lighter/golden at top)
+    // Secondary stalk detail
+    float detailPattern = sin(stalkX * 2.0 + 1.0) * 0.5 + 0.5;
+    stalkPattern = mix(stalkPattern, detailPattern, 0.2);
+    
+    // Height-based color variation
     float heightFactor = vUv.y;
     
     // Mix green shades based on stalk pattern
     vec3 greenMix = mix(darkGreen, lightGreen, stalkPattern * 0.7);
     
-    // Add golden tint at the top (like corn tassels)
+    // Add golden tint at the top (corn tassels)
     vec3 topColor = mix(greenMix, golden, smoothstep(0.7, 1.0, heightFactor) * 0.5);
     
-    // Add brown at the very bottom (soil/base of stalks)
+    // Add brown at the bottom (base of stalks)
     vec3 finalColor = mix(brown, topColor, smoothstep(0.0, 0.15, heightFactor));
     
-    // Add subtle random variation - use world position for stable noise
-    vec2 stableCoord = vec2(vPosition.x + vPosition.z, vPosition.y);
-    float noise = random(stableCoord) * 0.06;
-    finalColor += vec3(noise * 0.5, noise, noise * 0.3);
-    
-    // Subtle vertical lines for individual stalk texture
-    float lines = sin(floor(vUv.x * 80.0) / 80.0 * 80.0) * 0.02;
-    finalColor += vec3(lines);
+    // Subtle horizontal banding for leaf texture (stable)
+    float leafBands = sin(vUv.y * 60.0) * 0.015;
+    finalColor += vec3(leafBands * 0.5, leafBands, leafBands * 0.3);
     
     gl_FragColor = vec4(finalColor, 1.0);
   }
