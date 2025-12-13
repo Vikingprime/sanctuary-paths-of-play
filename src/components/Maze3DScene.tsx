@@ -280,14 +280,14 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
     };
     
     rocks.forEach((rock, i) => {
-      const scale = rock.radius * 1.5; // Smaller rocks
+      const scale = rock.radius * 0.8; // Much smaller rocks
       const seed = Math.floor(rock.x * 1000 + rock.z);
       const rotation = seededRandom(seed + 4) * Math.PI * 2;
       
-      // Sink rocks deep into ground so only tops show
-      tempObject.position.set(rock.x, -scale * 0.2, rock.z);
+      // Sink rocks very deep - only tiny tips visible
+      tempObject.position.set(rock.x, -scale * 0.5, rock.z);
       tempObject.rotation.set(0, rotation, 0);
-      tempObject.scale.set(scale * 1.0, scale * 0.4, scale * 0.8);
+      tempObject.scale.set(scale * 0.6, scale * 0.2, scale * 0.5);
       tempObject.updateMatrix();
       meshRef.current!.setMatrixAt(i, tempObject.matrix);
     });
