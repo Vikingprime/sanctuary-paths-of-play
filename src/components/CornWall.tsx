@@ -1,5 +1,5 @@
-import { useRef, useMemo, useEffect, useState, useCallback } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4 } from 'three';
+import { useRef, useMemo, useEffect } from 'react';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BoxGeometry, MeshStandardMaterial } from 'three';
 import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
@@ -48,23 +48,17 @@ const BOUNDARY_STALKS_PER_ROW = 6;
 const BOUNDARY_SPACING = 0.25;
 const BOUNDARY_DEPTH = 2.5;
 
+// Debug: Simple box-based instanced walls to verify rendering works
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
-  const { scene } = useGLTF('/models/Corn.glb');
   const groupRef = useRef<Group>(null);
-  const meshesCreatedRef = useRef(false);
-  
-  // Stringify positions for stable dependency
-  const positionsKey = useMemo(() => 
-    JSON.stringify(positions) + JSON.stringify(boundaryPositions),
-    [positions, boundaryPositions]
-  );
+  const createdRef = useRef(false);
   
   // Generate all stalk transforms
   const stalkTransforms = useMemo(() => {
     const transforms: Matrix4[] = [];
     const dummy = new Object3D();
     
-    // Regular interior walls
+    // Regular interior walls - simplified: just one stalk per wall for debugging
     positions.forEach((wallPos) => {
       const baseSeed = wallPos.x * 1000 + wallPos.z;
       for (let row = 0; row < ROWS; row++) {
@@ -80,11 +74,11 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           
           dummy.position.set(
             wallPos.x + 0.5 + offsetX + jitterX,
-            0,
+            height / 2, // Center the box vertically
             wallPos.z + 0.5 + offsetZ + jitterZ
           );
           dummy.rotation.set(0, rotation, 0);
-          dummy.scale.set(size[0], height, size[2]);
+          dummy.scale.set(0.1, height, 0.1);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
         }
@@ -121,9 +115,9 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             posZ += dirZ * depthOffset;
           }
           
-          dummy.position.set(posX, 0, posZ);
+          dummy.position.set(posX, height / 2, posZ);
           dummy.rotation.set(0, rotation, 0);
-          dummy.scale.set(size[0], height, size[2]);
+          dummy.scale.set(0.1, height, 0.1);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
         }
@@ -131,54 +125,42 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     });
     
     return transforms;
-  }, [positionsKey, size]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positions.length, boundaryPositions.length]);
 
-  // Create instanced meshes imperatively - run only once
   useEffect(() => {
     const group = groupRef.current;
-    if (!group || stalkTransforms.length === 0 || meshesCreatedRef.current) return;
+    if (!group || stalkTransforms.length === 0 || createdRef.current) return;
     
-    meshesCreatedRef.current = true;
-    console.log('[CornWall] Creating instanced meshes once, transforms:', stalkTransforms.length);
+    createdRef.current = true;
     
-    scene.traverse((child) => {
-      if ((child as Mesh).isMesh) {
-        const originalMesh = child as Mesh;
-        
-        const instancedMesh = new ThreeInstancedMesh(
-          originalMesh.geometry.clone(),
-          originalMesh.material,
-          stalkTransforms.length
-        );
-        
-        // Apply all transforms
-        stalkTransforms.forEach((matrix, i) => {
-          instancedMesh.setMatrixAt(i, matrix);
-        });
-        
-        instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = true;
-        instancedMesh.receiveShadow = true;
-        instancedMesh.frustumCulled = false;
-        
-        group.add(instancedMesh);
-      }
+    // Create a simple box-based instanced mesh for debugging
+    const geometry = new BoxGeometry(1, 1, 1);
+    const material = new MeshStandardMaterial({ color: 0x228B22 }); // Forest green
+    
+    const instancedMesh = new ThreeInstancedMesh(geometry, material, stalkTransforms.length);
+    
+    stalkTransforms.forEach((matrix, i) => {
+      instancedMesh.setMatrixAt(i, matrix);
     });
     
-    console.log('[CornWall] Total children added:', group.children.length);
+    instancedMesh.instanceMatrix.needsUpdate = true;
+    instancedMesh.castShadow = true;
+    instancedMesh.receiveShadow = true;
+    
+    group.add(instancedMesh);
+    console.log('[CornWall] DEBUG: Added simple box instanced mesh with', stalkTransforms.length, 'instances');
     
     return () => {
-      // Cleanup on unmount
-      while (group.children.length > 0) {
-        const child = group.children[0];
-        group.remove(child);
-        if ((child as ThreeInstancedMesh).dispose) {
-          (child as ThreeInstancedMesh).dispose();
-        }
+      if (group.children.length > 0) {
+        group.remove(instancedMesh);
+        geometry.dispose();
+        material.dispose();
+        instancedMesh.dispose();
       }
-      meshesCreatedRef.current = false;
+      createdRef.current = false;
     };
-  }, [scene, stalkTransforms]);
+  }, [stalkTransforms]);
 
   if (stalkTransforms.length === 0) return null;
 
