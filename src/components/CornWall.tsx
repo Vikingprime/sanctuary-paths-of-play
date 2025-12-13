@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Euler } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler } from 'three';
 import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
@@ -108,8 +108,8 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
           const height = MIN_HEIGHT + seededRandom(stalkSeed + 3) * (MAX_HEIGHT - MIN_HEIGHT);
           
-          // GLTF corn model - smaller scale, proper upright rotation
-          const baseScale = 40; // Reduced scale
+          // GLTF corn model - proper upright rotation using quaternion
+          const baseScale = 40;
           const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
           const finalScale = baseScale * heightVariation;
           
@@ -118,9 +118,10 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             0,
             wallPos.z + 0.5 + offsetZ + jitterZ
           );
-          // Set rotation with proper order: first stand upright (X), then rotate around Y
-          dummy.rotation.set(0, rotation, 0);
-          dummy.rotateX(-Math.PI / 2); // Rotate on local X axis after setting Y rotation
+          // Reset rotation, then apply: first stand upright, then random Y rotation
+          const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
+          const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
+          dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
           dummy.scale.set(finalScale, finalScale, finalScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
@@ -162,8 +163,9 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
           const finalScale = baseScale * heightVariation;
           dummy.position.set(posX, 0, posZ);
-          dummy.rotation.set(0, rotation, 0);
-          dummy.rotateX(-Math.PI / 2);
+          const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
+          const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
+          dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
           dummy.scale.set(finalScale, finalScale, finalScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
