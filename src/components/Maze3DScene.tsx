@@ -23,7 +23,7 @@ interface Maze3DSceneProps {
   onSceneReady?: () => void;
 }
 
-// Ground made of tiled Fertile_soil models
+// Ground made of tiled Fertile_soil models with a base plane underneath
 const Ground = ({ width, height }: { width: number; height: number }) => {
   const { scene } = useGLTF('/models/Fertile_soil.glb');
   
@@ -41,6 +41,12 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
   
   return (
     <group>
+      {/* Base dirt plane underneath to fill gaps */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, -0.05, height / 2]}>
+        <planeGeometry args={[width + 10, height + 10]} />
+        <meshStandardMaterial color="#8B5A2B" roughness={1} />
+      </mesh>
+      {/* Soil tiles on top */}
       {tiles.map((tile, i) => (
         <primitive
           key={`soil-tile-${i}`}
