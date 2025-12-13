@@ -90,6 +90,7 @@ export interface RockPosition {
 
 /**
  * Generate rock positions for a maze (deterministic based on maze layout)
+ * Rocks are placed near wall edges, not in path centers, and spaced apart
  */
 export function generateRockPositions(maze: Maze): RockPosition[] {
   const rocks: RockPosition[] = [];
@@ -100,19 +101,62 @@ export function generateRockPositions(maze: Maze): RockPosition[] {
   
   const mazeWidth = maze.grid[0].length;
   const mazeHeight = maze.grid.length;
+  const MIN_ROCK_DISTANCE = 1.5; // Minimum distance between rocks
+  
+  // Helper to check if a position is too close to existing rocks
+  const isTooClose = (rx: number, rz: number): boolean => {
+    for (const rock of rocks) {
+      const dx = rx - rock.x;
+      const dz = rz - rock.z;
+      if (Math.sqrt(dx * dx + dz * dz) < MIN_ROCK_DISTANCE) {
+        return true;
+      }
+    }
+    return false;
+  };
   
   for (let y = 1; y < mazeHeight - 1; y++) {
     for (let x = 1; x < mazeWidth - 1; x++) {
-      if (!maze.grid[y][x].isWall) {
-        const seed = x * 1000 + y;
-        if (seededRandom(seed) > 0.85) { // 15% chance - matches visual
-          const scale = 0.08 + seededRandom(seed + 3) * 0.12;
-          rocks.push({
-            x: x + 0.5 + (seededRandom(seed + 1) - 0.5) * 0.6,
-            z: y + 0.5 + (seededRandom(seed + 2) - 0.5) * 0.6,
-            radius: scale * 0.5, // Collision radius based on visual scale
-          });
+      if (maze.grid[y][x].isWall) continue;
+      
+      const seed = x * 1000 + y;
+      if (seededRandom(seed) > 0.88) { // 12% chance
+        // Check which walls are adjacent to position rock near edge
+        const wallLeft = x > 0 && maze.grid[y][x-1].isWall;
+        const wallRight = x < mazeWidth - 1 && maze.grid[y][x+1].isWall;
+        const wallUp = y > 0 && maze.grid[y-1][x].isWall;
+        const wallDown = y < mazeHeight - 1 && maze.grid[y+1][x].isWall;
+        
+        // Only place rocks next to walls (at path edges)
+        if (!wallLeft && !wallRight && !wallUp && !wallDown) continue;
+        
+        // Position rock near the wall edge
+        let rx = x + 0.5;
+        let rz = y + 0.5;
+        
+        if (wallLeft) {
+          rx = x + 0.15 + seededRandom(seed + 1) * 0.2;
+          rz = y + 0.2 + seededRandom(seed + 2) * 0.6;
+        } else if (wallRight) {
+          rx = x + 0.65 + seededRandom(seed + 1) * 0.2;
+          rz = y + 0.2 + seededRandom(seed + 2) * 0.6;
+        } else if (wallUp) {
+          rx = x + 0.2 + seededRandom(seed + 1) * 0.6;
+          rz = y + 0.15 + seededRandom(seed + 2) * 0.2;
+        } else if (wallDown) {
+          rx = x + 0.2 + seededRandom(seed + 1) * 0.6;
+          rz = y + 0.65 + seededRandom(seed + 2) * 0.2;
         }
+        
+        // Skip if too close to another rock
+        if (isTooClose(rx, rz)) continue;
+        
+        const scale = 0.08 + seededRandom(seed + 3) * 0.10;
+        rocks.push({
+          x: rx,
+          z: rz,
+          radius: scale * 0.4, // Slightly smaller collision radius
+        });
       }
     }
   }
