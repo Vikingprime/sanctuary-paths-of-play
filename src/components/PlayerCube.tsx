@@ -28,19 +28,22 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
   const lastPosition = useRef<[number, number, number]>([0, 0, 0]);
+  const lastRotation = useRef<number>(0);
   const renderCount = useRef(0);
   
-  // Debug: Log when position changes significantly
+  // Debug: Log when position or rotation changes
   useEffect(() => {
     renderCount.current++;
     const [x, y, z] = position;
     const [lx, ly, lz] = lastPosition.current;
     const moved = Math.abs(x - lx) > 0.001 || Math.abs(y - ly) > 0.001 || Math.abs(z - lz) > 0.001;
+    const rotated = Math.abs(rotation - lastRotation.current) > 0.001;
     
-    if (moved) {
-      console.log('PlayerCube render #', renderCount.current, 'pos:', position, 'rot:', rotation.toFixed(3));
+    if (moved || rotated) {
+      console.log('PlayerCube #', renderCount.current, 'pos:', [x.toFixed(2), y.toFixed(2), z.toFixed(2)], 'rot:', rotation.toFixed(3), moved ? 'MOVED' : '', rotated ? 'ROTATED' : '');
     }
     lastPosition.current = position;
+    lastRotation.current = rotation;
   });
   
   // Load models
