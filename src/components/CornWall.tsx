@@ -1,5 +1,5 @@
-import { useRef, useMemo } from 'react';
-import { Group, MeshStandardMaterial, Color, Mesh } from 'three';
+import { useRef, useMemo, useEffect } from 'react';
+import { Group, Object3D, InstancedMesh, Mesh, BufferGeometry, Material, MeshStandardMaterial } from 'three';
 import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
@@ -9,13 +9,6 @@ interface CornWallProps {
 
 // Preload models
 useGLTF.preload('/models/Corn.glb');
-
-// Dark green material for boundary blocks
-const boundaryMaterial = new MeshStandardMaterial({
-  color: new Color(0.08, 0.15, 0.05),
-  roughness: 1,
-  metalness: 0,
-});
 
 // Seeded random for stable randomness - avoids jitter from regenerating random values
 const seededRandom = (seed: number): number => {
@@ -38,7 +31,7 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
 // Optimized instanced walls using the corn model
 interface InstancedWallsProps {
   positions: { x: number; z: number }[];
-  boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[]; // Outer boundary walls with offset
+  boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
   size?: [number, number, number];
 }
 
@@ -53,20 +46,40 @@ const MAX_HEIGHT = 3.0;
 const BOUNDARY_ROWS = 8;
 const BOUNDARY_STALKS_PER_ROW = 6;
 const BOUNDARY_SPACING = 0.25;
-const BOUNDARY_DEPTH = 2.5; // How far the corn extends outward (increased to hide blocks)
+const BOUNDARY_DEPTH = 2.5;
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
-  const groupRef = useRef<Group>(null);
+  const instancedMeshRef = useRef<InstancedMesh>(null);
+  
+  // Extract geometry and material from the loaded model once
+  const { geometry, material } = useMemo(() => {
+    let geo: BufferGeometry | null = null;
+    let mat: Material | null = null;
+    
+    scene.traverse((child) => {
+      if ((child as Mesh).isMesh && !geo) {
+        const mesh = child as Mesh;
+        geo = mesh.geometry.clone();
+        mat = mesh.material instanceof Array ? mesh.material[0] : mesh.material;
+      }
+    });
+    
+    // Fallback if no geometry found
+    if (!geo) {
+      console.warn('No geometry found in Corn.glb');
+    }
+    
+    return { geometry: geo, material: mat };
+  }, [scene]);
   
   // Generate stalk data for walls - using seeded random for stable positions
   const stalkData = useMemo(() => {
     const data: { pos: [number, number, number]; rotation: number; height: number }[] = [];
-    let seedCounter = 0;
     
     // Regular interior walls
     positions.forEach((wallPos) => {
-      const baseSeed = wallPos.x * 1000 + wallPos.z; // Unique seed per wall position
+      const baseSeed = wallPos.x * 1000 + wallPos.z;
       for (let row = 0; row < ROWS; row++) {
         const rowOffset = (row % 2) * (STALK_SPACING / 2);
         for (let col = 0; col < STALKS_PER_ROW; col++) {
@@ -83,21 +96,18 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             rotation,
             height
           });
-          seedCounter++;
         }
       }
     });
     
     // Boundary walls - multiple layers extending outward
     boundaryPositions.forEach((wallPos) => {
-      const baseSeed = wallPos.x * 1000 + wallPos.z + 50000; // Different seed space for boundaries
-      // Determine outward direction
+      const baseSeed = wallPos.x * 1000 + wallPos.z + 50000;
       const dirX = wallPos.offsetX !== 0 ? Math.sign(wallPos.offsetX) : 0;
       const dirZ = wallPos.offsetZ !== 0 ? Math.sign(wallPos.offsetZ) : 0;
       
       for (let row = 0; row < BOUNDARY_ROWS; row++) {
         const rowOffset = (row % 2) * (BOUNDARY_SPACING / 2);
-        // Extend corn outward in the offset direction
         const depthOffset = (row / (BOUNDARY_ROWS - 1)) * BOUNDARY_DEPTH;
         
         for (let col = 0; col < BOUNDARY_STALKS_PER_ROW; col++) {
@@ -109,16 +119,13 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
           const height = MIN_HEIGHT + seededRandom(stalkSeed + 3) * (MAX_HEIGHT - MIN_HEIGHT);
           
-          // Position corn: spread perpendicular to boundary, extend outward
           let posX = wallPos.x + 0.5 + jitterX;
           let posZ = wallPos.z + 0.5 + jitterZ;
           
           if (dirX !== 0) {
-            // Left/right boundary - spread in Z, extend in X
             posX += dirX * depthOffset;
             posZ += offsetZ;
           } else {
-            // Top/bottom boundary - spread in X, extend in Z
             posX += offsetX;
             posZ += dirZ * depthOffset;
           }
@@ -128,7 +135,6 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             rotation,
             height
           });
-          seedCounter++;
         }
       }
     });
@@ -136,35 +142,32 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     return data;
   }, [positions, boundaryPositions]);
 
-// Clone the scene for each stalk and enable shadows once
-  const clones = useMemo(() => {
-    return stalkData.map(() => {
-      const clone = scene.clone();
-      // Enable shadow casting once during creation
-      clone.traverse((child) => {
-        if ((child as Mesh).isMesh) {
-          child.castShadow = true;
-        }
-      });
-      return clone;
+  // Set up instances after mount - runs once when stalkData changes
+  useEffect(() => {
+    if (!instancedMeshRef.current || stalkData.length === 0) return;
+    
+    const tempObject = new Object3D();
+    
+    stalkData.forEach((stalk, i) => {
+      tempObject.position.set(stalk.pos[0], stalk.pos[1], stalk.pos[2]);
+      tempObject.rotation.set(0, stalk.rotation, 0);
+      tempObject.scale.set(size[0], stalk.height, size[2]);
+      tempObject.updateMatrix();
+      instancedMeshRef.current!.setMatrixAt(i, tempObject.matrix);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stalkData.length]);
+    
+    instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+  }, [stalkData, size]);
 
   if (positions.length === 0 && boundaryPositions.length === 0) return null;
+  if (!geometry || !material) return null;
 
-return (
-    <group ref={groupRef}>
-      {/* Corn stalks - shadows already enabled */}
-      {stalkData.map((stalk, i) => (
-        <primitive 
-          key={`corn-${i}`}
-          object={clones[i]} 
-          position={stalk.pos}
-          rotation={[0, stalk.rotation, 0]}
-          scale={[size[0], stalk.height, size[2]]}
-        />
-      ))}
-    </group>
+  return (
+    <instancedMesh
+      ref={instancedMeshRef}
+      args={[geometry, material, stalkData.length]}
+      castShadow
+      receiveShadow
+    />
   );
 };
