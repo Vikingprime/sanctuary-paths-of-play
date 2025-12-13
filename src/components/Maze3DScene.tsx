@@ -160,7 +160,7 @@ const RefBasedPlayer = ({
         animalType={animalType}
         position={[0, 0, 0]}
         rotation={0}
-        isMoving={isMovingRef.current}
+        isMovingRef={isMovingRef}
       />
     </group>
   );

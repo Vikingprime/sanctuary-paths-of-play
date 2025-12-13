@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Clone } from '@react-three/drei';
 import { AnimationMixer, LoopRepeat } from 'three';
@@ -9,7 +9,7 @@ interface PlayerCubeProps {
   animalType: AnimalType;
   position: [number, number, number];
   rotation?: number; // Y-axis rotation in radians
-  isMoving?: boolean; // Whether the player is currently moving
+  isMovingRef?: MutableRefObject<boolean>; // Ref for real-time movement state
 }
 
 // Preload models
@@ -23,7 +23,7 @@ const animalColors: Record<AnimalType, string | string[]> = {
   bird: '#FFD700', // Yellow/Gold
 };
 
-export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = false }: PlayerCubeProps) => {
+export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: PlayerCubeProps) => {
   const innerGroupRef = useRef<any>(null);
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
@@ -68,19 +68,24 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
     };
   }, [animalType, cowAnimations, clonedCowScene]);
   
-  // Control animation based on movement with smooth transitions
-  useEffect(() => {
+  // Track previous moving state to detect changes
+  const wasMovingRef = useRef(false);
+
+  // Animation frame update - bobbing + cow animation + movement state
+  useFrame((state, delta) => {
+    // Check movement state from ref each frame
+    const isMoving = isMovingRef?.current ?? false;
+    
+    // Handle gallop animation transitions when movement state changes
     if (gallopActionRef.current) {
-      if (isMoving) {
+      if (isMoving && !wasMovingRef.current) {
         gallopActionRef.current.reset().fadeIn(0.15).play();
-      } else {
+      } else if (!isMoving && wasMovingRef.current) {
         gallopActionRef.current.fadeOut(0.2);
       }
     }
-  }, [isMoving]);
-
-  // Animation frame update - bobbing + cow animation
-  useFrame((state, delta) => {
+    wasMovingRef.current = isMoving;
+    
     // Update cow animation mixer
     if (cowMixerRef.current && animalType === 'cow') {
       cowMixerRef.current.update(delta);
