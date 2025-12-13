@@ -1,7 +1,8 @@
 import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF, useAnimations } from '@react-three/drei';
-import { AnimationMixer } from 'three';
+import { useGLTF, Clone } from '@react-three/drei';
+import { AnimationMixer, LoopRepeat } from 'three';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
 
 interface PlayerCubeProps {
@@ -31,38 +32,29 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
   const { scene: cowScene, animations: cowAnimations } = useGLTF('/models/Cow.glb');
   
   const clonedPigScene = useMemo(() => pigScene.clone(), [pigScene]);
-  const clonedCowScene = useMemo(() => cowScene.clone(), [cowScene]);
+  
+  // Use SkeletonUtils.clone for skinned meshes (cow has bones/skeleton)
+  const clonedCowScene = useMemo(() => SkeletonUtils.clone(cowScene), [cowScene]);
   
   // Set up cow animation mixer
   const cowMixerRef = useRef<AnimationMixer | null>(null);
   const gallopActionRef = useRef<any>(null);
   
   useEffect(() => {
-    if (animalType === 'cow') {
-      console.log('Cow scene:', cowScene);
-      console.log('Cow scene children:', cowScene.children.length);
-      cowScene.traverse((child: any) => {
-        console.log('Cow child:', child.type, child.name, child.visible);
-      });
-    }
-    
-    if (animalType === 'cow' && cowAnimations.length > 0) {
-      console.log('Cow animations available:', cowAnimations.map(a => a.name));
-      
+    if (animalType === 'cow' && cowAnimations.length > 0 && clonedCowScene) {
       // Create mixer for the cloned scene
       cowMixerRef.current = new AnimationMixer(clonedCowScene);
       
-      // Find gallop animation (try common names)
+      // Find gallop animation
       const gallopAnim = cowAnimations.find(a => 
-        a.name.toLowerCase().includes('gallop') || 
-        a.name.toLowerCase().includes('run') ||
-        a.name.toLowerCase().includes('walk')
-      ) || cowAnimations[0]; // Fallback to first animation
+        a.name.toLowerCase() === 'gallop'
+      ) || cowAnimations.find(a => 
+        a.name.toLowerCase().includes('gallop')
+      ) || cowAnimations[0];
       
       if (gallopAnim) {
-        console.log('Using animation:', gallopAnim.name);
         gallopActionRef.current = cowMixerRef.current.clipAction(gallopAnim);
-        gallopActionRef.current.setLoop(2200); // LoopRepeat
+        gallopActionRef.current.setLoop(LoopRepeat, Infinity);
       }
     }
     
@@ -113,18 +105,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
     );
   }
 
-  // Cow uses GLB model with animation
+  // Cow uses GLB model with animation (SkeletonUtils.clone for proper skinned mesh cloning)
   if (animalType === 'cow') {
     return (
       <group position={position} rotation={[0, visualRotation, 0]}>
         <group ref={cowGroupRef} position={[0, 0.4, 0]}>
-          {/* Debug cube */}
-          <mesh>
-            <boxGeometry args={[0.4, 0.4, 0.4]} />
-            <meshStandardMaterial color="#f5f5f5" transparent opacity={0.5} />
-          </mesh>
-          {/* Try larger scale */}
-          <primitive object={clonedCowScene} scale={[2, 2, 2]} position={[0, 0, 0]} />
+          <primitive object={clonedCowScene} scale={[0.5, 0.5, 0.5]} position={[0, -0.3, 0]} />
         </group>
       </group>
     );
