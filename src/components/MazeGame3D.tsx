@@ -122,50 +122,7 @@ export const MazeGame3D = ({
     [maze, collectedPowerUps, timeLeft, onComplete]
   );
 
-  // Game loop - uses pure calculateMovement
-  useEffect(() => {
-    if (isPreviewing || gameOver || showMiniMap) return;
-
-    let lastTime = performance.now();
-
-    const gameLoop = (currentTime: number) => {
-      // Clamp delta time to prevent jumps from frame drops (max ~30fps equivalent)
-      const rawDelta = (currentTime - lastTime) / 1000;
-      const deltaTime = Math.min(rawDelta, 0.033);
-      lastTime = currentTime;
-
-      // Build input from pressed keys
-      const input: MovementInput = {
-        forward: keysPressed.current.has('w') || keysPressed.current.has('arrowup'),
-        backward: keysPressed.current.has('s') || keysPressed.current.has('arrowdown'),
-        rotateLeft: keysPressed.current.has('a') || keysPressed.current.has('arrowleft'),
-        rotateRight: keysPressed.current.has('d') || keysPressed.current.has('arrowright'),
-      };
-      
-      // Update isMoving ref (no re-render)
-      isMovingRef.current = input.forward || input.backward;
-
-      // Use pure game logic for movement - update ref directly
-      const prev = playerStateRef.current;
-      const newState = calculateMovement(maze, prev, input, deltaTime, speedBoostActive);
-      playerStateRef.current = newState;
-
-      // Check interactions if position changed
-      if (newState.x !== prev.x || newState.y !== prev.y) {
-        handleCellInteraction(newState.x, newState.y);
-      }
-
-      animationFrameRef.current = requestAnimationFrame(gameLoop);
-    };
-
-    animationFrameRef.current = requestAnimationFrame(gameLoop);
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [isPreviewing, gameOver, showMiniMap, maze, speedBoostActive, handleCellInteraction]);
+  // Movement is now handled in Maze3DScene's useFrame for sync with rendering
 
   // Keyboard controls
   useEffect(() => {
@@ -270,13 +227,17 @@ export const MazeGame3D = ({
 
   return (
     <div className="fixed inset-0 bg-sky">
-      {/* 3D Scene - pass ref for real-time updates */}
+      {/* 3D Scene - movement handled in useFrame for sync with rendering */}
       <Maze3DCanvas
         maze={maze}
         animalType={animalType}
         playerStateRef={playerStateRef}
         isMovingRef={isMovingRef}
         collectedPowerUps={collectedPowerUps}
+        keysPressed={keysPressed}
+        speedBoostActive={speedBoostActive}
+        onCellInteraction={handleCellInteraction}
+        isPaused={showMiniMap}
       />
 
       {/* HUD */}
