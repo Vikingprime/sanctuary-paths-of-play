@@ -64,7 +64,7 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
           object={tile.clone}
           position={[tile.x + 0.5, tile.layer * 0.01, tile.z + 0.5]}
           rotation={[0, tile.rotY, 0]}
-          scale={[1.6, 0.5, 1.6]}
+          scale={[2.5, 0.5, 2.5]}
         />
       ))}
     </group>
