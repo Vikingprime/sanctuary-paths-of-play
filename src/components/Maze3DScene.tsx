@@ -1,14 +1,11 @@
 import { useRef, useMemo, MutableRefObject } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PerspectiveCamera, useGLTF } from '@react-three/drei';
-import { Vector3 } from 'three';
+import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
+import { PerspectiveCamera } from '@react-three/drei';
+import { Vector3, ShaderMaterial, Color } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement } from '@/game/GameLogic';
-
-// Preload the soil model
-useGLTF.preload('/models/Fertile_soil.glb');
 
 interface Maze3DSceneProps {
   maze: Maze;
@@ -23,58 +20,112 @@ interface Maze3DSceneProps {
   onSceneReady?: () => void;
 }
 
-// Ground made of tiled Fertile_soil models with mirrored pattern for seamless edges
+// Procedural dirt ground shader - organic brown soil with variation
+const DirtGroundMaterial = () => {
+  const material = useMemo(() => {
+    return new ShaderMaterial({
+      uniforms: {
+        baseColor: { value: new Color('#8B5A3C') },      // Warm brown
+        darkColor: { value: new Color('#5C3D2E') },      // Dark brown for shadows
+        lightColor: { value: new Color('#A67C5B') },     // Light tan highlights
+        greenTint: { value: new Color('#4A5D3A') },      // Subtle grass tint for edges
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+        void main() {
+          vUv = uv;
+          vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 baseColor;
+        uniform vec3 darkColor;
+        uniform vec3 lightColor;
+        uniform vec3 greenTint;
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+        
+        // Noise functions for organic variation
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+        
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+        
+        float fbm(vec2 p) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          for (int i = 0; i < 4; i++) {
+            value += amplitude * noise(p);
+            p *= 2.0;
+            amplitude *= 0.5;
+          }
+          return value;
+        }
+        
+        void main() {
+          vec2 worldUV = vWorldPos.xz;
+          
+          // Multi-scale noise for organic texture
+          float largeNoise = fbm(worldUV * 0.5);
+          float medNoise = fbm(worldUV * 2.0);
+          float fineNoise = fbm(worldUV * 8.0);
+          
+          // Combine for base color variation
+          float variation = largeNoise * 0.4 + medNoise * 0.35 + fineNoise * 0.25;
+          
+          // Base dirt color with warm/cool variation
+          vec3 color = mix(darkColor, baseColor, variation * 0.8 + 0.3);
+          color = mix(color, lightColor, pow(medNoise, 2.0) * 0.4);
+          
+          // Add subtle green tint in patches (like sparse grass/moss)
+          float grassPatch = pow(noise(worldUV * 3.0), 3.0) * 0.3;
+          color = mix(color, greenTint, grassPatch);
+          
+          // Small pebbles/rocks (darker spots)
+          float pebbles = step(0.85, noise(worldUV * 15.0));
+          color = mix(color, darkColor * 0.7, pebbles * 0.5);
+          
+          // Light speckles (small stones)
+          float lightSpots = step(0.9, noise(worldUV * 20.0 + 100.0));
+          color = mix(color, lightColor * 1.1, lightSpots * 0.4);
+          
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `,
+    });
+  }, []);
+  
+  return <primitive object={material} attach="material" />;
+};
+
+// Simple procedural dirt ground
 const Ground = ({ width, height }: { width: number; height: number }) => {
-  const { scene } = useGLTF('/models/Fertile_soil.glb');
-  
-  // Generate grid of soil tiles with checkerboard mirroring (no scaling, natural size)
-  const tiles = useMemo(() => {
-    const result: { x: number; z: number; scaleX: number; scaleZ: number; clone: any }[] = [];
-    for (let x = -2; x < width + 2; x++) {
-      for (let z = -2; z < height + 2; z++) {
-        // Checkerboard mirror pattern: flip X on odd columns, flip Z on odd rows
-        const flipX = x % 2 !== 0;
-        const flipZ = z % 2 !== 0;
-        result.push({ 
-          x, 
-          z, 
-          scaleX: flipX ? -1 : 1,
-          scaleZ: flipZ ? -1 : 1,
-          clone: scene.clone() 
-        });
-      }
-    }
-    return result;
-  }, [width, height, scene]);
-  
-  // Ground plane dimensions to cover entire maze plus buffer
-  const planeWidth = width + 8;
-  const planeHeight = height + 8;
+  const planeWidth = width + 10;
+  const planeHeight = height + 10;
   const centerX = width / 2;
   const centerZ = height / 2;
   
   return (
-    <group>
-      {/* Solid brown plane to fill seams between tiles */}
-      <mesh 
-        rotation={[-Math.PI / 2, 0, 0]} 
-        position={[centerX, 0.01, centerZ]}
-        receiveShadow
-      >
-        <planeGeometry args={[planeWidth, planeHeight]} />
-        <meshStandardMaterial color="#8B6C5C" />
-      </mesh>
-      
-      {/* Soil tiles on top */}
-      {tiles.map((tile, i) => (
-        <primitive
-          key={`soil-tile-${i}`}
-          object={tile.clone}
-          position={[tile.x + 0.5, 0, tile.z + 0.5]}
-          scale={[tile.scaleX, 0.5, tile.scaleZ]}
-        />
-      ))}
-    </group>
+    <mesh 
+      rotation={[-Math.PI / 2, 0, 0]} 
+      position={[centerX, 0.001, centerZ]}
+      receiveShadow
+    >
+      <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
+      <DirtGroundMaterial />
+    </mesh>
   );
 };
 
