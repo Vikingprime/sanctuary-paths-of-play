@@ -1,7 +1,7 @@
-import { useRef, useMemo, memo } from 'react';
+import { useRef, useMemo, memo, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PerspectiveCamera } from '@react-three/drei';
-import { Vector3 } from 'three';
+import { PerspectiveCamera, useGLTF, Merged } from '@react-three/drei';
+import { Vector3, Object3D, Matrix4 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
@@ -12,6 +12,9 @@ import {
   createCameraVolume 
 } from './CameraVolumeSystem';
 
+// Preload grass floor model
+useGLTF.preload('/models/Floor_Grass.glb');
+
 interface Maze3DSceneProps {
   maze: Maze;
   animalType: AnimalType;
@@ -21,13 +24,60 @@ interface Maze3DSceneProps {
   isMoving?: boolean; // Whether the player is moving (for animations)
 }
 
-// Simple stable ground - no GLB to avoid re-render issues
-const Ground = memo(({ width, height }: { width: number; height: number }) => (
-  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, 0, height / 2]}>
-    <planeGeometry args={[width + 10, height + 10]} />
-    <meshStandardMaterial color="#4a7c3f" roughness={0.9} />
-  </mesh>
-));
+// Ground using Merged for efficient instancing
+const Ground = memo(({ width, height }: { width: number; height: number }) => {
+  const { scene } = useGLTF('/models/Floor_Grass.glb');
+  
+  const tileSize = 1;
+  
+  // Pre-calculate tile positions once
+  const tileData = useMemo(() => {
+    const tilesX = Math.ceil((width + 10) / tileSize);
+    const tilesZ = Math.ceil((height + 10) / tileSize);
+    const positions: [number, number, number][] = [];
+    const startX = -5;
+    const startZ = -5;
+    
+    for (let x = 0; x < tilesX; x++) {
+      for (let z = 0; z < tilesZ; z++) {
+        positions.push([
+          startX + x * tileSize + tileSize / 2,
+          0,
+          startZ + z * tileSize + tileSize / 2
+        ]);
+      }
+    }
+    return positions;
+  }, [width, height]);
+
+  // Extract meshes from the scene for Merged
+  const meshes = useMemo(() => {
+    const result: { [key: string]: any } = {};
+    scene.traverse((child: any) => {
+      if (child.isMesh) {
+        result[child.name || 'mesh'] = child;
+      }
+    });
+    return result;
+  }, [scene]);
+
+  return (
+    <Merged meshes={meshes}>
+      {(models: any) => (
+        <group>
+          {tileData.map((pos, i) => (
+            <group key={i} position={pos} scale={[tileSize, 1, tileSize]}>
+              {Object.keys(models).map((name) => {
+                const Model = models[name];
+                return <Model key={name} />;
+              })}
+            </group>
+          ))}
+        </group>
+      )}
+    </Merged>
+  );
+});
 
 const MazeWalls = ({ maze }: { maze: Maze }) => {
   const { interiorWalls, boundaryWalls } = useMemo(() => {
