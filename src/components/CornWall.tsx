@@ -1,11 +1,14 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { InstancedMesh, CylinderGeometry, MeshStandardMaterial, Object3D, Color } from 'three';
-import { useFrame } from '@react-three/fiber';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4 } from 'three';
+import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
   position: [number, number, number];
   size?: [number, number, number];
 }
+
+// Preload models
+useGLTF.preload('/models/Corn.glb');
 
 // Seeded random for stable randomness
 const seededRandom = (seed: number): number => {
@@ -13,26 +16,26 @@ const seededRandom = (seed: number): number => {
   return x - Math.floor(x);
 };
 
-// Simple single wall for compatibility
+// Single wall component for simple cases
 export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
+  const { scene } = useGLTF('/models/Corn.glb');
+  const clonedScene = useMemo(() => scene.clone(), [scene]);
+  
   return (
     <group position={position}>
-      <mesh>
-        <cylinderGeometry args={[0.05, 0.08, size[1], 6]} />
-        <meshStandardMaterial color="#4a7c23" />
-      </mesh>
+      <primitive object={clonedScene} scale={[size[0], size[1], size[2]]} />
     </group>
   );
 };
 
-// Instanced walls using native InstancedMesh for true GPU instancing
+// Instanced walls using native InstancedMesh for each mesh in the GLTF
 interface InstancedWallsProps {
   positions: { x: number; z: number }[];
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
   size?: [number, number, number];
 }
 
-// Density settings
+// Density settings - full density for visual quality
 const ROWS = 3;
 const STALKS_PER_ROW = 3;
 const STALK_SPACING = 0.28;
@@ -40,17 +43,19 @@ const MIN_HEIGHT = 2.0;
 const MAX_HEIGHT = 3.0;
 
 // Boundary walls
-const BOUNDARY_ROWS = 6;
-const BOUNDARY_STALKS_PER_ROW = 5;
-const BOUNDARY_SPACING = 0.28;
-const BOUNDARY_DEPTH = 2.0;
+const BOUNDARY_ROWS = 8;
+const BOUNDARY_STALKS_PER_ROW = 6;
+const BOUNDARY_SPACING = 0.25;
+const BOUNDARY_DEPTH = 2.5;
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
-  const meshRef = useRef<InstancedMesh>(null);
+  const { scene } = useGLTF('/models/Corn.glb');
+  const groupRef = useRef<Group>(null);
   
   // Generate all stalk transforms
-  const stalkData = useMemo(() => {
-    const data: { x: number; y: number; z: number; rotation: number; height: number }[] = [];
+  const stalkTransforms = useMemo(() => {
+    const transforms: Matrix4[] = [];
+    const dummy = new Object3D();
     
     // Regular interior walls
     positions.forEach((wallPos) => {
@@ -66,13 +71,15 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
           const height = MIN_HEIGHT + seededRandom(stalkSeed + 3) * (MAX_HEIGHT - MIN_HEIGHT);
           
-          data.push({
-            x: wallPos.x + 0.5 + offsetX + jitterX,
-            y: height / 2,
-            z: wallPos.z + 0.5 + offsetZ + jitterZ,
-            rotation,
-            height
-          });
+          dummy.position.set(
+            wallPos.x + 0.5 + offsetX + jitterX,
+            0,
+            wallPos.z + 0.5 + offsetZ + jitterZ
+          );
+          dummy.rotation.set(0, rotation, 0);
+          dummy.scale.set(size[0], height, size[2]);
+          dummy.updateMatrix();
+          transforms.push(dummy.matrix.clone());
         }
       }
     });
@@ -107,56 +114,56 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             posZ += dirZ * depthOffset;
           }
           
-          data.push({
-            x: posX,
-            y: height / 2,
-            z: posZ,
-            rotation,
-            height
-          });
+          dummy.position.set(posX, 0, posZ);
+          dummy.rotation.set(0, rotation, 0);
+          dummy.scale.set(size[0], height, size[2]);
+          dummy.updateMatrix();
+          transforms.push(dummy.matrix.clone());
         }
       }
     });
     
-    return data;
-  }, [positions, boundaryPositions]);
+    return transforms;
+  }, [positions, boundaryPositions, size]);
 
-  // Create geometry and material once
-  const { geometry, material } = useMemo(() => {
-    const geo = new CylinderGeometry(0.04, 0.06, 1, 5);
-    const mat = new MeshStandardMaterial({ 
-      color: new Color('#4a7c23'),
-      roughness: 0.8,
-      metalness: 0.0
+  // Extract meshes from GLTF and create instanced versions
+  const instancedMeshes = useMemo(() => {
+    if (stalkTransforms.length === 0) return [];
+    
+    const meshes: ThreeInstancedMesh[] = [];
+    
+    scene.traverse((child) => {
+      if ((child as Mesh).isMesh) {
+        const originalMesh = child as Mesh;
+        const instancedMesh = new ThreeInstancedMesh(
+          originalMesh.geometry,
+          originalMesh.material,
+          stalkTransforms.length
+        );
+        
+        // Apply all transforms
+        stalkTransforms.forEach((matrix, i) => {
+          instancedMesh.setMatrixAt(i, matrix);
+        });
+        
+        instancedMesh.instanceMatrix.needsUpdate = true;
+        instancedMesh.castShadow = true;
+        instancedMesh.receiveShadow = true;
+        
+        meshes.push(instancedMesh);
+      }
     });
-    return { geometry: geo, material: mat };
-  }, []);
+    
+    return meshes;
+  }, [scene, stalkTransforms]);
 
-  // Update instance matrices
-  useEffect(() => {
-    if (!meshRef.current) return;
-    
-    const dummy = new Object3D();
-    
-    stalkData.forEach((stalk, i) => {
-      dummy.position.set(stalk.x, stalk.y, stalk.z);
-      dummy.rotation.set(0, stalk.rotation, 0);
-      dummy.scale.set(1, stalk.height, 1);
-      dummy.updateMatrix();
-      meshRef.current!.setMatrixAt(i, dummy.matrix);
-    });
-    
-    meshRef.current.instanceMatrix.needsUpdate = true;
-  }, [stalkData]);
-
-  if (stalkData.length === 0) return null;
+  if (stalkTransforms.length === 0) return null;
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[geometry, material, stalkData.length]}
-      castShadow
-      receiveShadow
-    />
+    <group ref={groupRef}>
+      {instancedMeshes.map((mesh, i) => (
+        <primitive key={i} object={mesh} />
+      ))}
+    </group>
   );
 };
