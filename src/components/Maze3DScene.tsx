@@ -611,6 +611,9 @@ const OverShoulderCameraController = ({
   const currentPosition = useRef(new Vector3());
   const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
+  // Reusable vectors to avoid GC (creating new Vector3 every frame causes jitter)
+  const targetPos = useRef(new Vector3());
+  const targetLookAt = useRef(new Vector3());
   
   // Camera settings - show animal clearly from behind
   const CAMERA_DISTANCE = 2.0;
@@ -633,15 +636,15 @@ const OverShoulderCameraController = ({
     
     const rot = smoothRotation.current;
     
-    // Calculate camera position behind player using smoothed rotation
-    const targetPos = new Vector3(
+    // Calculate camera position behind player (reuse vector to avoid GC)
+    targetPos.current.set(
       playerX - Math.sin(rot) * CAMERA_DISTANCE,
       CAMERA_HEIGHT,
       playerZ + Math.cos(rot) * CAMERA_DISTANCE
     );
     
-    // Calculate look target ahead of player
-    const targetLookAt = new Vector3(
+    // Calculate look target ahead of player (reuse vector to avoid GC)
+    targetLookAt.current.set(
       playerX + Math.sin(rot) * LOOK_AHEAD,
       LOOK_HEIGHT,
       playerZ - Math.cos(rot) * LOOK_AHEAD
@@ -650,14 +653,14 @@ const OverShoulderCameraController = ({
     // Initialize on first frame
     if (!initialized.current) {
       smoothRotation.current = playerRotation;
-      currentPosition.current.copy(targetPos);
-      currentLookAt.current.copy(targetLookAt);
+      currentPosition.current.copy(targetPos.current);
+      currentLookAt.current.copy(targetLookAt.current);
       initialized.current = true;
     }
     
     // Smooth position interpolation
-    currentPosition.current.lerp(targetPos, POSITION_SMOOTHING);
-    currentLookAt.current.lerp(targetLookAt, POSITION_SMOOTHING);
+    currentPosition.current.lerp(targetPos.current, POSITION_SMOOTHING);
+    currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
     
     // Apply to camera
     camera.position.copy(currentPosition.current);
