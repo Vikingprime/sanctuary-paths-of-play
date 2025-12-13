@@ -578,11 +578,11 @@ return (
       {/* Lighting - 8am morning sunlight */}
       <ambientLight intensity={0.9} color="#FFF8F0" />
       
-      {/* Main sun light - 9am position (slightly higher, brighter) */}
+      {/* Main sun light - brighter 10am position */}
       <directionalLight
-        position={[18, 28, 12]}
-        intensity={2.0}
-        color="#FFFBF0"
+        position={[15, 35, 15]}
+        intensity={2.5}
+        color="#FFFDF5"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={1}
@@ -591,18 +591,29 @@ return (
         shadow-camera-right={30}
         shadow-camera-top={30}
         shadow-camera-bottom={-30}
-        shadow-bias={-0.001}
+        shadow-bias={-0.0005}
+        shadow-radius={2}
       />
       
       {/* Fill light from opposite side */}
       <directionalLight
         position={[-15, 15, -10]}
-        intensity={0.35}
+        intensity={0.45}
         color="#D8E8FF"
       />
       
       {/* Hemisphere light for natural sky/ground color */}
-      <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.45]} />
+      <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
+      
+      {/* Soft contact shadow under player */}
+      <ContactShadows 
+        position={[0, 0.01, 0]}
+        opacity={0.4}
+        scale={40}
+        blur={2}
+        far={4}
+        resolution={256}
+      />
       
       {/* Dark green background to hide sky through corn gaps */}
       <color attach="background" args={['#1a2810']} />
