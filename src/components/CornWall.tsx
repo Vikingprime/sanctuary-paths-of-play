@@ -1,5 +1,6 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, MeshStandardMaterial } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
@@ -28,60 +29,61 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
   );
 };
 
-// Instanced walls using native InstancedMesh for each mesh in the GLTF
+// Instanced walls using native InstancedMesh with merged geometry
 interface InstancedWallsProps {
   positions: { x: number; z: number }[];
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
   size?: [number, number, number];
 }
 
-// Density settings - reduced for performance
-const ROWS = 2;
-const STALKS_PER_ROW = 2;
-const STALK_SPACING = 0.35;
-const MIN_HEIGHT = 2.0;
-const MAX_HEIGHT = 3.0;
+// Density settings - full density for visual quality
+const ROWS = 3;
+const STALKS_PER_ROW = 3;
+const STALK_SPACING = 0.28;
 
-// Boundary walls - reduced for performance
-const BOUNDARY_ROWS = 4;
-const BOUNDARY_STALKS_PER_ROW = 3;
-const BOUNDARY_SPACING = 0.35;
+// Boundary walls
+const BOUNDARY_ROWS = 6;
+const BOUNDARY_STALKS_PER_ROW = 4;
+const BOUNDARY_SPACING = 0.30;
 const BOUNDARY_DEPTH = 2.0;
-
-// Extract mesh data from GLTF for instancing
-interface MeshData {
-  geometry: BufferGeometry;
-  material: Material | Material[];
-}
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const groupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene } = useGLTF('/models/Corn.glb');
   
-  // Extract all meshes from the GLTF model
-  const meshDataList = useMemo(() => {
-    const meshes: MeshData[] = [];
-    console.log('[CornWall] Traversing GLTF scene:', scene);
+  // Merge all meshes from GLTF into a single geometry with unified material
+  const mergedData = useMemo(() => {
+    const geometries: BufferGeometry[] = [];
+    
     scene.traverse((child) => {
-      console.log('[CornWall] Child:', child.type, child.name);
       if ((child as Mesh).isMesh) {
         const mesh = child as Mesh;
-        console.log('[CornWall] Found mesh:', mesh.name, 'geometry:', mesh.geometry, 'material:', mesh.material);
-        // Check if geometry has position attribute
-        if (mesh.geometry.attributes.position) {
-          console.log('[CornWall] Mesh has', mesh.geometry.attributes.position.count, 'vertices');
+        const geom = mesh.geometry.clone();
+        // Apply mesh's local transform to geometry
+        if (mesh.matrix) {
+          geom.applyMatrix4(mesh.matrix);
         }
-        meshes.push({
-          geometry: mesh.geometry.clone(),
-          material: Array.isArray(mesh.material) 
-            ? mesh.material.map(m => m.clone()) 
-            : mesh.material.clone()
-        });
+        geometries.push(geom);
       }
     });
-    console.log('[CornWall] Found', meshes.length, 'meshes in GLTF');
-    return meshes;
+    
+    if (geometries.length === 0) return null;
+    
+    // Merge all geometries into one
+    const merged = mergeGeometries(geometries, false);
+    
+    // Use a single unified material (green corn color)
+    const material = new MeshStandardMaterial({ 
+      color: 0x3d6b2e,
+      roughness: 0.8,
+      metalness: 0.0
+    });
+    
+    // Dispose cloned geometries
+    geometries.forEach(g => g.dispose());
+    
+    return { geometry: merged, material };
   }, [scene]);
   
   // Create stable key for positions
@@ -106,11 +108,9 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.03;
           const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
           const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
-          const height = MIN_HEIGHT + seededRandom(stalkSeed + 3) * (MAX_HEIGHT - MIN_HEIGHT);
           
-          // GLTF corn model - proper upright rotation using quaternion
           const baseScale = 100;
-          const heightMultiplier = 1.8; // Make taller without increasing width
+          const heightMultiplier = 1.8;
           const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
           const widthScale = baseScale * heightVariation;
           const heightScale = baseScale * heightVariation * heightMultiplier;
@@ -120,11 +120,9 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             0,
             wallPos.z + 0.5 + offsetZ + jitterZ
           );
-          // Reset rotation, then apply: first stand upright, then random Y rotation
           const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
           const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
           dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
-          // Scale: X=width, Y=depth, Z=height (because model was rotated from Z-up)
           dummy.scale.set(widthScale, widthScale, heightScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
@@ -149,7 +147,6 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.03;
           const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
           const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
-          const height = MIN_HEIGHT + seededRandom(stalkSeed + 3) * (MAX_HEIGHT - MIN_HEIGHT);
           
           let posX = wallPos.x + 0.5 + jitterX;
           let posZ = wallPos.z + 0.5 + jitterZ;
@@ -184,51 +181,38 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
 
   useEffect(() => {
     const group = groupRef.current;
-    if (!group || stalkTransforms.length === 0 || meshDataList.length === 0 || createdRef.current) return;
+    if (!group || stalkTransforms.length === 0 || !mergedData || createdRef.current) return;
     
     createdRef.current = true;
     
-    // Create an InstancedMesh for each mesh in the GLTF
-    const instancedMeshes: ThreeInstancedMesh[] = [];
+    // Create a SINGLE InstancedMesh with merged geometry - one draw call!
+    const instancedMesh = new ThreeInstancedMesh(
+      mergedData.geometry, 
+      mergedData.material, 
+      stalkTransforms.length
+    );
     
-    meshDataList.forEach((meshData, meshIndex) => {
-      const instancedMesh = new ThreeInstancedMesh(
-        meshData.geometry, 
-        meshData.material, 
-        stalkTransforms.length
-      );
-      
-      stalkTransforms.forEach((matrix, i) => {
-        instancedMesh.setMatrixAt(i, matrix);
-      });
-      
-      instancedMesh.instanceMatrix.needsUpdate = true;
-      instancedMesh.castShadow = true;
-      instancedMesh.receiveShadow = true;
-      instancedMesh.frustumCulled = false; // Ensure visibility
-      
-      group.add(instancedMesh);
-      instancedMeshes.push(instancedMesh);
-      
-      console.log(`[CornWall] Added InstancedMesh ${meshIndex} with ${stalkTransforms.length} instances`);
+    stalkTransforms.forEach((matrix, i) => {
+      instancedMesh.setMatrixAt(i, matrix);
     });
     
+    instancedMesh.instanceMatrix.needsUpdate = true;
+    instancedMesh.castShadow = true;
+    instancedMesh.receiveShadow = true;
+    instancedMesh.frustumCulled = false;
+    
+    group.add(instancedMesh);
+    
     return () => {
-      instancedMeshes.forEach(mesh => {
-        if (group.children.includes(mesh)) {
-          group.remove(mesh);
-          mesh.geometry.dispose();
-          if (Array.isArray(mesh.material)) {
-            mesh.material.forEach(m => m.dispose());
-          } else {
-            mesh.material.dispose();
-          }
-          mesh.dispose();
-        }
-      });
+      if (group.children.includes(instancedMesh)) {
+        group.remove(instancedMesh);
+        instancedMesh.geometry.dispose();
+        (instancedMesh.material as Material).dispose();
+        instancedMesh.dispose();
+      }
       createdRef.current = false;
     };
-  }, [stalkTransforms, meshDataList]);
+  }, [stalkTransforms, mergedData]);
 
   if (stalkTransforms.length === 0) return null;
 
