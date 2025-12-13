@@ -21,6 +21,9 @@ import {
   executeAbility,
 } from '@/game';
 
+// DEBUG MODE - set to true to skip preview and have infinite time
+const DEBUG_MODE = true;
+
 interface MazeGame3DProps {
   maze: Maze;
   animalType: AnimalType;
@@ -47,9 +50,9 @@ export const MazeGame3D = ({
   
   // React state only for UI that needs re-renders
   const [playerStateForUI, setPlayerStateForUI] = useState<PlayerState>(playerStateRef.current);
-  const [timeLeft, setTimeLeft] = useState(maze.timeLimit);
-  const [previewTimeLeft, setPreviewTimeLeft] = useState(maze.previewTime);
-  const [isPreviewing, setIsPreviewing] = useState(true);
+  const [timeLeft, setTimeLeft] = useState(DEBUG_MODE ? 9999 : maze.timeLimit);
+  const [previewTimeLeft, setPreviewTimeLeft] = useState(DEBUG_MODE ? 0 : maze.previewTime);
+  const [isPreviewing, setIsPreviewing] = useState(!DEBUG_MODE);
   const [sceneReady, setSceneReady] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [gameOver, setGameOver] = useState(false);
