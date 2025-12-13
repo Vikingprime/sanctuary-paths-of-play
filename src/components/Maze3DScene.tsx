@@ -44,19 +44,23 @@ const GroundMaterial = ({ maze }: { maze: Maze }) => {
     texture.magFilter = NearestFilter;
     texture.minFilter = NearestFilter;
     
-    const mat = new ShaderMaterial({
+const mat = new ShaderMaterial({
       uniforms: {
         wallMap: { value: texture },
         mazeWidth: { value: mazeWidth },
         mazeHeight: { value: mazeHeight },
-        // Dirt path colors
-        pathBase: { value: new Color('#7A5240') },
-        pathDark: { value: new Color('#5C3D2E') },
-        pathLight: { value: new Color('#9B6B4A') },
-        // Grass colors  
+        // Dirt path colors - warm terracotta tones
+        pathWorn: { value: new Color('#B8856B') },    // Worn center - lighter
+        pathBase: { value: new Color('#8B5A42') },    // Main path
+        pathDark: { value: new Color('#5C3D2E') },    // Shadows/edges
+        pathRich: { value: new Color('#6B4A3A') },    // Rich earth tone
+        // Grass colors - rich greens
         grassBase: { value: new Color('#4A6B3A') },
-        grassDark: { value: new Color('#3A5428') },
-        grassLight: { value: new Color('#5A7D4A') },
+        grassDark: { value: new Color('#2E4420') },
+        grassMoss: { value: new Color('#3D5830') },
+        // Rock/stone colors
+        rockLight: { value: new Color('#C4A882') },
+        rockDark: { value: new Color('#8B7355') },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -71,17 +75,24 @@ const GroundMaterial = ({ maze }: { maze: Maze }) => {
         uniform sampler2D wallMap;
         uniform float mazeWidth;
         uniform float mazeHeight;
+        uniform vec3 pathWorn;
         uniform vec3 pathBase;
         uniform vec3 pathDark;
-        uniform vec3 pathLight;
+        uniform vec3 pathRich;
         uniform vec3 grassBase;
         uniform vec3 grassDark;
-        uniform vec3 grassLight;
+        uniform vec3 grassMoss;
+        uniform vec3 rockLight;
+        uniform vec3 rockDark;
         varying vec2 vUv;
         varying vec3 vWorldPos;
         
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+        
+        float hash2(vec2 p) {
+          return fract(sin(dot(p, vec2(269.5, 183.3))) * 43758.5453);
         }
         
         float noise(vec2 p) {
@@ -98,7 +109,7 @@ const GroundMaterial = ({ maze }: { maze: Maze }) => {
         float fbm(vec2 p) {
           float value = 0.0;
           float amplitude = 0.5;
-          for (int i = 0; i < 4; i++) {
+          for (int i = 0; i < 5; i++) {
             value += amplitude * noise(p);
             p *= 2.0;
             amplitude *= 0.5;
@@ -106,43 +117,107 @@ const GroundMaterial = ({ maze }: { maze: Maze }) => {
           return value;
         }
         
+        // Voronoi for rocks
+        float voronoi(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          float minDist = 1.0;
+          for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+              vec2 neighbor = vec2(float(x), float(y));
+              vec2 point = vec2(hash(i + neighbor), hash2(i + neighbor));
+              float dist = length(neighbor + point - f);
+              minDist = min(minDist, dist);
+            }
+          }
+          return minDist;
+        }
+        
         void main() {
           vec2 worldUV = vWorldPos.xz;
           
-          // Sample wall map to determine if we're on grass or path
+          // Sample wall map
           vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
           float isWall = texture2D(wallMap, mazeUV).r;
           
-          // Soften edges with noise for organic transition
-          float edgeNoise = noise(worldUV * 3.0) * 0.15;
-          float wallMask = smoothstep(0.3, 0.7, isWall + edgeNoise);
+          // Very organic, irregular transition with multiple noise layers
+          float edgeNoise1 = fbm(worldUV * 2.0) * 0.25;
+          float edgeNoise2 = noise(worldUV * 5.0) * 0.15;
+          float wallMask = smoothstep(0.2, 0.8, isWall + edgeNoise1 - edgeNoise2);
           
-          // Outside maze bounds = grass
+          // Outside maze = grass
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
           wallMask = mix(1.0, wallMask, inBounds);
           
-          // Organic noise variation
-          float variation = fbm(worldUV * 1.5);
-          float fineNoise = noise(worldUV * 8.0);
+          // === PATH TEXTURE ===
+          // Multiple noise layers for organic variation
+          float largeVar = fbm(worldUV * 0.8);
+          float medVar = fbm(worldUV * 2.5);
+          float fineVar = noise(worldUV * 6.0);
           
-          // Path texture (trodden dirt)
-          vec3 pathColor = mix(pathDark, pathBase, variation * 0.6 + 0.4);
-          pathColor = mix(pathColor, pathLight, pow(noise(worldUV * 4.0), 2.0) * 0.3);
-          float pebbles = step(0.88, noise(worldUV * 12.0));
-          pathColor = mix(pathColor, pathDark * 0.6, pebbles * 0.4);
-          float specks = step(0.92, noise(worldUV * 18.0 + 50.0));
-          pathColor = mix(pathColor, pathLight, specks * 0.3);
+          // Worn center effect - lighter in middle of paths
+          float wornPattern = fbm(worldUV * 1.2 + 100.0);
+          float wornCenter = pow(1.0 - wallMask, 0.5) * wornPattern;
           
-          // Grass texture
-          vec3 grassColor = mix(grassDark, grassBase, variation * 0.5 + 0.5);
-          grassColor = mix(grassColor, grassLight, pow(fineNoise, 2.0) * 0.4);
-          // Grass blade variation
-          float blades = noise(worldUV * 25.0) * 0.25;
-          grassColor = mix(grassColor, grassLight, blades);
+          // Build up path color with layers
+          vec3 pathColor = pathBase;
+          // Add rich earth undertones
+          pathColor = mix(pathColor, pathRich, largeVar * 0.4);
+          // Add worn lighter areas (center of path)
+          pathColor = mix(pathColor, pathWorn, wornCenter * 0.5 + medVar * 0.2);
+          // Shadow patches for depth
+          float shadowPatches = pow(fbm(worldUV * 3.0 + 50.0), 1.5);
+          pathColor = mix(pathColor, pathDark, shadowPatches * 0.35);
+          // Fine dirt variation
+          pathColor = mix(pathColor, pathDark * 0.8, (1.0 - fineVar) * 0.15);
           
-          // Final blend: grass on walls, dirt on paths
+          // Scattered rocks on path
+          float rockVoronoi = voronoi(worldUV * 4.0);
+          float rocks = smoothstep(0.15, 0.08, rockVoronoi);
+          float rockShade = noise(worldUV * 20.0);
+          vec3 rockColor = mix(rockDark, rockLight, rockShade * 0.6 + 0.2);
+          pathColor = mix(pathColor, rockColor, rocks * 0.8);
+          
+          // Small pebbles
+          float pebbles = step(0.92, noise(worldUV * 15.0));
+          pathColor = mix(pathColor, rockLight * 0.9, pebbles * 0.5);
+          
+          // Tiny dark specks (dirt texture)
+          float specks = step(0.94, noise(worldUV * 25.0 + 30.0));
+          pathColor = mix(pathColor, pathDark * 0.5, specks * 0.3);
+          
+          // === GRASS TEXTURE ===
+          float grassVar = fbm(worldUV * 2.0 + 200.0);
+          float grassFine = noise(worldUV * 12.0);
+          
+          // Base grass with variation
+          vec3 grassColor = mix(grassDark, grassBase, grassVar * 0.6 + 0.4);
+          // Mossy darker patches
+          float mossPatch = pow(fbm(worldUV * 1.5 + 300.0), 2.0);
+          grassColor = mix(grassColor, grassMoss, mossPatch * 0.5);
+          // Grass blade texture
+          float blades = noise(worldUV * 30.0);
+          grassColor = mix(grassColor, grassBase * 1.2, blades * 0.2);
+          // Dark shadows in grass
+          grassColor = mix(grassColor, grassDark * 0.7, (1.0 - grassFine) * 0.2);
+          
+          // Rocks in grass (scattered stones)
+          float grassRocks = voronoi(worldUV * 2.5 + 50.0);
+          float grassRockMask = smoothstep(0.18, 0.1, grassRocks);
+          grassColor = mix(grassColor, rockColor * 0.9, grassRockMask * 0.7);
+          
+          // Small grass tufts (lighter spots)
+          float tufts = step(0.88, noise(worldUV * 8.0 + 80.0));
+          grassColor = mix(grassColor, grassBase * 1.3, tufts * 0.25);
+          
+          // === FINAL BLEND ===
+          // Muddy transition zone
+          float transitionZone = smoothstep(0.3, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.7, wallMask));
+          vec3 mudColor = mix(pathDark, grassDark, 0.5);
+          
           vec3 finalColor = mix(pathColor, grassColor, wallMask);
+          finalColor = mix(finalColor, mudColor, transitionZone * 0.3);
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
