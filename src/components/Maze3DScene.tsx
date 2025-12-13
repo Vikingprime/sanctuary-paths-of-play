@@ -309,8 +309,8 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0, collectedPower
 export const Maze3DCanvas = (props: Maze3DSceneProps) => {
   return (
     <div className="w-full h-full">
-      <Canvas shadows>
-        <PerspectiveCamera makeDefault fov={60} near={0.1} far={100} />
+      <Canvas shadows gl={{ logarithmicDepthBuffer: true, antialias: true }}>
+        <PerspectiveCamera makeDefault fov={60} near={0.5} far={100} />
         <Scene {...props} />
       </Canvas>
     </div>
