@@ -15,6 +15,7 @@ export { GameConfig } from './GameConfig';
 // Maze utilities
 export {
   findStartPosition,
+  findStartRotation,
   findEndPosition,
   getCell,
   isWall,

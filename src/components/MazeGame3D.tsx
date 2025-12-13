@@ -12,6 +12,7 @@ import { animals } from '@/data/animals';
 import {
   GameConfig,
   findStartPosition,
+  findStartRotation,
   PlayerState,
   MovementInput,
   calculateMovement,
@@ -35,12 +36,13 @@ export const MazeGame3D = ({
 }: MazeGame3DProps) => {
   // Initialize from pure game logic
   const startPos = findStartPosition(maze);
+  const startRotation = findStartRotation(maze);
   
   // Use ref for real-time player state (avoids re-renders every frame)
   const playerStateRef = useRef<PlayerState>({
     x: startPos.x,
     y: startPos.y,
-    rotation: 0,
+    rotation: startRotation,
   });
   
   // React state only for UI that needs re-renders
