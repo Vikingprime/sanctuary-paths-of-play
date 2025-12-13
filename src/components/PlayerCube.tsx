@@ -89,7 +89,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
     // Handle wrap-around (shortest path)
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-    smoothRotation.current += rotDiff * 0.08;
+    smoothRotation.current += rotDiff * 0.4;
     // Normalize to prevent drift
     while (smoothRotation.current > Math.PI * 2) smoothRotation.current -= Math.PI * 2;
     while (smoothRotation.current < 0) smoothRotation.current += Math.PI * 2;
