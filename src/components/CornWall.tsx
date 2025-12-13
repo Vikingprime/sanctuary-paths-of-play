@@ -136,15 +136,24 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     return data;
   }, [positions, boundaryPositions]);
 
-  // Clone the scene for each stalk - only regenerate when stalk count changes
+// Clone the scene for each stalk and enable shadows once
   const clones = useMemo(() => {
-    return stalkData.map(() => scene.clone());
+    return stalkData.map(() => {
+      const clone = scene.clone();
+      // Enable shadow casting once during creation
+      clone.traverse((child) => {
+        if ((child as Mesh).isMesh) {
+          child.castShadow = true;
+        }
+      });
+      return clone;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stalkData.length]);
 
   if (positions.length === 0 && boundaryPositions.length === 0) return null;
 
-return (
+  return (
     <group ref={groupRef}>
       {/* Solid dark green blocks BEHIND boundary walls (offset outward) */}
       {boundaryPositions.map((pos, i) => (
@@ -153,31 +162,20 @@ return (
           position={[pos.x + 0.5 + pos.offsetX, 1.5, pos.z + 0.5 + pos.offsetZ]}
           material={boundaryMaterial}
           castShadow
-          receiveShadow
         >
           <boxGeometry args={[1.2, 4, 1.2]} />
         </mesh>
       ))}
-      {/* Corn stalks - cast shadows */}
-      {stalkData.map((stalk, i) => {
-        const clone = clones[i];
-        // Enable shadows on all meshes in the clone
-        clone.traverse((child) => {
-          if ((child as Mesh).isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-          }
-        });
-        return (
-          <primitive 
-            key={`corn-${i}`}
-            object={clone} 
-            position={stalk.pos}
-            rotation={[0, stalk.rotation, 0]}
-            scale={[size[0], stalk.height, size[2]]}
-          />
-        );
-      })}
+      {/* Corn stalks - shadows already enabled */}
+      {stalkData.map((stalk, i) => (
+        <primitive 
+          key={`corn-${i}`}
+          object={clones[i]} 
+          position={stalk.pos}
+          rotation={[0, stalk.rotation, 0]}
+          scale={[size[0], stalk.height, size[2]]}
+        />
+      ))}
     </group>
   );
 };
