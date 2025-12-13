@@ -1,5 +1,5 @@
-import { useRef, useMemo } from 'react';
-import { Group, MeshStandardMaterial, Color } from 'three';
+import { useRef, useMemo, useEffect } from 'react';
+import { Group, MeshStandardMaterial, Color, Mesh } from 'three';
 import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
@@ -7,12 +7,20 @@ interface CornWallProps {
   size?: [number, number, number];
 }
 
-// Preload the corn model
+// Preload models
 useGLTF.preload('/models/Corn.glb');
+useGLTF.preload('/models/Soil_mount.glb');
 
 // Dark green material for boundary blocks
 const boundaryMaterial = new MeshStandardMaterial({
   color: new Color(0.08, 0.15, 0.05),
+  roughness: 1,
+  metalness: 0,
+});
+
+// Brown material for soil mounds
+const soilMaterial = new MeshStandardMaterial({
+  color: new Color(0.35, 0.22, 0.1),
   roughness: 1,
   metalness: 0,
 });
@@ -57,7 +65,17 @@ const BOUNDARY_DEPTH = 1.2; // How far the corn extends outward
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
+  const { scene: soilScene } = useGLTF('/models/Soil_mount.glb');
   const groupRef = useRef<Group>(null);
+  
+  // Apply brown material to soil model
+  useEffect(() => {
+    soilScene.traverse((child) => {
+      if (child instanceof Mesh) {
+        child.material = soilMaterial;
+      }
+    });
+  }, [soilScene]);
   
   // Generate stalk data for walls - using seeded random for stable positions
   const stalkData = useMemo(() => {
@@ -142,6 +160,12 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stalkData.length]);
 
+  // Clone soil model for each stalk
+  const soilClones = useMemo(() => {
+    return stalkData.map(() => soilScene.clone());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stalkData.length]);
+
   if (positions.length === 0 && boundaryPositions.length === 0) return null;
 
   return (
@@ -156,10 +180,20 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           <boxGeometry args={[1.2, 4, 1.2]} />
         </mesh>
       ))}
+      {/* Soil mounds under each stalk */}
+      {stalkData.map((stalk, i) => (
+        <primitive 
+          key={`soil-${i}`}
+          object={soilClones[i]} 
+          position={stalk.pos}
+          rotation={[0, stalk.rotation, 0]}
+          scale={[0.4, 0.3, 0.4]}
+        />
+      ))}
       {/* Corn stalks */}
       {stalkData.map((stalk, i) => (
         <primitive 
-          key={i}
+          key={`corn-${i}`}
           object={clones[i]} 
           position={stalk.pos}
           rotation={[0, stalk.rotation, 0]}
