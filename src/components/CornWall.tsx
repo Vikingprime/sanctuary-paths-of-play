@@ -68,10 +68,14 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
   const { scene: soilScene } = useGLTF('/models/Soil_mount.glb');
   const groupRef = useRef<Group>(null);
   
-  // Apply brown material to soil model
+  // Debug: log soil scene structure
   useEffect(() => {
+    console.log('Soil scene loaded:', soilScene);
+    console.log('Soil scene children:', soilScene.children);
     soilScene.traverse((child) => {
+      console.log('Soil child:', child.type, child.name, child);
       if (child instanceof Mesh) {
+        console.log('Found mesh in soil, applying brown material');
         child.material = soilMaterial;
       }
     });
@@ -178,6 +182,16 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           material={boundaryMaterial}
         >
           <boxGeometry args={[1.2, 4, 1.2]} />
+        </mesh>
+      ))}
+      {/* Debug: visible brown boxes at stalk positions */}
+      {stalkData.slice(0, 20).map((stalk, i) => (
+        <mesh 
+          key={`debug-soil-${i}`}
+          position={[stalk.pos[0], 0.15, stalk.pos[2]]}
+        >
+          <boxGeometry args={[0.3, 0.3, 0.3]} />
+          <meshStandardMaterial color="#5c3a21" />
         </mesh>
       ))}
       {/* Soil mounds under each stalk */}
