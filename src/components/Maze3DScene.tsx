@@ -568,12 +568,14 @@ const RefBasedPlayer = ({
     groupRef.current.position.x = x;
     groupRef.current.position.z = y;
     
-    // Smooth rotation
+    // Smooth rotation using delta-time based interpolation
     const targetRotation = -rotation + Math.PI;
     let rotDiff = targetRotation - smoothRotation.current;
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-    smoothRotation.current += rotDiff * 0.4;
+    // Use delta-based lerp factor for consistent smoothing regardless of frame rate
+    const lerpFactor = 1 - Math.pow(0.001, delta);
+    smoothRotation.current += rotDiff * lerpFactor;
     while (smoothRotation.current > Math.PI * 2) smoothRotation.current -= Math.PI * 2;
     while (smoothRotation.current < 0) smoothRotation.current += Math.PI * 2;
     
