@@ -192,31 +192,57 @@ const texture = new DataTexture(data, mazeWidth, mazeHeight);
           
           pathColor = mix(pathColor, rockColor, rockMask * 0.85);
           
-          // === GRASS TEXTURE ===
-          float grassVar = fbm(worldUV * 1.5 + 300.0);
-          float grassFine = noise(worldUV * 10.0);
+// === GRASS AREA - Patchy with dirt showing through ===
+          // Base is actually dirt/soil, with grass clumps on top
+          vec3 grassAreaBase = mix(pathDark * 0.9, pathRich * 0.8, noise(worldUV * 2.0) * 0.5 + 0.3);
           
-          vec3 grassColor = mix(grassDark, grassBase, grassVar * 0.5 + 0.5);
+          // Grass clump pattern - scattered patches, not solid
+          float grassClump1 = pow(fbm(worldUV * 3.0 + 300.0), 1.2);
+          float grassClump2 = pow(noise(worldUV * 5.0 + 350.0), 0.8);
+          float grassClump3 = pow(fbm(worldUV * 8.0 + 400.0), 1.5);
           
-          // Mossy patches
-          float mossPatch = pow(fbm(worldUV * 1.2 + 400.0), 1.8);
-          grassColor = mix(grassColor, grassMoss, mossPatch * 0.6);
+          // Combine for patchy grass coverage (not 100%)
+          float grassCoverage = grassClump1 * 0.5 + grassClump2 * 0.3 + grassClump3 * 0.2;
+          grassCoverage = smoothstep(0.25, 0.6, grassCoverage); // Threshold for patches
           
-          // Grass texture
-          float blades = noise(worldUV * 20.0);
-          grassColor = mix(grassColor, grassBase * 1.15, blades * 0.15);
-          grassColor = mix(grassColor, grassDark * 0.8, (1.0 - grassFine) * 0.15);
+          // Grass colors with variation
+          float grassVar = fbm(worldUV * 1.5 + 500.0);
+          vec3 grassTuftColor = mix(grassDark, grassBase, grassVar * 0.6 + 0.4);
+          grassTuftColor = mix(grassTuftColor, grassMoss, noise(worldUV * 4.0) * 0.4);
           
-          // Rocks in grass
-          float grassRockNoise = hash(floor(worldUV * 2.0 + 80.0));
-          float grassRockShape = length(fract(worldUV * 2.0 + 80.0) - 0.5);
-          float grassRockMask = smoothstep(0.2, 0.1, grassRockShape) * step(0.9, grassRockNoise);
-          grassColor = mix(grassColor, rockMid * 0.85, grassRockMask * 0.75);
+          // Lighter grass highlights on some tufts
+          float highlights = pow(noise(worldUV * 12.0 + 600.0), 2.0);
+          grassTuftColor = mix(grassTuftColor, grassBase * 1.3, highlights * 0.3);
+          
+          // Edge grass tufts (small clumps at path edges)
+          float edgeTufts = pow(noise(worldUV * 6.0 + 450.0), 1.5);
+          float edgeZone = smoothstep(0.3, 0.6, wallMask) * (1.0 - smoothstep(0.6, 0.85, wallMask));
+          float edgeGrass = edgeTufts * edgeZone;
+          
+          // Combine: dirt base with grass patches on top
+          vec3 grassAreaColor = mix(grassAreaBase, grassTuftColor, grassCoverage * 0.85);
+          
+          // Add scattered small tufts
+          float smallTufts = step(0.75, noise(worldUV * 10.0 + 700.0));
+          grassAreaColor = mix(grassAreaColor, grassBase * 1.1, smallTufts * 0.3 * grassCoverage);
+          
+          // Rocks in grass area
+          float grassRockNoise = hash(floor(worldUV * 2.5 + 80.0));
+          float grassRockShape = length(fract(worldUV * 2.5 + 80.0) - 0.5);
+          float grassRockMask = smoothstep(0.18, 0.08, grassRockShape) * step(0.88, grassRockNoise);
+          grassAreaColor = mix(grassAreaColor, rockMid * 0.9, grassRockMask * 0.8);
           
           // === FINAL BLEND ===
+          // Path to grass transition with edge grass tufts
+          vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
+          
+          // Add extra grass tufts at edges
+          finalColor = mix(finalColor, grassTuftColor, edgeGrass * 0.5);
+          
           // Soft muddy transition
-          float transition = smoothstep(0.3, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.7, wallMask));
-          vec3 mudColor = mix(pathDark, grassDark, 0.4 + noise(worldUV * 3.0) * 0.2);
+          float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
+          vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
+          finalColor = mix(finalColor, mudColor, transition * 0.2);
           
           vec3 finalColor = mix(pathColor, grassColor, wallMask);
           finalColor = mix(finalColor, mudColor, transition * 0.25);
