@@ -701,9 +701,29 @@ const OverShoulderCameraController = ({
   return null;
 };
 
-// FPS Counter component
-const FPSCounter = () => {
-  const [fps, setFps] = useState(0);
+// FPS Counter component - uses portal to render outside Canvas
+const FPSDisplay = ({ fps }: { fps: number }) => {
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 10,
+      left: 10,
+      background: 'rgba(0,0,0,0.7)',
+      color: fps > 50 ? '#4ade80' : fps > 30 ? '#facc15' : '#ef4444',
+      padding: '4px 8px',
+      borderRadius: '4px',
+      fontFamily: 'monospace',
+      fontSize: '14px',
+      fontWeight: 'bold',
+      zIndex: 1000,
+      pointerEvents: 'none'
+    }}>
+      {fps} FPS
+    </div>
+  );
+};
+
+const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => {
   const frames = useRef(0);
   const lastTime = useRef(performance.now());
   
@@ -711,27 +731,13 @@ const FPSCounter = () => {
     frames.current++;
     const now = performance.now();
     if (now - lastTime.current >= 1000) {
-      setFps(frames.current);
+      onFpsUpdate(frames.current);
       frames.current = 0;
       lastTime.current = now;
     }
   });
   
-  return (
-    <Html position={[0, 0, 0]} style={{ position: 'fixed', top: 10, left: 10, pointerEvents: 'none' }}>
-      <div style={{
-        background: 'rgba(0,0,0,0.7)',
-        color: fps > 50 ? '#4ade80' : fps > 30 ? '#facc15' : '#ef4444',
-        padding: '4px 8px',
-        borderRadius: '4px',
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        fontWeight: 'bold'
-      }}>
-        {fps} FPS
-      </div>
-    </Html>
-  );
+  return null;
 };
 
 const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, speedBoostActive, onCellInteraction, isPaused, onSceneReady }: Maze3DSceneProps) => {
@@ -848,19 +854,20 @@ return (
       <OverShoulderCameraController 
         playerStateRef={playerStateRef}
       />
-      
-      {/* FPS Counter */}
-      <FPSCounter />
     </>
   );
 };
 
 export const Maze3DCanvas = (props: Maze3DSceneProps) => {
+  const [fps, setFps] = useState(0);
+  
   return (
     <div className="w-full h-full">
+      <FPSDisplay fps={fps} />
       <Canvas shadows gl={{ logarithmicDepthBuffer: true, antialias: true }}>
         <PerspectiveCamera makeDefault fov={60} near={0.5} far={100} />
         <Scene {...props} />
+        <FPSTracker onFpsUpdate={setFps} />
       </Canvas>
     </div>
   );
