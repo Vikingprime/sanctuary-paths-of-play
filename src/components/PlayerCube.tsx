@@ -132,8 +132,9 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
     }
   });
 
-  // Visual rotation
-  const visualRotation = -rotation + Math.PI;
+  // Normalize rotation to prevent floating-point precision issues with large values
+  const normalizedRotation = ((rotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  const visualRotation = -normalizedRotation + Math.PI;
 
   // Pig uses GLB model
   if (animalType === 'pig') {
