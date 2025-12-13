@@ -9,7 +9,7 @@ export const GameConfig = {
   // Movement
   BASE_MOVE_SPEED: 2.5,      // units per second
   BOOSTED_MOVE_SPEED: 4.5,   // speed when power-up active
-  ROTATION_SPEED: 1.8,       // radians per second
+  ROTATION_SPEED: 2.2,       // radians per second
   PLAYER_RADIUS: 0.25,       // collision radius
 
   // Power-ups

@@ -575,14 +575,14 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 
 return (
     <>
-      {/* Lighting - bright 10am sunlight */}
-      <ambientLight intensity={1.0} color="#FFF8F0" />
+      {/* Lighting - 8am morning sunlight */}
+      <ambientLight intensity={0.9} color="#FFF8F0" />
       
-      {/* Main sun light - 10am position (more overhead, slightly east) */}
+      {/* Main sun light - 8am position (lower angle, from east) */}
       <directionalLight
-        position={[8, 35, 5]}
-        intensity={2.0}
-        color="#FFFAF0"
+        position={[20, 20, 8]}
+        intensity={1.8}
+        color="#FFF8E8"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={1}
@@ -596,13 +596,13 @@ return (
       
       {/* Fill light from opposite side */}
       <directionalLight
-        position={[-10, 20, -10]}
-        intensity={0.4}
-        color="#E0EEFF"
+        position={[-15, 15, -10]}
+        intensity={0.35}
+        color="#D8E8FF"
       />
       
       {/* Hemisphere light for natural sky/ground color */}
-      <hemisphereLight args={['#87CEEB', '#A08060', 0.5]} />
+      <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.45]} />
       
       {/* Soft sky blue background */}
       <color attach="background" args={['#87CEEB']} />
