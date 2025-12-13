@@ -261,7 +261,11 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
   
   const { geometry, material } = useMemo(() => {
     const geo = new DodecahedronGeometry(1, 0);
-    const mat = new MeshStandardMaterial({ color: "#7A6350", roughness: 0.9 });
+    const mat = new MeshStandardMaterial({ 
+      color: "#7A6350", 
+      roughness: 0.9,
+      depthWrite: false, // Don't write to depth buffer so player renders on top
+    });
     return { geometry: geo, material: mat };
   }, []);
   
@@ -297,6 +301,7 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
       ref={meshRef} 
       args={[geometry, material, rocks.length]}
       castShadow
+      renderOrder={1}
     />
   );
 };
@@ -619,7 +624,7 @@ const RefBasedPlayer = ({
   });
   
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} renderOrder={10}>
       <PlayerCube
         animalType={animalType}
         position={[0, 0, 0]}
