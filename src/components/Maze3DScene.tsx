@@ -792,11 +792,11 @@ return (
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={1}
-        shadow-camera-far={80}
-        shadow-camera-left={-30}
-        shadow-camera-right={30}
-        shadow-camera-top={30}
-        shadow-camera-bottom={-30}
+        shadow-camera-far={120}
+        shadow-camera-left={-50}
+        shadow-camera-right={50}
+        shadow-camera-top={50}
+        shadow-camera-bottom={-50}
         shadow-bias={-0.0005}
         shadow-radius={2}
       />
