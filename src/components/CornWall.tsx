@@ -1,6 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, MeshStandardMaterial } from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler } from 'three';
 import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
@@ -29,7 +28,7 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
   );
 };
 
-// Instanced walls using native InstancedMesh with merged geometry
+// Instanced walls using InstancedMesh for each mesh in the GLTF (2 draw calls)
 interface InstancedWallsProps {
   positions: { x: number; z: number }[];
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
@@ -47,43 +46,32 @@ const BOUNDARY_STALKS_PER_ROW = 4;
 const BOUNDARY_SPACING = 0.30;
 const BOUNDARY_DEPTH = 2.0;
 
+// Extract mesh data from GLTF for instancing
+interface MeshData {
+  geometry: BufferGeometry;
+  material: Material | Material[];
+}
+
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const groupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene } = useGLTF('/models/Corn.glb');
   
-  // Merge all meshes from GLTF into a single geometry with unified material
-  const mergedData = useMemo(() => {
-    const geometries: BufferGeometry[] = [];
-    
+  // Extract all meshes from the GLTF model (preserves original materials)
+  const meshDataList = useMemo(() => {
+    const meshes: MeshData[] = [];
     scene.traverse((child) => {
       if ((child as Mesh).isMesh) {
         const mesh = child as Mesh;
-        const geom = mesh.geometry.clone();
-        // Apply mesh's local transform to geometry
-        if (mesh.matrix) {
-          geom.applyMatrix4(mesh.matrix);
-        }
-        geometries.push(geom);
+        meshes.push({
+          geometry: mesh.geometry.clone(),
+          material: Array.isArray(mesh.material) 
+            ? mesh.material.map(m => m.clone()) 
+            : mesh.material.clone()
+        });
       }
     });
-    
-    if (geometries.length === 0) return null;
-    
-    // Merge all geometries into one
-    const merged = mergeGeometries(geometries, false);
-    
-    // Use a single unified material (green corn color)
-    const material = new MeshStandardMaterial({ 
-      color: 0x3d6b2e,
-      roughness: 0.8,
-      metalness: 0.0
-    });
-    
-    // Dispose cloned geometries
-    geometries.forEach(g => g.dispose());
-    
-    return { geometry: merged, material };
+    return meshes;
   }, [scene]);
   
   // Create stable key for positions
@@ -181,38 +169,49 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
 
   useEffect(() => {
     const group = groupRef.current;
-    if (!group || stalkTransforms.length === 0 || !mergedData || createdRef.current) return;
+    if (!group || stalkTransforms.length === 0 || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     
-    // Create a SINGLE InstancedMesh with merged geometry - one draw call!
-    const instancedMesh = new ThreeInstancedMesh(
-      mergedData.geometry, 
-      mergedData.material, 
-      stalkTransforms.length
-    );
+    // Create an InstancedMesh for each mesh in the GLTF (2 draw calls, preserves materials)
+    const instancedMeshes: ThreeInstancedMesh[] = [];
     
-    stalkTransforms.forEach((matrix, i) => {
-      instancedMesh.setMatrixAt(i, matrix);
+    meshDataList.forEach((meshData) => {
+      const instancedMesh = new ThreeInstancedMesh(
+        meshData.geometry, 
+        meshData.material, 
+        stalkTransforms.length
+      );
+      
+      stalkTransforms.forEach((matrix, i) => {
+        instancedMesh.setMatrixAt(i, matrix);
+      });
+      
+      instancedMesh.instanceMatrix.needsUpdate = true;
+      instancedMesh.castShadow = true;
+      instancedMesh.receiveShadow = true;
+      instancedMesh.frustumCulled = false;
+      
+      group.add(instancedMesh);
+      instancedMeshes.push(instancedMesh);
     });
     
-    instancedMesh.instanceMatrix.needsUpdate = true;
-    instancedMesh.castShadow = true;
-    instancedMesh.receiveShadow = true;
-    instancedMesh.frustumCulled = false;
-    
-    group.add(instancedMesh);
-    
     return () => {
-      if (group.children.includes(instancedMesh)) {
-        group.remove(instancedMesh);
-        instancedMesh.geometry.dispose();
-        (instancedMesh.material as Material).dispose();
-        instancedMesh.dispose();
-      }
+      instancedMeshes.forEach(mesh => {
+        if (group.children.includes(mesh)) {
+          group.remove(mesh);
+          mesh.geometry.dispose();
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(m => m.dispose());
+          } else {
+            mesh.material.dispose();
+          }
+          mesh.dispose();
+        }
+      });
       createdRef.current = false;
     };
-  }, [stalkTransforms, mergedData]);
+  }, [stalkTransforms, meshDataList]);
 
   if (stalkTransforms.length === 0) return null;
 
