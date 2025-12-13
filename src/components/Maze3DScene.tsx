@@ -136,46 +136,60 @@ const OverShoulderCameraController = ({
 }) => {
   const { camera } = useThree();
   
-  // Smooth interpolation refs
+  // Store smoothed rotation to prevent discontinuities
+  const smoothRotation = useRef(playerRotation);
   const currentPosition = useRef(new Vector3());
   const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
   
   // Camera settings
   const CAMERA_DISTANCE = 2.5;
-  const CAMERA_HEIGHT = 2.2; // Slightly higher to see over walls
+  const CAMERA_HEIGHT = 2.2;
   const LOOK_AHEAD = 1.5;
   const LOOK_HEIGHT = 0.6;
-  const SMOOTHING = 0.1; // Smooth but responsive
+  const POSITION_SMOOTHING = 0.15;
+  const ROTATION_SMOOTHING = 0.12;
   
   useFrame(() => {
     const playerX = playerPos.x;
     const playerZ = playerPos.y;
     
-    // Calculate camera position behind player
+    // Smoothly interpolate rotation using shortest path
+    let rotDiff = playerRotation - smoothRotation.current;
+    // Handle wrap-around (shortest path)
+    if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+    if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+    smoothRotation.current += rotDiff * ROTATION_SMOOTHING;
+    // Keep in 0-2π range
+    smoothRotation.current = ((smoothRotation.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    
+    const rot = smoothRotation.current;
+    
+    // Calculate camera position behind player using smoothed rotation
     const targetPos = new Vector3(
-      playerX - Math.sin(playerRotation) * CAMERA_DISTANCE,
+      playerX - Math.sin(rot) * CAMERA_DISTANCE,
       CAMERA_HEIGHT,
-      playerZ + Math.cos(playerRotation) * CAMERA_DISTANCE
+      playerZ + Math.cos(rot) * CAMERA_DISTANCE
     );
     
     // Calculate look target ahead of player
     const targetLookAt = new Vector3(
-      playerX + Math.sin(playerRotation) * LOOK_AHEAD,
+      playerX + Math.sin(rot) * LOOK_AHEAD,
       LOOK_HEIGHT,
-      playerZ - Math.cos(playerRotation) * LOOK_AHEAD
+      playerZ - Math.cos(rot) * LOOK_AHEAD
     );
     
     // Initialize on first frame
     if (!initialized.current) {
+      smoothRotation.current = playerRotation;
       currentPosition.current.copy(targetPos);
       currentLookAt.current.copy(targetLookAt);
       initialized.current = true;
     }
     
-    // Smooth interpolation
-    currentPosition.current.lerp(targetPos, SMOOTHING);
-    currentLookAt.current.lerp(targetLookAt, SMOOTHING);
+    // Smooth position interpolation
+    currentPosition.current.lerp(targetPos, POSITION_SMOOTHING);
+    currentLookAt.current.lerp(targetLookAt, POSITION_SMOOTHING);
     
     // Apply to camera
     camera.position.copy(currentPosition.current);
