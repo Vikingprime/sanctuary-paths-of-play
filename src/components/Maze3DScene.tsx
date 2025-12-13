@@ -547,6 +547,9 @@ const RefBasedPlayer = ({
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef(0);
+  const smoothPositionX = useRef(0);
+  const smoothPositionZ = useRef(0);
+  const positionInitialized = useRef(false);
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   
   useFrame((state, delta) => {
@@ -582,9 +585,21 @@ const RefBasedPlayer = ({
       }
     }
     
-    // Update position directly every frame
-    groupRef.current.position.x = playerStateRef.current.x;
-    groupRef.current.position.z = playerStateRef.current.y;
+    // Initialize smooth position on first frame
+    if (!positionInitialized.current) {
+      smoothPositionX.current = playerStateRef.current.x;
+      smoothPositionZ.current = playerStateRef.current.y;
+      positionInitialized.current = true;
+    }
+    
+    // Smooth position with fixed lerp factor (same approach as rotation)
+    const targetX = playerStateRef.current.x;
+    const targetZ = playerStateRef.current.y;
+    smoothPositionX.current += (targetX - smoothPositionX.current) * 0.3;
+    smoothPositionZ.current += (targetZ - smoothPositionZ.current) * 0.3;
+    
+    groupRef.current.position.x = smoothPositionX.current;
+    groupRef.current.position.z = smoothPositionZ.current;
     
     // Smooth rotation with fixed lerp factor (not delta-dependent)
     const targetRotation = -playerStateRef.current.rotation + Math.PI;
