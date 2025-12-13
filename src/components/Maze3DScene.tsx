@@ -359,7 +359,7 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
           object={(tuft.type === 1 ? grass231 : grass232).scene.clone()}
           position={[tuft.x, 0, tuft.z]}
           rotation={[0, tuft.rotation, 0]}
-          scale={[tuft.scale, tuft.scale, tuft.scale]}
+          scale={[tuft.scale * 0.08, tuft.scale * 0.08, tuft.scale * 0.08]}
         />
       ))}
     </>
