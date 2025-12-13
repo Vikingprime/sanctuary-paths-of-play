@@ -33,11 +33,39 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
   const { scene: cowScene, animations: cowAnimations } = useGLTF('/models/Cow.glb');
   const { scene: henScene } = useGLTF('/models/Hen.glb');
   
-  const clonedPigScene = useMemo(() => pigScene.clone(), [pigScene]);
-  const clonedHenScene = useMemo(() => henScene.clone(), [henScene]);
+  const clonedPigScene = useMemo(() => {
+    const clone = pigScene.clone();
+    clone.traverse((child: any) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [pigScene]);
+  
+  const clonedHenScene = useMemo(() => {
+    const clone = henScene.clone();
+    clone.traverse((child: any) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [henScene]);
   
   // Use SkeletonUtils.clone for skinned meshes (cow has bones/skeleton)
-  const clonedCowScene = useMemo(() => SkeletonUtils.clone(cowScene), [cowScene]);
+  const clonedCowScene = useMemo(() => {
+    const clone = SkeletonUtils.clone(cowScene);
+    clone.traverse((child: any) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [cowScene]);
   
   // Set up cow animation mixer
   const cowMixerRef = useRef<AnimationMixer | null>(null);
