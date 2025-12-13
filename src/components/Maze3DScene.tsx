@@ -27,12 +27,14 @@ interface Maze3DSceneProps {
 const Ground = ({ width, height }: { width: number; height: number }) => {
   const { scene } = useGLTF('/models/Fertile_soil.glb');
   
-  // Generate grid of soil tiles
+  // Generate grid of soil tiles with random rotation for variety
   const tiles = useMemo(() => {
-    const result: { x: number; z: number; clone: any }[] = [];
+    const result: { x: number; z: number; rotY: number; clone: any }[] = [];
     for (let x = -2; x < width + 2; x++) {
       for (let z = -2; z < height + 2; z++) {
-        result.push({ x, z, clone: scene.clone() });
+        // Random 90-degree rotation to break up pattern
+        const rotY = Math.floor((x * 7 + z * 13) % 4) * (Math.PI / 2);
+        result.push({ x, z, rotY, clone: scene.clone() });
       }
     }
     return result;
@@ -40,12 +42,19 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
   
   return (
     <group>
+      {/* Base dirt plane underneath to hide any remaining seams */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, -0.02, height / 2]}>
+        <planeGeometry args={[width + 10, height + 10]} />
+        <meshStandardMaterial color="#9B6B4A" roughness={1} />
+      </mesh>
+      {/* Soil tiles on top with overlap */}
       {tiles.map((tile, i) => (
         <primitive
           key={`soil-tile-${i}`}
           object={tile.clone}
           position={[tile.x + 0.5, 0, tile.z + 0.5]}
-          scale={[1.08, 0.5, 1.08]}
+          rotation={[0, tile.rotY, 0]}
+          scale={[1.15, 0.5, 1.15]}
         />
       ))}
     </group>
