@@ -61,6 +61,21 @@ export const MazeGame3D = ({
   const [collectedPowerUps, setCollectedPowerUps] = useState<Set<string>>(new Set());
   const [speedBoostActive, setSpeedBoostActive] = useState(false);
   const isMovingRef = useRef(false);
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null);
+
+  // Background music
+  useEffect(() => {
+    const music = new Audio('/sounds/background-music.mp3');
+    music.loop = true;
+    music.volume = 0.1; // Very quiet
+    bgMusicRef.current = music;
+    music.play().catch(() => {}); // Ignore autoplay errors
+    
+    return () => {
+      music.pause();
+      music.src = '';
+    };
+  }, []);
 
   // Track pressed keys for smooth movement
   const keysPressed = useRef<Set<string>>(new Set());
