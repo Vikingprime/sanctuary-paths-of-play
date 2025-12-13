@@ -157,13 +157,13 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     <group ref={groupRef}>
       {/* Solid dark green blocks BEHIND boundary walls (offset outward) */}
       {boundaryPositions.map((pos, i) => (
-        <mesh 
+<mesh 
           key={`block-${i}`}
-          position={[pos.x + 0.5 + pos.offsetX, 1.5, pos.z + 0.5 + pos.offsetZ]}
+          position={[pos.x + 0.5 + pos.offsetX, 0.5, pos.z + 0.5 + pos.offsetZ]}
           material={boundaryMaterial}
           castShadow
         >
-          <boxGeometry args={[1.2, 4, 1.2]} />
+          <boxGeometry args={[1.2, 5, 1.2]} />
         </mesh>
       ))}
       {/* Corn stalks - shadows already enabled */}
