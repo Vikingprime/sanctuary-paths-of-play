@@ -50,10 +50,10 @@ const MIN_HEIGHT = 2.0;
 const MAX_HEIGHT = 3.0;
 
 // Boundary walls - more layers of corn before the green block
-const BOUNDARY_ROWS = 6;
+const BOUNDARY_ROWS = 8;
 const BOUNDARY_STALKS_PER_ROW = 6;
 const BOUNDARY_SPACING = 0.25;
-const BOUNDARY_DEPTH = 1.2; // How far the corn extends outward
+const BOUNDARY_DEPTH = 2.5; // How far the corn extends outward (increased to hide blocks)
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
@@ -159,11 +159,11 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
       {boundaryPositions.map((pos, i) => (
 <mesh 
           key={`block-${i}`}
-          position={[pos.x + 0.5 + pos.offsetX, 0.5, pos.z + 0.5 + pos.offsetZ]}
+          position={[pos.x + 0.5 + pos.offsetX * 2.5, 1, pos.z + 0.5 + pos.offsetZ * 2.5]}
           material={boundaryMaterial}
           castShadow
         >
-          <boxGeometry args={[1.2, 5, 1.2]} />
+          <boxGeometry args={[1.5, 6, 1.5]} />
         </mesh>
       ))}
       {/* Corn stalks - shadows already enabled */}
