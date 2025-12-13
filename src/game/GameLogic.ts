@@ -97,7 +97,7 @@ export function calculateMovement(
     ? GameConfig.BOOSTED_MOVE_SPEED
     : GameConfig.BASE_MOVE_SPEED;
 
-  // Calculate rotation
+  // Calculate rotation and normalize to 0-2π to prevent floating-point issues
   let newRotation = currentState.rotation;
   if (input.rotateLeft) {
     newRotation -= GameConfig.ROTATION_SPEED * deltaTime;
@@ -105,6 +105,8 @@ export function calculateMovement(
   if (input.rotateRight) {
     newRotation += GameConfig.ROTATION_SPEED * deltaTime;
   }
+  // Normalize rotation to prevent accumulation of large values
+  newRotation = ((newRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
 
   // Calculate movement vector based on facing direction
   let moveX = 0;
