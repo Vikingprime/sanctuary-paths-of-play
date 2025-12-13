@@ -1,7 +1,7 @@
 import { useRef, useMemo, MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, UniformsLib, UniformsUtils } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
@@ -44,35 +44,55 @@ const texture = new DataTexture(data, mazeWidth, mazeHeight);
     texture.magFilter = LinearFilter;
     texture.minFilter = LinearFilter;
     
-    const mat = new ShaderMaterial({
-      uniforms: {
-        wallMap: { value: texture },
-        mazeWidth: { value: mazeWidth },
-        mazeHeight: { value: mazeHeight },
-        // Dirt path colors - warm terracotta tones
-        pathWorn: { value: new Color('#C49A7A') },
-        pathBase: { value: new Color('#8B5A42') },
-        pathDark: { value: new Color('#5C3D2E') },
-        pathRich: { value: new Color('#7A4A3A') },
-        // Grass colors - rich greens
-        grassBase: { value: new Color('#4A6B3A') },
-        grassDark: { value: new Color('#2E4420') },
-        grassMoss: { value: new Color('#3D5830') },
-        // Rock/stone colors
-        rockLight: { value: new Color('#C4B090') },
-        rockMid: { value: new Color('#A08060') },
-        rockDark: { value: new Color('#705540') },
-      },
+const mat = new ShaderMaterial({
+      uniforms: UniformsUtils.merge([
+        UniformsLib.lights,
+        {
+          wallMap: { value: texture },
+          mazeWidth: { value: mazeWidth },
+          mazeHeight: { value: mazeHeight },
+          // Dirt path colors - warm terracotta tones
+          pathWorn: { value: new Color('#C49A7A') },
+          pathBase: { value: new Color('#8B5A42') },
+          pathDark: { value: new Color('#5C3D2E') },
+          pathRich: { value: new Color('#7A4A3A') },
+          // Grass colors - rich greens
+          grassBase: { value: new Color('#4A6B3A') },
+          grassDark: { value: new Color('#2E4420') },
+          grassMoss: { value: new Color('#3D5830') },
+          // Rock/stone colors
+          rockLight: { value: new Color('#C4B090') },
+          rockMid: { value: new Color('#A08060') },
+          rockDark: { value: new Color('#705540') },
+        }
+      ]),
+      lights: true,
       vertexShader: `
+        #include <common>
+        #include <shadowmap_pars_vertex>
+        
         varying vec2 vUv;
         varying vec3 vWorldPos;
+        
         void main() {
           vUv = uv;
-          vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPos = worldPosition.xyz;
+          
+          #include <beginnormal_vertex>
+          #include <defaultnormal_vertex>
+          #include <shadowmap_vertex>
+          
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
+        #include <common>
+        #include <packing>
+        #include <lights_pars_begin>
+        #include <shadowmap_pars_fragment>
+        #include <shadowmask_pars_fragment>
+        
         uniform sampler2D wallMap;
         uniform float mazeWidth;
         uniform float mazeHeight;
@@ -242,7 +262,14 @@ const texture = new DataTexture(data, mazeWidth, mazeHeight);
           // Soft muddy transition
           float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
           vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
-finalColor = mix(finalColor, mudColor, transition * 0.2);
+// Soft muddy transition
+          float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
+          vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
+          finalColor = mix(finalColor, mudColor, transition * 0.2);
+          
+          // Apply shadows
+          float shadow = getShadowMask();
+          finalColor = finalColor * (0.4 + 0.6 * shadow);
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
@@ -561,28 +588,43 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Filter out collected powerups
   const visiblePowerUps = items.powerUps.filter(p => !collectedPowerUps.has(p.key));
 
-  return (
+return (
     <>
-      {/* Lighting - bright daylight scene */}
-      <ambientLight intensity={1.2} />
-      <directionalLight
-        position={[10, 30, 10]}
-        intensity={2}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-      />
-      {/* Fill light from opposite side */}
-      <directionalLight
-        position={[-10, 20, -10]}
-        intensity={0.8}
-      />
-      {/* Top-down light for even illumination */}
-      <pointLight position={[0, 15, 0]} intensity={1} distance={50} />
+      {/* Lighting - warm sunlight with shadows */}
+      <ambientLight intensity={0.4} color="#B8A080" />
       
-      {/* Bright sky blue background */}
+      {/* Main sun light - creates shadows */}
+      <directionalLight
+        position={[15, 25, 20]}
+        intensity={1.8}
+        color="#FFF5E0"
+        castShadow
+        shadow-mapSize={[4096, 4096]}
+        shadow-camera-near={1}
+        shadow-camera-far={100}
+        shadow-camera-left={-30}
+        shadow-camera-right={30}
+        shadow-camera-top={30}
+        shadow-camera-bottom={-30}
+        shadow-bias={-0.0005}
+      />
+      
+      {/* Fill light from opposite side - softer, no shadows */}
+      <directionalLight
+        position={[-10, 15, -15]}
+        intensity={0.5}
+        color="#8090B0"
+      />
+      
+      {/* Subtle hemisphere light for sky/ground color blending */}
+      <hemisphereLight 
+        args={['#87CEEB', '#5C4030', 0.3]} 
+      />
+      
+      {/* Soft sky blue background */}
       <color attach="background" args={['#87CEEB']} />
       
-{/* Ground */}
+      {/* Ground */}
       <Ground maze={maze} />
       
       {/* Maze Walls */}
