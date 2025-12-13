@@ -4,13 +4,10 @@ import { InstancedMesh, Object3D, ShaderMaterial, Color } from 'three';
 // Custom corn shader for realistic corn stalk appearance
 const cornVertexShader = `
   varying vec2 vUv;
-  varying vec3 vPosition;
   
   void main() {
     vUv = uv;
-    vPosition = position;
     
-    // Support for instanced rendering
     #ifdef USE_INSTANCING
       vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
     #else
@@ -23,32 +20,25 @@ const cornVertexShader = `
 
 const cornFragmentShader = `
   varying vec2 vUv;
-  varying vec3 vPosition;
   
   void main() {
-    // Base corn colors
-    vec3 darkGreen = vec3(0.18, 0.38, 0.12);
-    vec3 lightGreen = vec3(0.28, 0.52, 0.18);
-    vec3 golden = vec3(0.55, 0.48, 0.22);
-    vec3 brown = vec3(0.32, 0.22, 0.12);
+    // Solid corn colors - height-based gradient only, no horizontal patterns
+    vec3 brown = vec3(0.35, 0.25, 0.15);
+    vec3 darkGreen = vec3(0.2, 0.4, 0.15);
+    vec3 midGreen = vec3(0.25, 0.5, 0.18);
+    vec3 lightGreen = vec3(0.35, 0.55, 0.2);
+    vec3 golden = vec3(0.5, 0.45, 0.2);
     
-    // Very low frequency stalk pattern to avoid aliasing
-    float stalkPattern = sin(vUv.x * 12.0) * 0.5 + 0.5;
-    stalkPattern = smoothstep(0.3, 0.7, stalkPattern);
+    float h = vUv.y;
     
-    // Height-based color
-    float heightFactor = vUv.y;
+    // Smooth vertical gradient: brown -> dark green -> mid green -> light green -> golden
+    vec3 color = brown;
+    color = mix(color, darkGreen, smoothstep(0.0, 0.15, h));
+    color = mix(color, midGreen, smoothstep(0.15, 0.4, h));
+    color = mix(color, lightGreen, smoothstep(0.4, 0.7, h));
+    color = mix(color, golden, smoothstep(0.8, 1.0, h));
     
-    // Mix greens with smooth stalk pattern
-    vec3 greenMix = mix(darkGreen, lightGreen, stalkPattern * 0.5);
-    
-    // Golden tint at top
-    vec3 topColor = mix(greenMix, golden, smoothstep(0.75, 0.95, heightFactor) * 0.4);
-    
-    // Brown at bottom
-    vec3 finalColor = mix(brown, topColor, smoothstep(0.0, 0.12, heightFactor));
-    
-    gl_FragColor = vec4(finalColor, 1.0);
+    gl_FragColor = vec4(color, 1.0);
   }
 `;
 
