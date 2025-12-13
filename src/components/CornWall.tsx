@@ -92,7 +92,7 @@ export const InstancedWalls = ({ positions, size = [0.6, 1, 0.6] }: InstancedWal
           position={[pos.x + 0.5, 1.5, pos.z + 0.5]}
           material={backingMaterial}
         >
-          <boxGeometry args={[0.9, 3, 0.9]} />
+          <boxGeometry args={[1.0, 3.5, 0.05]} />
         </mesh>
       ))}
       {/* Corn stalks on top */}
