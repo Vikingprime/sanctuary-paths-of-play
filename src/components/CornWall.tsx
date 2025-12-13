@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Euler } from 'three';
 import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
@@ -108,17 +108,19 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
           const height = MIN_HEIGHT + seededRandom(stalkSeed + 3) * (MAX_HEIGHT - MIN_HEIGHT);
           
-          // GLTF corn model - use uniform scaling with height variation
-          const baseScale = 80; // Base uniform scale
-          const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4; // 0.8-1.2 variation
+          // GLTF corn model - smaller scale, proper upright rotation
+          const baseScale = 40; // Reduced scale
+          const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
           const finalScale = baseScale * heightVariation;
           
           dummy.position.set(
             wallPos.x + 0.5 + offsetX + jitterX,
-            0, // Start at ground level
+            0,
             wallPos.z + 0.5 + offsetZ + jitterZ
           );
-          dummy.rotation.set(-Math.PI / 2, rotation, 0); // Rotate -90° on X to stand upright
+          // Set rotation with proper order: first stand upright (X), then rotate around Y
+          dummy.rotation.set(0, rotation, 0);
+          dummy.rotateX(-Math.PI / 2); // Rotate on local X axis after setting Y rotation
           dummy.scale.set(finalScale, finalScale, finalScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
@@ -156,11 +158,12 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             posZ += dirZ * depthOffset;
           }
           
-          const baseScale = 80;
+          const baseScale = 40;
           const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
           const finalScale = baseScale * heightVariation;
           dummy.position.set(posX, 0, posZ);
-          dummy.rotation.set(-Math.PI / 2, rotation, 0);
+          dummy.rotation.set(0, rotation, 0);
+          dummy.rotateX(-Math.PI / 2);
           dummy.scale.set(finalScale, finalScale, finalScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
