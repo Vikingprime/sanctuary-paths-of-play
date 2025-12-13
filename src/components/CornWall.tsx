@@ -1,13 +1,6 @@
 import { useRef, useMemo } from 'react';
-import { Group, MeshStandardMaterial, Color } from 'three';
+import { Group } from 'three';
 import { useGLTF } from '@react-three/drei';
-
-// Dark green backing material to block visibility through corn
-const backingMaterial = new MeshStandardMaterial({
-  color: new Color(0.1, 0.2, 0.08),
-  roughness: 1,
-  metalness: 0,
-});
 
 interface CornWallProps {
   position: [number, number, number];
@@ -36,11 +29,11 @@ interface InstancedWallsProps {
 }
 
 // Density settings for opaque walls
-const ROWS = 5;
-const STALKS_PER_ROW = 5;
-const STALK_SPACING = 0.2;
-const BASE_HEIGHT = 2.2;
-const HEIGHT_VARIATION = 0.8; // Random height between 2.2 and 3.0
+const ROWS = 6;
+const STALKS_PER_ROW = 6;
+const STALK_SPACING = 0.16;
+const MIN_HEIGHT = 1.5;
+const MAX_HEIGHT = 3.2;
 
 export const InstancedWalls = ({ positions, size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
@@ -58,11 +51,11 @@ export const InstancedWalls = ({ positions, size = [0.6, 1, 0.6] }: InstancedWal
         for (let col = 0; col < STALKS_PER_ROW; col++) {
           const offsetX = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING + rowOffset;
           const offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
-          // Add small random jitter for natural look
-          const jitterX = (Math.random() - 0.5) * 0.04;
-          const jitterZ = (Math.random() - 0.5) * 0.04;
+          const jitterX = (Math.random() - 0.5) * 0.03;
+          const jitterZ = (Math.random() - 0.5) * 0.03;
           const rotation = Math.random() * Math.PI * 2;
-          const height = BASE_HEIGHT + Math.random() * HEIGHT_VARIATION;
+          // Mix of heights: some short, some full height to fill all gaps
+          const height = MIN_HEIGHT + Math.random() * (MAX_HEIGHT - MIN_HEIGHT);
           
           data.push({
             pos: [wallPos.x + 0.5 + offsetX + jitterX, 0, wallPos.z + 0.5 + offsetZ + jitterZ],
@@ -85,17 +78,6 @@ export const InstancedWalls = ({ positions, size = [0.6, 1, 0.6] }: InstancedWal
 
   return (
     <group ref={groupRef}>
-      {/* Solid dark green backing boxes to block visibility */}
-      {positions.map((pos, i) => (
-        <mesh 
-          key={`backing-${i}`}
-          position={[pos.x + 0.5, 1.5, pos.z + 0.5]}
-          material={backingMaterial}
-        >
-          <boxGeometry args={[1.0, 3.5, 0.05]} />
-        </mesh>
-      ))}
-      {/* Corn stalks on top */}
       {stalkData.map((stalk, i) => (
         <primitive 
           key={i}
