@@ -1,6 +1,6 @@
 import { useRef, useMemo, memo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PerspectiveCamera, useGLTF, Clone } from '@react-three/drei';
+import { PerspectiveCamera } from '@react-three/drei';
 import { Vector3 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
@@ -12,9 +12,6 @@ import {
   createCameraVolume 
 } from './CameraVolumeSystem';
 
-// Preload grass floor model
-useGLTF.preload('/models/Floor_Grass.glb');
-
 interface Maze3DSceneProps {
   maze: Maze;
   animalType: AnimalType;
@@ -24,55 +21,13 @@ interface Maze3DSceneProps {
   isMoving?: boolean; // Whether the player is moving (for animations)
 }
 
-// Memoized ground component to prevent re-renders
-const Ground = memo(({ width, height }: { width: number; height: number }) => {
-  const { scene } = useGLTF('/models/Floor_Grass.glb');
-  
-  console.log('Ground component rendering, scene:', scene?.uuid);
-  
-  // Tile size - adjust based on the actual model size
-  const tileSize = 1;
-  
-  // Generate tile positions in a grid - fully memoized with stable deps
-  const tiles = useMemo(() => {
-    console.log('Tiles useMemo recalculating for width:', width, 'height:', height);
-    const tilesX = Math.ceil((width + 10) / tileSize);
-    const tilesZ = Math.ceil((height + 10) / tileSize);
-    const positions: { x: number; z: number }[] = [];
-    const startX = -5;
-    const startZ = -5;
-    
-    for (let x = 0; x < tilesX; x++) {
-      for (let z = 0; z < tilesZ; z++) {
-        positions.push({
-          x: startX + x * tileSize + tileSize / 2,
-          z: startZ + z * tileSize + tileSize / 2
-        });
-      }
-    }
-    console.log('Generated', positions.length, 'tiles');
-    return positions;
-  }, [width, height]);
-
-  // Clone scene once and memoize
-  const clonedScene = useMemo(() => {
-    console.log('Cloning scene');
-    return scene.clone();
-  }, [scene]);
-
-  return (
-    <group>
-      {tiles.map((pos, i) => (
-        <primitive 
-          key={`grass-${i}`} 
-          object={clonedScene.clone()} 
-          position={[pos.x, 0, pos.z]} 
-          scale={[tileSize, 1, tileSize]}
-        />
-      ))}
-    </group>
-  );
-});
+// Simple stable ground - no GLB to avoid re-render issues
+const Ground = memo(({ width, height }: { width: number; height: number }) => (
+  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, 0, height / 2]}>
+    <planeGeometry args={[width + 10, height + 10]} />
+    <meshStandardMaterial color="#4a7c3f" roughness={0.9} />
+  </mesh>
+));
 
 const MazeWalls = ({ maze }: { maze: Maze }) => {
   const { interiorWalls, boundaryWalls } = useMemo(() => {
