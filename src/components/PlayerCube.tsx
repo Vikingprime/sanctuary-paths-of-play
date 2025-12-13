@@ -27,11 +27,46 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
   const innerGroupRef = useRef<any>(null);
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
+  const lastPosition = useRef<[number, number, number]>([0, 0, 0]);
+  const renderCount = useRef(0);
+  
+  // Debug: Log when position changes significantly
+  useEffect(() => {
+    renderCount.current++;
+    const [x, y, z] = position;
+    const [lx, ly, lz] = lastPosition.current;
+    const moved = Math.abs(x - lx) > 0.001 || Math.abs(y - ly) > 0.001 || Math.abs(z - lz) > 0.001;
+    
+    if (renderCount.current % 30 === 0 || moved) {
+      console.log('PlayerCube render #', renderCount.current, 'pos:', position, 'rot:', rotation.toFixed(3), 'moved:', moved);
+    }
+    lastPosition.current = position;
+  });
   
   // Load models
   const { scene: pigScene } = useGLTF('/models/Pig.glb');
   const { scene: cowScene, animations: cowAnimations } = useGLTF('/models/Cow.glb');
   const { scene: henScene } = useGLTF('/models/Hen.glb');
+  
+  // Debug: Check if scenes are stable
+  const pigSceneId = useRef(pigScene.uuid);
+  const cowSceneId = useRef(cowScene.uuid);
+  const henSceneId = useRef(henScene.uuid);
+  
+  useEffect(() => {
+    if (pigScene.uuid !== pigSceneId.current) {
+      console.log('WARNING: pigScene changed!', pigSceneId.current, '->', pigScene.uuid);
+      pigSceneId.current = pigScene.uuid;
+    }
+    if (cowScene.uuid !== cowSceneId.current) {
+      console.log('WARNING: cowScene changed!', cowSceneId.current, '->', cowScene.uuid);
+      cowSceneId.current = cowScene.uuid;
+    }
+    if (henScene.uuid !== henSceneId.current) {
+      console.log('WARNING: henScene changed!', henSceneId.current, '->', henScene.uuid);
+      henSceneId.current = henScene.uuid;
+    }
+  }, [pigScene, cowScene, henScene]);
   
   const clonedPigScene = useMemo(() => pigScene.clone(), [pigScene]);
   const clonedHenScene = useMemo(() => henScene.clone(), [henScene]);
