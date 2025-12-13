@@ -185,9 +185,9 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
         <primitive 
           key={`soil-${i}`}
           object={soilClones[i]} 
-          position={stalk.pos}
+          position={[stalk.pos[0], 0.01, stalk.pos[2]]}
           rotation={[0, stalk.rotation, 0]}
-          scale={[0.4, 0.3, 0.4]}
+          scale={[1.5, 1.5, 1.5]}
         />
       ))}
       {/* Corn stalks */}
