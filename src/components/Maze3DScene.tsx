@@ -1,7 +1,7 @@
 import { useRef, useMemo, MutableRefObject } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
-import { Vector3 } from 'three';
+import { Vector3, TextureLoader, RepeatWrapping } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
@@ -20,13 +20,21 @@ interface Maze3DSceneProps {
   onSceneReady?: () => void;
 }
 
-// Simple stable ground with green grass color
-const Ground = ({ width, height }: { width: number; height: number }) => (
-  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, 0, height / 2]}>
-    <planeGeometry args={[width + 10, height + 10]} />
-    <meshStandardMaterial color="#4a7c3f" roughness={0.9} />
-  </mesh>
-);
+// Ground with dirt texture
+const Ground = ({ width, height }: { width: number; height: number }) => {
+  const texture = useLoader(TextureLoader, '/textures/dirt_floor.jpg');
+  
+  // Configure texture to tile
+  texture.wrapS = texture.wrapT = RepeatWrapping;
+  texture.repeat.set(width / 4, height / 4);
+  
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, 0, height / 2]}>
+      <planeGeometry args={[width + 10, height + 10]} />
+      <meshStandardMaterial map={texture} roughness={0.9} />
+    </mesh>
+  );
+};
 
 const MazeWalls = ({ maze }: { maze: Maze }) => {
   const { interiorWalls, boundaryWalls } = useMemo(() => {
