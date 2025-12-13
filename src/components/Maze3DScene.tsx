@@ -146,7 +146,7 @@ const OverShoulderCameraController = ({
   const CAMERA_HEIGHT = 1.8; // Height above ground
   const LOOK_AHEAD = 1.5; // How far ahead of player to look
   const LOOK_HEIGHT = 0.8; // Height of look target
-  const SMOOTHING = 0.08; // Lower = smoother but laggier
+  const SMOOTHING = 0.04; // Lower = smoother, reduces jitter near walls
 
   // Check if a world position is inside a wall
   const isInWall = (x: number, z: number): boolean => {
