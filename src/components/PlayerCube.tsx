@@ -100,8 +100,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
     // Bobbing for non-cow animals (cow has its own animation)
     if (innerGroupRef.current && animalType !== 'cow') {
       bobOffset.current += delta * 3;
-      const baseHeight = 0.4;
-      innerGroupRef.current.position.y = baseHeight + Math.sin(bobOffset.current) * 0.05;
+      const baseHeight = 0.15;
+      innerGroupRef.current.position.y = baseHeight + Math.sin(bobOffset.current) * 0.03;
     }
   });
 
@@ -110,7 +110,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
     return (
       <group position={position}>
         <group ref={innerGroupRef}>
-          <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.1, 0]} />
+          <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.25, 0]} />
         </group>
       </group>
     );
@@ -120,8 +120,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
   if (animalType === 'cow') {
     return (
       <group position={position}>
-        <group ref={cowGroupRef} position={[0, 0.4, 0]}>
-          <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.15, 0]} />
+        <group ref={cowGroupRef} position={[0, 0.15, 0]}>
+          <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.3, 0]} />
         </group>
       </group>
     );
@@ -131,7 +131,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
   return (
     <group position={position}>
       <group ref={innerGroupRef}>
-        <primitive object={clonedHenScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.1, 0]} />
+        <primitive object={clonedHenScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.25, 0]} />
       </group>
     </group>
   );
