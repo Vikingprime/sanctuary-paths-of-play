@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4 } from 'three';
 import { useGLTF } from '@react-three/drei';
 
@@ -50,8 +50,16 @@ const BOUNDARY_DEPTH = 2.5;
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
-  const groupRef = useRef<Group>(null);
+  const [group, setGroup] = useState<Group | null>(null);
   const meshesCreatedRef = useRef(false);
+  
+  // Callback ref to capture the group when it's mounted
+  const groupRefCallback = useCallback((node: Group | null) => {
+    if (node) {
+      console.log('[CornWall] Group ref captured');
+      setGroup(node);
+    }
+  }, []);
   
   // Generate all stalk transforms - memoize based on positions only
   const stalkTransforms = useMemo(() => {
@@ -124,23 +132,26 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
       }
     });
     
+    console.log('[CornWall] Generated transforms:', transforms.length);
     return transforms;
   }, [positions, boundaryPositions, size]);
 
-  // Create instanced meshes once using useEffect
+  // Create instanced meshes once when group is available
   useEffect(() => {
-    if (!groupRef.current || stalkTransforms.length === 0 || meshesCreatedRef.current) return;
+    if (!group || stalkTransforms.length === 0 || meshesCreatedRef.current) return;
     
-    console.log('[CornWall] Creating instanced meshes once, transforms:', stalkTransforms.length);
+    console.log('[CornWall] Creating instanced meshes, transforms:', stalkTransforms.length);
     
     // Clear any existing children
-    while (groupRef.current.children.length > 0) {
-      groupRef.current.remove(groupRef.current.children[0]);
+    while (group.children.length > 0) {
+      group.remove(group.children[0]);
     }
     
     scene.traverse((child) => {
       if ((child as Mesh).isMesh) {
         const originalMesh = child as Mesh;
+        console.log('[CornWall] Found mesh:', originalMesh.name);
+        
         const instancedMesh = new ThreeInstancedMesh(
           originalMesh.geometry.clone(),
           originalMesh.material,
@@ -155,17 +166,18 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
         instancedMesh.instanceMatrix.needsUpdate = true;
         instancedMesh.castShadow = true;
         instancedMesh.receiveShadow = true;
-        instancedMesh.frustumCulled = false; // Ensure visibility
+        instancedMesh.frustumCulled = false;
         
-        groupRef.current!.add(instancedMesh);
+        group.add(instancedMesh);
+        console.log('[CornWall] Added instanced mesh with', stalkTransforms.length, 'instances');
       }
     });
     
     meshesCreatedRef.current = true;
-    console.log('[CornWall] Meshes added to group, children:', groupRef.current.children.length);
-  }, [scene, stalkTransforms]);
+    console.log('[CornWall] Total children in group:', group.children.length);
+  }, [group, scene, stalkTransforms]);
 
   if (stalkTransforms.length === 0) return null;
 
-  return <group ref={groupRef} />;
+  return <group ref={groupRefCallback} />;
 };
