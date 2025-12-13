@@ -232,17 +232,30 @@ const mat = new ShaderMaterial({
           float grassRockMask = smoothstep(0.18, 0.08, grassRockShape) * step(0.88, grassRockNoise);
           grassAreaColor = mix(grassAreaColor, rockMid * 0.9, grassRockMask * 0.8);
           
-          // === FINAL BLEND ===
+// === FINAL BLEND ===
           // Path to grass transition with edge grass tufts
           vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
           
           // Add extra grass tufts at edges
-finalColor = mix(finalColor, grassTuftColor, edgeGrass * 0.5);
+          finalColor = mix(finalColor, grassTuftColor, edgeGrass * 0.5);
           
           // Soft muddy transition
           float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
           vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
           finalColor = mix(finalColor, mudColor, transition * 0.2);
+          
+          // === FAKE SHADOWS near walls ===
+          // Create shadow gradient from walls onto path
+          float shadowZone = smoothstep(0.7, 0.3, wallMask); // Shadows extend from walls
+          float shadowNoise = noise(worldUV * 4.0 + 800.0) * 0.15; // Irregular edge
+          float shadowIntensity = shadowZone * (0.35 + shadowNoise);
+          
+          // Darken the ground in shadow areas
+          finalColor = finalColor * (1.0 - shadowIntensity * 0.5);
+          
+          // Add slight color shift in shadows (cooler/bluer)
+          vec3 shadowTint = vec3(0.85, 0.88, 0.95);
+          finalColor = mix(finalColor, finalColor * shadowTint, shadowIntensity * 0.3);
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
