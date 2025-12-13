@@ -163,15 +163,15 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           <boxGeometry args={[1.2, 4, 1.2]} />
         </mesh>
       ))}
-      {/* Soil mounds under each stalk - flattened spheres */}
+      {/* Soil discs under each stalk - flat cylinders */}
       {stalkData.map((stalk, i) => (
         <mesh 
           key={`soil-${i}`}
           position={[stalk.pos[0], 0.02, stalk.pos[2]]}
-          scale={[1, 0.3, 1]}
+          rotation={[-Math.PI / 2, 0, 0]}
         >
-          <sphereGeometry args={[0.15, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial color="#5c3a21" roughness={1} />
+          <cylinderGeometry args={[0.22, 0.25, 0.04, 6]} />
+          <meshStandardMaterial color="#6b4423" roughness={1} />
         </mesh>
       ))}
       {/* Corn stalks */}
