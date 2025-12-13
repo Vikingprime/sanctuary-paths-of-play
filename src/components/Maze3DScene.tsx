@@ -23,17 +23,25 @@ interface Maze3DSceneProps {
   onSceneReady?: () => void;
 }
 
-// Ground made of tiled Fertile_soil models with a base plane underneath
+// Ground made of tiled Fertile_soil models with mirrored pattern for seamless edges
 const Ground = ({ width, height }: { width: number; height: number }) => {
   const { scene } = useGLTF('/models/Fertile_soil.glb');
   
-  // Generate grid of soil tiles
+  // Generate grid of soil tiles with checkerboard mirroring
   const tiles = useMemo(() => {
-    const result: { x: number; z: number; clone: any }[] = [];
-    // Tile every 1 unit - adjust scale to match
+    const result: { x: number; z: number; scaleX: number; scaleZ: number; clone: any }[] = [];
     for (let x = -2; x < width + 2; x++) {
       for (let z = -2; z < height + 2; z++) {
-        result.push({ x, z, clone: scene.clone() });
+        // Checkerboard mirror pattern: flip X on odd columns, flip Z on odd rows
+        const flipX = x % 2 !== 0;
+        const flipZ = z % 2 !== 0;
+        result.push({ 
+          x, 
+          z, 
+          scaleX: flipX ? -0.5 : 0.5,
+          scaleZ: flipZ ? -0.5 : 0.5,
+          clone: scene.clone() 
+        });
       }
     }
     return result;
@@ -41,18 +49,12 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
   
   return (
     <group>
-      {/* Base dirt plane underneath to fill gaps */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, -0.05, height / 2]}>
-        <planeGeometry args={[width + 10, height + 10]} />
-        <meshStandardMaterial color="#8B5A2B" roughness={1} />
-      </mesh>
-      {/* Soil tiles on top */}
       {tiles.map((tile, i) => (
         <primitive
           key={`soil-tile-${i}`}
           object={tile.clone}
           position={[tile.x + 0.5, 0, tile.z + 0.5]}
-          scale={[0.5, 0.5, 0.5]}
+          scale={[tile.scaleX, 0.5, tile.scaleZ]}
         />
       ))}
     </group>
