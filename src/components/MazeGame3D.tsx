@@ -130,6 +130,11 @@ export const MazeGame3D = ({
 
   // Movement is now handled in Maze3DScene's useFrame for sync with rendering
 
+  // Clear keys when focus changes or preview state changes
+  useEffect(() => {
+    keysPressed.current.clear();
+  }, [isPreviewing, showMiniMap]);
+
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -140,11 +145,18 @@ export const MazeGame3D = ({
       keysPressed.current.delete(e.key.toLowerCase());
     };
 
+    // Clear all keys when window loses focus
+    const handleBlur = () => {
+      keysPressed.current.clear();
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
     };
   }, []);
 

@@ -62,9 +62,16 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
   // Extract all meshes from the GLTF model
   const meshDataList = useMemo(() => {
     const meshes: MeshData[] = [];
+    console.log('[CornWall] Traversing GLTF scene:', scene);
     scene.traverse((child) => {
+      console.log('[CornWall] Child:', child.type, child.name);
       if ((child as Mesh).isMesh) {
         const mesh = child as Mesh;
+        console.log('[CornWall] Found mesh:', mesh.name, 'geometry:', mesh.geometry, 'material:', mesh.material);
+        // Check if geometry has position attribute
+        if (mesh.geometry.attributes.position) {
+          console.log('[CornWall] Mesh has', mesh.geometry.attributes.position.count, 'vertices');
+        }
         meshes.push({
           geometry: mesh.geometry.clone(),
           material: Array.isArray(mesh.material) 
