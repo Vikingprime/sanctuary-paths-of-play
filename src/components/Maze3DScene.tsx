@@ -581,7 +581,7 @@ return (
       {/* Main sun light - brighter 10am position */}
       <directionalLight
         position={[15, 35, 15]}
-        intensity={2.5}
+        intensity={3.5}
         color="#FFFDF5"
         castShadow
         shadow-mapSize={[2048, 2048]}
