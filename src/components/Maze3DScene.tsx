@@ -574,35 +574,35 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const visiblePowerUps = items.powerUps.filter(p => !collectedPowerUps.has(p.key));
 
 return (
-<>
-      {/* Lighting - bright warm daylight */}
-      <ambientLight intensity={0.8} color="#FFF8F0" />
+    <>
+      {/* Lighting - bright 10am sunlight */}
+      <ambientLight intensity={1.0} color="#FFF8F0" />
       
-      {/* Main sun light */}
+      {/* Main sun light - 10am position (more overhead, slightly east) */}
       <directionalLight
-        position={[15, 25, 20]}
-        intensity={1.5}
-        color="#FFF5E0"
+        position={[8, 35, 5]}
+        intensity={2.0}
+        color="#FFFAF0"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={1}
         shadow-camera-far={80}
-        shadow-camera-left={-25}
-        shadow-camera-right={25}
-        shadow-camera-top={25}
-        shadow-camera-bottom={-25}
+        shadow-camera-left={-30}
+        shadow-camera-right={30}
+        shadow-camera-top={30}
+        shadow-camera-bottom={-30}
         shadow-bias={-0.001}
       />
       
       {/* Fill light from opposite side */}
       <directionalLight
-        position={[-10, 15, -15]}
-        intensity={0.6}
-        color="#E8F0FF"
+        position={[-10, 20, -10]}
+        intensity={0.4}
+        color="#E0EEFF"
       />
       
       {/* Hemisphere light for natural sky/ground color */}
-      <hemisphereLight args={['#87CEEB', '#8B6B4A', 0.4]} />
+      <hemisphereLight args={['#87CEEB', '#A08060', 0.5]} />
       
       {/* Soft sky blue background */}
       <color attach="background" args={['#87CEEB']} />
