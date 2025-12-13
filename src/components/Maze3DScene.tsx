@@ -300,17 +300,14 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
   );
 };
 
-// 3D Grass tufts - using InstancedMesh for performance
+// 3D Grass tufts - memoized clones for performance
 const GrassTufts = ({ maze }: { maze: Maze }) => {
   const grass231 = useGLTF('/models/Grass_231.glb');
   const grass232 = useGLTF('/models/Grass_232.glb');
-  const meshRef1 = useRef<InstancedMesh>(null);
-  const meshRef2 = useRef<InstancedMesh>(null);
   
-  // Calculate positions once
-  const { positions1, positions2, geometry1, material1, geometry2, material2 } = useMemo(() => {
-    const pos1: { x: number; z: number; scale: number; rotation: number }[] = [];
-    const pos2: { x: number; z: number; scale: number; rotation: number }[] = [];
+  // Pre-clone scenes once and memoize
+  const { tufts, clonedScenes } = useMemo(() => {
+    const positions: { x: number; z: number; scale: number; rotation: number; type: 1 | 2 }[] = [];
     const seededRandom = (seed: number) => {
       const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
       return x - Math.floor(x);
@@ -331,82 +328,63 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
         const pathDown = y < mazeHeight - 1 && !maze.grid[y+1][x].isWall;
         const pathUp = y > 0 && !maze.grid[y-1][x].isWall;
         
-        const addTuft = (offsetX: number, offsetZ: number, seedOffset: number) => {
-          const tuft = {
-            x: x + offsetX,
-            z: y + offsetZ,
-            scale: 0.10 + seededRandom(seed + seedOffset + 2) * 0.05,
-            rotation: seededRandom(seed + seedOffset + 3) * Math.PI * 2,
-          };
-          if (seededRandom(seed + seedOffset + 4) > 0.5) {
-            pos1.push(tuft);
-          } else {
-            pos2.push(tuft);
-          }
-        };
-        
-        if (pathRight) addTuft(0.55 + seededRandom(seed) * 0.2, 0.3 + seededRandom(seed + 1) * 0.4, 0);
-        if (pathLeft) addTuft(0.25 + seededRandom(seed + 100) * 0.2, 0.3 + seededRandom(seed + 101) * 0.4, 100);
-        if (pathDown) addTuft(0.3 + seededRandom(seed + 200) * 0.4, 0.55 + seededRandom(seed + 201) * 0.2, 200);
-        if (pathUp) addTuft(0.3 + seededRandom(seed + 300) * 0.4, 0.25 + seededRandom(seed + 301) * 0.2, 300);
+        if (pathRight) {
+          positions.push({
+            x: x + 0.55 + seededRandom(seed) * 0.2,
+            z: y + 0.3 + seededRandom(seed + 1) * 0.4,
+            scale: 0.10 + seededRandom(seed + 2) * 0.05,
+            rotation: seededRandom(seed + 3) * Math.PI * 2,
+            type: seededRandom(seed + 4) > 0.5 ? 1 : 2,
+          });
+        }
+        if (pathLeft) {
+          positions.push({
+            x: x + 0.25 + seededRandom(seed + 100) * 0.2,
+            z: y + 0.3 + seededRandom(seed + 101) * 0.4,
+            scale: 0.10 + seededRandom(seed + 102) * 0.05,
+            rotation: seededRandom(seed + 103) * Math.PI * 2,
+            type: seededRandom(seed + 104) > 0.5 ? 1 : 2,
+          });
+        }
+        if (pathDown) {
+          positions.push({
+            x: x + 0.3 + seededRandom(seed + 200) * 0.4,
+            z: y + 0.55 + seededRandom(seed + 201) * 0.2,
+            scale: 0.10 + seededRandom(seed + 202) * 0.05,
+            rotation: seededRandom(seed + 203) * Math.PI * 2,
+            type: seededRandom(seed + 204) > 0.5 ? 1 : 2,
+          });
+        }
+        if (pathUp) {
+          positions.push({
+            x: x + 0.3 + seededRandom(seed + 300) * 0.4,
+            z: y + 0.25 + seededRandom(seed + 301) * 0.2,
+            scale: 0.10 + seededRandom(seed + 302) * 0.05,
+            rotation: seededRandom(seed + 303) * Math.PI * 2,
+            type: seededRandom(seed + 304) > 0.5 ? 1 : 2,
+          });
+        }
       }
     }
     
-    // Extract geometry and material from GLB models
-    let geo1: any = null, mat1: any = null, geo2: any = null, mat2: any = null;
-    grass231.scene.traverse((child: any) => {
-      if (child.isMesh && !geo1) {
-        geo1 = child.geometry;
-        mat1 = child.material;
-      }
-    });
-    grass232.scene.traverse((child: any) => {
-      if (child.isMesh && !geo2) {
-        geo2 = child.geometry;
-        mat2 = child.material;
-      }
+    // Pre-clone all scenes once
+    const scenes = positions.map((tuft) => {
+      const scene = (tuft.type === 1 ? grass231 : grass232).scene.clone();
+      scene.position.set(tuft.x, 0, tuft.z);
+      scene.rotation.set(0, tuft.rotation, 0);
+      const s = tuft.scale * 0.04;
+      scene.scale.set(s, s, s);
+      return scene;
     });
     
-    return { positions1: pos1, positions2: pos2, geometry1: geo1, material1: mat1, geometry2: geo2, material2: mat2 };
+    return { tufts: positions, clonedScenes: scenes };
   }, [maze, grass231, grass232]);
-  
-  // Set up instances after mount
-  useEffect(() => {
-    const tempObject = new Object3D();
-    
-    if (meshRef1.current && positions1.length > 0 && geometry1) {
-      positions1.forEach((tuft, i) => {
-        const s = tuft.scale * 0.08; // Much smaller grass tufts
-        tempObject.position.set(tuft.x, 0, tuft.z);
-        tempObject.rotation.set(0, tuft.rotation, 0);
-        tempObject.scale.set(s, s, s);
-        tempObject.updateMatrix();
-        meshRef1.current!.setMatrixAt(i, tempObject.matrix);
-      });
-      meshRef1.current.instanceMatrix.needsUpdate = true;
-    }
-    
-    if (meshRef2.current && positions2.length > 0 && geometry2) {
-      positions2.forEach((tuft, i) => {
-        const s = tuft.scale * 0.08; // Much smaller grass tufts
-        tempObject.position.set(tuft.x, 0, tuft.z);
-        tempObject.rotation.set(0, tuft.rotation, 0);
-        tempObject.scale.set(s, s, s);
-        tempObject.updateMatrix();
-        meshRef2.current!.setMatrixAt(i, tempObject.matrix);
-      });
-      meshRef2.current.instanceMatrix.needsUpdate = true;
-    }
-  }, [positions1, positions2, geometry1, geometry2]);
   
   return (
     <>
-      {geometry1 && material1 && positions1.length > 0 && (
-        <instancedMesh ref={meshRef1} args={[geometry1, material1, positions1.length]} />
-      )}
-      {geometry2 && material2 && positions2.length > 0 && (
-        <instancedMesh ref={meshRef2} args={[geometry2, material2, positions2.length]} />
-      )}
+      {clonedScenes.map((scene, i) => (
+        <primitive key={i} object={scene} />
+      ))}
     </>
   );
 };
