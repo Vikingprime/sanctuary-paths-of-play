@@ -532,19 +532,21 @@ const RefBasedPlayer = ({
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef(0);
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
-  const frameCount = useRef(0);
-  const prevDelta = useRef(0.016);
+  const accumulatedTime = useRef(0);
+  const FIXED_TIMESTEP = 1 / 60; // Fixed 60fps physics
+  const MAX_ACCUMULATED = 0.1; // Cap to prevent spiral of death
+  
+  // Interpolation state for smooth rendering between fixed updates
+  const prevPosition = useRef({ x: 0, y: 0 });
+  const currentPosition = useRef({ x: 0, y: 0 });
+  const prevRotationState = useRef(0);
+  const currentRotationState = useRef(0);
   
   useFrame((state, delta) => {
     if (!groupRef.current) return;
     
-    frameCount.current++;
-    
-    // Handle movement (synced with render)
+    // Handle movement with fixed timestep (prevents jitter from variable frame rates)
     if (!isPaused) {
-      // Clamp delta to prevent jumps
-      const clampedDelta = Math.min(delta, 0.033);
-      
       // Build input from pressed keys
       const input: MovementInput = {
         forward: keysPressed.current.has('w') || keysPressed.current.has('arrowup'),
@@ -556,64 +558,54 @@ const RefBasedPlayer = ({
       // Update isMoving ref
       isMovingRef.current = input.forward || input.backward;
       
-      // Calculate new position with rock collision
-      const prev = playerStateRef.current;
-      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks);
-      playerStateRef.current = newState;
+      // Accumulate time and process in fixed steps
+      accumulatedTime.current += Math.min(delta, MAX_ACCUMULATED);
       
-      // Only check interactions when entering a new cell (avoids per-frame React calls)
-      const currentCellX = Math.floor(newState.x);
-      const currentCellY = Math.floor(newState.y);
+      // Store previous state for interpolation
+      prevPosition.current = { x: playerStateRef.current.x, y: playerStateRef.current.y };
+      prevRotationState.current = playerStateRef.current.rotation;
+      
+      // Process physics in fixed timesteps
+      while (accumulatedTime.current >= FIXED_TIMESTEP) {
+        const prev = playerStateRef.current;
+        const newState = calculateMovement(maze, prev, input, FIXED_TIMESTEP, speedBoostActive, rocks);
+        playerStateRef.current = newState;
+        accumulatedTime.current -= FIXED_TIMESTEP;
+      }
+      
+      currentPosition.current = { x: playerStateRef.current.x, y: playerStateRef.current.y };
+      currentRotationState.current = playerStateRef.current.rotation;
+      
+      // Only check interactions when entering a new cell
+      const currentCellX = Math.floor(playerStateRef.current.x);
+      const currentCellY = Math.floor(playerStateRef.current.y);
       if (currentCellX !== lastCellRef.current.x || currentCellY !== lastCellRef.current.y) {
         lastCellRef.current = { x: currentCellX, y: currentCellY };
-        onCellInteraction(newState.x, newState.y);
+        onCellInteraction(playerStateRef.current.x, playerStateRef.current.y);
       }
-      
-      // DEBUG: Log anomalies (delta spikes)
-      const isMovingOrRotating = input.forward || input.backward || input.rotateLeft || input.rotateRight;
-      const deltaSpike = delta > 0.025; // More than ~40fps drop
-      const deltaRatio = delta / prevDelta.current;
-      
-      if (deltaSpike && isMovingOrRotating && deltaRatio > 1.5) {
-        console.log('[JITTER DEBUG] Delta spike:', {
-          frame: frameCount.current,
-          delta: delta.toFixed(4),
-          prevDelta: prevDelta.current.toFixed(4),
-          ratio: deltaRatio.toFixed(2),
-          fps: (1/delta).toFixed(1),
-        });
-      }
-      prevDelta.current = delta;
     }
     
-    const { x, y, rotation } = playerStateRef.current;
+    // Interpolate position for smooth rendering
+    const alpha = accumulatedTime.current / FIXED_TIMESTEP;
+    const renderX = prevPosition.current.x + (currentPosition.current.x - prevPosition.current.x) * alpha;
+    const renderY = prevPosition.current.y + (currentPosition.current.y - prevPosition.current.y) * alpha;
     
-    // Update position directly
-    groupRef.current.position.x = x;
-    groupRef.current.position.z = y;
+    // Update position with interpolation
+    groupRef.current.position.x = renderX;
+    groupRef.current.position.z = renderY;
     
-    // Smooth rotation using delta-time based interpolation
-    const targetRotation = -rotation + Math.PI;
+    // Smooth rotation with interpolation
+    const targetRotation = -playerStateRef.current.rotation + Math.PI;
     let rotDiff = targetRotation - smoothRotation.current;
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-    // Use delta-based lerp factor for consistent smoothing regardless of frame rate
-    const lerpFactor = 1 - Math.pow(0.001, delta);
-    const rotationStep = rotDiff * lerpFactor;
     
-    // DEBUG: Log rotation wrap-around issues
-    const prevSmooth = smoothRotation.current;
-    smoothRotation.current += rotationStep;
+    // Consistent lerp factor based on fixed rate
+    smoothRotation.current += rotDiff * 0.15;
     
-    // Check for wrap-around jitter
-    if (smoothRotation.current > Math.PI * 2) {
-      console.log('[ROTATION WRAP] Wrapping down from', smoothRotation.current.toFixed(4));
-      smoothRotation.current -= Math.PI * 2;
-    }
-    if (smoothRotation.current < 0) {
-      console.log('[ROTATION WRAP] Wrapping up from', smoothRotation.current.toFixed(4));
-      smoothRotation.current += Math.PI * 2;
-    }
+    // Normalize rotation
+    if (smoothRotation.current > Math.PI * 2) smoothRotation.current -= Math.PI * 2;
+    if (smoothRotation.current < 0) smoothRotation.current += Math.PI * 2;
     
     groupRef.current.rotation.y = smoothRotation.current;
   });
