@@ -1,8 +1,8 @@
-import { Preferences } from '@capacitor/preferences';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { SaveData, DEFAULT_SAVE, SaveDataV1 } from '@/types/save';
 
-// Storage key - Unity must use same key
-const SAVE_KEY = 'sanctuary_run_save';
+// File path - Unity reads this same file from Documents directory
+const SAVE_FILENAME = 'sanctuary_run_save.json';
 
 class SaveManagerClass {
   private cache: SaveData | null = null;
@@ -12,15 +12,24 @@ class SaveManagerClass {
     if (this.cache) return this.cache;
 
     try {
-      const { value } = await Preferences.get({ key: SAVE_KEY });
+      const result = await Filesystem.readFile({
+        path: SAVE_FILENAME,
+        directory: Directory.Documents,
+        encoding: Encoding.UTF8,
+      });
       
-      if (value) {
-        const parsed = JSON.parse(value) as SaveData;
+      if (result.data) {
+        const parsed = JSON.parse(result.data as string) as SaveData;
         this.cache = this.migrate(parsed);
         return this.cache;
       }
-    } catch (error) {
-      console.error('Failed to load save:', error);
+    } catch (error: any) {
+      // File doesn't exist yet - this is normal on first run
+      if (error?.message?.includes('File does not exist') || error?.code === 'ERR_FILE_NOT_FOUND') {
+        console.log('No save file found, creating default save');
+      } else {
+        console.error('Failed to load save:', error);
+      }
     }
 
     // Return default save
@@ -40,9 +49,11 @@ class SaveManagerClass {
 
     this.saveTimeout = setTimeout(async () => {
       try {
-        await Preferences.set({
-          key: SAVE_KEY,
-          value: JSON.stringify(data),
+        await Filesystem.writeFile({
+          path: SAVE_FILENAME,
+          data: JSON.stringify(data),
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
         });
       } catch (error) {
         console.error('Failed to save:', error);
