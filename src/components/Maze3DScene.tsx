@@ -28,6 +28,9 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
   const { scene } = useGLTF('/models/Fertile_soil.glb');
   
   // Generate grid of soil tiles with checkerboard mirroring
+  // Scale up so tiles actually touch (1.0 scale = 1 unit coverage)
+  const TILE_SCALE = 1.0;
+  
   const tiles = useMemo(() => {
     const result: { x: number; z: number; scaleX: number; scaleZ: number; clone: any }[] = [];
     for (let x = -2; x < width + 2; x++) {
@@ -38,8 +41,8 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
         result.push({ 
           x, 
           z, 
-          scaleX: flipX ? -0.5 : 0.5,
-          scaleZ: flipZ ? -0.5 : 0.5,
+          scaleX: flipX ? -TILE_SCALE : TILE_SCALE,
+          scaleZ: flipZ ? -TILE_SCALE : TILE_SCALE,
           clone: scene.clone() 
         });
       }
