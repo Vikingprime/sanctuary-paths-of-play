@@ -110,7 +110,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
     return (
       <group position={position} rotation={[0, visualRotation, 0]}>
         <group ref={cowGroupRef} position={[0, 0.4, 0]}>
-          <primitive object={clonedCowScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.1, 0]} />
+          {/* Debug cube */}
+          <mesh>
+            <boxGeometry args={[0.5, 0.5, 0.5]} />
+            <meshStandardMaterial color="#f5f5f5" />
+          </mesh>
+          <primitive object={clonedCowScene} scale={[0.5, 0.5, 0.5]} position={[0, 0, 0]} />
         </group>
       </group>
     );
