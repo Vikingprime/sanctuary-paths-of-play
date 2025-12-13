@@ -818,7 +818,7 @@ return (
         intensity={3.5}
         color="#FFFDF5"
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[1024, 1024]}
         shadow-camera-near={1}
         shadow-camera-far={80}
         shadow-camera-left={-25}
@@ -894,7 +894,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
   return (
     <div className="w-full h-full">
       <FPSDisplay fps={fps} />
-      <Canvas shadows gl={{ logarithmicDepthBuffer: true, antialias: true }}>
+      <Canvas shadows gl={{ logarithmicDepthBuffer: true, antialias: false }}>
         <PerspectiveCamera makeDefault fov={60} near={0.5} far={100} />
         <Scene {...props} />
         <FPSTracker onFpsUpdate={setFps} />
