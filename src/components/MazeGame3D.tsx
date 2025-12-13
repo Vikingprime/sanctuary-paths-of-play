@@ -50,6 +50,7 @@ export const MazeGame3D = ({
   const [abilityUsed, setAbilityUsed] = useState(false);
   const [collectedPowerUps, setCollectedPowerUps] = useState<Set<string>>(new Set());
   const [speedBoostActive, setSpeedBoostActive] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
 
   // Track pressed keys for smooth movement
   const keysPressed = useRef<Set<string>>(new Set());
@@ -134,6 +135,10 @@ export const MazeGame3D = ({
         rotateLeft: keysPressed.current.has('a') || keysPressed.current.has('arrowleft'),
         rotateRight: keysPressed.current.has('d') || keysPressed.current.has('arrowright'),
       };
+      
+      // Update isMoving based on input
+      const moving = input.forward || input.backward;
+      setIsMoving(moving);
 
       setPlayerState((prev) => {
         // Use pure game logic for movement
@@ -269,6 +274,7 @@ export const MazeGame3D = ({
         playerPos={playerState}
         playerRotation={playerState.rotation}
         collectedPowerUps={collectedPowerUps}
+        isMoving={isMoving}
       />
 
       {/* HUD */}
