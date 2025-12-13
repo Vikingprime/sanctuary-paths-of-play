@@ -23,38 +23,48 @@ interface Maze3DSceneProps {
   onSceneReady?: () => void;
 }
 
-// Ground made of tiled Fertile_soil models
+// Ground made of tiled Fertile_soil models with offset second layer to hide seams
 const Ground = ({ width, height }: { width: number; height: number }) => {
   const { scene } = useGLTF('/models/Fertile_soil.glb');
   
-  // Generate grid of soil tiles with random rotation for variety
+  // Generate two layers of soil tiles - second layer offset by 0.5 to cover seams
   const tiles = useMemo(() => {
-    const result: { x: number; z: number; rotY: number; clone: any }[] = [];
+    const result: { x: number; z: number; rotY: number; layer: number; clone: any }[] = [];
+    
+    // First layer - regular grid
     for (let x = -2; x < width + 2; x++) {
       for (let z = -2; z < height + 2; z++) {
-        // Random 90-degree rotation to break up pattern
         const rotY = Math.floor((x * 7 + z * 13) % 4) * (Math.PI / 2);
-        result.push({ x, z, rotY, clone: scene.clone() });
+        result.push({ x, z, rotY, layer: 0, clone: scene.clone() });
       }
     }
+    
+    // Second layer - offset by 0.5 in both directions to cover seams
+    for (let x = -2; x < width + 2; x++) {
+      for (let z = -2; z < height + 2; z++) {
+        const rotY = Math.floor((x * 11 + z * 17) % 4) * (Math.PI / 2);
+        result.push({ x: x + 0.5, z: z + 0.5, rotY, layer: 1, clone: scene.clone() });
+      }
+    }
+    
     return result;
   }, [width, height, scene]);
   
   return (
     <group>
-      {/* Base dirt plane underneath to hide any remaining seams */}
+      {/* Base dirt plane underneath */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, -0.02, height / 2]}>
         <planeGeometry args={[width + 10, height + 10]} />
         <meshStandardMaterial color="#7A5A4A" roughness={1} />
       </mesh>
-      {/* Soil tiles on top with overlap */}
+      {/* Soil tiles - two overlapping layers */}
       {tiles.map((tile, i) => (
         <primitive
           key={`soil-tile-${i}`}
           object={tile.clone}
-          position={[tile.x + 0.5, 0.01, tile.z + 0.5]}
+          position={[tile.x + 0.5, tile.layer * 0.01, tile.z + 0.5]}
           rotation={[0, tile.rotY, 0]}
-          scale={[2.2, 0.3, 2.2]}
+          scale={[1.2, 0.5, 1.2]}
         />
       ))}
     </group>
