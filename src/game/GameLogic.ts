@@ -130,22 +130,23 @@ export function generateRockPositions(maze: Maze): RockPosition[] {
         // Only place rocks next to walls (at path edges)
         if (!wallLeft && !wallRight && !wallUp && !wallDown) continue;
         
-        // Position rock near the wall edge
+        // Position rock at the very edge of the path, barely overlapping
         let rx = x + 0.5;
         let rz = y + 0.5;
         
+        // Push rocks much closer to walls - barely on the path
         if (wallLeft) {
-          rx = x + 0.15 + seededRandom(seed + 1) * 0.2;
+          rx = x + 0.02 + seededRandom(seed + 1) * 0.08; // Very close to left wall
           rz = y + 0.2 + seededRandom(seed + 2) * 0.6;
         } else if (wallRight) {
-          rx = x + 0.65 + seededRandom(seed + 1) * 0.2;
+          rx = x + 0.90 + seededRandom(seed + 1) * 0.08; // Very close to right wall
           rz = y + 0.2 + seededRandom(seed + 2) * 0.6;
         } else if (wallUp) {
           rx = x + 0.2 + seededRandom(seed + 1) * 0.6;
-          rz = y + 0.15 + seededRandom(seed + 2) * 0.2;
+          rz = y + 0.02 + seededRandom(seed + 2) * 0.08; // Very close to top wall
         } else if (wallDown) {
           rx = x + 0.2 + seededRandom(seed + 1) * 0.6;
-          rz = y + 0.65 + seededRandom(seed + 2) * 0.2;
+          rz = y + 0.90 + seededRandom(seed + 2) * 0.08; // Very close to bottom wall
         }
         
         // Skip if too close to another rock
@@ -155,7 +156,7 @@ export function generateRockPositions(maze: Maze): RockPosition[] {
         rocks.push({
           x: rx,
           z: rz,
-          radius: scale * 0.4, // Slightly smaller collision radius
+          radius: scale * 0.3, // Even smaller collision radius for minimal interaction
         });
       }
     }
