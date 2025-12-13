@@ -5,7 +5,7 @@ import { Vector3 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
-import { PlayerState } from '@/game/GameLogic';
+import { PlayerState, MovementInput, calculateMovement } from '@/game/GameLogic';
 
 interface Maze3DSceneProps {
   maze: Maze;
@@ -13,6 +13,10 @@ interface Maze3DSceneProps {
   playerStateRef: MutableRefObject<PlayerState>;
   isMovingRef: MutableRefObject<boolean>;
   collectedPowerUps?: Set<string>;
+  keysPressed: MutableRefObject<Set<string>>;
+  speedBoostActive: boolean;
+  onCellInteraction: (x: number, y: number) => void;
+  isPaused: boolean;
 }
 
 // Simple stable ground with green grass color
@@ -120,21 +124,58 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-// Player wrapper that reads from refs each frame - avoids React re-renders
+// Player wrapper that handles movement + rendering in sync
 const RefBasedPlayer = ({ 
   animalType, 
   playerStateRef, 
-  isMovingRef 
+  isMovingRef,
+  maze,
+  keysPressed,
+  speedBoostActive,
+  onCellInteraction,
+  isPaused,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
   isMovingRef: MutableRefObject<boolean>;
+  maze: Maze;
+  keysPressed: MutableRefObject<Set<string>>;
+  speedBoostActive: boolean;
+  onCellInteraction: (x: number, y: number) => void;
+  isPaused: boolean;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef(0);
   
-  useFrame(() => {
+  useFrame((state, delta) => {
     if (!groupRef.current) return;
+    
+    // Handle movement (synced with render)
+    if (!isPaused) {
+      // Clamp delta to prevent jumps
+      const clampedDelta = Math.min(delta, 0.033);
+      
+      // Build input from pressed keys
+      const input: MovementInput = {
+        forward: keysPressed.current.has('w') || keysPressed.current.has('arrowup'),
+        backward: keysPressed.current.has('s') || keysPressed.current.has('arrowdown'),
+        rotateLeft: keysPressed.current.has('a') || keysPressed.current.has('arrowleft'),
+        rotateRight: keysPressed.current.has('d') || keysPressed.current.has('arrowright'),
+      };
+      
+      // Update isMoving ref
+      isMovingRef.current = input.forward || input.backward;
+      
+      // Calculate new position
+      const prev = playerStateRef.current;
+      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive);
+      playerStateRef.current = newState;
+      
+      // Check interactions if position changed
+      if (newState.x !== prev.x || newState.y !== prev.y) {
+        onCellInteraction(newState.x, newState.y);
+      }
+    }
     
     const { x, y, rotation } = playerStateRef.current;
     
@@ -235,7 +276,7 @@ const OverShoulderCameraController = ({
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set() }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, speedBoostActive, onCellInteraction, isPaused }: Maze3DSceneProps) => {
 
   const items = useMemo(() => {
     const powerUps: { pos: [number, number, number]; key: string }[] = [];
@@ -302,11 +343,16 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
       {/* Goal */}
       <GoalMarker position={items.goalPos} />
       
-      {/* Player - reads from refs via useFrame */}
+      {/* Player - handles movement + rendering in sync */}
       <RefBasedPlayer 
         animalType={animalType}
         playerStateRef={playerStateRef}
         isMovingRef={isMovingRef}
+        maze={maze}
+        keysPressed={keysPressed}
+        speedBoostActive={speedBoostActive}
+        onCellInteraction={onCellInteraction}
+        isPaused={isPaused}
       />
       
       {/* Camera - smooth over-the-shoulder follow */}
