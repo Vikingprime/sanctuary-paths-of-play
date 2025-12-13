@@ -1,6 +1,6 @@
-import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
+import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
-import { PerspectiveCamera, ContactShadows, useGLTF } from '@react-three/drei';
+import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
 import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
@@ -701,6 +701,39 @@ const OverShoulderCameraController = ({
   return null;
 };
 
+// FPS Counter component
+const FPSCounter = () => {
+  const [fps, setFps] = useState(0);
+  const frames = useRef(0);
+  const lastTime = useRef(performance.now());
+  
+  useFrame(() => {
+    frames.current++;
+    const now = performance.now();
+    if (now - lastTime.current >= 1000) {
+      setFps(frames.current);
+      frames.current = 0;
+      lastTime.current = now;
+    }
+  });
+  
+  return (
+    <Html position={[0, 0, 0]} style={{ position: 'fixed', top: 10, left: 10, pointerEvents: 'none' }}>
+      <div style={{
+        background: 'rgba(0,0,0,0.7)',
+        color: fps > 50 ? '#4ade80' : fps > 30 ? '#facc15' : '#ef4444',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        fontWeight: 'bold'
+      }}>
+        {fps} FPS
+      </div>
+    </Html>
+  );
+};
+
 const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, speedBoostActive, onCellInteraction, isPaused, onSceneReady }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
@@ -815,6 +848,9 @@ return (
       <OverShoulderCameraController 
         playerStateRef={playerStateRef}
       />
+      
+      {/* FPS Counter */}
+      <FPSCounter />
     </>
   );
 };
