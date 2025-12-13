@@ -1,5 +1,5 @@
-import { useRef, useMemo, useEffect } from 'react';
-import { Group, Object3D, InstancedMesh, Mesh, BufferGeometry, Material } from 'three';
+import { useRef, useMemo } from 'react';
+import { Group, Mesh } from 'three';
 import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
@@ -35,47 +35,25 @@ interface InstancedWallsProps {
   size?: [number, number, number];
 }
 
-// Density settings - reduced for performance
-const ROWS = 3;
-const STALKS_PER_ROW = 3;
-const STALK_SPACING = 0.28;
+// Reduced density for performance
+const ROWS = 2;
+const STALKS_PER_ROW = 2;
+const STALK_SPACING = 0.35;
 const MIN_HEIGHT = 2.0;
 const MAX_HEIGHT = 3.0;
 
-// Boundary walls - more layers of corn
-const BOUNDARY_ROWS = 8;
-const BOUNDARY_STALKS_PER_ROW = 6;
-const BOUNDARY_SPACING = 0.25;
-const BOUNDARY_DEPTH = 2.5;
-
-interface MeshData {
-  geometry: BufferGeometry;
-  material: Material;
-}
+// Boundary walls
+const BOUNDARY_ROWS = 5;
+const BOUNDARY_STALKS_PER_ROW = 4;
+const BOUNDARY_SPACING = 0.30;
+const BOUNDARY_DEPTH = 2.0;
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
-  const instancedMeshRefs = useRef<(InstancedMesh | null)[]>([]);
+  const groupRef = useRef<Group>(null);
   
-  // Extract ALL meshes from the loaded model
-  const meshesData = useMemo(() => {
-    const meshes: MeshData[] = [];
-    
-    scene.traverse((child) => {
-      if ((child as Mesh).isMesh) {
-        const mesh = child as Mesh;
-        meshes.push({
-          geometry: mesh.geometry,
-          material: mesh.material instanceof Array ? mesh.material[0] : mesh.material,
-        });
-      }
-    });
-    
-    return meshes;
-  }, [scene]);
-  
-  // Generate stalk data for walls
-  const stalkData = useMemo(() => {
+  // Generate stalk data and pre-clone scenes ONCE
+  const { stalkData, clones } = useMemo(() => {
     const data: { pos: [number, number, number]; rotation: number; height: number }[] = [];
     
     // Regular interior walls
@@ -140,44 +118,31 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
       }
     });
     
-    return data;
-  }, [positions, boundaryPositions]);
-
-  // Set up instances after mount
-  useEffect(() => {
-    if (stalkData.length === 0 || meshesData.length === 0) return;
-    
-    const tempObject = new Object3D();
-    
-    // Update each instanced mesh
-    instancedMeshRefs.current.forEach((instancedMesh) => {
-      if (!instancedMesh) return;
-      
-      stalkData.forEach((stalk, i) => {
-        tempObject.position.set(stalk.pos[0], stalk.pos[1], stalk.pos[2]);
-        tempObject.rotation.set(0, stalk.rotation, 0);
-        tempObject.scale.set(size[0], stalk.height, size[2]);
-        tempObject.updateMatrix();
-        instancedMesh.setMatrixAt(i, tempObject.matrix);
+    // Pre-clone all scenes once and enable shadows
+    const clonedScenes = data.map(() => {
+      const clone = scene.clone();
+      clone.traverse((child) => {
+        if ((child as Mesh).isMesh) {
+          child.castShadow = true;
+        }
       });
-      
-      instancedMesh.instanceMatrix.needsUpdate = true;
+      return clone;
     });
-  }, [stalkData, size, meshesData.length]);
+    
+    return { stalkData: data, clones: clonedScenes };
+  }, [positions, boundaryPositions, scene]);
 
   if (positions.length === 0 && boundaryPositions.length === 0) return null;
-  if (meshesData.length === 0) return null;
 
-  // Render one InstancedMesh per unique geometry/material in the model
   return (
-    <group>
-      {meshesData.map((meshData, meshIndex) => (
-        <instancedMesh
-          key={meshIndex}
-          ref={(el) => { instancedMeshRefs.current[meshIndex] = el; }}
-          args={[meshData.geometry, meshData.material, stalkData.length]}
-          castShadow
-          receiveShadow
+    <group ref={groupRef}>
+      {stalkData.map((stalk, i) => (
+        <primitive 
+          key={i}
+          object={clones[i]} 
+          position={stalk.pos}
+          rotation={[0, stalk.rotation, 0]}
+          scale={[size[0], stalk.height, size[2]]}
         />
       ))}
     </group>
