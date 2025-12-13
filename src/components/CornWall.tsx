@@ -1,4 +1,4 @@
-import { useRef, useMemo, forwardRef } from 'react';
+import { useRef, useMemo } from 'react';
 import { Group, MeshStandardMaterial, Color } from 'three';
 import { useGLTF } from '@react-three/drei';
 
@@ -55,7 +55,7 @@ const BOUNDARY_STALKS_PER_ROW = 6;
 const BOUNDARY_SPACING = 0.25;
 const BOUNDARY_DEPTH = 1.2; // How far the corn extends outward
 
-export const InstancedWalls = forwardRef<Group, InstancedWallsProps>(({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }, ref) => {
+export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
   const groupRef = useRef<Group>(null);
   
@@ -167,6 +167,4 @@ export const InstancedWalls = forwardRef<Group, InstancedWallsProps>(({ position
       ))}
     </group>
   );
-});
-
-InstancedWalls.displayName = 'InstancedWalls';
+};
