@@ -255,6 +255,61 @@ finalColor = mix(finalColor, mudColor, transition * 0.2);
   return <primitive object={material} attach="material" />;
 };
 
+// Simple grass tuft component
+const GrassTuft = ({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) => {
+  const color = `hsl(${100 + Math.random() * 20}, ${50 + Math.random() * 20}%, ${25 + Math.random() * 15}%)`;
+  return (
+    <mesh position={position} rotation={[0, Math.random() * Math.PI, 0]}>
+      <coneGeometry args={[0.08 * scale, 0.25 * scale, 4]} />
+      <meshStandardMaterial color={color} />
+    </mesh>
+  );
+};
+
+// Generate scattered grass tufts for wall areas
+const GrassTufts = ({ maze }: { maze: Maze }) => {
+  const tufts = useMemo(() => {
+    const positions: { pos: [number, number, number]; scale: number }[] = [];
+    const seededRandom = (x: number, y: number, seed: number) => {
+      const n = Math.sin(x * 127.1 + y * 311.7 + seed * 43.7) * 43758.5453;
+      return n - Math.floor(n);
+    };
+    
+    // Place grass tufts only in wall areas (under corn)
+    maze.grid.forEach((row, z) => {
+      row.forEach((cell, x) => {
+        if (cell.isWall) {
+          // Sparse placement - only ~15% of wall cells get grass
+          const density = seededRandom(x, z, 1);
+          if (density > 0.85) {
+            // Place 1-3 tufts per cell
+            const numTufts = Math.floor(seededRandom(x, z, 2) * 3) + 1;
+            for (let i = 0; i < numTufts; i++) {
+              const offsetX = (seededRandom(x, z, 3 + i) - 0.5) * 0.8;
+              const offsetZ = (seededRandom(x, z, 6 + i) - 0.5) * 0.8;
+              const scale = 0.6 + seededRandom(x, z, 9 + i) * 0.8;
+              positions.push({
+                pos: [x + 0.5 + offsetX, 0.05, z + 0.5 + offsetZ],
+                scale
+              });
+            }
+          }
+        }
+      });
+    });
+    
+    return positions;
+  }, [maze]);
+  
+  return (
+    <group>
+      {tufts.map((tuft, i) => (
+        <GrassTuft key={i} position={tuft.pos} scale={tuft.scale} />
+      ))}
+    </group>
+  );
+};
+
 // Ground with grass/path differentiation based on wall data
 const Ground = ({ maze }: { maze: Maze }) => {
   const width = maze.grid[0].length;
@@ -284,6 +339,9 @@ const Ground = ({ maze }: { maze: Maze }) => {
         <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
         <shadowMaterial transparent opacity={0.4} />
       </mesh>
+      
+      {/* Scattered grass tufts in wall areas */}
+      <GrassTufts maze={maze} />
     </group>
   );
 };
@@ -578,11 +636,11 @@ return (
       {/* Lighting - 8am morning sunlight */}
       <ambientLight intensity={0.9} color="#FFF8F0" />
       
-      {/* Main sun light - 8am position (lower angle, from east) */}
+      {/* Main sun light - 9am position (slightly higher, brighter) */}
       <directionalLight
-        position={[20, 20, 8]}
-        intensity={1.8}
-        color="#FFF8E8"
+        position={[18, 28, 12]}
+        intensity={2.0}
+        color="#FFFBF0"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={1}
