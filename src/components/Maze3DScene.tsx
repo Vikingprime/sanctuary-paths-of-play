@@ -261,14 +261,7 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
   
   const { geometry, material } = useMemo(() => {
     const geo = new DodecahedronGeometry(1, 0);
-    const mat = new MeshStandardMaterial({ 
-      color: "#7A6350", 
-      roughness: 0.9,
-      // Use polygonOffset to push rocks slightly back in depth buffer
-      polygonOffset: true,
-      polygonOffsetFactor: 1,
-      polygonOffsetUnits: 1,
-    });
+    const mat = new MeshStandardMaterial({ color: "#7A6350", roughness: 0.9 });
     return { geometry: geo, material: mat };
   }, []);
   
@@ -283,14 +276,13 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
     };
     
     rocks.forEach((rock, i) => {
-      const scale = rock.radius * 0.8; // Much smaller rocks
+      const scale = rock.radius * 2;
       const seed = Math.floor(rock.x * 1000 + rock.z);
       const rotation = seededRandom(seed + 4) * Math.PI * 2;
       
-      // Sink rocks very deep - only tiny tips visible
-      tempObject.position.set(rock.x, -scale * 0.5, rock.z);
+      tempObject.position.set(rock.x, scale * 0.3, rock.z);
       tempObject.rotation.set(0, rotation, 0);
-      tempObject.scale.set(scale * 0.6, scale * 0.2, scale * 0.5);
+      tempObject.scale.set(scale * 1.2, scale * 0.6, scale);
       tempObject.updateMatrix();
       meshRef.current!.setMatrixAt(i, tempObject.matrix);
     });
@@ -304,7 +296,6 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
       ref={meshRef} 
       args={[geometry, material, rocks.length]}
       castShadow
-      renderOrder={1}
     />
   );
 };
@@ -428,7 +419,8 @@ const Ground = ({ maze, rocks }: { maze: Maze; rocks: RockPosition[] }) => {
         <shadowMaterial transparent opacity={0.4} />
       </mesh>
       
-      {/* 3D Props for visual depth - rocks removed due to depth issues with player */}
+      {/* 3D Props for visual depth */}
+      <ScatteredRocks rocks={rocks} />
       <GrassTufts maze={maze} />
     </group>
   );
@@ -581,7 +573,7 @@ const RefBasedPlayer = ({
       
       // Calculate movement with clamped delta (smooth per-frame updates)
       const prev = playerStateRef.current;
-      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, []); // No rock collision
+      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks);
       playerStateRef.current = newState;
       
       // Only check interactions when entering a new cell
@@ -626,7 +618,7 @@ const RefBasedPlayer = ({
   });
   
   return (
-    <group ref={groupRef} renderOrder={10}>
+    <group ref={groupRef}>
       <PlayerCube
         animalType={animalType}
         position={[0, 0, 0]}
