@@ -428,8 +428,7 @@ const Ground = ({ maze, rocks }: { maze: Maze; rocks: RockPosition[] }) => {
         <shadowMaterial transparent opacity={0.4} />
       </mesh>
       
-      {/* 3D Props for visual depth */}
-      <ScatteredRocks rocks={rocks} />
+      {/* 3D Props for visual depth - rocks removed due to depth issues with player */}
       <GrassTufts maze={maze} />
     </group>
   );
