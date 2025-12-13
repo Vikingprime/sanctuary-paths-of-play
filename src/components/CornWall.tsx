@@ -109,7 +109,7 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const height = MIN_HEIGHT + seededRandom(stalkSeed + 3) * (MAX_HEIGHT - MIN_HEIGHT);
           
           // GLTF corn model - proper upright rotation using quaternion
-          const baseScale = 90;
+          const baseScale = 250;
           const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
           const finalScale = baseScale * heightVariation;
           
@@ -159,7 +159,7 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             posZ += dirZ * depthOffset;
           }
           
-          const baseScale = 90;
+          const baseScale = 250;
           const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
           const finalScale = baseScale * heightVariation;
           dummy.position.set(posX, 0, posZ);
