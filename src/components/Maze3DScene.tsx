@@ -45,7 +45,7 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
           key={`soil-tile-${i}`}
           object={tile.clone}
           position={[tile.x + 0.5, 0, tile.z + 0.5]}
-          scale={[1, 0.5, 1]}
+          scale={[1.08, 0.5, 1.08]}
         />
       ))}
     </group>
