@@ -27,49 +27,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
   const innerGroupRef = useRef<any>(null);
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
-  const lastPosition = useRef<[number, number, number]>([0, 0, 0]);
-  const lastRotation = useRef<number>(0);
-  const renderCount = useRef(0);
-  
-  // Debug: Log when position or rotation changes
-  useEffect(() => {
-    renderCount.current++;
-    const [x, y, z] = position;
-    const [lx, ly, lz] = lastPosition.current;
-    const moved = Math.abs(x - lx) > 0.001 || Math.abs(y - ly) > 0.001 || Math.abs(z - lz) > 0.001;
-    const rotated = Math.abs(rotation - lastRotation.current) > 0.001;
-    
-    if (moved || rotated) {
-      console.log('PlayerCube #', renderCount.current, 'pos:', [x.toFixed(2), y.toFixed(2), z.toFixed(2)], 'rot:', rotation.toFixed(3), moved ? 'MOVED' : '', rotated ? 'ROTATED' : '');
-    }
-    lastPosition.current = position;
-    lastRotation.current = rotation;
-  });
   
   // Load models
   const { scene: pigScene } = useGLTF('/models/Pig.glb');
   const { scene: cowScene, animations: cowAnimations } = useGLTF('/models/Cow.glb');
   const { scene: henScene } = useGLTF('/models/Hen.glb');
-  
-  // Debug: Check if scenes are stable
-  const pigSceneId = useRef(pigScene.uuid);
-  const cowSceneId = useRef(cowScene.uuid);
-  const henSceneId = useRef(henScene.uuid);
-  
-  useEffect(() => {
-    if (pigScene.uuid !== pigSceneId.current) {
-      console.log('WARNING: pigScene changed!', pigSceneId.current, '->', pigScene.uuid);
-      pigSceneId.current = pigScene.uuid;
-    }
-    if (cowScene.uuid !== cowSceneId.current) {
-      console.log('WARNING: cowScene changed!', cowSceneId.current, '->', cowScene.uuid);
-      cowSceneId.current = cowScene.uuid;
-    }
-    if (henScene.uuid !== henSceneId.current) {
-      console.log('WARNING: henScene changed!', henSceneId.current, '->', henScene.uuid);
-      henSceneId.current = henScene.uuid;
-    }
-  }, [pigScene, cowScene, henScene]);
   
   const clonedPigScene = useMemo(() => pigScene.clone(), [pigScene]);
   const clonedHenScene = useMemo(() => henScene.clone(), [henScene]);
@@ -132,9 +94,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
     }
   });
 
-  // Normalize rotation to prevent floating-point precision issues with large values
-  const normalizedRotation = ((rotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-  const visualRotation = -normalizedRotation + Math.PI;
+  // Apply rotation directly - already normalized in GameLogic
+  const visualRotation = -rotation + Math.PI;
 
   // Pig uses GLB model
   if (animalType === 'pig') {
