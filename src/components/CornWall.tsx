@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Object3D, InstancedMesh, Mesh, BufferGeometry, Material, MeshStandardMaterial } from 'three';
+import { Group, Object3D, InstancedMesh, Mesh, BufferGeometry, Material } from 'three';
 import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
@@ -10,7 +10,7 @@ interface CornWallProps {
 // Preload models
 useGLTF.preload('/models/Corn.glb');
 
-// Seeded random for stable randomness - avoids jitter from regenerating random values
+// Seeded random for stable randomness
 const seededRandom = (seed: number): number => {
   const x = Math.sin(seed * 12.9898 + seed * 78.233) * 43758.5453;
   return x - Math.floor(x);
@@ -42,38 +42,39 @@ const STALK_SPACING = 0.28;
 const MIN_HEIGHT = 2.0;
 const MAX_HEIGHT = 3.0;
 
-// Boundary walls - more layers of corn before the green block
+// Boundary walls - more layers of corn
 const BOUNDARY_ROWS = 8;
 const BOUNDARY_STALKS_PER_ROW = 6;
 const BOUNDARY_SPACING = 0.25;
 const BOUNDARY_DEPTH = 2.5;
 
+interface MeshData {
+  geometry: BufferGeometry;
+  material: Material;
+}
+
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
-  const instancedMeshRef = useRef<InstancedMesh>(null);
+  const instancedMeshRefs = useRef<(InstancedMesh | null)[]>([]);
   
-  // Extract geometry and material from the loaded model once
-  const { geometry, material } = useMemo(() => {
-    let geo: BufferGeometry | null = null;
-    let mat: Material | null = null;
+  // Extract ALL meshes from the loaded model
+  const meshesData = useMemo(() => {
+    const meshes: MeshData[] = [];
     
     scene.traverse((child) => {
-      if ((child as Mesh).isMesh && !geo) {
+      if ((child as Mesh).isMesh) {
         const mesh = child as Mesh;
-        geo = mesh.geometry.clone();
-        mat = mesh.material instanceof Array ? mesh.material[0] : mesh.material;
+        meshes.push({
+          geometry: mesh.geometry,
+          material: mesh.material instanceof Array ? mesh.material[0] : mesh.material,
+        });
       }
     });
     
-    // Fallback if no geometry found
-    if (!geo) {
-      console.warn('No geometry found in Corn.glb');
-    }
-    
-    return { geometry: geo, material: mat };
+    return meshes;
   }, [scene]);
   
-  // Generate stalk data for walls - using seeded random for stable positions
+  // Generate stalk data for walls
   const stalkData = useMemo(() => {
     const data: { pos: [number, number, number]; rotation: number; height: number }[] = [];
     
@@ -100,7 +101,7 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
       }
     });
     
-    // Boundary walls - multiple layers extending outward
+    // Boundary walls
     boundaryPositions.forEach((wallPos) => {
       const baseSeed = wallPos.x * 1000 + wallPos.z + 50000;
       const dirX = wallPos.offsetX !== 0 ? Math.sign(wallPos.offsetX) : 0;
@@ -142,32 +143,43 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     return data;
   }, [positions, boundaryPositions]);
 
-  // Set up instances after mount - runs once when stalkData changes
+  // Set up instances after mount
   useEffect(() => {
-    if (!instancedMeshRef.current || stalkData.length === 0) return;
+    if (stalkData.length === 0 || meshesData.length === 0) return;
     
     const tempObject = new Object3D();
     
-    stalkData.forEach((stalk, i) => {
-      tempObject.position.set(stalk.pos[0], stalk.pos[1], stalk.pos[2]);
-      tempObject.rotation.set(0, stalk.rotation, 0);
-      tempObject.scale.set(size[0], stalk.height, size[2]);
-      tempObject.updateMatrix();
-      instancedMeshRef.current!.setMatrixAt(i, tempObject.matrix);
+    // Update each instanced mesh
+    instancedMeshRefs.current.forEach((instancedMesh) => {
+      if (!instancedMesh) return;
+      
+      stalkData.forEach((stalk, i) => {
+        tempObject.position.set(stalk.pos[0], stalk.pos[1], stalk.pos[2]);
+        tempObject.rotation.set(0, stalk.rotation, 0);
+        tempObject.scale.set(size[0], stalk.height, size[2]);
+        tempObject.updateMatrix();
+        instancedMesh.setMatrixAt(i, tempObject.matrix);
+      });
+      
+      instancedMesh.instanceMatrix.needsUpdate = true;
     });
-    
-    instancedMeshRef.current.instanceMatrix.needsUpdate = true;
-  }, [stalkData, size]);
+  }, [stalkData, size, meshesData.length]);
 
   if (positions.length === 0 && boundaryPositions.length === 0) return null;
-  if (!geometry || !material) return null;
+  if (meshesData.length === 0) return null;
 
+  // Render one InstancedMesh per unique geometry/material in the model
   return (
-    <instancedMesh
-      ref={instancedMeshRef}
-      args={[geometry, material, stalkData.length]}
-      castShadow
-      receiveShadow
-    />
+    <group>
+      {meshesData.map((meshData, meshIndex) => (
+        <instancedMesh
+          key={meshIndex}
+          ref={(el) => { instancedMeshRefs.current[meshIndex] = el; }}
+          args={[meshData.geometry, meshData.material, stalkData.length]}
+          castShadow
+          receiveShadow
+        />
+      ))}
+    </group>
   );
 };
