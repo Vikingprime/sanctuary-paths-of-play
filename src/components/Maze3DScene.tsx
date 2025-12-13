@@ -124,15 +124,13 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-// Over-the-shoulder camera with wall collision avoidance and smooth interpolation
+// Simple over-the-shoulder camera with smooth follow - no wall collision to avoid jitter
 const OverShoulderCameraController = ({ 
   playerPos,
   playerRotation,
-  maze,
 }: { 
   playerPos: { x: number; y: number };
   playerRotation: number;
-  maze: Maze;
 }) => {
   const { camera } = useThree();
   
@@ -142,62 +140,24 @@ const OverShoulderCameraController = ({
   const initialized = useRef(false);
   
   // Camera settings
-  const CAMERA_DISTANCE = 2.5; // How far behind the player
-  const CAMERA_HEIGHT = 1.8; // Height above ground
-  const LOOK_AHEAD = 1.5; // How far ahead of player to look
-  const LOOK_HEIGHT = 0.8; // Height of look target
-  const SMOOTHING = 0.04; // Lower = smoother, reduces jitter near walls
-
-  // Check if a world position is inside a wall
-  const isInWall = (x: number, z: number): boolean => {
-    const gridX = Math.floor(x);
-    const gridZ = Math.floor(z);
-    
-    if (gridZ < 0 || gridZ >= maze.grid.length) return true;
-    if (gridX < 0 || gridX >= maze.grid[0].length) return true;
-    
-    return maze.grid[gridZ][gridX].isWall;
-  };
-
-  // Find safe camera position by moving closer to player if blocked
-  const getSafeCameraPosition = (
-    playerX: number,
-    playerZ: number,
-    idealX: number,
-    idealZ: number,
-    height: number
-  ): Vector3 => {
-    const steps = 10;
-    let safeX = playerX;
-    let safeZ = playerZ;
-    
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const testX = playerX + (idealX - playerX) * t;
-      const testZ = playerZ + (idealZ - playerZ) * t;
-      
-      if (isInWall(testX, testZ)) {
-        break;
-      }
-      safeX = testX;
-      safeZ = testZ;
-    }
-    
-    return new Vector3(safeX, height, safeZ);
-  };
+  const CAMERA_DISTANCE = 2.5;
+  const CAMERA_HEIGHT = 2.2; // Slightly higher to see over walls
+  const LOOK_AHEAD = 1.5;
+  const LOOK_HEIGHT = 0.6;
+  const SMOOTHING = 0.1; // Smooth but responsive
   
   useFrame(() => {
     const playerX = playerPos.x;
     const playerZ = playerPos.y;
     
-    // Calculate ideal camera position behind player based on rotation
-    const behindX = playerX - Math.sin(playerRotation) * CAMERA_DISTANCE;
-    const behindZ = playerZ + Math.cos(playerRotation) * CAMERA_DISTANCE;
+    // Calculate camera position behind player
+    const targetPos = new Vector3(
+      playerX - Math.sin(playerRotation) * CAMERA_DISTANCE,
+      CAMERA_HEIGHT,
+      playerZ + Math.cos(playerRotation) * CAMERA_DISTANCE
+    );
     
-    // Get safe target position that doesn't clip through walls
-    const targetPos = getSafeCameraPosition(playerX, playerZ, behindX, behindZ, CAMERA_HEIGHT);
-    
-    // Calculate look target
+    // Calculate look target ahead of player
     const targetLookAt = new Vector3(
       playerX + Math.sin(playerRotation) * LOOK_AHEAD,
       LOOK_HEIGHT,
@@ -312,11 +272,10 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0, collectedPower
         rotation={playerRotation}
       />
       
-      {/* Camera - over-the-shoulder with wall collision avoidance */}
+      {/* Camera - smooth over-the-shoulder follow */}
       <OverShoulderCameraController 
         playerPos={playerPos} 
         playerRotation={playerRotation}
-        maze={maze}
       />
     </>
   );
