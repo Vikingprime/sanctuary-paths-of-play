@@ -1,4 +1,4 @@
-import { useRef, useMemo, memo } from 'react';
+import { useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import { Vector3 } from 'three';
@@ -22,12 +22,12 @@ interface Maze3DSceneProps {
 }
 
 // Simple stable ground with green grass color
-const Ground = memo(({ width, height }: { width: number; height: number }) => (
+const Ground = ({ width, height }: { width: number; height: number }) => (
   <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, 0, height / 2]}>
     <planeGeometry args={[width + 10, height + 10]} />
     <meshStandardMaterial color="#4a7c3f" roughness={0.9} />
   </mesh>
-));
+);
 
 const MazeWalls = ({ maze }: { maze: Maze }) => {
   const { interiorWalls, boundaryWalls } = useMemo(() => {
