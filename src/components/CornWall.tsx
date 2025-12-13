@@ -1,6 +1,6 @@
-import { useRef, useMemo } from 'react';
-import { Group, Mesh } from 'three';
-import { useGLTF } from '@react-three/drei';
+import { useRef, useMemo, createContext, useContext } from 'react';
+import { Group, Mesh, Object3D } from 'three';
+import { useGLTF, Merged } from '@react-three/drei';
 
 interface CornWallProps {
   position: [number, number, number];
@@ -28,32 +28,46 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
   );
 };
 
-// Optimized instanced walls using the corn model
+// Optimized instanced walls using Merged from drei
 interface InstancedWallsProps {
   positions: { x: number; z: number }[];
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
   size?: [number, number, number];
 }
 
-// Reduced density for performance
-const ROWS = 2;
-const STALKS_PER_ROW = 2;
-const STALK_SPACING = 0.35;
+// Density settings - full density for visual quality
+const ROWS = 3;
+const STALKS_PER_ROW = 3;
+const STALK_SPACING = 0.28;
 const MIN_HEIGHT = 2.0;
 const MAX_HEIGHT = 3.0;
 
 // Boundary walls
-const BOUNDARY_ROWS = 5;
-const BOUNDARY_STALKS_PER_ROW = 4;
-const BOUNDARY_SPACING = 0.30;
-const BOUNDARY_DEPTH = 2.0;
+const BOUNDARY_ROWS = 8;
+const BOUNDARY_STALKS_PER_ROW = 6;
+const BOUNDARY_SPACING = 0.25;
+const BOUNDARY_DEPTH = 2.5;
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
-  const groupRef = useRef<Group>(null);
   
-  // Generate stalk data and pre-clone scenes ONCE
-  const { stalkData, clones } = useMemo(() => {
+  // Extract all meshes from the GLTF for Merged component
+  const meshes = useMemo(() => {
+    const result: Record<string, Mesh> = {};
+    let meshIndex = 0;
+    
+    scene.traverse((child) => {
+      if ((child as Mesh).isMesh) {
+        result[`mesh${meshIndex}`] = child as Mesh;
+        meshIndex++;
+      }
+    });
+    
+    return result;
+  }, [scene]);
+  
+  // Generate stalk data for walls
+  const stalkData = useMemo(() => {
     const data: { pos: [number, number, number]; rotation: number; height: number }[] = [];
     
     // Regular interior walls
@@ -118,33 +132,32 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
       }
     });
     
-    // Pre-clone all scenes once and enable shadows
-    const clonedScenes = data.map(() => {
-      const clone = scene.clone();
-      clone.traverse((child) => {
-        if ((child as Mesh).isMesh) {
-          child.castShadow = true;
-        }
-      });
-      return clone;
-    });
-    
-    return { stalkData: data, clones: clonedScenes };
-  }, [positions, boundaryPositions, scene]);
+    return data;
+  }, [positions, boundaryPositions]);
 
   if (positions.length === 0 && boundaryPositions.length === 0) return null;
+  if (Object.keys(meshes).length === 0) return null;
 
+  // Use Merged for efficient GPU instancing of GLTF models
   return (
-    <group ref={groupRef}>
-      {stalkData.map((stalk, i) => (
-        <primitive 
-          key={i}
-          object={clones[i]} 
-          position={stalk.pos}
-          rotation={[0, stalk.rotation, 0]}
-          scale={[size[0], stalk.height, size[2]]}
-        />
-      ))}
-    </group>
+    <Merged meshes={meshes} castShadow receiveShadow>
+      {(MergedMeshes: Record<string, React.FC<any>>) => (
+        <group>
+          {stalkData.map((stalk, i) => (
+            <group
+              key={i}
+              position={stalk.pos}
+              rotation={[0, stalk.rotation, 0]}
+              scale={[size[0], stalk.height, size[2]]}
+            >
+              {Object.keys(MergedMeshes).map((meshKey) => {
+                const MeshComponent = MergedMeshes[meshKey];
+                return <MeshComponent key={meshKey} />;
+              })}
+            </group>
+          ))}
+        </group>
+      )}
+    </Merged>
   );
 };
