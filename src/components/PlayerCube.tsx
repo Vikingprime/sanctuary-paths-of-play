@@ -5,6 +5,13 @@ import { AnimationMixer, LoopRepeat } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
 
+// Play chicken sound on spawn
+const playChickenSound = () => {
+  const audio = new Audio('/sounds/chicken.mp3');
+  audio.volume = 0.5;
+  audio.play().catch(() => {}); // Ignore autoplay errors
+};
+
 interface PlayerCubeProps {
   animalType: AnimalType;
   position: [number, number, number];
@@ -72,6 +79,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
   const gallopActionRef = useRef<any>(null);
   
   useEffect(() => {
+    // Play chicken sound when bird spawns
+    if (animalType === 'bird') {
+      playChickenSound();
+    }
+    
     if (animalType === 'cow' && cowAnimations.length > 0 && clonedCowScene) {
       // Create mixer for the cloned scene
       cowMixerRef.current = new AnimationMixer(clonedCowScene);
