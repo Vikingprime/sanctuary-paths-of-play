@@ -25,9 +25,9 @@ const cornFragmentShader = `
   varying vec2 vUv;
   varying vec3 vPosition;
   
-  // Pseudo-random function
+  // Pseudo-random function using world position for stability
   float random(vec2 st) {
-    return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+    return fract(sin(dot(floor(st * 20.0), vec2(12.9898, 78.233))) * 43758.5453123);
   }
   
   void main() {
@@ -37,8 +37,8 @@ const cornFragmentShader = `
     vec3 golden = vec3(0.6, 0.5, 0.2);
     vec3 brown = vec3(0.3, 0.2, 0.1);
     
-    // Vertical stalks pattern
-    float stalkPattern = sin(vUv.x * 40.0) * 0.5 + 0.5;
+    // Vertical stalks pattern - use floor to prevent sub-pixel jitter
+    float stalkPattern = sin(floor(vUv.x * 40.0) / 40.0 * 40.0) * 0.5 + 0.5;
     stalkPattern = pow(stalkPattern, 0.3);
     
     // Height-based color variation (darker at bottom, lighter/golden at top)
@@ -53,12 +53,13 @@ const cornFragmentShader = `
     // Add brown at the very bottom (soil/base of stalks)
     vec3 finalColor = mix(brown, topColor, smoothstep(0.0, 0.15, heightFactor));
     
-    // Add subtle random variation for natural look
-    float noise = random(vUv * 10.0) * 0.08;
+    // Add subtle random variation - use world position for stable noise
+    vec2 stableCoord = vec2(vPosition.x + vPosition.z, vPosition.y);
+    float noise = random(stableCoord) * 0.06;
     finalColor += vec3(noise * 0.5, noise, noise * 0.3);
     
     // Subtle vertical lines for individual stalk texture
-    float lines = sin(vUv.x * 80.0) * 0.03;
+    float lines = sin(floor(vUv.x * 80.0) / 80.0 * 80.0) * 0.02;
     finalColor += vec3(lines);
     
     gl_FragColor = vec4(finalColor, 1.0);
