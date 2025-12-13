@@ -242,10 +242,7 @@ const texture = new DataTexture(data, mazeWidth, mazeHeight);
           // Soft muddy transition
           float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
           vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
-          finalColor = mix(finalColor, mudColor, transition * 0.2);
-          
-          vec3 finalColor = mix(pathColor, grassColor, wallMask);
-          finalColor = mix(finalColor, mudColor, transition * 0.25);
+finalColor = mix(finalColor, mudColor, transition * 0.2);
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
