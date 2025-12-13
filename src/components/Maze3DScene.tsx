@@ -307,7 +307,7 @@ const ScatteredRocks = ({ maze }: { maze: Maze }) => {
   );
 };
 
-// 3D Grass tufts using GLB models - placed at wall base on green patches
+// 3D Grass tufts using GLB models - placed right at wall base inside the wall cell
 const GrassTufts = ({ maze }: { maze: Maze }) => {
   const grass231 = useGLTF('/models/Grass_231.glb');
   const grass232 = useGLTF('/models/Grass_232.glb');
@@ -322,66 +322,67 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
     
-    // Place grass right at wall edges - on the green grassy patches
+    // Place grass IN the wall cells, at the edge facing the path
+    // This keeps them on the green shader area and out of the walking path
     for (let y = 1; y < mazeHeight - 1; y++) {
       for (let x = 1; x < mazeWidth - 1; x++) {
-        if (maze.grid[y][x].isWall) continue; // Skip walls
+        if (!maze.grid[y][x].isWall) continue; // Only process wall cells
         
         const seed = x * 2000 + y + 5000;
         
-        // Check each adjacent wall and place grass right at that wall's base
-        const wallLeft = x > 0 && maze.grid[y][x-1].isWall;
-        const wallRight = x < mazeWidth - 1 && maze.grid[y][x+1].isWall;
-        const wallUp = y > 0 && maze.grid[y-1][x].isWall;
-        const wallDown = y < mazeHeight - 1 && maze.grid[y+1][x].isWall;
+        // Check which adjacent cells are paths - place grass at that edge
+        const pathRight = x < mazeWidth - 1 && !maze.grid[y][x+1].isWall;
+        const pathLeft = x > 0 && !maze.grid[y][x-1].isWall;
+        const pathDown = y < mazeHeight - 1 && !maze.grid[y+1][x].isWall;
+        const pathUp = y > 0 && !maze.grid[y-1][x].isWall;
         
-        // Place multiple grass tufts along each wall edge
-        if (wallLeft) {
+        // Place grass at wall edge facing path (inside wall cell)
+        if (pathRight) {
           for (let i = 0; i < 2; i++) {
-            if (seededRandom(seed + i * 100) < 0.5) {
+            if (seededRandom(seed + i * 100) < 0.4) {
               positions.push({
-                x: x + 0.05 + seededRandom(seed + i * 100 + 1) * 0.1, // Right at left wall
-                z: y + 0.2 + seededRandom(seed + i * 100 + 2) * 0.6,
-                scale: 0.12 + seededRandom(seed + i * 100 + 3) * 0.08,
+                x: x + 0.85 + seededRandom(seed + i * 100 + 1) * 0.12, // Right edge of wall
+                z: y + 0.15 + seededRandom(seed + i * 100 + 2) * 0.7,
+                scale: 0.10 + seededRandom(seed + i * 100 + 3) * 0.06,
                 rotation: seededRandom(seed + i * 100 + 4) * Math.PI * 2,
                 type: seededRandom(seed + i * 100 + 5) > 0.5 ? 1 : 2,
               });
             }
           }
         }
-        if (wallRight) {
+        if (pathLeft) {
           for (let i = 0; i < 2; i++) {
-            if (seededRandom(seed + 200 + i * 100) < 0.5) {
+            if (seededRandom(seed + 200 + i * 100) < 0.4) {
               positions.push({
-                x: x + 0.85 + seededRandom(seed + 200 + i * 100 + 1) * 0.1, // Right at right wall
-                z: y + 0.2 + seededRandom(seed + 200 + i * 100 + 2) * 0.6,
-                scale: 0.12 + seededRandom(seed + 200 + i * 100 + 3) * 0.08,
+                x: x + 0.03 + seededRandom(seed + 200 + i * 100 + 1) * 0.12, // Left edge of wall
+                z: y + 0.15 + seededRandom(seed + 200 + i * 100 + 2) * 0.7,
+                scale: 0.10 + seededRandom(seed + 200 + i * 100 + 3) * 0.06,
                 rotation: seededRandom(seed + 200 + i * 100 + 4) * Math.PI * 2,
                 type: seededRandom(seed + 200 + i * 100 + 5) > 0.5 ? 1 : 2,
               });
             }
           }
         }
-        if (wallUp) {
+        if (pathDown) {
           for (let i = 0; i < 2; i++) {
-            if (seededRandom(seed + 400 + i * 100) < 0.5) {
+            if (seededRandom(seed + 400 + i * 100) < 0.4) {
               positions.push({
-                x: x + 0.2 + seededRandom(seed + 400 + i * 100 + 1) * 0.6,
-                z: y + 0.05 + seededRandom(seed + 400 + i * 100 + 2) * 0.1, // Right at top wall
-                scale: 0.12 + seededRandom(seed + 400 + i * 100 + 3) * 0.08,
+                x: x + 0.15 + seededRandom(seed + 400 + i * 100 + 1) * 0.7,
+                z: y + 0.85 + seededRandom(seed + 400 + i * 100 + 2) * 0.12, // Bottom edge of wall
+                scale: 0.10 + seededRandom(seed + 400 + i * 100 + 3) * 0.06,
                 rotation: seededRandom(seed + 400 + i * 100 + 4) * Math.PI * 2,
                 type: seededRandom(seed + 400 + i * 100 + 5) > 0.5 ? 1 : 2,
               });
             }
           }
         }
-        if (wallDown) {
+        if (pathUp) {
           for (let i = 0; i < 2; i++) {
-            if (seededRandom(seed + 600 + i * 100) < 0.5) {
+            if (seededRandom(seed + 600 + i * 100) < 0.4) {
               positions.push({
-                x: x + 0.2 + seededRandom(seed + 600 + i * 100 + 1) * 0.6,
-                z: y + 0.85 + seededRandom(seed + 600 + i * 100 + 2) * 0.1, // Right at bottom wall
-                scale: 0.12 + seededRandom(seed + 600 + i * 100 + 3) * 0.08,
+                x: x + 0.15 + seededRandom(seed + 600 + i * 100 + 1) * 0.7,
+                z: y + 0.03 + seededRandom(seed + 600 + i * 100 + 2) * 0.12, // Top edge of wall
+                scale: 0.10 + seededRandom(seed + 600 + i * 100 + 3) * 0.06,
                 rotation: seededRandom(seed + 600 + i * 100 + 4) * Math.PI * 2,
                 type: seededRandom(seed + 600 + i * 100 + 5) > 0.5 ? 1 : 2,
               });
