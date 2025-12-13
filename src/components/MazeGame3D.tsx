@@ -136,9 +136,9 @@ export const MazeGame3D = ({
         rotateRight: keysPressed.current.has('d') || keysPressed.current.has('arrowright'),
       };
       
-      // Update isMoving based on input
+      // Update isMoving only when it changes
       const moving = input.forward || input.backward;
-      setIsMoving(moving);
+      setIsMoving(prev => prev !== moving ? moving : prev);
 
       setPlayerState((prev) => {
         // Use pure game logic for movement
