@@ -35,18 +35,18 @@ interface InstancedWallsProps {
   size?: [number, number, number];
 }
 
-// Density settings
-const ROWS = 3;
-const STALKS_PER_ROW = 3;
-const STALK_SPACING = 0.28;
+// Density settings - reduced for performance
+const ROWS = 2;
+const STALKS_PER_ROW = 2;
+const STALK_SPACING = 0.35;
 const MIN_HEIGHT = 2.0;
 const MAX_HEIGHT = 3.0;
 
-// Boundary walls
-const BOUNDARY_ROWS = 8;
-const BOUNDARY_STALKS_PER_ROW = 6;
-const BOUNDARY_SPACING = 0.25;
-const BOUNDARY_DEPTH = 2.5;
+// Boundary walls - reduced for performance
+const BOUNDARY_ROWS = 4;
+const BOUNDARY_STALKS_PER_ROW = 3;
+const BOUNDARY_SPACING = 0.35;
+const BOUNDARY_DEPTH = 2.0;
 
 // Extract mesh data from GLTF for instancing
 interface MeshData {
