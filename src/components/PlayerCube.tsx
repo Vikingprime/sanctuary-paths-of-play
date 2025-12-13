@@ -1,6 +1,6 @@
-import { useRef } from 'react';
+import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Mesh } from 'three';
+import { useGLTF } from '@react-three/drei';
 import { AnimalType } from '@/types/game';
 
 interface PlayerCubeProps {
@@ -9,8 +9,11 @@ interface PlayerCubeProps {
   rotation?: number; // Y-axis rotation in radians
 }
 
+// Preload the pig model
+useGLTF.preload('/models/Pig.glb');
+
 const animalColors: Record<AnimalType, string | string[]> = {
-  pig: '#FFB6C1', // Pink
+  pig: '#FFB6C1', // Pink (fallback)
   cow: '#1a1a1a', // Will have spots
   bird: '#FFD700', // Yellow/Gold
 };
@@ -18,6 +21,10 @@ const animalColors: Record<AnimalType, string | string[]> = {
 export const PlayerCube = ({ animalType, position, rotation = 0 }: PlayerCubeProps) => {
   const innerGroupRef = useRef<any>(null);
   const bobOffset = useRef(0);
+  
+  // Load pig model
+  const { scene: pigScene } = useGLTF('/models/Pig.glb');
+  const clonedPigScene = useMemo(() => pigScene.clone(), [pigScene]);
 
   // Only use useFrame for bobbing animation, not rotation
   useFrame((state, delta) => {
@@ -28,10 +35,18 @@ export const PlayerCube = ({ animalType, position, rotation = 0 }: PlayerCubePro
   });
 
   // Visual rotation: negate and offset so model faces movement direction
-  // Movement uses sin(θ),-cos(θ) which rotates clockwise from -Z
-  // Three.js rotation.y rotates counterclockwise from +Z
-  // So we need: visualRotation = -rotation (to reverse direction) + π (to offset from +Z to -Z)
   const visualRotation = -rotation + Math.PI;
+
+  // Pig uses GLB model
+  if (animalType === 'pig') {
+    return (
+      <group position={position} rotation={[0, visualRotation, 0]}>
+        <group ref={innerGroupRef}>
+          <primitive object={clonedPigScene} scale={[0.5, 0.5, 0.5]} />
+        </group>
+      </group>
+    );
+  }
 
   if (animalType === 'cow') {
     return (
@@ -64,6 +79,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0 }: PlayerCubePro
     );
   }
 
+  // Bird (default)
   return (
     <group position={position} rotation={[0, visualRotation, 0]}>
       <group ref={innerGroupRef}>
@@ -80,19 +96,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0 }: PlayerCubePro
           <boxGeometry args={[0.1, 0.1, 0.02]} />
           <meshStandardMaterial color="#000" />
         </mesh>
-        {/* Pig snout or bird beak */}
-        {animalType === 'pig' && (
-          <mesh position={[0, 0, 0.35]}>
-            <boxGeometry args={[0.2, 0.15, 0.1]} />
-            <meshStandardMaterial color="#FF9999" />
-          </mesh>
-        )}
-        {animalType === 'bird' && (
-          <mesh position={[0, 0, 0.4]}>
-            <boxGeometry args={[0.1, 0.08, 0.15]} />
-            <meshStandardMaterial color="#FF6600" />
-          </mesh>
-        )}
+        {/* Beak */}
+        <mesh position={[0, 0, 0.4]}>
+          <boxGeometry args={[0.1, 0.08, 0.15]} />
+          <meshStandardMaterial color="#FF6600" />
+        </mesh>
       </group>
     </group>
   );
