@@ -129,7 +129,9 @@ export const MazeGame3D = ({
     let lastTime = performance.now();
 
     const gameLoop = (currentTime: number) => {
-      const deltaTime = (currentTime - lastTime) / 1000;
+      // Clamp delta time to prevent jumps from frame drops (max ~30fps equivalent)
+      const rawDelta = (currentTime - lastTime) / 1000;
+      const deltaTime = Math.min(rawDelta, 0.033);
       lastTime = currentTime;
 
       // Build input from pressed keys
