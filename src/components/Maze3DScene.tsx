@@ -1,6 +1,6 @@
 import { useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PerspectiveCamera } from '@react-three/drei';
+import { PerspectiveCamera, useGLTF, Clone } from '@react-three/drei';
 import { Vector3 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
@@ -12,6 +12,9 @@ import {
   createCameraVolume 
 } from './CameraVolumeSystem';
 
+// Preload grass floor model
+useGLTF.preload('/models/Floor_Grass.glb');
+
 interface Maze3DSceneProps {
   maze: Maze;
   animalType: AnimalType;
@@ -21,12 +24,44 @@ interface Maze3DSceneProps {
   isMoving?: boolean; // Whether the player is moving (for animations)
 }
 
-const Ground = ({ width, height }: { width: number; height: number }) => (
-  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, 0, height / 2]}>
-    <planeGeometry args={[width + 10, height + 10]} />
-    <meshStandardMaterial color="#5D4037" roughness={0.9} />
-  </mesh>
-);
+const Ground = ({ width, height }: { width: number; height: number }) => {
+  const { scene } = useGLTF('/models/Floor_Grass.glb');
+  
+  // Tile size - adjust based on the actual model size
+  const tileSize = 1;
+  const tilesX = Math.ceil((width + 10) / tileSize);
+  const tilesZ = Math.ceil((height + 10) / tileSize);
+  
+  // Generate tile positions in a grid
+  const tiles = useMemo(() => {
+    const positions: { x: number; z: number }[] = [];
+    const startX = -5;
+    const startZ = -5;
+    
+    for (let x = 0; x < tilesX; x++) {
+      for (let z = 0; z < tilesZ; z++) {
+        positions.push({
+          x: startX + x * tileSize + tileSize / 2,
+          z: startZ + z * tileSize + tileSize / 2
+        });
+      }
+    }
+    return positions;
+  }, [tilesX, tilesZ]);
+
+  return (
+    <group>
+      {tiles.map((pos, i) => (
+        <Clone 
+          key={i} 
+          object={scene} 
+          position={[pos.x, 0, pos.z]} 
+          scale={[tileSize, 1, tileSize]}
+        />
+      ))}
+    </group>
+  );
+};
 
 const MazeWalls = ({ maze }: { maze: Maze }) => {
   const { interiorWalls, boundaryWalls } = useMemo(() => {
