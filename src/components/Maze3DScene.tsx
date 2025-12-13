@@ -376,7 +376,7 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
     
     if (meshRef1.current && positions1.length > 0 && geometry1) {
       positions1.forEach((tuft, i) => {
-        const s = tuft.scale * 0.04;
+        const s = tuft.scale; // Use scale directly, no additional multiplier
         tempObject.position.set(tuft.x, 0, tuft.z);
         tempObject.rotation.set(0, tuft.rotation, 0);
         tempObject.scale.set(s, s, s);
@@ -388,7 +388,7 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
     
     if (meshRef2.current && positions2.length > 0 && geometry2) {
       positions2.forEach((tuft, i) => {
-        const s = tuft.scale * 0.04;
+        const s = tuft.scale; // Use scale directly, no additional multiplier
         tempObject.position.set(tuft.x, 0, tuft.z);
         tempObject.rotation.set(0, tuft.rotation, 0);
         tempObject.scale.set(s, s, s);
