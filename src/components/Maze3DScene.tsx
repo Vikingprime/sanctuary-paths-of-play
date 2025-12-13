@@ -18,6 +18,7 @@ interface Maze3DSceneProps {
   playerPos: { x: number; y: number };
   playerRotation?: number; // radians, 0 = facing -Z
   collectedPowerUps?: Set<string>;
+  isMoving?: boolean; // Whether the player is moving (for animations)
 }
 
 const Ground = ({ width, height }: { width: number; height: number }) => (
@@ -183,7 +184,7 @@ const OverShoulderCameraController = ({
   return null;
 };
 
-const Scene = ({ maze, animalType, playerPos, playerRotation = 0, collectedPowerUps = new Set() }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerPos, playerRotation = 0, collectedPowerUps = new Set(), isMoving = false }: Maze3DSceneProps) => {
   // Generate camera volumes based on maze layout
   // You can customize these or add more volumes for specific areas
   const cameraVolumes = useMemo<CameraVolumeConfig[]>(() => {
@@ -270,6 +271,7 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0, collectedPower
         animalType={animalType}
         position={[playerPos.x, 0, playerPos.y]}
         rotation={playerRotation}
+        isMoving={isMoving}
       />
       
       {/* Camera - smooth over-the-shoulder follow */}
