@@ -163,20 +163,20 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           <boxGeometry args={[1.2, 4, 1.2]} />
         </mesh>
       ))}
-      {/* Soil ridges/furrows - continuous rounded rows under corn */}
+      {/* Soil ridges/furrows - thick angular rows under corn */}
       {positions.map((wallPos, i) => (
         <group key={`soil-ridge-${i}`}>
-          {/* Create 3 parallel rounded ridges per wall cell - extend past boundaries for continuity */}
+          {/* Create 3 parallel chunky ridges per wall cell */}
           {[0, 1, 2].map((rowIdx) => {
             const rowOffset = (rowIdx - 1) * STALK_SPACING;
             return (
               <mesh 
                 key={`ridge-${i}-${rowIdx}`}
-                position={[wallPos.x + 0.5, 0.04, wallPos.z + 0.5 + rowOffset]}
+                position={[wallPos.x + 0.5, 0.06, wallPos.z + 0.5 + rowOffset]}
                 rotation={[0, 0, Math.PI / 2]}
               >
-                <capsuleGeometry args={[0.05, 1.1, 4, 8]} />
-                <meshStandardMaterial color="#6b4423" roughness={1} />
+                <capsuleGeometry args={[0.12, 1.1, 2, 5]} />
+                <meshStandardMaterial color="#5a3a1a" roughness={1} />
               </mesh>
             );
           })}
