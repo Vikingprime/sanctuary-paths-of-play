@@ -1,6 +1,6 @@
 import { useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Sky, PerspectiveCamera } from '@react-three/drei';
+import { PerspectiveCamera } from '@react-three/drei';
 import { Vector3 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
@@ -267,8 +267,8 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0, collectedPower
         shadow-mapSize={[2048, 2048]}
       />
       
-      {/* Sky */}
-      <Sky sunPosition={[100, 20, 100]} />
+      {/* Dark green background */}
+      <color attach="background" args={['#1a3d1a']} />
       
       {/* Ground */}
       <Ground width={maze.grid[0].length} height={maze.grid.length} />
