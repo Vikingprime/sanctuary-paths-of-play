@@ -53,18 +53,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0 }: PlayerCubePro
   // Visual rotation
   const visualRotation = -rotation + Math.PI;
 
-  // Pig - show pink cube as fallback plus try to show GLB
+  // Pig uses GLB model
   if (animalType === 'pig') {
     return (
       <group position={position} rotation={[0, visualRotation, 0]}>
         <group ref={innerGroupRef}>
-          {/* Pink debug cube so we can see the player */}
-          <mesh>
-            <boxGeometry args={[0.5, 0.5, 0.5]} />
-            <meshStandardMaterial color="#FFB6C1" />
-          </mesh>
-          {/* Try GLB at various scales */}
-          <primitive object={clonedPigScene} scale={[0.005, 0.005, 0.005]} position={[0, 0, 0]} />
+          <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.1, 0]} />
         </group>
       </group>
     );
