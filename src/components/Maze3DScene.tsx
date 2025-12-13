@@ -17,6 +17,7 @@ interface Maze3DSceneProps {
   animalType: AnimalType;
   playerPos: { x: number; y: number };
   playerRotation?: number; // radians, 0 = facing -Z
+  collectedPowerUps?: Set<string>;
 }
 
 const Ground = ({ width, height }: { width: number; height: number }) => (
@@ -206,7 +207,7 @@ const OverShoulderCameraController = ({
   return null;
 };
 
-const Scene = ({ maze, animalType, playerPos, playerRotation = 0 }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerPos, playerRotation = 0, collectedPowerUps = new Set() }: Maze3DSceneProps) => {
   // Generate camera volumes based on maze layout
   // You can customize these or add more volumes for specific areas
   const cameraVolumes = useMemo<CameraVolumeConfig[]>(() => {
@@ -231,14 +232,14 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0 }: Maze3DSceneP
   }, [maze]);
 
   const items = useMemo(() => {
-    const powerUps: [number, number, number][] = [];
+    const powerUps: { pos: [number, number, number]; key: string }[] = [];
     const stations: [number, number, number][] = [];
     let goalPos: [number, number, number] = [0, 0, 0];
 
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
         if (cell.isPowerUp) {
-          powerUps.push([x + 0.5, 0.5, y + 0.5]);
+          powerUps.push({ pos: [x + 0.5, 0.5, y + 0.5], key: `${x},${y}` });
         }
         if (cell.isStation) {
           stations.push([x + 0.5, 0, y + 0.5]);
@@ -251,6 +252,9 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0 }: Maze3DSceneP
 
     return { powerUps, stations, goalPos };
   }, [maze]);
+
+  // Filter out collected powerups
+  const visiblePowerUps = items.powerUps.filter(p => !collectedPowerUps.has(p.key));
 
   return (
     <>
@@ -273,8 +277,8 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0 }: Maze3DSceneP
       <MazeWalls maze={maze} />
       
       {/* Power-ups */}
-      {items.powerUps.map((pos, i) => (
-        <PowerUp key={`powerup-${i}`} position={pos} />
+      {visiblePowerUps.map((p, i) => (
+        <PowerUp key={`powerup-${p.key}`} position={p.pos} />
       ))}
       
       {/* Map Stations */}
