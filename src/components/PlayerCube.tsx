@@ -73,22 +73,24 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
 
   // Animation frame update - bobbing + cow animation + movement state
   useFrame((state, delta) => {
-    // Check movement state from ref each frame
-    const isMoving = isMovingRef?.current ?? false;
-    
-    // Handle gallop animation transitions when movement state changes
-    if (gallopActionRef.current) {
-      if (isMoving && !wasMovingRef.current) {
-        gallopActionRef.current.reset().fadeIn(0.15).play();
-      } else if (!isMoving && wasMovingRef.current) {
-        gallopActionRef.current.fadeOut(0.2);
-      }
-    }
-    wasMovingRef.current = isMoving;
-    
-    // Update cow animation mixer
+    // Update cow animation mixer first
     if (cowMixerRef.current && animalType === 'cow') {
       cowMixerRef.current.update(delta);
+    }
+    
+    // Check movement state from ref each frame (only for cow)
+    if (gallopActionRef.current && animalType === 'cow') {
+      const isMoving = isMovingRef?.current ?? false;
+      
+      // Only trigger animation change when state changes
+      if (isMoving !== wasMovingRef.current) {
+        if (isMoving) {
+          gallopActionRef.current.fadeIn(0.2).play();
+        } else {
+          gallopActionRef.current.fadeOut(0.3);
+        }
+        wasMovingRef.current = isMoving;
+      }
     }
     
     // Bobbing for non-cow animals (cow has its own animation)
