@@ -36,11 +36,15 @@ export const MazeGame3D = ({
   // Initialize from pure game logic
   const startPos = findStartPosition(maze);
   
-  const [playerState, setPlayerState] = useState<PlayerState>({
+  // Use ref for real-time player state (avoids re-renders every frame)
+  const playerStateRef = useRef<PlayerState>({
     x: startPos.x,
     y: startPos.y,
     rotation: 0,
   });
+  
+  // React state only for UI that needs re-renders
+  const [playerStateForUI, setPlayerStateForUI] = useState<PlayerState>(playerStateRef.current);
   const [timeLeft, setTimeLeft] = useState(maze.timeLimit);
   const [previewTimeLeft, setPreviewTimeLeft] = useState(maze.previewTime);
   const [isPreviewing, setIsPreviewing] = useState(true);
@@ -50,7 +54,7 @@ export const MazeGame3D = ({
   const [abilityUsed, setAbilityUsed] = useState(false);
   const [collectedPowerUps, setCollectedPowerUps] = useState<Set<string>>(new Set());
   const [speedBoostActive, setSpeedBoostActive] = useState(false);
-  const [isMoving, setIsMoving] = useState(false);
+  const isMovingRef = useRef(false);
 
   // Track pressed keys for smooth movement
   const keysPressed = useRef<Set<string>>(new Set());
@@ -136,21 +140,18 @@ export const MazeGame3D = ({
         rotateRight: keysPressed.current.has('d') || keysPressed.current.has('arrowright'),
       };
       
-      // Update isMoving only when it changes
-      const moving = input.forward || input.backward;
-      setIsMoving(prev => prev !== moving ? moving : prev);
+      // Update isMoving ref (no re-render)
+      isMovingRef.current = input.forward || input.backward;
 
-      setPlayerState((prev) => {
-        // Use pure game logic for movement
-        const newState = calculateMovement(maze, prev, input, deltaTime, speedBoostActive);
+      // Use pure game logic for movement - update ref directly
+      const prev = playerStateRef.current;
+      const newState = calculateMovement(maze, prev, input, deltaTime, speedBoostActive);
+      playerStateRef.current = newState;
 
-        // Check interactions if position changed
-        if (newState.x !== prev.x || newState.y !== prev.y) {
-          handleCellInteraction(newState.x, newState.y);
-        }
-
-        return newState;
-      });
+      // Check interactions if position changed
+      if (newState.x !== prev.x || newState.y !== prev.y) {
+        handleCellInteraction(newState.x, newState.y);
+      }
 
       animationFrameRef.current = requestAnimationFrame(gameLoop);
     };
@@ -199,13 +200,13 @@ export const MazeGame3D = ({
   const useAbility = () => {
     if (abilityUsed || gameOver) return;
 
-    const result = executeAbility(animalType, maze, playerState);
+    const result = executeAbility(animalType, maze, playerStateRef.current);
 
     if (result.success) {
       setAbilityUsed(true);
 
       if (result.newPlayerState) {
-        setPlayerState(result.newPlayerState);
+        playerStateRef.current = result.newPlayerState;
         handleCellInteraction(result.newPlayerState.x, result.newPlayerState.y);
       }
 
@@ -267,14 +268,13 @@ export const MazeGame3D = ({
 
   return (
     <div className="fixed inset-0 bg-sky">
-      {/* 3D Scene */}
+      {/* 3D Scene - pass ref for real-time updates */}
       <Maze3DCanvas
         maze={maze}
         animalType={animalType}
-        playerPos={playerState}
-        playerRotation={playerState.rotation}
+        playerStateRef={playerStateRef}
+        isMovingRef={isMovingRef}
         collectedPowerUps={collectedPowerUps}
-        isMoving={isMoving}
       />
 
       {/* HUD */}
@@ -293,7 +293,7 @@ export const MazeGame3D = ({
       {/* Mini Map Overlay */}
       <MiniMap
         maze={maze}
-        playerPos={{ x: Math.floor(playerState.x), y: Math.floor(playerState.y) }}
+        playerPos={{ x: Math.floor(playerStateRef.current.x), y: Math.floor(playerStateRef.current.y) }}
         isVisible={showMiniMap}
         onClose={() => setShowMiniMap(false)}
       />

@@ -1,24 +1,18 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import { Vector3 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
-import { 
-  CameraVolumeController, 
-  CameraVolumeDebug, 
-  CameraVolumeConfig,
-  createCameraVolume 
-} from './CameraVolumeSystem';
+import { PlayerState } from '@/game/GameLogic';
 
 interface Maze3DSceneProps {
   maze: Maze;
   animalType: AnimalType;
-  playerPos: { x: number; y: number };
-  playerRotation?: number; // radians, 0 = facing -Z
+  playerStateRef: MutableRefObject<PlayerState>;
+  isMovingRef: MutableRefObject<boolean>;
   collectedPowerUps?: Set<string>;
-  isMoving?: boolean; // Whether the player is moving (for animations)
 }
 
 // Simple stable ground with green grass color
@@ -126,18 +120,62 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-// Simple over-the-shoulder camera with smooth follow - no wall collision to avoid jitter
-const OverShoulderCameraController = ({ 
-  playerPos,
-  playerRotation,
+// Player wrapper that reads from refs each frame - avoids React re-renders
+const RefBasedPlayer = ({ 
+  animalType, 
+  playerStateRef, 
+  isMovingRef 
 }: { 
-  playerPos: { x: number; y: number };
-  playerRotation: number;
+  animalType: AnimalType;
+  playerStateRef: MutableRefObject<PlayerState>;
+  isMovingRef: MutableRefObject<boolean>;
+}) => {
+  const groupRef = useRef<any>(null);
+  const smoothRotation = useRef(0);
+  
+  useFrame(() => {
+    if (!groupRef.current) return;
+    
+    const { x, y, rotation } = playerStateRef.current;
+    
+    // Update position directly
+    groupRef.current.position.x = x;
+    groupRef.current.position.z = y;
+    
+    // Smooth rotation
+    const targetRotation = -rotation + Math.PI;
+    let rotDiff = targetRotation - smoothRotation.current;
+    if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+    if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+    smoothRotation.current += rotDiff * 0.4;
+    while (smoothRotation.current > Math.PI * 2) smoothRotation.current -= Math.PI * 2;
+    while (smoothRotation.current < 0) smoothRotation.current += Math.PI * 2;
+    
+    groupRef.current.rotation.y = smoothRotation.current;
+  });
+  
+  return (
+    <group ref={groupRef}>
+      <PlayerCube
+        animalType={animalType}
+        position={[0, 0, 0]}
+        rotation={0}
+        isMoving={isMovingRef.current}
+      />
+    </group>
+  );
+};
+
+// Simple over-the-shoulder camera with smooth follow - reads from ref each frame
+const OverShoulderCameraController = ({ 
+  playerStateRef,
+}: { 
+  playerStateRef: MutableRefObject<PlayerState>;
 }) => {
   const { camera } = useThree();
   
   // Store smoothed rotation to prevent discontinuities
-  const smoothRotation = useRef(playerRotation);
+  const smoothRotation = useRef(0);
   const currentPosition = useRef(new Vector3());
   const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
@@ -151,9 +189,7 @@ const OverShoulderCameraController = ({
   const ROTATION_SMOOTHING = 0.12;
   
   useFrame(() => {
-    const playerX = playerPos.x;
-    const playerZ = playerPos.y;
-    
+    const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     // Smoothly interpolate rotation using shortest path
     let rotDiff = playerRotation - smoothRotation.current;
     // Handle wrap-around (shortest path)
@@ -199,29 +235,7 @@ const OverShoulderCameraController = ({
   return null;
 };
 
-const Scene = ({ maze, animalType, playerPos, playerRotation = 0, collectedPowerUps = new Set(), isMoving = false }: Maze3DSceneProps) => {
-  // Generate camera volumes based on maze layout
-  // You can customize these or add more volumes for specific areas
-  const cameraVolumes = useMemo<CameraVolumeConfig[]>(() => {
-    const mazeWidth = maze.grid[0].length;
-    const mazeHeight = maze.grid.length;
-    
-    // Main volume - pure overhead to avoid wall collisions
-    return [
-      createCameraVolume(
-        'main-area',
-        [mazeWidth / 2, 1.5, mazeHeight / 2],
-        [mazeWidth + 2, 3, mazeHeight + 2],
-        'custom',
-        {
-          cameraOffset: [0, 2.4, 0], // Directly above player
-          lookAtOffset: [0, 0, 0], // Look straight down at player
-          fov: 60,
-          priority: 1,
-        }
-      ),
-    ];
-  }, [maze]);
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set() }: Maze3DSceneProps) => {
 
   const items = useMemo(() => {
     const powerUps: { pos: [number, number, number]; key: string }[] = [];
@@ -288,18 +302,16 @@ const Scene = ({ maze, animalType, playerPos, playerRotation = 0, collectedPower
       {/* Goal */}
       <GoalMarker position={items.goalPos} />
       
-      {/* Player */}
-      <PlayerCube
+      {/* Player - reads from refs via useFrame */}
+      <RefBasedPlayer 
         animalType={animalType}
-        position={[playerPos.x, 0, playerPos.y]}
-        rotation={playerRotation}
-        isMoving={isMoving}
+        playerStateRef={playerStateRef}
+        isMovingRef={isMovingRef}
       />
       
       {/* Camera - smooth over-the-shoulder follow */}
       <OverShoulderCameraController 
-        playerPos={playerPos} 
-        playerRotation={playerRotation}
+        playerStateRef={playerStateRef}
       />
     </>
   );
