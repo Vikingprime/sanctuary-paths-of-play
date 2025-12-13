@@ -190,7 +190,7 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
       instancedMesh.instanceMatrix.needsUpdate = true;
       instancedMesh.castShadow = true;
       instancedMesh.receiveShadow = true;
-      instancedMesh.frustumCulled = false;
+      instancedMesh.frustumCulled = true; // Enable frustum culling for performance
       
       group.add(instancedMesh);
       instancedMeshes.push(instancedMesh);
