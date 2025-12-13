@@ -37,8 +37,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
     const clone = pigScene.clone();
     clone.traverse((child: any) => {
       if (child.isMesh) {
-        child.castShadow = false;
-        child.receiveShadow = false; // Disable to prevent shadow artifacts
+        child.castShadow = true;
+        child.receiveShadow = true;
       }
     });
     return clone;
@@ -48,8 +48,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
     const clone = henScene.clone();
     clone.traverse((child: any) => {
       if (child.isMesh) {
-        child.castShadow = false;
-        child.receiveShadow = false; // Disable to prevent shadow artifacts
+        child.castShadow = true;
+        child.receiveShadow = true;
       }
     });
     return clone;
@@ -60,8 +60,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
     const clone = SkeletonUtils.clone(cowScene);
     clone.traverse((child: any) => {
       if (child.isMesh) {
-        child.castShadow = false;
-        child.receiveShadow = false; // Disable to prevent shadow artifacts
+        child.castShadow = true;
+        child.receiveShadow = true;
       }
     });
     return clone;
