@@ -1,7 +1,7 @@
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PerspectiveCamera, useGLTF } from '@react-three/drei';
-import { Vector3, RepeatWrapping, MeshStandardMaterial } from 'three';
+import { PerspectiveCamera } from '@react-three/drei';
+import { Vector3 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
@@ -12,9 +12,6 @@ import {
   createCameraVolume 
 } from './CameraVolumeSystem';
 
-// Preload soil texture model
-useGLTF.preload('/models/Fertile_soil.glb');
-
 interface Maze3DSceneProps {
   maze: Maze;
   animalType: AnimalType;
@@ -24,52 +21,12 @@ interface Maze3DSceneProps {
   isMoving?: boolean; // Whether the player is moving (for animations)
 }
 
-const Ground = ({ width, height }: { width: number; height: number }) => {
-  const meshRef = useRef<any>(null);
-  const { scene } = useGLTF('/models/Fertile_soil.glb');
-  
-  // Extract material from the GLB and apply it with tiling
-  const material = useMemo(() => {
-    let extractedMaterial: MeshStandardMaterial | null = null;
-    
-    scene.traverse((child: any) => {
-      if (child.isMesh && child.material) {
-        extractedMaterial = child.material.clone();
-      }
-    });
-    
-    if (extractedMaterial) {
-      const mat = extractedMaterial as MeshStandardMaterial;
-      // Set up texture tiling
-      if (mat.map) {
-        mat.map.wrapS = RepeatWrapping;
-        mat.map.wrapT = RepeatWrapping;
-        mat.map.repeat.set(width / 2, height / 2);
-      }
-      if (mat.normalMap) {
-        mat.normalMap.wrapS = RepeatWrapping;
-        mat.normalMap.wrapT = RepeatWrapping;
-        mat.normalMap.repeat.set(width / 2, height / 2);
-      }
-      if (mat.roughnessMap) {
-        mat.roughnessMap.wrapS = RepeatWrapping;
-        mat.roughnessMap.wrapT = RepeatWrapping;
-        mat.roughnessMap.repeat.set(width / 2, height / 2);
-      }
-      return mat;
-    }
-    
-    // Fallback to brown color if no material found
-    return new MeshStandardMaterial({ color: '#8B7355' });
-  }, [scene, width, height]);
-
-  return (
-    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, 0, height / 2]}>
-      <planeGeometry args={[width + 10, height + 10]} />
-      <primitive object={material} attach="material" />
-    </mesh>
-  );
-};
+const Ground = ({ width, height }: { width: number; height: number }) => (
+  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, 0, height / 2]}>
+    <planeGeometry args={[width + 10, height + 10]} />
+    <meshStandardMaterial color="#6B4423" roughness={0.9} />
+  </mesh>
+);
 
 const MazeWalls = ({ maze }: { maze: Maze }) => {
   const { interiorWalls, boundaryWalls } = useMemo(() => {
