@@ -45,7 +45,7 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
       {/* Base dirt plane underneath to hide any remaining seams */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, -0.02, height / 2]}>
         <planeGeometry args={[width + 10, height + 10]} />
-        <meshStandardMaterial color="#9B6B4A" roughness={1} />
+        <meshStandardMaterial color="#7A5A4A" roughness={1} />
       </mesh>
       {/* Soil tiles on top with overlap */}
       {tiles.map((tile, i) => (
