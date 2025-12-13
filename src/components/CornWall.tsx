@@ -110,8 +110,10 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           
           // GLTF corn model - proper upright rotation using quaternion
           const baseScale = 100;
+          const heightMultiplier = 1.8; // Make taller without increasing width
           const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
-          const finalScale = baseScale * heightVariation;
+          const widthScale = baseScale * heightVariation;
+          const heightScale = baseScale * heightVariation * heightMultiplier;
           
           dummy.position.set(
             wallPos.x + 0.5 + offsetX + jitterX,
@@ -122,7 +124,8 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
           const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
           dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
-          dummy.scale.set(finalScale, finalScale, finalScale);
+          // Scale: X=width, Y=depth, Z=height (because model was rotated from Z-up)
+          dummy.scale.set(widthScale, widthScale, heightScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
         }
@@ -160,13 +163,15 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           }
           
           const baseScale = 100;
+          const heightMultiplier = 1.8;
           const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
-          const finalScale = baseScale * heightVariation;
+          const widthScale = baseScale * heightVariation;
+          const heightScale = baseScale * heightVariation * heightMultiplier;
           dummy.position.set(posX, 0, posZ);
           const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
           const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
           dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
-          dummy.scale.set(finalScale, finalScale, finalScale);
+          dummy.scale.set(widthScale, widthScale, heightScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
         }
