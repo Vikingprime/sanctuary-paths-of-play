@@ -108,8 +108,8 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
           const height = MIN_HEIGHT + seededRandom(stalkSeed + 3) * (MAX_HEIGHT - MIN_HEIGHT);
           
-          // GLTF models typically need different scaling - adjust base scale
-          const baseScale = 0.5; // Base scale for the corn model
+          // GLTF corn model needs larger scale to be visible
+          const baseScale = 2.0; // Increased scale for visibility
           
           dummy.position.set(
             wallPos.x + 0.5 + offsetX + jitterX,
@@ -117,7 +117,7 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             wallPos.z + 0.5 + offsetZ + jitterZ
           );
           dummy.rotation.set(0, rotation, 0);
-          dummy.scale.set(baseScale, height * 0.5, baseScale);
+          dummy.scale.set(baseScale, height, baseScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
         }
@@ -154,10 +154,10 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             posZ += dirZ * depthOffset;
           }
           
-          const baseScale = 0.5;
+          const baseScale = 2.0;
           dummy.position.set(posX, 0, posZ);
           dummy.rotation.set(0, rotation, 0);
-          dummy.scale.set(baseScale, height * 0.5, baseScale);
+          dummy.scale.set(baseScale, height, baseScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
         }
