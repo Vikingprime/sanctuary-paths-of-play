@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, memo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, useGLTF, Clone } from '@react-three/drei';
 import { Vector3 } from 'three';
@@ -24,16 +24,17 @@ interface Maze3DSceneProps {
   isMoving?: boolean; // Whether the player is moving (for animations)
 }
 
-const Ground = ({ width, height }: { width: number; height: number }) => {
+// Memoized ground component to prevent re-renders
+const Ground = memo(({ width, height }: { width: number; height: number }) => {
   const { scene } = useGLTF('/models/Floor_Grass.glb');
   
   // Tile size - adjust based on the actual model size
   const tileSize = 1;
-  const tilesX = Math.ceil((width + 10) / tileSize);
-  const tilesZ = Math.ceil((height + 10) / tileSize);
   
-  // Generate tile positions in a grid
+  // Generate tile positions in a grid - fully memoized with stable deps
   const tiles = useMemo(() => {
+    const tilesX = Math.ceil((width + 10) / tileSize);
+    const tilesZ = Math.ceil((height + 10) / tileSize);
     const positions: { x: number; z: number }[] = [];
     const startX = -5;
     const startZ = -5;
@@ -47,13 +48,13 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
       }
     }
     return positions;
-  }, [tilesX, tilesZ]);
+  }, [width, height]);
 
   return (
     <group>
       {tiles.map((pos, i) => (
         <Clone 
-          key={i} 
+          key={`grass-${i}`} 
           object={scene} 
           position={[pos.x, 0, pos.z]} 
           scale={[tileSize, 1, tileSize]}
@@ -61,7 +62,7 @@ const Ground = ({ width, height }: { width: number; height: number }) => {
       ))}
     </group>
   );
-};
+});
 
 const MazeWalls = ({ maze }: { maze: Maze }) => {
   const { interiorWalls, boundaryWalls } = useMemo(() => {
