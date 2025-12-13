@@ -604,8 +604,11 @@ return (
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.45]} />
       
-      {/* Soft sky blue background */}
-      <color attach="background" args={['#87CEEB']} />
+      {/* Dark green background to hide sky through corn gaps */}
+      <color attach="background" args={['#1a2810']} />
+      
+      {/* Fog to fade distant corn to background color */}
+      <fog attach="fog" args={['#1a2810', 8, 25]} />
       
       {/* Ground */}
       <Ground maze={maze} />
