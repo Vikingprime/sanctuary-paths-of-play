@@ -25,8 +25,10 @@ const animalColors: Record<AnimalType, string | string[]> = {
 
 export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = false }: PlayerCubeProps) => {
   const innerGroupRef = useRef<any>(null);
+  const outerGroupRef = useRef<any>(null);
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
+  const smoothRotation = useRef(rotation);
   
   // Load models
   const { scene: pigScene } = useGLTF('/models/Pig.glb');
@@ -79,8 +81,21 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
     }
   }, [isMoving]);
 
-  // Animation frame update
+  // Animation frame update - smooth rotation + bobbing
   useFrame((state, delta) => {
+    // Smooth rotation interpolation using shortest path
+    const targetRotation = -rotation + Math.PI;
+    let rotDiff = targetRotation - smoothRotation.current;
+    // Handle wrap-around (shortest path)
+    if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+    if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+    smoothRotation.current += rotDiff * 0.15;
+    
+    // Apply smoothed rotation to outer group
+    if (outerGroupRef.current) {
+      outerGroupRef.current.rotation.y = smoothRotation.current;
+    }
+    
     // Update cow animation mixer
     if (cowMixerRef.current && animalType === 'cow') {
       cowMixerRef.current.update(delta);
@@ -94,13 +109,10 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
     }
   });
 
-  // Apply rotation directly - already normalized in GameLogic
-  const visualRotation = -rotation + Math.PI;
-
   // Pig uses GLB model
   if (animalType === 'pig') {
     return (
-      <group position={position} rotation={[0, visualRotation, 0]}>
+      <group position={position} ref={outerGroupRef}>
         <group ref={innerGroupRef}>
           <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.1, 0]} />
         </group>
@@ -111,7 +123,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
   // Cow uses GLB model with animation (SkeletonUtils.clone for proper skinned mesh cloning)
   if (animalType === 'cow') {
     return (
-      <group position={position} rotation={[0, visualRotation, 0]}>
+      <group position={position} ref={outerGroupRef}>
         <group ref={cowGroupRef} position={[0, 0.4, 0]}>
           <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.15, 0]} />
         </group>
@@ -121,7 +133,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
 
   // Bird/Chicken uses GLB model
   return (
-    <group position={position} rotation={[0, visualRotation, 0]}>
+    <group position={position} ref={outerGroupRef}>
       <group ref={innerGroupRef}>
         <primitive object={clonedHenScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.1, 0]} />
       </group>
