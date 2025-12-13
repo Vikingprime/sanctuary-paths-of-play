@@ -118,8 +118,8 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             0, // Start at ground level
             wallPos.z + 0.5 + offsetZ + jitterZ
           );
-          dummy.rotation.set(0, rotation, 0);
-          dummy.scale.set(finalScale, finalScale, finalScale); // Uniform scale
+          dummy.rotation.set(-Math.PI / 2, rotation, 0); // Rotate -90° on X to stand upright
+          dummy.scale.set(finalScale, finalScale, finalScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
         }
@@ -160,7 +160,7 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
           const finalScale = baseScale * heightVariation;
           dummy.position.set(posX, 0, posZ);
-          dummy.rotation.set(0, rotation, 0);
+          dummy.rotation.set(-Math.PI / 2, rotation, 0);
           dummy.scale.set(finalScale, finalScale, finalScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
