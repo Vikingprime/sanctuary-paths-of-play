@@ -264,7 +264,10 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
     const mat = new MeshStandardMaterial({ 
       color: "#7A6350", 
       roughness: 0.9,
-      depthWrite: false, // Don't write to depth buffer so player renders on top
+      // Use polygonOffset to push rocks slightly back in depth buffer
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
     });
     return { geometry: geo, material: mat };
   }, []);
