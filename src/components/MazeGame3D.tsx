@@ -50,6 +50,7 @@ export const MazeGame3D = ({
   const [timeLeft, setTimeLeft] = useState(maze.timeLimit);
   const [previewTimeLeft, setPreviewTimeLeft] = useState(maze.previewTime);
   const [isPreviewing, setIsPreviewing] = useState(true);
+  const [sceneReady, setSceneReady] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [hasWon, setHasWon] = useState(false);
@@ -179,16 +180,8 @@ export const MazeGame3D = ({
 
   const animal = animals.find((a) => a.id === animalType)!;
 
-  // Preview screen
-  if (isPreviewing) {
-    return (
-      <MazePreview
-        maze={maze}
-        timeLeft={previewTimeLeft}
-        onPreviewEnd={() => setIsPreviewing(false)}
-      />
-    );
-  }
+  // Show preview overlay on top of the 3D scene (which renders in background)
+  const showPreviewOverlay = isPreviewing && sceneReady;
 
   // Game over screen
   if (gameOver) {
@@ -229,7 +222,7 @@ export const MazeGame3D = ({
 
   return (
     <div className="fixed inset-0 bg-black">
-      {/* 3D Scene - movement handled in useFrame for sync with rendering */}
+      {/* 3D Scene - always renders, movement paused during preview */}
       <Maze3DCanvas
         maze={maze}
         animalType={animalType}
@@ -239,18 +232,32 @@ export const MazeGame3D = ({
         keysPressed={keysPressed}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
-        isPaused={showMiniMap}
+        isPaused={showMiniMap || isPreviewing}
+        onSceneReady={() => setSceneReady(true)}
       />
 
-      {/* HUD */}
-      <GameHUD
-        animalType={animalType}
-        timeLeft={timeLeft}
-        mazeName={maze.name}
-        abilityUsed={abilityUsed}
-        onUseAbility={useAbility}
-        onQuit={onQuit}
-      />
+      {/* Preview overlay - shows on top while scene loads in background */}
+      {isPreviewing && (
+        <div className="absolute inset-0 z-10">
+          <MazePreview
+            maze={maze}
+            timeLeft={previewTimeLeft}
+            onPreviewEnd={() => setIsPreviewing(false)}
+          />
+        </div>
+      )}
+
+      {/* HUD - only show after preview ends */}
+      {!isPreviewing && (
+        <GameHUD
+          animalType={animalType}
+          timeLeft={timeLeft}
+          mazeName={maze.name}
+          abilityUsed={abilityUsed}
+          onUseAbility={useAbility}
+          onQuit={onQuit}
+        />
+      )}
 
       {/* Mobile Controls */}
       <MobileControls onMove={handleMobileMove} />

@@ -17,6 +17,7 @@ interface Maze3DSceneProps {
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
+  onSceneReady?: () => void;
 }
 
 // Simple stable ground with green grass color
@@ -276,7 +277,16 @@ const OverShoulderCameraController = ({
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, speedBoostActive, onCellInteraction, isPaused }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, speedBoostActive, onCellInteraction, isPaused, onSceneReady }: Maze3DSceneProps) => {
+  // Signal scene is ready after first render
+  const hasSignaled = useRef(false);
+  
+  useFrame(() => {
+    if (!hasSignaled.current && onSceneReady) {
+      hasSignaled.current = true;
+      onSceneReady();
+    }
+  });
 
   const items = useMemo(() => {
     const powerUps: { pos: [number, number, number]; key: string }[] = [];
