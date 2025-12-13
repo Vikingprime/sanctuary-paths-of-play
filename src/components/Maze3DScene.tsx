@@ -605,15 +605,6 @@ return (
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
-      {/* Soft contact shadow under player */}
-      <ContactShadows 
-        position={[0, 0.01, 0]}
-        opacity={0.4}
-        scale={40}
-        blur={2}
-        far={4}
-        resolution={256}
-      />
       
       {/* Dark green background to hide sky through corn gaps */}
       <color attach="background" args={['#1a2810']} />
