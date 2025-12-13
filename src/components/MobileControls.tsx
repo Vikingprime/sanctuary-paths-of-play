@@ -6,7 +6,7 @@ interface MobileControlsProps {
 
 export const MobileControls = ({ onMove }: MobileControlsProps) => {
   return (
-    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-40 md:hidden">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 md:hidden">
       <div className="flex flex-col items-center gap-2">
         {/* Forward */}
         <Button
