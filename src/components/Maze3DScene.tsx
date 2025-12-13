@@ -1,7 +1,7 @@
 import { useRef, useMemo, MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
-import { PerspectiveCamera, ContactShadows } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter } from 'three';
+import { PerspectiveCamera, ContactShadows, useGLTF } from '@react-three/drei';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
@@ -255,6 +255,117 @@ finalColor = mix(finalColor, mudColor, transition * 0.2);
   return <primitive object={material} attach="material" />;
 };
 
+// 3D Rocks scattered on ground for visual depth
+const ScatteredRocks = ({ maze }: { maze: Maze }) => {
+  const rocks = useMemo(() => {
+    const positions: { x: number; z: number; scale: number; rotation: number }[] = [];
+    const seededRandom = (seed: number) => {
+      const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    };
+    
+    const mazeWidth = maze.grid[0].length;
+    const mazeHeight = maze.grid.length;
+    
+    // Generate rocks on paths (non-wall areas)
+    for (let y = 1; y < mazeHeight - 1; y++) {
+      for (let x = 1; x < mazeWidth - 1; x++) {
+        if (!maze.grid[y][x].isWall) {
+          const seed = x * 1000 + y;
+          if (seededRandom(seed) > 0.85) { // 15% chance
+            positions.push({
+              x: x + 0.5 + (seededRandom(seed + 1) - 0.5) * 0.6,
+              z: y + 0.5 + (seededRandom(seed + 2) - 0.5) * 0.6,
+              scale: 0.08 + seededRandom(seed + 3) * 0.12,
+              rotation: seededRandom(seed + 4) * Math.PI * 2,
+            });
+          }
+        }
+      }
+    }
+    return positions;
+  }, [maze]);
+  
+  return (
+    <>
+      {rocks.map((rock, i) => (
+        <mesh 
+          key={i} 
+          position={[rock.x, rock.scale * 0.3, rock.z]}
+          rotation={[0, rock.rotation, 0]}
+          scale={[rock.scale * 1.2, rock.scale * 0.6, rock.scale]}
+          castShadow
+        >
+          <dodecahedronGeometry args={[1, 0]} />
+          <meshStandardMaterial 
+            color={i % 3 === 0 ? "#8B7355" : i % 3 === 1 ? "#6B5344" : "#A08060"} 
+            roughness={0.9}
+          />
+        </mesh>
+      ))}
+    </>
+  );
+};
+
+// 3D Grass tufts using GLB models
+const GrassTufts = ({ maze }: { maze: Maze }) => {
+  const grass231 = useGLTF('/models/Grass_231.glb');
+  const grass232 = useGLTF('/models/Grass_232.glb');
+  
+  const tufts = useMemo(() => {
+    const positions: { x: number; z: number; scale: number; rotation: number; type: 1 | 2 }[] = [];
+    const seededRandom = (seed: number) => {
+      const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    };
+    
+    const mazeWidth = maze.grid[0].length;
+    const mazeHeight = maze.grid.length;
+    
+    // Place grass near walls and on paths for natural look
+    for (let y = 1; y < mazeHeight - 1; y++) {
+      for (let x = 1; x < mazeWidth - 1; x++) {
+        const isWall = maze.grid[y][x].isWall;
+        const seed = x * 2000 + y + 5000;
+        
+        // More grass near wall edges, some on paths
+        const hasAdjacentWall = 
+          (x > 0 && maze.grid[y][x-1].isWall) ||
+          (x < mazeWidth - 1 && maze.grid[y][x+1].isWall) ||
+          (y > 0 && maze.grid[y-1][x].isWall) ||
+          (y < mazeHeight - 1 && maze.grid[y+1][x].isWall);
+        
+        const spawnChance = isWall ? 0 : (hasAdjacentWall ? 0.4 : 0.15);
+        
+        if (seededRandom(seed) < spawnChance) {
+          positions.push({
+            x: x + 0.5 + (seededRandom(seed + 1) - 0.5) * 0.7,
+            z: y + 0.5 + (seededRandom(seed + 2) - 0.5) * 0.7,
+            scale: 0.15 + seededRandom(seed + 3) * 0.2,
+            rotation: seededRandom(seed + 4) * Math.PI * 2,
+            type: seededRandom(seed + 5) > 0.5 ? 1 : 2,
+          });
+        }
+      }
+    }
+    return positions;
+  }, [maze]);
+  
+  return (
+    <>
+      {tufts.map((tuft, i) => (
+        <primitive 
+          key={i}
+          object={(tuft.type === 1 ? grass231 : grass232).scene.clone()}
+          position={[tuft.x, 0, tuft.z]}
+          rotation={[0, tuft.rotation, 0]}
+          scale={[tuft.scale, tuft.scale, tuft.scale]}
+        />
+      ))}
+    </>
+  );
+};
+
 // Ground with grass/path differentiation based on wall data
 const Ground = ({ maze }: { maze: Maze }) => {
   const width = maze.grid[0].length;
@@ -284,6 +395,10 @@ const Ground = ({ maze }: { maze: Maze }) => {
         <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
         <shadowMaterial transparent opacity={0.4} />
       </mesh>
+      
+      {/* 3D Props for visual depth */}
+      <ScatteredRocks maze={maze} />
+      <GrassTufts maze={maze} />
     </group>
   );
 };
