@@ -482,11 +482,11 @@ const OverShoulderCameraController = ({
   const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
   
-  // Camera settings - closer to player to avoid seeing through walls
-  const CAMERA_DISTANCE = 1.6;
-  const CAMERA_HEIGHT = 2.0;
-  const LOOK_AHEAD = 2.0;
-  const LOOK_HEIGHT = 0.3;
+  // Camera settings - balanced for visibility and no wall clipping
+  const CAMERA_DISTANCE = 1.4;
+  const CAMERA_HEIGHT = 1.6;
+  const LOOK_AHEAD = 2.5;
+  const LOOK_HEIGHT = 0.4;
   const POSITION_SMOOTHING = 0.15;
   const ROTATION_SMOOTHING = 0.12;
   
