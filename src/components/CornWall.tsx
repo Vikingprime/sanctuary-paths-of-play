@@ -9,17 +9,11 @@ interface CornWallProps {
 
 // Preload models
 useGLTF.preload('/models/Corn.glb');
+useGLTF.preload('/models/Fertile_soil.glb');
 
 // Dark green material for boundary blocks
 const boundaryMaterial = new MeshStandardMaterial({
   color: new Color(0.08, 0.15, 0.05),
-  roughness: 1,
-  metalness: 0,
-});
-
-// Brown material for soil mounds
-const soilMaterial = new MeshStandardMaterial({
-  color: new Color(0.35, 0.22, 0.1),
   roughness: 1,
   metalness: 0,
 });
@@ -64,6 +58,7 @@ const BOUNDARY_DEPTH = 1.2; // How far the corn extends outward
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
+  const { scene: soilScene } = useGLTF('/models/Fertile_soil.glb');
   const groupRef = useRef<Group>(null);
   
   // Generate stalk data for walls - using seeded random for stable positions
@@ -149,6 +144,12 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stalkData.length]);
 
+  // Clone soil scene for each wall position
+  const soilClones = useMemo(() => {
+    return positions.map(() => soilScene.clone());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positions.length, soilScene]);
+
   if (positions.length === 0 && boundaryPositions.length === 0) return null;
 
   return (
@@ -163,24 +164,14 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           <boxGeometry args={[1.2, 4, 1.2]} />
         </mesh>
       ))}
-      {/* Soil ridges/furrows - thick angular rows under corn */}
+      {/* Fertile soil models under corn */}
       {positions.map((wallPos, i) => (
-        <group key={`soil-ridge-${i}`}>
-          {/* Create 3 parallel chunky ridges per wall cell */}
-          {[0, 1, 2].map((rowIdx) => {
-            const rowOffset = (rowIdx - 1) * STALK_SPACING;
-            return (
-              <mesh 
-                key={`ridge-${i}-${rowIdx}`}
-                position={[wallPos.x + 0.5, 0.06, wallPos.z + 0.5 + rowOffset]}
-                rotation={[0, 0, Math.PI / 2]}
-              >
-                <capsuleGeometry args={[0.12, 1.1, 2, 5]} />
-                <meshStandardMaterial color="#5a3a1a" roughness={1} />
-              </mesh>
-            );
-          })}
-        </group>
+        <primitive 
+          key={`soil-${i}`}
+          object={soilClones[i]} 
+          position={[wallPos.x + 0.5, 0, wallPos.z + 0.5]}
+          scale={[0.5, 0.5, 0.5]}
+        />
       ))}
       {/* Corn stalks */}
       {stalkData.map((stalk, i) => (
