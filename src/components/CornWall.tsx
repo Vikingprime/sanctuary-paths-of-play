@@ -128,13 +128,22 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
 
   // Extract meshes from GLTF and create instanced versions
   const instancedMeshes = useMemo(() => {
-    if (stalkTransforms.length === 0) return [];
+    console.log('[CornWall] Creating instanced meshes, stalkTransforms:', stalkTransforms.length);
+    console.log('[CornWall] Scene object:', scene);
+    
+    if (stalkTransforms.length === 0) {
+      console.log('[CornWall] No transforms, returning empty');
+      return [];
+    }
     
     const meshes: ThreeInstancedMesh[] = [];
     
     scene.traverse((child) => {
+      console.log('[CornWall] Traversing child:', child.type, child.name);
       if ((child as Mesh).isMesh) {
         const originalMesh = child as Mesh;
+        console.log('[CornWall] Found mesh:', originalMesh.name, 'geometry:', originalMesh.geometry, 'material:', originalMesh.material);
+        
         const instancedMesh = new ThreeInstancedMesh(
           originalMesh.geometry,
           originalMesh.material,
@@ -150,10 +159,12 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
         instancedMesh.castShadow = true;
         instancedMesh.receiveShadow = true;
         
+        console.log('[CornWall] Created instanced mesh with', stalkTransforms.length, 'instances');
         meshes.push(instancedMesh);
       }
     });
     
+    console.log('[CornWall] Total instanced meshes created:', meshes.length);
     return meshes;
   }, [scene, stalkTransforms]);
 
