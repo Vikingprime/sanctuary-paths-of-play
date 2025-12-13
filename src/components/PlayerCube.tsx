@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { AnimalType } from '@/types/game';
@@ -24,27 +24,47 @@ export const PlayerCube = ({ animalType, position, rotation = 0 }: PlayerCubePro
   
   // Load pig model
   const { scene: pigScene } = useGLTF('/models/Pig.glb');
+  
+  // Debug: log the pig scene structure
+  useEffect(() => {
+    if (animalType === 'pig') {
+      console.log('Pig scene loaded:', pigScene);
+      console.log('Pig children count:', pigScene.children.length);
+      pigScene.traverse((child: any) => {
+        console.log('Child:', child.type, child.name);
+        if (child.isMesh) {
+          console.log('Mesh material:', child.material);
+        }
+      });
+    }
+  }, [pigScene, animalType]);
+  
   const clonedPigScene = useMemo(() => pigScene.clone(), [pigScene]);
 
-  // Only use useFrame for bobbing animation, not rotation
+  // Only use useFrame for bobbing animation
   useFrame((state, delta) => {
     if (innerGroupRef.current) {
       bobOffset.current += delta * 3;
-      // Keep pig higher off ground since model origin may be at feet
-      const baseHeight = animalType === 'pig' ? 0 : 0.4;
+      const baseHeight = 0.4;
       innerGroupRef.current.position.y = baseHeight + Math.sin(bobOffset.current) * 0.05;
     }
   });
 
-  // Visual rotation: negate and offset so model faces movement direction
+  // Visual rotation
   const visualRotation = -rotation + Math.PI;
 
-  // Pig uses GLB model
+  // Pig - show pink cube as fallback plus try to show GLB
   if (animalType === 'pig') {
     return (
       <group position={position} rotation={[0, visualRotation, 0]}>
-        <group ref={innerGroupRef} position={[0, 0, 0]}>
-          <primitive object={clonedPigScene} scale={[1, 1, 1]} position={[0, 0, 0]} />
+        <group ref={innerGroupRef}>
+          {/* Pink debug cube so we can see the player */}
+          <mesh>
+            <boxGeometry args={[0.5, 0.5, 0.5]} />
+            <meshStandardMaterial color="#FFB6C1" />
+          </mesh>
+          {/* Try GLB at various scales */}
+          <primitive object={clonedPigScene} scale={[0.005, 0.005, 0.005]} position={[0, 0, 0]} />
         </group>
       </group>
     );
