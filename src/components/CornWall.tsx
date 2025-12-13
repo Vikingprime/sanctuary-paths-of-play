@@ -9,7 +9,15 @@ const cornVertexShader = `
   void main() {
     vUv = uv;
     vPosition = position;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    
+    // Support for instanced rendering
+    #ifdef USE_INSTANCING
+      vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+    #else
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    #endif
+    
+    gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
