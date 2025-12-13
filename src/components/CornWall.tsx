@@ -43,10 +43,11 @@ const STALK_SPACING = 0.28;
 const MIN_HEIGHT = 2.0;
 const MAX_HEIGHT = 3.0;
 
-// Boundary walls - moderate density + solid block behind
-const BOUNDARY_ROWS = 4;
-const BOUNDARY_STALKS_PER_ROW = 4;
-const BOUNDARY_SPACING = 0.22;
+// Boundary walls - more layers of corn before the green block
+const BOUNDARY_ROWS = 6;
+const BOUNDARY_STALKS_PER_ROW = 6;
+const BOUNDARY_SPACING = 0.25;
+const BOUNDARY_DEPTH = 1.2; // How far the corn extends outward
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
@@ -77,20 +78,41 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
       }
     });
     
-    // Boundary walls - with corn stalks
+    // Boundary walls - multiple layers extending outward
     boundaryPositions.forEach((wallPos) => {
+      // Determine outward direction
+      const dirX = wallPos.offsetX !== 0 ? Math.sign(wallPos.offsetX) : 0;
+      const dirZ = wallPos.offsetZ !== 0 ? Math.sign(wallPos.offsetZ) : 0;
+      
       for (let row = 0; row < BOUNDARY_ROWS; row++) {
         const rowOffset = (row % 2) * (BOUNDARY_SPACING / 2);
+        // Extend corn outward in the offset direction
+        const depthOffset = (row / (BOUNDARY_ROWS - 1)) * BOUNDARY_DEPTH;
+        
         for (let col = 0; col < BOUNDARY_STALKS_PER_ROW; col++) {
           const offsetX = (col - (BOUNDARY_STALKS_PER_ROW - 1) / 2) * BOUNDARY_SPACING + rowOffset;
-          const offsetZ = (row - (BOUNDARY_ROWS - 1) / 2) * BOUNDARY_SPACING;
+          const offsetZ = (col - (BOUNDARY_STALKS_PER_ROW - 1) / 2) * BOUNDARY_SPACING + rowOffset;
           const jitterX = (Math.random() - 0.5) * 0.03;
           const jitterZ = (Math.random() - 0.5) * 0.03;
           const rotation = Math.random() * Math.PI * 2;
           const height = MIN_HEIGHT + Math.random() * (MAX_HEIGHT - MIN_HEIGHT);
           
+          // Position corn: spread perpendicular to boundary, extend outward
+          let posX = wallPos.x + 0.5 + jitterX;
+          let posZ = wallPos.z + 0.5 + jitterZ;
+          
+          if (dirX !== 0) {
+            // Left/right boundary - spread in Z, extend in X
+            posX += dirX * depthOffset;
+            posZ += offsetZ;
+          } else {
+            // Top/bottom boundary - spread in X, extend in Z
+            posX += offsetX;
+            posZ += dirZ * depthOffset;
+          }
+          
           data.push({
-            pos: [wallPos.x + 0.5 + offsetX + jitterX, 0, wallPos.z + 0.5 + offsetZ + jitterZ],
+            pos: [posX, 0, posZ],
             rotation,
             height
           });
