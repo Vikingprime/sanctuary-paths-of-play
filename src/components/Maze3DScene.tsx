@@ -1,6 +1,6 @@
 import { useRef, useMemo, MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
-import { PerspectiveCamera } from '@react-three/drei';
+import { PerspectiveCamera, ContactShadows } from '@react-three/drei';
 import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
@@ -242,20 +242,7 @@ const mat = new ShaderMaterial({
           // Soft muddy transition
           float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
           vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
-          finalColor = mix(finalColor, mudColor, transition * 0.2);
-          
-          // === FAKE SHADOWS near walls ===
-          // Create shadow gradient from walls onto path
-          float shadowZone = smoothstep(0.7, 0.3, wallMask); // Shadows extend from walls
-          float shadowNoise = noise(worldUV * 4.0 + 800.0) * 0.15; // Irregular edge
-          float shadowIntensity = shadowZone * (0.35 + shadowNoise);
-          
-          // Darken the ground in shadow areas
-          finalColor = finalColor * (1.0 - shadowIntensity * 0.5);
-          
-          // Add slight color shift in shadows (cooler/bluer)
-          vec3 shadowTint = vec3(0.85, 0.88, 0.95);
-          finalColor = mix(finalColor, finalColor * shadowTint, shadowIntensity * 0.3);
+finalColor = mix(finalColor, mudColor, transition * 0.2);
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
@@ -278,14 +265,26 @@ const Ground = ({ maze }: { maze: Maze }) => {
   const centerZ = height / 2;
   
   return (
-    <mesh 
-      rotation={[-Math.PI / 2, 0, 0]} 
-      position={[centerX, 0.001, centerZ]}
-      receiveShadow
-    >
-      <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
-      <GroundMaterial maze={maze} />
-    </mesh>
+    <group>
+      {/* Textured ground */}
+      <mesh 
+        rotation={[-Math.PI / 2, 0, 0]} 
+        position={[centerX, 0.001, centerZ]}
+      >
+        <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
+        <GroundMaterial maze={maze} />
+      </mesh>
+      
+      {/* Shadow receiving plane on top */}
+      <mesh 
+        rotation={[-Math.PI / 2, 0, 0]} 
+        position={[centerX, 0.002, centerZ]}
+        receiveShadow
+      >
+        <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
+        <shadowMaterial transparent opacity={0.4} />
+      </mesh>
+    </group>
   );
 };
 
