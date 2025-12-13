@@ -28,12 +28,12 @@ interface InstancedWallsProps {
   size?: [number, number, number];
 }
 
-// Density settings for opaque walls
-const ROWS = 6;
-const STALKS_PER_ROW = 6;
-const STALK_SPACING = 0.16;
-const MIN_HEIGHT = 1.5;
-const MAX_HEIGHT = 3.2;
+// Density settings - optimized for performance
+const ROWS = 4;
+const STALKS_PER_ROW = 4;
+const STALK_SPACING = 0.22;
+const MIN_HEIGHT = 1.8;
+const MAX_HEIGHT = 3.0;
 
 export const InstancedWalls = ({ positions, size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
