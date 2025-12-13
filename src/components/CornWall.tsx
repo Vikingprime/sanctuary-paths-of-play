@@ -99,8 +99,9 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           
           const baseScale = 100;
           const heightMultiplier = 1.8;
+          const widthMultiplier = 0.7; // Narrower stalks
           const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
-          const widthScale = baseScale * heightVariation;
+          const widthScale = baseScale * heightVariation * widthMultiplier;
           const heightScale = baseScale * heightVariation * heightMultiplier;
           
           dummy.position.set(
@@ -149,8 +150,9 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           
           const baseScale = 100;
           const heightMultiplier = 1.8;
+          const widthMultiplier = 0.7; // Narrower stalks
           const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
-          const widthScale = baseScale * heightVariation;
+          const widthScale = baseScale * heightVariation * widthMultiplier;
           const heightScale = baseScale * heightVariation * heightMultiplier;
           dummy.position.set(posX, 0, posZ);
           const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
