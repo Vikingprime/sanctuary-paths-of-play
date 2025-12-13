@@ -37,8 +37,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMoving = fals
     const [lx, ly, lz] = lastPosition.current;
     const moved = Math.abs(x - lx) > 0.001 || Math.abs(y - ly) > 0.001 || Math.abs(z - lz) > 0.001;
     
-    if (renderCount.current % 30 === 0 || moved) {
-      console.log('PlayerCube render #', renderCount.current, 'pos:', position, 'rot:', rotation.toFixed(3), 'moved:', moved);
+    if (moved) {
+      console.log('PlayerCube render #', renderCount.current, 'pos:', position, 'rot:', rotation.toFixed(3));
     }
     lastPosition.current = position;
   });
