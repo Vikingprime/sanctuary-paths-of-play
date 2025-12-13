@@ -9,7 +9,6 @@ interface CornWallProps {
 
 // Preload models
 useGLTF.preload('/models/Corn.glb');
-useGLTF.preload('/models/Fertile_soil.glb');
 
 // Dark green material for boundary blocks
 const boundaryMaterial = new MeshStandardMaterial({
@@ -58,7 +57,6 @@ const BOUNDARY_DEPTH = 1.2; // How far the corn extends outward
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
-  const { scene: soilScene } = useGLTF('/models/Fertile_soil.glb');
   const groupRef = useRef<Group>(null);
   
   // Generate stalk data for walls - using seeded random for stable positions
@@ -144,12 +142,6 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stalkData.length]);
 
-  // Clone soil scene for each wall position
-  const soilClones = useMemo(() => {
-    return positions.map(() => soilScene.clone());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positions.length, soilScene]);
-
   if (positions.length === 0 && boundaryPositions.length === 0) return null;
 
   return (
@@ -163,15 +155,6 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
         >
           <boxGeometry args={[1.2, 4, 1.2]} />
         </mesh>
-      ))}
-      {/* Fertile soil models under corn */}
-      {positions.map((wallPos, i) => (
-        <primitive 
-          key={`soil-${i}`}
-          object={soilClones[i]} 
-          position={[wallPos.x + 0.5, 0, wallPos.z + 0.5]}
-          scale={[0.5, 0.5, 0.5]}
-        />
       ))}
       {/* Corn stalks */}
       {stalkData.map((stalk, i) => (

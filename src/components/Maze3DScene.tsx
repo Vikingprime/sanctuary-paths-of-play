@@ -1,11 +1,14 @@
 import { useRef, useMemo, MutableRefObject } from 'react';
-import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
-import { PerspectiveCamera } from '@react-three/drei';
-import { Vector3, TextureLoader, RepeatWrapping } from 'three';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { PerspectiveCamera, useGLTF } from '@react-three/drei';
+import { Vector3 } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement } from '@/game/GameLogic';
+
+// Preload the soil model
+useGLTF.preload('/models/Fertile_soil.glb');
 
 interface Maze3DSceneProps {
   maze: Maze;
@@ -20,19 +23,33 @@ interface Maze3DSceneProps {
   onSceneReady?: () => void;
 }
 
-// Ground with dirt texture
+// Ground made of tiled Fertile_soil models
 const Ground = ({ width, height }: { width: number; height: number }) => {
-  const texture = useLoader(TextureLoader, '/textures/dirt_floor.jpg');
+  const { scene } = useGLTF('/models/Fertile_soil.glb');
   
-  // Configure texture to tile
-  texture.wrapS = texture.wrapT = RepeatWrapping;
-  texture.repeat.set(width / 4, height / 4);
+  // Generate grid of soil tiles
+  const tiles = useMemo(() => {
+    const result: { x: number; z: number; clone: any }[] = [];
+    // Tile every 1 unit - adjust scale to match
+    for (let x = -2; x < width + 2; x++) {
+      for (let z = -2; z < height + 2; z++) {
+        result.push({ x, z, clone: scene.clone() });
+      }
+    }
+    return result;
+  }, [width, height, scene]);
   
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[width / 2, 0, height / 2]}>
-      <planeGeometry args={[width + 10, height + 10]} />
-      <meshStandardMaterial map={texture} roughness={0.9} />
-    </mesh>
+    <group>
+      {tiles.map((tile, i) => (
+        <primitive
+          key={`soil-tile-${i}`}
+          object={tile.clone}
+          position={[tile.x + 0.5, 0, tile.z + 0.5]}
+          scale={[0.5, 0.5, 0.5]}
+        />
+      ))}
+    </group>
   );
 };
 
