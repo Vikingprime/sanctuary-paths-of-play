@@ -164,11 +164,19 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stalkData.length]);
 
-  // Clone soil model for each stalk
+  // Clone soil model for each stalk - deep clone to avoid shared references
   const soilClones = useMemo(() => {
-    return stalkData.map(() => soilScene.clone());
+    return stalkData.map(() => {
+      const clone = soilScene.clone(true);
+      clone.traverse((child) => {
+        if (child instanceof Mesh) {
+          child.material = soilMaterial.clone();
+        }
+      });
+      return clone;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stalkData.length]);
+  }, [stalkData.length, soilScene]);
 
   if (positions.length === 0 && boundaryPositions.length === 0) return null;
 
