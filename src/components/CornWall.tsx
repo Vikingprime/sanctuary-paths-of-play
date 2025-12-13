@@ -1,7 +1,7 @@
 import { useEffect, useRef, useMemo } from 'react';
 import { InstancedMesh, Object3D, MeshStandardMaterial, TextureLoader, RepeatWrapping, SRGBColorSpace, LinearMipmapLinearFilter, LinearFilter } from 'three';
 import { useLoader, useThree } from '@react-three/fiber';
-import cornTextureUrl from '@/assets/corn-texture.png';
+import cornTextureUrl from '@/assets/corn-texture-soft.png';
 
 interface CornWallProps {
   position: [number, number, number];
