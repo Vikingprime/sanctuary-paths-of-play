@@ -779,27 +779,45 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Filter out collected powerups
   const visiblePowerUps = items.powerUps.filter(p => !collectedPowerUps.has(p.key));
 
+  // Light ref for following player
+  const lightRef = useRef<any>(null);
+  
+  // Update light position to follow player
+  useFrame(() => {
+    if (lightRef.current && playerStateRef.current) {
+      const px = playerStateRef.current.x;
+      const pz = playerStateRef.current.y;
+      // Position light relative to player
+      lightRef.current.position.set(px + 15, 35, pz + 15);
+      lightRef.current.target.position.set(px, 0, pz);
+      lightRef.current.target.updateMatrixWorld();
+    }
+  });
+
 return (
     <>
       {/* Lighting - 8am morning sunlight */}
       <ambientLight intensity={0.9} color="#FFF8F0" />
       
-      {/* Main sun light - brighter 10am position */}
+      {/* Main sun light - follows player for consistent shadows */}
       <directionalLight
+        ref={lightRef}
         position={[15, 35, 15]}
         intensity={3.5}
         color="#FFFDF5"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={1}
-        shadow-camera-far={120}
-        shadow-camera-left={-50}
-        shadow-camera-right={50}
-        shadow-camera-top={50}
-        shadow-camera-bottom={-50}
+        shadow-camera-far={80}
+        shadow-camera-left={-25}
+        shadow-camera-right={25}
+        shadow-camera-top={25}
+        shadow-camera-bottom={-25}
         shadow-bias={-0.0005}
         shadow-radius={2}
-      />
+      >
+        <object3D attach="target" />
+      </directionalLight>
       
       {/* Fill light from opposite side */}
       <directionalLight
