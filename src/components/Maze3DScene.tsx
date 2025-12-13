@@ -5,7 +5,7 @@ import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, In
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
-import { PlayerState, MovementInput, calculateMovement } from '@/game/GameLogic';
+import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition } from '@/game/GameLogic';
 
 interface Maze3DSceneProps {
   maze: Maze;
@@ -255,54 +255,35 @@ finalColor = mix(finalColor, mudColor, transition * 0.2);
   return <primitive object={material} attach="material" />;
 };
 
-// 3D Rocks scattered on ground for visual depth
-const ScatteredRocks = ({ maze }: { maze: Maze }) => {
-  const rocks = useMemo(() => {
-    const positions: { x: number; z: number; scale: number; rotation: number }[] = [];
-    const seededRandom = (seed: number) => {
-      const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
-      return x - Math.floor(x);
-    };
-    
-    const mazeWidth = maze.grid[0].length;
-    const mazeHeight = maze.grid.length;
-    
-    // Generate rocks on paths (non-wall areas)
-    for (let y = 1; y < mazeHeight - 1; y++) {
-      for (let x = 1; x < mazeWidth - 1; x++) {
-        if (!maze.grid[y][x].isWall) {
-          const seed = x * 1000 + y;
-          if (seededRandom(seed) > 0.85) { // 15% chance
-            positions.push({
-              x: x + 0.5 + (seededRandom(seed + 1) - 0.5) * 0.6,
-              z: y + 0.5 + (seededRandom(seed + 2) - 0.5) * 0.6,
-              scale: 0.08 + seededRandom(seed + 3) * 0.12,
-              rotation: seededRandom(seed + 4) * Math.PI * 2,
-            });
-          }
-        }
-      }
-    }
-    return positions;
-  }, [maze]);
+// 3D Rocks scattered on ground for visual depth - uses shared positions
+const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
+  const seededRandom = (seed: number) => {
+    const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
   
   return (
     <>
-      {rocks.map((rock, i) => (
-        <mesh 
-          key={i} 
-          position={[rock.x, rock.scale * 0.3, rock.z]}
-          rotation={[0, rock.rotation, 0]}
-          scale={[rock.scale * 1.2, rock.scale * 0.6, rock.scale]}
-          castShadow
-        >
-          <dodecahedronGeometry args={[1, 0]} />
-          <meshStandardMaterial 
-            color={i % 3 === 0 ? "#8B7355" : i % 3 === 1 ? "#6B5344" : "#A08060"} 
-            roughness={0.9}
-          />
-        </mesh>
-      ))}
+      {rocks.map((rock, i) => {
+        const scale = rock.radius * 2; // Convert radius back to scale
+        const seed = Math.floor(rock.x * 1000 + rock.z);
+        const rotation = seededRandom(seed + 4) * Math.PI * 2;
+        return (
+          <mesh 
+            key={i} 
+            position={[rock.x, scale * 0.3, rock.z]}
+            rotation={[0, rotation, 0]}
+            scale={[scale * 1.2, scale * 0.6, scale]}
+            castShadow
+          >
+            <dodecahedronGeometry args={[1, 0]} />
+            <meshStandardMaterial 
+              color={i % 3 === 0 ? "#8B7355" : i % 3 === 1 ? "#6B5344" : "#A08060"} 
+              roughness={0.9}
+            />
+          </mesh>
+        );
+      })}
     </>
   );
 };
@@ -393,7 +374,7 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
 };
 
 // Ground with grass/path differentiation based on wall data
-const Ground = ({ maze }: { maze: Maze }) => {
+const Ground = ({ maze, rocks }: { maze: Maze; rocks: RockPosition[] }) => {
   const width = maze.grid[0].length;
   const height = maze.grid.length;
   const planeWidth = width + 10;
@@ -423,7 +404,7 @@ const Ground = ({ maze }: { maze: Maze }) => {
       </mesh>
       
       {/* 3D Props for visual depth */}
-      <ScatteredRocks maze={maze} />
+      <ScatteredRocks rocks={rocks} />
       <GrassTufts maze={maze} />
     </group>
   );
@@ -536,6 +517,7 @@ const RefBasedPlayer = ({
   speedBoostActive,
   onCellInteraction,
   isPaused,
+  rocks,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
@@ -545,6 +527,7 @@ const RefBasedPlayer = ({
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
+  rocks: RockPosition[];
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef(0);
@@ -568,9 +551,9 @@ const RefBasedPlayer = ({
       // Update isMoving ref
       isMovingRef.current = input.forward || input.backward;
       
-      // Calculate new position
+      // Calculate new position with rock collision
       const prev = playerStateRef.current;
-      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive);
+      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks);
       playerStateRef.current = newState;
       
       // Check interactions if position changed
@@ -689,6 +672,9 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     }
   });
 
+  // Generate rock positions once (shared between visuals and collision)
+  const rocks = useMemo(() => generateRockPositions(maze), [maze]);
+
   const items = useMemo(() => {
     const powerUps: { pos: [number, number, number]; key: string }[] = [];
     const stations: [number, number, number][] = [];
@@ -754,7 +740,7 @@ return (
       <fog attach="fog" args={['#1a2810', 8, 25]} />
       
       {/* Ground */}
-      <Ground maze={maze} />
+      <Ground maze={maze} rocks={rocks} />
       
       {/* Maze Walls */}
       <MazeWalls maze={maze} />
@@ -782,6 +768,7 @@ return (
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}
+        rocks={rocks}
       />
       
       {/* Camera - smooth over-the-shoulder follow */}
