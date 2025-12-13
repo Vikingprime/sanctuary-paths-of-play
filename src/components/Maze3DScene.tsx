@@ -532,9 +532,13 @@ const RefBasedPlayer = ({
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef(0);
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
+  const frameCount = useRef(0);
+  const prevDelta = useRef(0.016);
   
   useFrame((state, delta) => {
     if (!groupRef.current) return;
+    
+    frameCount.current++;
     
     // Handle movement (synced with render)
     if (!isPaused) {
@@ -564,6 +568,22 @@ const RefBasedPlayer = ({
         lastCellRef.current = { x: currentCellX, y: currentCellY };
         onCellInteraction(newState.x, newState.y);
       }
+      
+      // DEBUG: Log anomalies (delta spikes)
+      const isMovingOrRotating = input.forward || input.backward || input.rotateLeft || input.rotateRight;
+      const deltaSpike = delta > 0.025; // More than ~40fps drop
+      const deltaRatio = delta / prevDelta.current;
+      
+      if (deltaSpike && isMovingOrRotating && deltaRatio > 1.5) {
+        console.log('[JITTER DEBUG] Delta spike:', {
+          frame: frameCount.current,
+          delta: delta.toFixed(4),
+          prevDelta: prevDelta.current.toFixed(4),
+          ratio: deltaRatio.toFixed(2),
+          fps: (1/delta).toFixed(1),
+        });
+      }
+      prevDelta.current = delta;
     }
     
     const { x, y, rotation } = playerStateRef.current;
@@ -579,9 +599,21 @@ const RefBasedPlayer = ({
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
     // Use delta-based lerp factor for consistent smoothing regardless of frame rate
     const lerpFactor = 1 - Math.pow(0.001, delta);
-    smoothRotation.current += rotDiff * lerpFactor;
-    while (smoothRotation.current > Math.PI * 2) smoothRotation.current -= Math.PI * 2;
-    while (smoothRotation.current < 0) smoothRotation.current += Math.PI * 2;
+    const rotationStep = rotDiff * lerpFactor;
+    
+    // DEBUG: Log rotation wrap-around issues
+    const prevSmooth = smoothRotation.current;
+    smoothRotation.current += rotationStep;
+    
+    // Check for wrap-around jitter
+    if (smoothRotation.current > Math.PI * 2) {
+      console.log('[ROTATION WRAP] Wrapping down from', smoothRotation.current.toFixed(4));
+      smoothRotation.current -= Math.PI * 2;
+    }
+    if (smoothRotation.current < 0) {
+      console.log('[ROTATION WRAP] Wrapping up from', smoothRotation.current.toFixed(4));
+      smoothRotation.current += Math.PI * 2;
+    }
     
     groupRef.current.rotation.y = smoothRotation.current;
   });
