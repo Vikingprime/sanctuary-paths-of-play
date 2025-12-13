@@ -50,9 +50,16 @@ const BOUNDARY_DEPTH = 2.5;
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
-  const [instancedMeshes, setInstancedMeshes] = useState<ThreeInstancedMesh[]>([]);
+  const groupRef = useRef<Group>(null);
+  const meshesCreatedRef = useRef(false);
   
-  // Generate all stalk transforms - memoize based on positions only
+  // Stringify positions for stable dependency
+  const positionsKey = useMemo(() => 
+    JSON.stringify(positions) + JSON.stringify(boundaryPositions),
+    [positions, boundaryPositions]
+  );
+  
+  // Generate all stalk transforms
   const stalkTransforms = useMemo(() => {
     const transforms: Matrix4[] = [];
     const dummy = new Object3D();
@@ -124,15 +131,15 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     });
     
     return transforms;
-  }, [positions, boundaryPositions, size]);
+  }, [positionsKey, size]);
 
-  // Create instanced meshes once
+  // Create instanced meshes imperatively - run only once
   useEffect(() => {
-    if (stalkTransforms.length === 0) return;
+    const group = groupRef.current;
+    if (!group || stalkTransforms.length === 0 || meshesCreatedRef.current) return;
     
-    console.log('[CornWall] Creating instanced meshes, transforms:', stalkTransforms.length);
-    
-    const meshes: ThreeInstancedMesh[] = [];
+    meshesCreatedRef.current = true;
+    console.log('[CornWall] Creating instanced meshes once, transforms:', stalkTransforms.length);
     
     scene.traverse((child) => {
       if ((child as Mesh).isMesh) {
@@ -154,21 +161,26 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
         instancedMesh.receiveShadow = true;
         instancedMesh.frustumCulled = false;
         
-        meshes.push(instancedMesh);
+        group.add(instancedMesh);
       }
     });
     
-    console.log('[CornWall] Created', meshes.length, 'instanced meshes');
-    setInstancedMeshes(meshes);
+    console.log('[CornWall] Total children added:', group.children.length);
+    
+    return () => {
+      // Cleanup on unmount
+      while (group.children.length > 0) {
+        const child = group.children[0];
+        group.remove(child);
+        if ((child as ThreeInstancedMesh).dispose) {
+          (child as ThreeInstancedMesh).dispose();
+        }
+      }
+      meshesCreatedRef.current = false;
+    };
   }, [scene, stalkTransforms]);
 
-  if (stalkTransforms.length === 0 || instancedMeshes.length === 0) return null;
+  if (stalkTransforms.length === 0) return null;
 
-  return (
-    <group>
-      {instancedMeshes.map((mesh, i) => (
-        <primitive key={i} object={mesh} />
-      ))}
-    </group>
-  );
+  return <group ref={groupRef} />;
 };
