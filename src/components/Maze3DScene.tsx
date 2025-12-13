@@ -781,16 +781,28 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 
   // Light ref for following player
   const lightRef = useRef<any>(null);
+  const lastLightPos = useRef({ x: 0, z: 0 });
   
-  // Update light position to follow player
+  // Update light position only when player moves significantly (reduces shadow flickering)
   useFrame(() => {
     if (lightRef.current && playerStateRef.current) {
       const px = playerStateRef.current.x;
       const pz = playerStateRef.current.y;
-      // Position light relative to player
-      lightRef.current.position.set(px + 15, 35, pz + 15);
-      lightRef.current.target.position.set(px, 0, pz);
-      lightRef.current.target.updateMatrixWorld();
+      
+      // Only update if player moved more than 2 units from last light position
+      const dx = px - lastLightPos.current.x;
+      const dz = pz - lastLightPos.current.z;
+      const distSq = dx * dx + dz * dz;
+      
+      if (distSq > 4) { // 2 units squared
+        // Round to reduce micro-jitter
+        const roundedX = Math.round(px);
+        const roundedZ = Math.round(pz);
+        lightRef.current.position.set(roundedX + 15, 35, roundedZ + 15);
+        lightRef.current.target.position.set(roundedX, 0, roundedZ);
+        lightRef.current.target.updateMatrixWorld();
+        lastLightPos.current = { x: roundedX, z: roundedZ };
+      }
     }
   });
 
