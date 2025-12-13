@@ -28,21 +28,30 @@ const Ground = ({ width, height }: { width: number; height: number }) => (
 );
 
 const MazeWalls = ({ maze }: { maze: Maze }) => {
-  const walls = useMemo(() => {
-    const wallPositions: { x: number; z: number }[] = [];
+  const { interiorWalls, boundaryWalls } = useMemo(() => {
+    const interior: { x: number; z: number }[] = [];
+    const boundary: { x: number; z: number }[] = [];
+    
+    const maxX = maze.grid[0].length - 1;
+    const maxZ = maze.grid.length - 1;
     
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
         if (cell.isWall) {
-          wallPositions.push({ x, z: y });
+          // Check if this is a boundary wall (on the edge of the maze)
+          if (x === 0 || x === maxX || y === 0 || y === maxZ) {
+            boundary.push({ x, z: y });
+          } else {
+            interior.push({ x, z: y });
+          }
         }
       });
     });
     
-    return wallPositions;
+    return { interiorWalls: interior, boundaryWalls: boundary };
   }, [maze]);
 
-  return <InstancedWalls positions={walls} />;
+  return <InstancedWalls positions={interiorWalls} boundaryPositions={boundaryWalls} />;
 };
 
 const PowerUp = ({ position }: { position: [number, number, number] }) => {
