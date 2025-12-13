@@ -163,14 +163,14 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           <boxGeometry args={[1.2, 4, 1.2]} />
         </mesh>
       ))}
-      {/* Soil mounds under each stalk - simple cone shapes */}
+      {/* Soil mounds under each stalk - flattened spheres */}
       {stalkData.map((stalk, i) => (
         <mesh 
           key={`soil-${i}`}
-          position={[stalk.pos[0], 0.08, stalk.pos[2]]}
-          rotation={[-Math.PI / 2, 0, stalk.rotation]}
+          position={[stalk.pos[0], 0.02, stalk.pos[2]]}
+          scale={[1, 0.3, 1]}
         >
-          <coneGeometry args={[0.18, 0.15, 8]} />
+          <sphereGeometry args={[0.15, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <meshStandardMaterial color="#5c3a21" roughness={1} />
         </mesh>
       ))}
