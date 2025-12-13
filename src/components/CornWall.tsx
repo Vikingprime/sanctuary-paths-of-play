@@ -32,7 +32,7 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
 // Optimized instanced walls using the corn model
 interface InstancedWallsProps {
   positions: { x: number; z: number }[];
-  boundaryPositions?: { x: number; z: number }[]; // Outer boundary walls
+  boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[]; // Outer boundary walls with offset
   size?: [number, number, number];
 }
 
@@ -110,14 +110,14 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
 
   return (
     <group ref={groupRef}>
-      {/* Solid dark green blocks behind boundary walls */}
+      {/* Solid dark green blocks BEHIND boundary walls (offset outward) */}
       {boundaryPositions.map((pos, i) => (
         <mesh 
           key={`block-${i}`}
-          position={[pos.x + 0.5, 1.5, pos.z + 0.5]}
+          position={[pos.x + 0.5 + pos.offsetX, 1.5, pos.z + 0.5 + pos.offsetZ]}
           material={boundaryMaterial}
         >
-          <boxGeometry args={[1.1, 3.5, 1.1]} />
+          <boxGeometry args={[1.2, 4, 1.2]} />
         </mesh>
       ))}
       {/* Corn stalks */}
