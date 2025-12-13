@@ -1,4 +1,4 @@
-import { useRef, useMemo, MutableRefObject } from 'react';
+import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF } from '@react-three/drei';
 import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry } from 'three';
@@ -265,8 +265,8 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
     return { geometry: geo, material: mat };
   }, []);
   
-  // Set up instances once
-  useMemo(() => {
+  // Set up instances after mount
+  useEffect(() => {
     if (!meshRef.current || rocks.length === 0) return;
     
     const tempObject = new Object3D();
