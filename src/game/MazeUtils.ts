@@ -27,6 +27,44 @@ export function findStartPosition(maze: Maze): { x: number; y: number } {
 }
 
 /**
+ * Find the initial rotation for the player to face an open path
+ * Returns rotation in radians
+ */
+export function findStartRotation(maze: Maze): number {
+  const startPos = findStartPosition(maze);
+  const gridX = Math.floor(startPos.x);
+  const gridY = Math.floor(startPos.y);
+  
+  // Check each direction: down (0), right (π/2), up (π), left (3π/2)
+  // Priority: down, right, left, up (typical maze flow)
+  const directions = [
+    { dx: 0, dy: 1, rotation: 0 },           // Down (facing +Z)
+    { dx: 1, dy: 0, rotation: Math.PI / 2 }, // Right (facing +X)
+    { dx: -1, dy: 0, rotation: -Math.PI / 2 }, // Left (facing -X)
+    { dx: 0, dy: -1, rotation: Math.PI },    // Up (facing -Z)
+  ];
+  
+  for (const dir of directions) {
+    const checkX = gridX + dir.dx * 2; // Check 2 cells away to skip adjacent start cells
+    const checkY = gridY + dir.dy * 2;
+    if (!isWall(maze, checkX, checkY)) {
+      return dir.rotation;
+    }
+  }
+  
+  // Fallback: check immediate neighbors
+  for (const dir of directions) {
+    const checkX = gridX + dir.dx;
+    const checkY = gridY + dir.dy;
+    if (!isWall(maze, checkX, checkY)) {
+      return dir.rotation;
+    }
+  }
+  
+  return 0; // Default facing down
+}
+
+/**
  * Find the end position in a maze
  */
 export function findEndPosition(maze: Maze): { x: number; y: number } | null {
