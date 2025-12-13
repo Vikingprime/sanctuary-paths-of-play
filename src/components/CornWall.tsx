@@ -1,6 +1,13 @@
 import { useRef, useMemo } from 'react';
-import { Group } from 'three';
+import { Group, MeshStandardMaterial, Color } from 'three';
 import { useGLTF } from '@react-three/drei';
+
+// Dark green backing material to block visibility through corn
+const backingMaterial = new MeshStandardMaterial({
+  color: new Color(0.1, 0.2, 0.08),
+  roughness: 1,
+  metalness: 0,
+});
 
 interface CornWallProps {
   position: [number, number, number];
@@ -78,6 +85,17 @@ export const InstancedWalls = ({ positions, size = [0.6, 1, 0.6] }: InstancedWal
 
   return (
     <group ref={groupRef}>
+      {/* Solid dark green backing boxes to block visibility */}
+      {positions.map((pos, i) => (
+        <mesh 
+          key={`backing-${i}`}
+          position={[pos.x + 0.5, 1.5, pos.z + 0.5]}
+          material={backingMaterial}
+        >
+          <boxGeometry args={[0.9, 3, 0.9]} />
+        </mesh>
+      ))}
+      {/* Corn stalks on top */}
       {stalkData.map((stalk, i) => (
         <primitive 
           key={i}
