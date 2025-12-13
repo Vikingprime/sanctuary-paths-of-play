@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BoxGeometry, MeshStandardMaterial } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material } from 'three';
 import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
@@ -35,7 +35,7 @@ interface InstancedWallsProps {
   size?: [number, number, number];
 }
 
-// Density settings - full density for visual quality
+// Density settings
 const ROWS = 3;
 const STALKS_PER_ROW = 3;
 const STALK_SPACING = 0.28;
@@ -48,17 +48,46 @@ const BOUNDARY_STALKS_PER_ROW = 6;
 const BOUNDARY_SPACING = 0.25;
 const BOUNDARY_DEPTH = 2.5;
 
-// Debug: Simple box-based instanced walls to verify rendering works
+// Extract mesh data from GLTF for instancing
+interface MeshData {
+  geometry: BufferGeometry;
+  material: Material | Material[];
+}
+
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const groupRef = useRef<Group>(null);
   const createdRef = useRef(false);
+  const { scene } = useGLTF('/models/Corn.glb');
+  
+  // Extract all meshes from the GLTF model
+  const meshDataList = useMemo(() => {
+    const meshes: MeshData[] = [];
+    scene.traverse((child) => {
+      if ((child as Mesh).isMesh) {
+        const mesh = child as Mesh;
+        meshes.push({
+          geometry: mesh.geometry.clone(),
+          material: Array.isArray(mesh.material) 
+            ? mesh.material.map(m => m.clone()) 
+            : mesh.material.clone()
+        });
+      }
+    });
+    console.log('[CornWall] Found', meshes.length, 'meshes in GLTF');
+    return meshes;
+  }, [scene]);
+  
+  // Create stable key for positions
+  const positionsKey = useMemo(() => {
+    return JSON.stringify(positions) + JSON.stringify(boundaryPositions);
+  }, [positions, boundaryPositions]);
   
   // Generate all stalk transforms
   const stalkTransforms = useMemo(() => {
     const transforms: Matrix4[] = [];
     const dummy = new Object3D();
     
-    // Regular interior walls - simplified: just one stalk per wall for debugging
+    // Regular interior walls
     positions.forEach((wallPos) => {
       const baseSeed = wallPos.x * 1000 + wallPos.z;
       for (let row = 0; row < ROWS; row++) {
@@ -72,13 +101,16 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
           const height = MIN_HEIGHT + seededRandom(stalkSeed + 3) * (MAX_HEIGHT - MIN_HEIGHT);
           
+          // GLTF models typically need different scaling - adjust base scale
+          const baseScale = 0.5; // Base scale for the corn model
+          
           dummy.position.set(
             wallPos.x + 0.5 + offsetX + jitterX,
-            height / 2, // Center the box vertically
+            0, // Start at ground level
             wallPos.z + 0.5 + offsetZ + jitterZ
           );
           dummy.rotation.set(0, rotation, 0);
-          dummy.scale.set(0.1, height, 0.1);
+          dummy.scale.set(baseScale, height * 0.5, baseScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
         }
@@ -115,9 +147,10 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
             posZ += dirZ * depthOffset;
           }
           
-          dummy.position.set(posX, height / 2, posZ);
+          const baseScale = 0.5;
+          dummy.position.set(posX, 0, posZ);
           dummy.rotation.set(0, rotation, 0);
-          dummy.scale.set(0.1, height, 0.1);
+          dummy.scale.set(baseScale, height * 0.5, baseScale);
           dummy.updateMatrix();
           transforms.push(dummy.matrix.clone());
         }
@@ -126,41 +159,55 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     
     return transforms;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positions.length, boundaryPositions.length]);
+  }, [positionsKey]);
 
   useEffect(() => {
     const group = groupRef.current;
-    if (!group || stalkTransforms.length === 0 || createdRef.current) return;
+    if (!group || stalkTransforms.length === 0 || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     
-    // Create a simple box-based instanced mesh for debugging
-    const geometry = new BoxGeometry(1, 1, 1);
-    const material = new MeshStandardMaterial({ color: 0x228B22 }); // Forest green
+    // Create an InstancedMesh for each mesh in the GLTF
+    const instancedMeshes: ThreeInstancedMesh[] = [];
     
-    const instancedMesh = new ThreeInstancedMesh(geometry, material, stalkTransforms.length);
-    
-    stalkTransforms.forEach((matrix, i) => {
-      instancedMesh.setMatrixAt(i, matrix);
+    meshDataList.forEach((meshData, meshIndex) => {
+      const instancedMesh = new ThreeInstancedMesh(
+        meshData.geometry, 
+        meshData.material, 
+        stalkTransforms.length
+      );
+      
+      stalkTransforms.forEach((matrix, i) => {
+        instancedMesh.setMatrixAt(i, matrix);
+      });
+      
+      instancedMesh.instanceMatrix.needsUpdate = true;
+      instancedMesh.castShadow = true;
+      instancedMesh.receiveShadow = true;
+      instancedMesh.frustumCulled = false; // Ensure visibility
+      
+      group.add(instancedMesh);
+      instancedMeshes.push(instancedMesh);
+      
+      console.log(`[CornWall] Added InstancedMesh ${meshIndex} with ${stalkTransforms.length} instances`);
     });
     
-    instancedMesh.instanceMatrix.needsUpdate = true;
-    instancedMesh.castShadow = true;
-    instancedMesh.receiveShadow = true;
-    
-    group.add(instancedMesh);
-    console.log('[CornWall] DEBUG: Added simple box instanced mesh with', stalkTransforms.length, 'instances');
-    
     return () => {
-      if (group.children.length > 0) {
-        group.remove(instancedMesh);
-        geometry.dispose();
-        material.dispose();
-        instancedMesh.dispose();
-      }
+      instancedMeshes.forEach(mesh => {
+        if (group.children.includes(mesh)) {
+          group.remove(mesh);
+          mesh.geometry.dispose();
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(m => m.dispose());
+          } else {
+            mesh.material.dispose();
+          }
+          mesh.dispose();
+        }
+      });
       createdRef.current = false;
     };
-  }, [stalkTransforms]);
+  }, [stalkTransforms, meshDataList]);
 
   if (stalkTransforms.length === 0) return null;
 
