@@ -1,7 +1,7 @@
 import { useRef, useMemo, MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, UniformsLib, UniformsUtils } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls } from './CornWall';
 import { PlayerCube } from './PlayerCube';
@@ -45,54 +45,34 @@ const texture = new DataTexture(data, mazeWidth, mazeHeight);
     texture.minFilter = LinearFilter;
     
 const mat = new ShaderMaterial({
-      uniforms: UniformsUtils.merge([
-        UniformsLib.lights,
-        {
-          wallMap: { value: texture },
-          mazeWidth: { value: mazeWidth },
-          mazeHeight: { value: mazeHeight },
-          // Dirt path colors - warm terracotta tones
-          pathWorn: { value: new Color('#C49A7A') },
-          pathBase: { value: new Color('#8B5A42') },
-          pathDark: { value: new Color('#5C3D2E') },
-          pathRich: { value: new Color('#7A4A3A') },
-          // Grass colors - rich greens
-          grassBase: { value: new Color('#4A6B3A') },
-          grassDark: { value: new Color('#2E4420') },
-          grassMoss: { value: new Color('#3D5830') },
-          // Rock/stone colors
-          rockLight: { value: new Color('#C4B090') },
-          rockMid: { value: new Color('#A08060') },
-          rockDark: { value: new Color('#705540') },
-        }
-      ]),
-      lights: true,
+      uniforms: {
+        wallMap: { value: texture },
+        mazeWidth: { value: mazeWidth },
+        mazeHeight: { value: mazeHeight },
+        // Dirt path colors - warm terracotta tones
+        pathWorn: { value: new Color('#C49A7A') },
+        pathBase: { value: new Color('#8B5A42') },
+        pathDark: { value: new Color('#5C3D2E') },
+        pathRich: { value: new Color('#7A4A3A') },
+        // Grass colors - rich greens
+        grassBase: { value: new Color('#4A6B3A') },
+        grassDark: { value: new Color('#2E4420') },
+        grassMoss: { value: new Color('#3D5830') },
+        // Rock/stone colors
+        rockLight: { value: new Color('#C4B090') },
+        rockMid: { value: new Color('#A08060') },
+        rockDark: { value: new Color('#705540') },
+      },
       vertexShader: `
-        #include <common>
-        #include <shadowmap_pars_vertex>
-        
         varying vec2 vUv;
         varying vec3 vWorldPos;
-        
         void main() {
           vUv = uv;
-          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-          vWorldPos = worldPosition.xyz;
-          
-          #include <beginnormal_vertex>
-          #include <defaultnormal_vertex>
-          #include <shadowmap_vertex>
-          
+          vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
-        #include <common>
-        #include <packing>
-        #include <lights_pars_begin>
-        #include <shadowmap_pars_fragment>
-        #include <shadowmask_pars_fragment>
-        
         uniform sampler2D wallMap;
         uniform float mazeWidth;
         uniform float mazeHeight;
@@ -257,19 +237,12 @@ const mat = new ShaderMaterial({
           vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
           
           // Add extra grass tufts at edges
-          finalColor = mix(finalColor, grassTuftColor, edgeGrass * 0.5);
+finalColor = mix(finalColor, grassTuftColor, edgeGrass * 0.5);
           
           // Soft muddy transition
           float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
           vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
-// Soft muddy transition
-          float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
-          vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
           finalColor = mix(finalColor, mudColor, transition * 0.2);
-          
-          // Apply shadows
-          float shadow = getShadowMask();
-          finalColor = finalColor * (0.4 + 0.6 * shadow);
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
@@ -589,37 +562,35 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const visiblePowerUps = items.powerUps.filter(p => !collectedPowerUps.has(p.key));
 
 return (
-    <>
-      {/* Lighting - warm sunlight with shadows */}
-      <ambientLight intensity={0.4} color="#B8A080" />
+<>
+      {/* Lighting - bright warm daylight */}
+      <ambientLight intensity={0.8} color="#FFF8F0" />
       
-      {/* Main sun light - creates shadows */}
+      {/* Main sun light */}
       <directionalLight
         position={[15, 25, 20]}
-        intensity={1.8}
+        intensity={1.5}
         color="#FFF5E0"
         castShadow
-        shadow-mapSize={[4096, 4096]}
+        shadow-mapSize={[2048, 2048]}
         shadow-camera-near={1}
-        shadow-camera-far={100}
-        shadow-camera-left={-30}
-        shadow-camera-right={30}
-        shadow-camera-top={30}
-        shadow-camera-bottom={-30}
-        shadow-bias={-0.0005}
+        shadow-camera-far={80}
+        shadow-camera-left={-25}
+        shadow-camera-right={25}
+        shadow-camera-top={25}
+        shadow-camera-bottom={-25}
+        shadow-bias={-0.001}
       />
       
-      {/* Fill light from opposite side - softer, no shadows */}
+      {/* Fill light from opposite side */}
       <directionalLight
         position={[-10, 15, -15]}
-        intensity={0.5}
-        color="#8090B0"
+        intensity={0.6}
+        color="#E8F0FF"
       />
       
-      {/* Subtle hemisphere light for sky/ground color blending */}
-      <hemisphereLight 
-        args={['#87CEEB', '#5C4030', 0.3]} 
-      />
+      {/* Hemisphere light for natural sky/ground color */}
+      <hemisphereLight args={['#87CEEB', '#8B6B4A', 0.4]} />
       
       {/* Soft sky blue background */}
       <color attach="background" args={['#87CEEB']} />
