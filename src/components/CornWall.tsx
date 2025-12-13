@@ -163,16 +163,23 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
           <boxGeometry args={[1.2, 4, 1.2]} />
         </mesh>
       ))}
-      {/* Soil discs under each stalk - flat cylinders */}
-      {stalkData.map((stalk, i) => (
-        <mesh 
-          key={`soil-${i}`}
-          position={[stalk.pos[0], 0.02, stalk.pos[2]]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <cylinderGeometry args={[0.22, 0.25, 0.04, 6]} />
-          <meshStandardMaterial color="#6b4423" roughness={1} />
-        </mesh>
+      {/* Soil ridges/furrows - long rows under corn */}
+      {positions.map((wallPos, i) => (
+        <group key={`soil-ridge-${i}`}>
+          {/* Create 3 parallel ridges per wall cell */}
+          {[0, 1, 2].map((rowIdx) => {
+            const rowOffset = (rowIdx - 1) * STALK_SPACING;
+            return (
+              <mesh 
+                key={`ridge-${i}-${rowIdx}`}
+                position={[wallPos.x + 0.5, 0.03, wallPos.z + 0.5 + rowOffset]}
+              >
+                <boxGeometry args={[0.9, 0.06, 0.12]} />
+                <meshStandardMaterial color="#6b4423" roughness={1} />
+              </mesh>
+            );
+          })}
+        </group>
       ))}
       {/* Corn stalks */}
       {stalkData.map((stalk, i) => (
