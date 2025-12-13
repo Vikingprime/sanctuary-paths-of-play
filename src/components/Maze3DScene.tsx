@@ -307,7 +307,7 @@ const ScatteredRocks = ({ maze }: { maze: Maze }) => {
   );
 };
 
-// 3D Grass tufts using GLB models
+// 3D Grass tufts using GLB models - placed at wall edges only
 const GrassTufts = ({ maze }: { maze: Maze }) => {
   const grass231 = useGLTF('/models/Grass_231.glb');
   const grass232 = useGLTF('/models/Grass_232.glb');
@@ -322,28 +322,54 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
     
-    // Place grass near walls and on paths for natural look
+    // Only place grass at wall edges - right against the corn walls
     for (let y = 1; y < mazeHeight - 1; y++) {
       for (let x = 1; x < mazeWidth - 1; x++) {
-        const isWall = maze.grid[y][x].isWall;
+        if (maze.grid[y][x].isWall) continue; // Skip walls
+        
         const seed = x * 2000 + y + 5000;
         
-        // More grass near wall edges, some on paths
-        const hasAdjacentWall = 
-          (x > 0 && maze.grid[y][x-1].isWall) ||
-          (x < mazeWidth - 1 && maze.grid[y][x+1].isWall) ||
-          (y > 0 && maze.grid[y-1][x].isWall) ||
-          (y < mazeHeight - 1 && maze.grid[y+1][x].isWall);
+        // Check each adjacent wall and place grass hugging that wall
+        const wallLeft = x > 0 && maze.grid[y][x-1].isWall;
+        const wallRight = x < mazeWidth - 1 && maze.grid[y][x+1].isWall;
+        const wallUp = y > 0 && maze.grid[y-1][x].isWall;
+        const wallDown = y < mazeHeight - 1 && maze.grid[y+1][x].isWall;
         
-        const spawnChance = isWall ? 0 : (hasAdjacentWall ? 0.4 : 0.15);
-        
-        if (seededRandom(seed) < spawnChance) {
+        // Place grass hugging each adjacent wall (offset toward wall)
+        if (wallLeft && seededRandom(seed) < 0.3) {
           positions.push({
-            x: x + 0.5 + (seededRandom(seed + 1) - 0.5) * 0.7,
-            z: y + 0.5 + (seededRandom(seed + 2) - 0.5) * 0.7,
-            scale: 0.15 + seededRandom(seed + 3) * 0.2,
+            x: x + 0.15 + seededRandom(seed + 1) * 0.15, // Close to left edge
+            z: y + 0.3 + seededRandom(seed + 2) * 0.4,
+            scale: 0.08 + seededRandom(seed + 3) * 0.06,
             rotation: seededRandom(seed + 4) * Math.PI * 2,
             type: seededRandom(seed + 5) > 0.5 ? 1 : 2,
+          });
+        }
+        if (wallRight && seededRandom(seed + 10) < 0.3) {
+          positions.push({
+            x: x + 0.7 + seededRandom(seed + 11) * 0.15, // Close to right edge
+            z: y + 0.3 + seededRandom(seed + 12) * 0.4,
+            scale: 0.08 + seededRandom(seed + 13) * 0.06,
+            rotation: seededRandom(seed + 14) * Math.PI * 2,
+            type: seededRandom(seed + 15) > 0.5 ? 1 : 2,
+          });
+        }
+        if (wallUp && seededRandom(seed + 20) < 0.3) {
+          positions.push({
+            x: x + 0.3 + seededRandom(seed + 21) * 0.4,
+            z: y + 0.15 + seededRandom(seed + 22) * 0.15, // Close to top edge
+            scale: 0.08 + seededRandom(seed + 23) * 0.06,
+            rotation: seededRandom(seed + 24) * Math.PI * 2,
+            type: seededRandom(seed + 25) > 0.5 ? 1 : 2,
+          });
+        }
+        if (wallDown && seededRandom(seed + 30) < 0.3) {
+          positions.push({
+            x: x + 0.3 + seededRandom(seed + 31) * 0.4,
+            z: y + 0.7 + seededRandom(seed + 32) * 0.15, // Close to bottom edge
+            scale: 0.08 + seededRandom(seed + 33) * 0.06,
+            rotation: seededRandom(seed + 34) * Math.PI * 2,
+            type: seededRandom(seed + 35) > 0.5 ? 1 : 2,
           });
         }
       }
@@ -359,7 +385,7 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
           object={(tuft.type === 1 ? grass231 : grass232).scene.clone()}
           position={[tuft.x, 0, tuft.z]}
           rotation={[0, tuft.rotation, 0]}
-          scale={[tuft.scale * 0.08, tuft.scale * 0.08, tuft.scale * 0.08]}
+          scale={[tuft.scale * 0.02, tuft.scale * 0.02, tuft.scale * 0.02]}
         />
       ))}
     </>
