@@ -79,6 +79,67 @@ export function checkCollision(
 }
 
 // ============================================
+// ROCK COLLISION
+// ============================================
+
+export interface RockPosition {
+  x: number;
+  z: number;
+  radius: number;
+}
+
+/**
+ * Generate rock positions for a maze (deterministic based on maze layout)
+ */
+export function generateRockPositions(maze: Maze): RockPosition[] {
+  const rocks: RockPosition[] = [];
+  const seededRandom = (seed: number) => {
+    const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  
+  const mazeWidth = maze.grid[0].length;
+  const mazeHeight = maze.grid.length;
+  
+  for (let y = 1; y < mazeHeight - 1; y++) {
+    for (let x = 1; x < mazeWidth - 1; x++) {
+      if (!maze.grid[y][x].isWall) {
+        const seed = x * 1000 + y;
+        if (seededRandom(seed) > 0.85) { // 15% chance - matches visual
+          const scale = 0.08 + seededRandom(seed + 3) * 0.12;
+          rocks.push({
+            x: x + 0.5 + (seededRandom(seed + 1) - 0.5) * 0.6,
+            z: y + 0.5 + (seededRandom(seed + 2) - 0.5) * 0.6,
+            radius: scale * 0.5, // Collision radius based on visual scale
+          });
+        }
+      }
+    }
+  }
+  return rocks;
+}
+
+/**
+ * Check if position collides with any rock
+ */
+export function checkRockCollision(
+  x: number,
+  y: number,
+  rocks: RockPosition[],
+  playerRadius: number = GameConfig.PLAYER_RADIUS
+): boolean {
+  for (const rock of rocks) {
+    const dx = x - rock.x;
+    const dy = y - rock.z;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < playerRadius + rock.radius) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ============================================
 // MOVEMENT
 // ============================================
 
@@ -91,7 +152,8 @@ export function calculateMovement(
   currentState: PlayerState,
   input: MovementInput,
   deltaTime: number,
-  speedBoostActive: boolean
+  speedBoostActive: boolean,
+  rocks: RockPosition[] = []
 ): PlayerState {
   const moveSpeed = speedBoostActive
     ? GameConfig.BOOSTED_MOVE_SPEED
@@ -121,16 +183,20 @@ export function calculateMovement(
     moveY += Math.cos(newRotation) * moveSpeed * deltaTime;
   }
 
+  // Helper to check both wall and rock collision
+  const hasCollision = (x: number, y: number) => 
+    checkCollision(maze, x, y) || checkRockCollision(x, y, rocks);
+
   // Try combined movement first
   let newX = currentState.x + moveX;
   let newY = currentState.y + moveY;
 
-  if (checkCollision(maze, newX, newY)) {
+  if (hasCollision(newX, newY)) {
     // Wall sliding: try X and Y separately
-    if (!checkCollision(maze, currentState.x + moveX, currentState.y)) {
+    if (!hasCollision(currentState.x + moveX, currentState.y)) {
       newX = currentState.x + moveX;
       newY = currentState.y;
-    } else if (!checkCollision(maze, currentState.x, currentState.y + moveY)) {
+    } else if (!hasCollision(currentState.x, currentState.y + moveY)) {
       newX = currentState.x;
       newY = currentState.y + moveY;
     } else {
