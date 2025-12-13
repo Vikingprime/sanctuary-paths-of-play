@@ -1,5 +1,5 @@
 import { useRef, useMemo } from 'react';
-import { Group } from 'three';
+import { Group, MeshStandardMaterial, Color } from 'three';
 import { useGLTF } from '@react-three/drei';
 
 interface CornWallProps {
@@ -9,6 +9,13 @@ interface CornWallProps {
 
 // Preload the corn model
 useGLTF.preload('/models/Corn.glb');
+
+// Dark green material for boundary blocks
+const boundaryMaterial = new MeshStandardMaterial({
+  color: new Color(0.08, 0.15, 0.05),
+  roughness: 1,
+  metalness: 0,
+});
 
 // Single wall component for simple cases
 export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
@@ -25,27 +32,27 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
 // Optimized instanced walls using the corn model
 interface InstancedWallsProps {
   positions: { x: number; z: number }[];
-  boundaryPositions?: { x: number; z: number }[]; // Outer boundary walls (3x thicker)
+  boundaryPositions?: { x: number; z: number }[]; // Outer boundary walls
   size?: [number, number, number];
 }
 
-// Density settings - optimized for performance
-const ROWS = 4;
-const STALKS_PER_ROW = 4;
-const STALK_SPACING = 0.22;
-const MIN_HEIGHT = 1.8;
+// Density settings - reduced for performance
+const ROWS = 3;
+const STALKS_PER_ROW = 3;
+const STALK_SPACING = 0.28;
+const MIN_HEIGHT = 2.0;
 const MAX_HEIGHT = 3.0;
 
-// Boundary walls are 3x thicker
-const BOUNDARY_ROWS = 6;
-const BOUNDARY_STALKS_PER_ROW = 6;
-const BOUNDARY_SPACING = 0.18;
+// Boundary walls - moderate density + solid block behind
+const BOUNDARY_ROWS = 4;
+const BOUNDARY_STALKS_PER_ROW = 4;
+const BOUNDARY_SPACING = 0.22;
 
 export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6, 1, 0.6] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
   const groupRef = useRef<Group>(null);
   
-  // Generate stalk data for regular walls
+  // Generate stalk data for walls
   const stalkData = useMemo(() => {
     const data: { pos: [number, number, number]; rotation: number; height: number }[] = [];
     
@@ -70,7 +77,7 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
       }
     });
     
-    // Boundary walls - 3x thicker
+    // Boundary walls - with corn stalks
     boundaryPositions.forEach((wallPos) => {
       for (let row = 0; row < BOUNDARY_ROWS; row++) {
         const rowOffset = (row % 2) * (BOUNDARY_SPACING / 2);
@@ -99,10 +106,21 @@ export const InstancedWalls = ({ positions, boundaryPositions = [], size = [0.6,
     return stalkData.map(() => scene.clone());
   }, [scene, stalkData]);
 
-  if (positions.length === 0) return null;
+  if (positions.length === 0 && boundaryPositions.length === 0) return null;
 
   return (
     <group ref={groupRef}>
+      {/* Solid dark green blocks behind boundary walls */}
+      {boundaryPositions.map((pos, i) => (
+        <mesh 
+          key={`block-${i}`}
+          position={[pos.x + 0.5, 1.5, pos.z + 0.5]}
+          material={boundaryMaterial}
+        >
+          <boxGeometry args={[1.1, 3.5, 1.1]} />
+        </mesh>
+      ))}
+      {/* Corn stalks */}
       {stalkData.map((stalk, i) => (
         <primitive 
           key={i}
