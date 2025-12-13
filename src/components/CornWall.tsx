@@ -29,27 +29,33 @@ interface InstancedWallsProps {
 }
 
 // Number of corn stalks per wall cell for density
-const STALKS_PER_CELL = 9; // 3x3 grid
-const STALK_SPACING = 0.3;
+const ROWS = 4;
+const STALKS_PER_ROW = 4;
+const STALK_SPACING = 0.25;
 
-export const InstancedWalls = ({ positions, size = [0.8, 2.5, 0.8] }: InstancedWallsProps) => {
+export const InstancedWalls = ({ positions, size = [0.7, 2.5, 0.7] }: InstancedWallsProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
   const groupRef = useRef<Group>(null);
   
-  // Generate all stalk positions with slight randomization
+  // Generate all stalk positions with staggered offset pattern
   const stalkData = useMemo(() => {
     const data: { pos: [number, number, number]; rotation: number }[] = [];
-    const gridSize = Math.sqrt(STALKS_PER_CELL);
     
     positions.forEach((wallPos) => {
-      for (let gx = 0; gx < gridSize; gx++) {
-        for (let gz = 0; gz < gridSize; gz++) {
-          const offsetX = (gx - (gridSize - 1) / 2) * STALK_SPACING + (Math.random() - 0.5) * 0.1;
-          const offsetZ = (gz - (gridSize - 1) / 2) * STALK_SPACING + (Math.random() - 0.5) * 0.1;
+      for (let row = 0; row < ROWS; row++) {
+        // Offset every other row by half spacing for staggered pattern
+        const rowOffset = (row % 2) * (STALK_SPACING / 2);
+        
+        for (let col = 0; col < STALKS_PER_ROW; col++) {
+          const offsetX = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING + rowOffset;
+          const offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
+          // Add small random jitter for natural look
+          const jitterX = (Math.random() - 0.5) * 0.05;
+          const jitterZ = (Math.random() - 0.5) * 0.05;
           const rotation = Math.random() * Math.PI * 2;
           
           data.push({
-            pos: [wallPos.x + 0.5 + offsetX, 0, wallPos.z + 0.5 + offsetZ],
+            pos: [wallPos.x + 0.5 + offsetX + jitterX, 0, wallPos.z + 0.5 + offsetZ + jitterZ],
             rotation
           });
         }
