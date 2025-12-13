@@ -20,26 +20,14 @@ interface Maze3DSceneProps {
   onSceneReady?: () => void;
 }
 
-// Procedural ground shader - grassy under walls, trodden dirt on paths
-const GroundMaterial = ({ maze }: { maze: Maze }) => {
+// Simple organic dirt ground shader
+const DirtGroundMaterial = () => {
   const material = useMemo(() => {
-    // Create wall map texture data
-    const mazeWidth = maze.grid[0].length;
-    const mazeHeight = maze.grid.length;
-    
     return new ShaderMaterial({
       uniforms: {
-        // Path colors (trodden dirt)
-        pathBase: { value: new Color('#8B5A3C') },
-        pathDark: { value: new Color('#6B4A2C') },
-        pathLight: { value: new Color('#A67C5B') },
-        // Grass/wall area colors
-        grassBase: { value: new Color('#4A5D3A') },
-        grassDark: { value: new Color('#3A4D2A') },
-        grassLight: { value: new Color('#5A7D4A') },
-        // Maze dimensions for wall detection
-        mazeWidth: { value: mazeWidth },
-        mazeHeight: { value: mazeHeight },
+        baseColor: { value: new Color('#7A5240') },
+        darkColor: { value: new Color('#5C3D2E') },
+        lightColor: { value: new Color('#9B6B4A') },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -51,14 +39,9 @@ const GroundMaterial = ({ maze }: { maze: Maze }) => {
         }
       `,
       fragmentShader: `
-        uniform vec3 pathBase;
-        uniform vec3 pathDark;
-        uniform vec3 pathLight;
-        uniform vec3 grassBase;
-        uniform vec3 grassDark;
-        uniform vec3 grassLight;
-        uniform float mazeWidth;
-        uniform float mazeHeight;
+        uniform vec3 baseColor;
+        uniform vec3 darkColor;
+        uniform vec3 lightColor;
         varying vec2 vUv;
         varying vec3 vWorldPos;
         
@@ -91,55 +74,31 @@ const GroundMaterial = ({ maze }: { maze: Maze }) => {
         void main() {
           vec2 worldUV = vWorldPos.xz;
           
-          // Multi-scale noise
-          float largeNoise = fbm(worldUV * 0.5);
-          float medNoise = fbm(worldUV * 2.0);
-          float fineNoise = fbm(worldUV * 8.0);
-          float variation = largeNoise * 0.4 + medNoise * 0.35 + fineNoise * 0.25;
+          // Organic noise variation
+          float variation = fbm(worldUV * 1.5);
           
-          // Path texture (trodden dirt)
-          vec3 pathColor = mix(pathDark, pathBase, variation * 0.8 + 0.3);
-          pathColor = mix(pathColor, pathLight, pow(medNoise, 2.0) * 0.4);
-          // Pebbles on path
-          float pebbles = step(0.85, noise(worldUV * 15.0));
-          pathColor = mix(pathColor, pathDark * 0.7, pebbles * 0.5);
-          float lightSpots = step(0.9, noise(worldUV * 20.0 + 100.0));
-          pathColor = mix(pathColor, pathLight * 1.1, lightSpots * 0.4);
+          // Blend colors based on noise
+          vec3 color = mix(darkColor, baseColor, variation * 0.6 + 0.4);
+          color = mix(color, lightColor, pow(noise(worldUV * 4.0), 2.0) * 0.3);
           
-          // Grass texture (under walls)
-          vec3 grassColor = mix(grassDark, grassBase, variation * 0.7 + 0.4);
-          grassColor = mix(grassColor, grassLight, pow(fineNoise, 2.0) * 0.5);
-          // Grass blade hints
-          float grassBlades = noise(worldUV * 30.0) * 0.3;
-          grassColor = mix(grassColor, grassLight, grassBlades);
+          // Small dark spots (pebbles)
+          float pebbles = step(0.88, noise(worldUV * 12.0));
+          color = mix(color, darkColor * 0.6, pebbles * 0.4);
           
-          // Check if we're in path or wall area
-          // Outside maze bounds = grass
-          float inMaze = step(0.0, worldUV.x) * step(worldUV.x, mazeWidth) * 
-                         step(0.0, worldUV.y) * step(worldUV.y, mazeHeight);
+          // Light speckles
+          float specks = step(0.92, noise(worldUV * 18.0 + 50.0));
+          color = mix(color, lightColor, specks * 0.3);
           
-          // Use cell center detection - paths are typically in certain patterns
-          // For now, use distance from cell edges to create worn path effect
-          vec2 cellPos = fract(worldUV);
-          float distFromCenter = length(cellPos - 0.5);
-          float pathMask = 1.0 - smoothstep(0.2, 0.5, distFromCenter);
-          
-          // Blend based on position - paths in center of cells
-          vec3 finalColor = mix(grassColor, pathColor, pathMask * 0.7 + 0.3);
-          
-          // Outside maze = pure grass
-          finalColor = mix(grassColor, finalColor, inMaze);
-          
-          gl_FragColor = vec4(finalColor, 1.0);
+          gl_FragColor = vec4(color, 1.0);
         }
       `,
     });
-  }, [maze]);
+  }, []);
   
   return <primitive object={material} attach="material" />;
 };
 
-// Ground with path/grass differentiation
+// Simple dirt ground
 const Ground = ({ maze }: { maze: Maze }) => {
   const width = maze.grid[0].length;
   const height = maze.grid.length;
@@ -155,7 +114,7 @@ const Ground = ({ maze }: { maze: Maze }) => {
       receiveShadow
     >
       <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
-      <GroundMaterial maze={maze} />
+      <DirtGroundMaterial />
     </mesh>
   );
 };
