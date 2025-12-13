@@ -1,37 +1,23 @@
 import { useEffect, useRef, useMemo } from 'react';
-import { InstancedMesh, Object3D, MeshStandardMaterial, TextureLoader, RepeatWrapping, SRGBColorSpace, NearestFilter, NearestMipmapNearestFilter } from 'three';
-import { useLoader } from '@react-three/fiber';
-import cornTextureUrl from '@/assets/corn-texture-soft.png';
+import { InstancedMesh, Object3D, MeshStandardMaterial, Color } from 'three';
 
 interface CornWallProps {
   position: [number, number, number];
   size?: [number, number, number];
 }
 
+// Simple solid green material
+const cornMaterial = new MeshStandardMaterial({
+  color: new Color(0.25, 0.45, 0.18),
+  roughness: 0.9,
+  metalness: 0,
+});
+
 // Single wall component for simple cases
 export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
-  const texture = useLoader(TextureLoader, cornTextureUrl);
-  
-  const material = useMemo(() => {
-    const clonedTexture = texture.clone();
-    clonedTexture.wrapS = RepeatWrapping;
-    clonedTexture.wrapT = RepeatWrapping;
-    clonedTexture.repeat.set(1, 1);
-    clonedTexture.colorSpace = SRGBColorSpace;
-    clonedTexture.generateMipmaps = true;
-    clonedTexture.minFilter = NearestMipmapNearestFilter;
-    clonedTexture.magFilter = NearestFilter;
-    
-    return new MeshStandardMaterial({
-      map: clonedTexture,
-      roughness: 0.95,
-      metalness: 0,
-    });
-  }, [texture]);
-
   return (
     <group position={position}>
-      <mesh position={[0, size[1] / 2, 0]} material={material}>
+      <mesh position={[0, size[1] / 2, 0]} material={cornMaterial}>
         <boxGeometry args={size} />
       </mesh>
     </group>
@@ -46,24 +32,6 @@ interface InstancedWallsProps {
 
 export const InstancedWalls = ({ positions, size = [1.2, 3, 1.2] }: InstancedWallsProps) => {
   const meshRef = useRef<InstancedMesh>(null);
-  const texture = useLoader(TextureLoader, cornTextureUrl);
-  
-  const material = useMemo(() => {
-    const clonedTexture = texture.clone();
-    clonedTexture.wrapS = RepeatWrapping;
-    clonedTexture.wrapT = RepeatWrapping;
-    clonedTexture.repeat.set(1, 2);
-    clonedTexture.colorSpace = SRGBColorSpace;
-    clonedTexture.generateMipmaps = true;
-    clonedTexture.minFilter = NearestMipmapNearestFilter;
-    clonedTexture.magFilter = NearestFilter;
-    
-    return new MeshStandardMaterial({
-      map: clonedTexture,
-      roughness: 0.95,
-      metalness: 0,
-    });
-  }, [texture]);
   
   useEffect(() => {
     if (!meshRef.current || positions.length === 0) return;
@@ -86,7 +54,7 @@ export const InstancedWalls = ({ positions, size = [1.2, 3, 1.2] }: InstancedWal
       ref={meshRef}
       args={[undefined, undefined, positions.length]}
       frustumCulled={true}
-      material={material}
+      material={cornMaterial}
     >
       <boxGeometry args={size} />
     </instancedMesh>
