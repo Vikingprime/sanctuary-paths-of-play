@@ -560,12 +560,12 @@ const RefBasedPlayer = ({
       // Clamp delta to prevent large jumps on frame drops
       const clampedDelta = Math.min(delta, 0.05);
       
-      // Build input from pressed keys
+      // Build input from pressed keys (arrow keys only)
       const input: MovementInput = {
-        forward: keysPressed.current.has('w') || keysPressed.current.has('arrowup'),
-        backward: keysPressed.current.has('s') || keysPressed.current.has('arrowdown'),
-        rotateLeft: keysPressed.current.has('a') || keysPressed.current.has('arrowleft'),
-        rotateRight: keysPressed.current.has('d') || keysPressed.current.has('arrowright'),
+        forward: keysPressed.current.has('arrowup'),
+        backward: keysPressed.current.has('arrowdown'),
+        rotateLeft: keysPressed.current.has('arrowleft'),
+        rotateRight: keysPressed.current.has('arrowright'),
       };
       
       // Update isMoving ref
