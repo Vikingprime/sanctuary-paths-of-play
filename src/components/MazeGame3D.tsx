@@ -178,10 +178,10 @@ export const MazeGame3D = ({
   // Mobile controls
   const handleMobileMove = useCallback((direction: 'forward' | 'back' | 'left' | 'right') => {
     const keyMap = {
-      forward: 'w',
-      back: 's',
-      left: 'a',
-      right: 'd',
+      forward: 'arrowup',
+      back: 'arrowdown',
+      left: 'arrowleft',
+      right: 'arrowright',
     };
     const key = keyMap[direction];
     keysPressed.current.add(key);
