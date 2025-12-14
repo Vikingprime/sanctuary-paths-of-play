@@ -175,17 +175,25 @@ export const MazeGame3D = ({
     };
   }, []);
 
-  // Mobile controls
-  const handleMobileMove = useCallback((direction: 'forward' | 'back' | 'left' | 'right') => {
+  // Mobile controls - add/remove keys directly for continuous movement
+  const handleMobileStart = useCallback((direction: 'forward' | 'back' | 'left' | 'right') => {
     const keyMap = {
       forward: 'arrowup',
       back: 'arrowdown',
       left: 'arrowleft',
       right: 'arrowright',
     };
-    const key = keyMap[direction];
-    keysPressed.current.add(key);
-    setTimeout(() => keysPressed.current.delete(key), 100);
+    keysPressed.current.add(keyMap[direction]);
+  }, []);
+
+  const handleMobileEnd = useCallback((direction: 'forward' | 'back' | 'left' | 'right') => {
+    const keyMap = {
+      forward: 'arrowup',
+      back: 'arrowdown',
+      left: 'arrowleft',
+      right: 'arrowright',
+    };
+    keysPressed.current.delete(keyMap[direction]);
   }, []);
 
   // Use ability - wraps pure executeAbility
@@ -290,7 +298,7 @@ export const MazeGame3D = ({
       )}
 
       {/* Mobile Controls */}
-      <MobileControls onMove={handleMobileMove} />
+      <MobileControls onMoveStart={handleMobileStart} onMoveEnd={handleMobileEnd} />
 
       {/* Mini Map Overlay */}
       <MiniMap
