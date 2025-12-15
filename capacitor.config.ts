@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.316170739afc4c5e923a05bc57b0413f',
+  appId: 'app.lovable.sanctuaryrun',
   appName: 'sanctuary-paths-of-play',
   webDir: 'dist',
   server: {
