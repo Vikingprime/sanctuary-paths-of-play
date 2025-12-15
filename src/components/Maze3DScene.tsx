@@ -646,11 +646,11 @@ const OverShoulderCameraController = ({
   const targetPos = useRef(new Vector3());
   const targetLookAt = useRef(new Vector3());
   
-  // Camera settings - lower, closer over-the-shoulder view
-  const CAMERA_DISTANCE = 1.4;
-  const CAMERA_HEIGHT = 1.6;
-  const LOOK_AHEAD = 1.2;
-  const LOOK_HEIGHT = 0.8;
+  // Camera settings - over-the-shoulder view balanced for all animals
+  const CAMERA_DISTANCE = 1.6;
+  const CAMERA_HEIGHT = 1.9;
+  const LOOK_AHEAD = 1.3;
+  const LOOK_HEIGHT = 0.6;
   const POSITION_SMOOTHING = 0.15;
   const ROTATION_SMOOTHING = 0.12;
   
