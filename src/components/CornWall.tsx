@@ -9,7 +9,7 @@ const FOG_NEAR_DEFAULT = 2;      // Fog starts at 2m when far from outer corn
 const FOG_FAR_DEFAULT = 8;       // Fog ends at 8m when far (hides outer corn)
 const FOG_NEAR_CLOSE = 2;        // Fog starts at 2m when close to outer corn  
 const FOG_FAR_CLOSE = 25;        // Fog ends at 25m when close (shows more)
-const EDGE_CORN_CULL_DISTANCE = 50; // Hide edge corn beyond 50m
+const EDGE_CORN_CULL_DISTANCE = 20; // Hide edge corn beyond 20m (fog hides it anyway)
 
 interface CornWallProps {
   position: [number, number, number];
@@ -328,24 +328,42 @@ export const InstancedWalls = ({
   const edgeMeshesRef = useRef<ThreeInstancedMesh[]>([]);
   const edgeTransformsRef = useRef<WallTransformData[]>([]);
   
-  // Track last update position to avoid updating every frame
+  // Track last update position and culling state
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
-  const UPDATE_THRESHOLD = 0.5; // Only update when player moves 0.5+ units
+  const lastCullingEnabledRef = useRef<boolean | null>(null);
+  const UPDATE_THRESHOLD = 0.5;
   
-  // Dynamic fog + distance culling - SIMPLIFIED for stability testing
+  // Dynamic fog + distance culling
   useFrame(() => {
-    // Skip all per-frame processing if both features disabled
+    const px = playerPositionRef?.current?.x ?? 0;
+    const pz = playerPositionRef?.current?.y ?? 0;
+    
+    // Check if culling was just toggled off - restore all transforms
+    if (lastCullingEnabledRef.current === true && !optimizationSettings.enableEdgeCornCulling) {
+      if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
+        const transforms = edgeTransformsRef.current;
+        for (let i = 0; i < transforms.length; i++) {
+          for (const mesh of edgeMeshesRef.current) {
+            mesh.setMatrixAt(i, transforms[i].matrix);
+          }
+        }
+        for (const mesh of edgeMeshesRef.current) {
+          mesh.count = transforms.length;
+          mesh.instanceMatrix.needsUpdate = true;
+        }
+      }
+    }
+    lastCullingEnabledRef.current = optimizationSettings.enableEdgeCornCulling;
+    
+    // Skip processing if both features disabled
     if (!optimizationSettings.enableEdgeCornCulling && !optimizationSettings.enableDynamicFog) {
       return;
     }
     
-    const px = playerPositionRef?.current?.x ?? 0;
-    const pz = playerPositionRef?.current?.y ?? 0;
-    
     // Check if player moved enough to warrant any update
     const dx = px - lastUpdatePosRef.current.x;
     const dz = pz - lastUpdatePosRef.current.z;
-    const movedDistance = dx * dx + dz * dz; // Skip sqrt for perf
+    const movedDistance = dx * dx + dz * dz;
     const needsUpdate = movedDistance > UPDATE_THRESHOLD * UPDATE_THRESHOLD;
     
     if (!needsUpdate) return;
@@ -377,9 +395,8 @@ export const InstancedWalls = ({
       }
     }
     
-    // Fog update (simplified - skip the expensive minDist calculation)
+    // Fog update
     if (optimizationSettings.enableDynamicFog && scene.fog instanceof Fog) {
-      // Just use static fog values for now
       scene.fog.near = 8;
       scene.fog.far = 25;
     }
