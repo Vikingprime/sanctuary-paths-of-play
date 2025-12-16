@@ -14,6 +14,11 @@ interface GameHUDProps {
   distanceCullEnabled?: boolean;
   onToggleShadowOpt?: () => void;
   onToggleDistanceCull?: () => void;
+  // Performance debug
+  lowPixelRatio?: boolean;
+  onTogglePixelRatio?: () => void;
+  drawCalls?: number;
+  triangles?: number;
 }
 
 export const GameHUD = ({
@@ -27,6 +32,10 @@ export const GameHUD = ({
   distanceCullEnabled = true,
   onToggleShadowOpt,
   onToggleDistanceCull,
+  lowPixelRatio = false,
+  onTogglePixelRatio,
+  drawCalls,
+  triangles,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
 
@@ -110,8 +119,28 @@ export const GameHUD = ({
               📏 {distanceCullEnabled ? 'On' : 'Off'}
             </button>
           )}
+          {onTogglePixelRatio && (
+            <button
+              onClick={onTogglePixelRatio}
+              className={cn(
+                'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                lowPixelRatio ? 'text-yellow-500' : 'text-green-500'
+              )}
+              title="Pixel ratio (low = better performance)"
+            >
+              🖼️ {lowPixelRatio ? '0.5x' : '1x'}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Draw call counter - top left under animal info */}
+      {drawCalls !== undefined && (
+        <div className="absolute top-20 left-4 bg-black/70 rounded px-2 py-1 text-xs font-mono text-white">
+          <div>Draws: {drawCalls}</div>
+          {triangles !== undefined && <div>Tris: {(triangles / 1000).toFixed(1)}k</div>}
+        </div>
+      )}
 
       {/* Controls hint */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
