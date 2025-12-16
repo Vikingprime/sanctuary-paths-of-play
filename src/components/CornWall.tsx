@@ -1,7 +1,6 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide } from 'three';
 import { useGLTF } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
 
 interface CornWallProps {
   position: [number, number, number];
@@ -56,33 +55,14 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   renderDistance: 30,
 };
 
-// Simple LOD geometry - single green box per stalk (1 draw call total)
-const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
-const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
-
-// Hidden matrix (scale 0) for hiding instances
-const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
-
-// Helper to optimize material for performance (fix transparency/overdraw issues)
+// Helper to optimize material for performance
 const optimizeMaterial = (material: Material): Material => {
   const mat = material as any;
-  
-  if ('transparent' in mat) {
-    mat.transparent = false;
-  }
-  if ('alphaTest' in mat) {
-    mat.alphaTest = 0.5;
-  }
-  if ('depthWrite' in mat) {
-    mat.depthWrite = true;
-  }
-  if ('depthTest' in mat) {
-    mat.depthTest = true;
-  }
-  if ('side' in mat) {
-    mat.side = FrontSide;
-  }
-  
+  if ('transparent' in mat) mat.transparent = false;
+  if ('alphaTest' in mat) mat.alphaTest = 0.5;
+  if ('depthWrite' in mat) mat.depthWrite = true;
+  if ('depthTest' in mat) mat.depthTest = true;
+  if ('side' in mat) mat.side = FrontSide;
   mat.needsUpdate = true;
   return material;
 };
@@ -102,7 +82,7 @@ const ROWS = 3;
 const STALKS_PER_ROW = 3;
 const STALK_SPACING = 0.28;
 
-// Boundary walls - reduced for performance
+// Boundary walls
 const BOUNDARY_ROWS = 3;
 const BOUNDARY_STALKS_PER_ROW = 3;
 const BOUNDARY_SPACING = 0.35;
@@ -119,7 +99,7 @@ interface WallTransformData {
   centerZ: number;
 }
 
-// Generate transforms for edge stalks only (single row facing the path)
+// Generate transforms for edge stalks only
 const generateEdgeTransforms = (
   edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[],
   seedOffset: number = 0
@@ -159,11 +139,7 @@ const generateEdgeTransforms = (
         const widthScale = baseScale * heightVariation * widthMultiplier;
         const heightScale = baseScale * heightVariation * heightMultiplier;
         
-        dummy.position.set(
-          centerX + offsetX + jitterX,
-          0,
-          centerZ + offsetZ + jitterZ
-        );
+        dummy.position.set(centerX + offsetX + jitterX, 0, centerZ + offsetZ + jitterZ);
         const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
         const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
@@ -207,11 +183,7 @@ const generateWallTransforms = (
         const widthScale = baseScale * heightVariation * widthMultiplier;
         const heightScale = baseScale * heightVariation * heightMultiplier;
         
-        dummy.position.set(
-          centerX + offsetX + jitterX,
-          0,
-          centerZ + offsetZ + jitterZ
-        );
+        dummy.position.set(centerX + offsetX + jitterX, 0, centerZ + offsetZ + jitterZ);
         const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
         const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
@@ -292,7 +264,7 @@ export const InstancedWalls = ({
   const createdRef = useRef(false);
   const { scene } = useGLTF('/models/Corn.glb');
   
-  // Extract mesh data from GLTF with optimized materials + sample color for cheap material
+  // Extract mesh data from GLTF
   const { meshDataList, firstGeometry, cheapMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
     let firstGeo: BufferGeometry | null = null;
@@ -337,49 +309,51 @@ export const InstancedWalls = ({
     };
   }, [scene]);
   
-  // Generate ALL transforms once (with position data for distance filtering)
-  const { allEdgeTransforms, allCheapTransforms } = useMemo(() => {
+  // Generate all transforms and cap by maxInstances (static, no per-frame updates)
+  const { edgeTransforms, cheapTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
+    
+    const maxInstances = optimizationSettings.maxInstances;
+    
+    // Cap edge corn to maxInstances
+    const edgeCapped = edge.slice(0, maxInstances);
+    const remainingBudget = Math.max(0, maxInstances - edgeCapped.length);
+    
+    // Combine outer + boundary for cheap material, cap to remaining budget
+    const cheapAll = [...outer, ...boundary];
+    const cheapCapped = cheapAll.slice(0, remainingBudget);
+    
     return { 
-      allEdgeTransforms: edge, 
-      allCheapTransforms: [...outer, ...boundary] 
+      edgeTransforms: edgeCapped, 
+      cheapTransforms: cheapCapped 
     };
-  }, [edgePositions, noShadowPositions, boundaryPositions]);
+  }, [edgePositions, noShadowPositions, boundaryPositions, optimizationSettings.maxInstances]);
 
-  // Track instanced meshes for frame updates
-  const edgeMeshesRef = useRef<ThreeInstancedMesh[]>([]);
-  const cheapMeshRef = useRef<ThreeInstancedMesh | null>(null);
-  const lastPlayerPosRef = useRef<{ x: number; z: number }>({ x: -999, z: -999 });
-
-  // Create instanced meshes with max capacity
+  // Create instanced meshes (static, one-time setup)
   useEffect(() => {
     const edgeGroup = edgeGroupRef.current;
     const cheapGroup = cheapGroupRef.current;
     if (!edgeGroup || !cheapGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
-    const maxInstances = optimizationSettings.maxInstances;
     const allMeshes: ThreeInstancedMesh[] = [];
-    edgeMeshesRef.current = [];
     
-    // EDGE CORN: Create with max possible count
-    const edgeCount = Math.min(allEdgeTransforms.length, maxInstances);
-    if (edgeCount > 0) {
+    // EDGE CORN: Full GLTF materials
+    if (edgeTransforms.length > 0) {
       meshDataList.forEach((meshData) => {
         const instancedMesh = new ThreeInstancedMesh(
           meshData.geometry.clone(),
           Array.isArray(meshData.material)
             ? meshData.material.map(m => m.clone())
             : meshData.material.clone(),
-          edgeCount
+          edgeTransforms.length
         );
         
-        // Initialize all as hidden
-        for (let i = 0; i < edgeCount; i++) {
-          instancedMesh.setMatrixAt(i, HIDDEN_MATRIX);
-        }
+        edgeTransforms.forEach((t, i) => {
+          instancedMesh.setMatrixAt(i, t.matrix);
+        });
         
         instancedMesh.instanceMatrix.needsUpdate = true;
         instancedMesh.castShadow = false;
@@ -387,25 +361,21 @@ export const InstancedWalls = ({
         instancedMesh.frustumCulled = true;
         
         edgeGroup.add(instancedMesh);
-        edgeMeshesRef.current.push(instancedMesh);
         allMeshes.push(instancedMesh);
       });
     }
     
-    // CHEAP CORN: Create with remaining budget
-    const cheapBudget = Math.max(0, maxInstances - edgeCount);
-    const cheapCount = Math.min(allCheapTransforms.length, cheapBudget);
-    if (cheapCount > 0) {
+    // CHEAP CORN: Single cheap material
+    if (cheapTransforms.length > 0) {
       const cheapMesh = new ThreeInstancedMesh(
         firstGeometry.clone(),
         cheapMaterial.clone(),
-        cheapCount
+        cheapTransforms.length
       );
       
-      // Initialize all as hidden
-      for (let i = 0; i < cheapCount; i++) {
-        cheapMesh.setMatrixAt(i, HIDDEN_MATRIX);
-      }
+      cheapTransforms.forEach((t, i) => {
+        cheapMesh.setMatrixAt(i, t.matrix);
+      });
       
       cheapMesh.instanceMatrix.needsUpdate = true;
       cheapMesh.castShadow = false;
@@ -413,7 +383,6 @@ export const InstancedWalls = ({
       cheapMesh.frustumCulled = true;
       
       cheapGroup.add(cheapMesh);
-      cheapMeshRef.current = cheapMesh;
       allMeshes.push(cheapMesh);
     }
     
@@ -431,82 +400,11 @@ export const InstancedWalls = ({
           mesh.dispose();
         }
       });
-      edgeMeshesRef.current = [];
-      cheapMeshRef.current = null;
       createdRef.current = false;
     };
-  }, [meshDataList, firstGeometry, cheapMaterial, allEdgeTransforms.length, allCheapTransforms.length, optimizationSettings.maxInstances]);
+  }, [meshDataList, firstGeometry, cheapMaterial, edgeTransforms, cheapTransforms]);
 
-  // Update instances each frame based on distance from player
-  useFrame(() => {
-    if (!playerPositionRef?.current) return;
-    
-    const px = playerPositionRef.current.x;
-    const pz = playerPositionRef.current.y; // y in 2D = z in 3D
-    
-    // Only update if player moved significantly (reduces CPU load)
-    const dx = px - lastPlayerPosRef.current.x;
-    const dz = pz - lastPlayerPosRef.current.z;
-    if (dx * dx + dz * dz < 1) return; // Only update if moved > 1 unit
-    lastPlayerPosRef.current = { x: px, z: pz };
-    
-    const renderDist = optimizationSettings.renderDistance;
-    const renderDistSq = renderDist * renderDist;
-    const maxInstances = optimizationSettings.maxInstances;
-    
-    // Sort edge transforms by distance and filter within range
-    const edgeSorted = allEdgeTransforms
-      .map(t => {
-        const tdx = t.centerX - px;
-        const tdz = t.centerZ - pz;
-        return { ...t, distSq: tdx * tdx + tdz * tdz };
-      })
-      .filter(t => t.distSq < renderDistSq)
-      .sort((a, b) => a.distSq - b.distSq);
-    
-    const edgeToShow = edgeSorted.slice(0, Math.min(edgeSorted.length, maxInstances));
-    
-    // Update edge meshes
-    edgeMeshesRef.current.forEach(mesh => {
-      const count = mesh.count;
-      for (let i = 0; i < count; i++) {
-        if (i < edgeToShow.length) {
-          mesh.setMatrixAt(i, edgeToShow[i].matrix);
-        } else {
-          mesh.setMatrixAt(i, HIDDEN_MATRIX);
-        }
-      }
-      mesh.instanceMatrix.needsUpdate = true;
-    });
-    
-    // Sort cheap transforms by distance and filter within range
-    const remainingBudget = Math.max(0, maxInstances - edgeToShow.length);
-    const cheapMesh = cheapMeshRef.current;
-    
-    if (cheapMesh && remainingBudget > 0) {
-      const cheapSorted = allCheapTransforms
-        .map(t => {
-          const tdx = t.centerX - px;
-          const tdz = t.centerZ - pz;
-          return { ...t, distSq: tdx * tdx + tdz * tdz };
-        })
-        .filter(t => t.distSq < renderDistSq)
-        .sort((a, b) => a.distSq - b.distSq);
-      
-      const cheapToShow = cheapSorted.slice(0, Math.min(cheapSorted.length, remainingBudget, cheapMesh.count));
-      
-      for (let i = 0; i < cheapMesh.count; i++) {
-        if (i < cheapToShow.length) {
-          cheapMesh.setMatrixAt(i, cheapToShow[i].matrix);
-        } else {
-          cheapMesh.setMatrixAt(i, HIDDEN_MATRIX);
-        }
-      }
-      cheapMesh.instanceMatrix.needsUpdate = true;
-    }
-  });
-
-  if (allEdgeTransforms.length === 0 && allCheapTransforms.length === 0) return null;
+  if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
   return (
     <>
