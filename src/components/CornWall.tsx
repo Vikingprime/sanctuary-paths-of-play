@@ -56,14 +56,6 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
 const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
 
-// Single cheap material for far corn - opaque, no transparency, FrontSide only
-const FAR_CORN_MATERIAL = new MeshLambertMaterial({ 
-  color: new Color(0.3, 0.55, 0.2),
-  transparent: false,
-  depthWrite: true,
-  depthTest: true,
-  side: FrontSide,
-});
 
 // Helper to optimize material for performance (fix transparency/overdraw issues)
 const optimizeMaterial = (material: Material, isNearCorn: boolean = true): Material => {
@@ -311,8 +303,9 @@ export const InstancedWalls = ({
   const lodMeshRef = useRef<ThreeInstancedMesh | null>(null);
   
   // Extract mesh data from GLTF with optimized materials
-  const { nearMeshDataList, farMeshData } = useMemo(() => {
+  const { nearMeshDataList, farMeshDataList } = useMemo(() => {
     const nearMeshes: MeshData[] = [];
+    const farMeshes: MeshData[] = [];
     
     // Log material properties for debugging
     scene.traverse((child) => {
@@ -326,7 +319,7 @@ export const InstancedWalls = ({
           side: mat.side,
         });
         
-        // Clone and optimize for near corn (high quality)
+        // Clone and optimize for near corn (high quality, DoubleSide)
         const nearMaterial = Array.isArray(mesh.material) 
           ? mesh.material.map(m => optimizeMaterial(m.clone(), true)) 
           : optimizeMaterial(mesh.material.clone(), true);
@@ -335,16 +328,20 @@ export const InstancedWalls = ({
           geometry: mesh.geometry.clone(),
           material: nearMaterial
         });
+        
+        // Clone and optimize for far corn (FrontSide only for less overdraw)
+        const farMaterial = Array.isArray(mesh.material) 
+          ? mesh.material.map(m => optimizeMaterial(m.clone(), false)) 
+          : optimizeMaterial(mesh.material.clone(), false);
+        
+        farMeshes.push({
+          geometry: mesh.geometry.clone(),
+          material: farMaterial
+        });
       }
     });
     
-    // Single cheap material for far corn (already created as FAR_CORN_MATERIAL)
-    const farData: MeshData = {
-      geometry: nearMeshes.length > 0 ? nearMeshes[0].geometry.clone() : new BoxGeometry(0.1, 2, 0.1),
-      material: FAR_CORN_MATERIAL.clone()
-    };
-    
-    return { nearMeshDataList: nearMeshes, farMeshData: farData };
+    return { nearMeshDataList: nearMeshes, farMeshDataList: farMeshes };
   }, [scene]);
   
   // Generate transforms for each group
@@ -392,31 +389,32 @@ export const InstancedWalls = ({
     }
     shadowMeshesRef.current = shadowMeshes;
     
-    // Outer walls + boundary - use single cheap material (FAR_CORN_MATERIAL) for performance
+    // Outer walls + boundary - use optimized GLTF materials with FrontSide (no shadows)
     const allNoShadowTransforms = [...outerTransforms, ...boundaryTransformsData];
     const noShadowMeshes: ThreeInstancedMesh[] = [];
     if (allNoShadowTransforms.length > 0) {
-      // Single instanced mesh with cheap material - 1 draw call instead of 2+
-      const farMat = Array.isArray(farMeshData.material) 
-        ? farMeshData.material[0].clone() 
-        : farMeshData.material.clone();
-      const instancedMesh = new ThreeInstancedMesh(
-        farMeshData.geometry.clone(),
-        farMat,
-        allNoShadowTransforms.length
-      );
-      
-      allNoShadowTransforms.forEach((t, i) => {
-        instancedMesh.setMatrixAt(i, t.matrix);
+      // Use proper GLTF materials with FrontSide optimization
+      farMeshDataList.forEach((meshData) => {
+        const instancedMesh = new ThreeInstancedMesh(
+          meshData.geometry.clone(),
+          Array.isArray(meshData.material)
+            ? meshData.material.map(m => m.clone())
+            : meshData.material.clone(),
+          allNoShadowTransforms.length
+        );
+        
+        allNoShadowTransforms.forEach((t, i) => {
+          instancedMesh.setMatrixAt(i, t.matrix);
+        });
+        
+        instancedMesh.instanceMatrix.needsUpdate = true;
+        instancedMesh.castShadow = false;
+        instancedMesh.receiveShadow = true;
+        instancedMesh.frustumCulled = true;
+        
+        noShadowGroup.add(instancedMesh);
+        noShadowMeshes.push(instancedMesh);
       });
-      
-      instancedMesh.instanceMatrix.needsUpdate = true;
-      instancedMesh.castShadow = false;
-      instancedMesh.receiveShadow = true;
-      instancedMesh.frustumCulled = true;
-      
-      noShadowGroup.add(instancedMesh);
-      noShadowMeshes.push(instancedMesh);
     }
     noShadowMeshesRef.current = noShadowMeshes;
     
@@ -473,7 +471,7 @@ export const InstancedWalls = ({
       }
       createdRef.current = false;
     };
-  }, [nearMeshDataList, farMeshData, edgeTransforms, outerTransforms, boundaryTransformsData, allTransforms]);
+  }, [nearMeshDataList, farMeshDataList, edgeTransforms, outerTransforms, boundaryTransformsData, allTransforms]);
 
   // Dynamic LOD and culling based on player position
   useFrame(() => {
