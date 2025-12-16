@@ -334,102 +334,15 @@ export const InstancedWalls = ({
   const lastCullingEnabledRef = useRef<boolean | null>(null);
   const UPDATE_THRESHOLD = 0.5;
   
-  // Dynamic LOD + fog
+  // Simple fog-based culling - removed complex per-instance LOD that was causing disappearing corn
   useFrame(() => {
-    const px = playerPositionRef?.current?.x ?? 0;
-    const pz = playerPositionRef?.current?.y ?? 0;
-    
-    // Always set fog to match cull distance
+    // Set fog to create visual falloff
     if (scene.fog instanceof Fog) {
       scene.fog.near = FOG_NEAR;
       scene.fog.far = FOG_FAR;
     }
-    
-    // Check if culling was just toggled off - restore all transforms
-    if (lastCullingEnabledRef.current === true && !optimizationSettings.enableEdgeCornCulling) {
-      if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
-        const transforms = edgeTransformsRef.current;
-        for (let i = 0; i < transforms.length; i++) {
-          for (const mesh of edgeMeshesRef.current) {
-            mesh.setMatrixAt(i, transforms[i].matrix);
-            mesh.visible = true;
-          }
-        }
-        for (const mesh of edgeMeshesRef.current) {
-          mesh.count = transforms.length;
-          mesh.instanceMatrix.needsUpdate = true;
-        }
-      }
-      // Restore cheap corn
-      if (cheapMeshRef.current) {
-        cheapMeshRef.current.visible = true;
-        cheapMeshRef.current.count = cheapMeshCountRef.current;
-      }
-    }
-    lastCullingEnabledRef.current = optimizationSettings.enableEdgeCornCulling;
-    
-    // Skip if culling disabled
-    if (!optimizationSettings.enableEdgeCornCulling) return;
-    
-    // Check if player moved enough to warrant update
-    const dx = px - lastUpdatePosRef.current.x;
-    const dz = pz - lastUpdatePosRef.current.z;
-    const movedDistance = dx * dx + dz * dz;
-    if (movedDistance < UPDATE_THRESHOLD * UPDATE_THRESHOLD) return;
-    lastUpdatePosRef.current = { x: px, z: pz };
-    
-    const fullQualityDistSq = LOD_FULL_QUALITY_DISTANCE * LOD_FULL_QUALITY_DISTANCE;
-    const cheapDistSq = LOD_CHEAP_DISTANCE * LOD_CHEAP_DISTANCE;
-    
-    // TIER 1: Full quality GLTF edge corn (0-10m) - show/hide in place, don't re-pack
-    if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
-      const transforms = edgeTransformsRef.current;
-      
-      for (let i = 0; i < transforms.length; i++) {
-        const t = transforms[i];
-        const tdx = px - t.centerX;
-        const tdz = pz - t.centerZ;
-        const distSq = tdx * tdx + tdz * tdz;
-        
-        // Show within 10m, hide beyond
-        if (distSq < fullQualityDistSq) {
-          for (const mesh of edgeMeshesRef.current) {
-            mesh.setMatrixAt(i, t.matrix);
-          }
-        } else {
-          for (const mesh of edgeMeshesRef.current) {
-            mesh.setMatrixAt(i, HIDDEN_MATRIX);
-          }
-        }
-      }
-      
-      for (const mesh of edgeMeshesRef.current) {
-        mesh.instanceMatrix.needsUpdate = true;
-      }
-    }
-    
-    // TIER 2: Cheap corn (0-15m) - interior/boundary walls always use cheap material
-    if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
-      const transforms = cheapTransformsRef.current;
-      
-      for (let i = 0; i < transforms.length; i++) {
-        const t = transforms[i];
-        const tdx = px - t.centerX;
-        const tdz = pz - t.centerZ;
-        const distSq = tdx * tdx + tdz * tdz;
-        
-        // Show cheap corn within 15m, hide beyond
-        if (distSq < cheapDistSq) {
-          cheapMeshRef.current.setMatrixAt(i, t.matrix);
-        } else {
-          cheapMeshRef.current.setMatrixAt(i, HIDDEN_MATRIX);
-        }
-      }
-      
-      cheapMeshRef.current.instanceMatrix.needsUpdate = true;
-    }
-    
-    // TIER 3: Beyond 15m is completely hidden via HIDDEN_MATRIX above
+    // All corn meshes stay visible - fog handles the distance fadeout
+    // This is more stable than per-instance matrix manipulation
   });
   
   // Extract mesh data from GLTF with optimized materials + sample color for cheap material
