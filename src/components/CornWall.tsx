@@ -9,7 +9,7 @@ const FOG_NEAR_DEFAULT = 2;      // Fog starts at 2m when far from outer corn
 const FOG_FAR_DEFAULT = 8;       // Fog ends at 8m when far (hides outer corn)
 const FOG_NEAR_CLOSE = 2;        // Fog starts at 2m when close to outer corn  
 const FOG_FAR_CLOSE = 25;        // Fog ends at 25m when close (shows more)
-const EDGE_CORN_CULL_DISTANCE = 1; // Hide edge corn beyond 1m (testing)
+const EDGE_CORN_CULL_DISTANCE = 50; // Hide edge corn beyond 50m
 
 interface CornWallProps {
   position: [number, number, number];
@@ -471,7 +471,7 @@ export const InstancedWalls = ({
         });
         
         instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = false;  // Disabled for draw call testing
+        instancedMesh.castShadow = true;  // Edge corn casts shadows
         instancedMesh.receiveShadow = true;
         instancedMesh.frustumCulled = true;
         
