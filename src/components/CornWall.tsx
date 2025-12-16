@@ -407,7 +407,7 @@ export const InstancedWalls = ({
       }
     }
     
-    // TIER 2: Cheap corn (15-30m) - use the cheap mesh for mid-distance
+    // TIER 2: Cheap corn (0-30m) - always visible for interior walls, hidden beyond 30m
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
       const transforms = cheapTransformsRef.current;
       let visibleCount = 0;
@@ -418,8 +418,8 @@ export const InstancedWalls = ({
         const tdz = pz - t.centerZ;
         const distSq = tdx * tdx + tdz * tdz;
         
-        // Show cheap corn between 15m and 30m
-        if (distSq >= fullQualityDistSq && distSq < cheapDistSq) {
+        // Show cheap corn within 30m (all interior/boundary walls)
+        if (distSq < cheapDistSq) {
           cheapMeshRef.current.setMatrixAt(visibleCount, t.matrix);
           visibleCount++;
         }
