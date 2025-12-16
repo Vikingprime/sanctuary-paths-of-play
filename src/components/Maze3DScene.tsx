@@ -65,14 +65,22 @@ const mat = new ShaderMaterial({
         rockLight: { value: new Color('#C4B090') },
         rockMid: { value: new Color('#A08060') },
         rockDark: { value: new Color('#705540') },
+        // Fog uniforms
+        fogColor: { value: new Color('#1a2810') },
+        fogNear: { value: 5.0 },
+        fogFar: { value: 12.0 },
       },
+      fog: true,
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vWorldPos;
+        varying float vFogDepth;
         void main() {
           vUv = uv;
           vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          vFogDepth = -mvPosition.z;
+          gl_Position = projectionMatrix * mvPosition;
         }
       `,
       fragmentShader: `
@@ -89,7 +97,11 @@ const mat = new ShaderMaterial({
         uniform vec3 rockLight;
         uniform vec3 rockMid;
         uniform vec3 rockDark;
+        uniform vec3 fogColor;
+        uniform float fogNear;
+        uniform float fogFar;
         varying vec2 vUv;
+        varying float vFogDepth;
         varying vec3 vWorldPos;
         
         float hash(vec2 p) {
@@ -246,6 +258,10 @@ const mat = new ShaderMaterial({
           float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
           vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
 finalColor = mix(finalColor, mudColor, transition * 0.2);
+          
+          // Apply fog
+          float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
+          finalColor = mix(finalColor, fogColor, fogFactor);
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
