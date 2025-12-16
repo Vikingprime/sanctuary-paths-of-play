@@ -68,6 +68,7 @@ export const MazeGame3D = ({
   const [lowPixelRatio, setLowPixelRatio] = useState(false);
   const [rendererInfo, setRendererInfo] = useState({ drawCalls: 0, triangles: 0 });
   const isMovingRef = useRef(false);
+  const rotationIntensityRef = useRef(0);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
 
   // Background music
@@ -275,6 +276,7 @@ export const MazeGame3D = ({
         isMovingRef={isMovingRef}
         collectedPowerUps={collectedPowerUps}
         keysPressed={keysPressed}
+        rotationIntensityRef={rotationIntensityRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         isPaused={showMiniMap || isPreviewing}
@@ -331,7 +333,7 @@ export const MazeGame3D = ({
       )}
 
       {/* Mobile Controls */}
-      <MobileControls onMoveStart={handleMobileStart} onMoveEnd={handleMobileEnd} />
+      <MobileControls onMoveStart={handleMobileStart} onMoveEnd={handleMobileEnd} rotationIntensityRef={rotationIntensityRef} />
 
       {/* Mini Map Overlay */}
       <MiniMap

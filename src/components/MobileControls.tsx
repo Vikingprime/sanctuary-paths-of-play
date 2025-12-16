@@ -1,17 +1,19 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, MutableRefObject } from 'react';
 
 interface MobileControlsProps {
   onMoveStart: (direction: 'forward' | 'back' | 'left' | 'right') => void;
   onMoveEnd: (direction: 'forward' | 'back' | 'left' | 'right') => void;
+  rotationIntensityRef?: MutableRefObject<number>;
 }
 
-export const MobileControls = ({ onMoveStart, onMoveEnd }: MobileControlsProps) => {
+export const MobileControls = ({ onMoveStart, onMoveEnd, rotationIntensityRef }: MobileControlsProps) => {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const activeDirectionsRef = useRef<Set<'forward' | 'back' | 'left' | 'right'>>(new Set());
   const touchIdRef = useRef<number | null>(null);
   
-  const DEADZONE_X = 60; // Larger deadzone for turning (left/right)
-  const DEADZONE_Y = 40; // Smaller deadzone for forward/back
+  const DEADZONE_X = 30; // Smaller deadzone since we use proportional intensity
+  const DEADZONE_Y = 30;
+  const MAX_DRAG_X = 150; // Full rotation intensity at this drag distance
 
   const updateDirections = useCallback((dx: number, dy: number) => {
     const newDirections = new Set<'forward' | 'back' | 'left' | 'right'>();
@@ -20,9 +22,29 @@ export const MobileControls = ({ onMoveStart, onMoveEnd }: MobileControlsProps) 
     if (dy < -DEADZONE_Y) newDirections.add('forward');
     if (dy > DEADZONE_Y) newDirections.add('back');
     
-    // Left/right based on X delta - larger deadzone to prevent accidental turns
-    if (dx < -DEADZONE_X) newDirections.add('left');
-    if (dx > DEADZONE_X) newDirections.add('right');
+    // Left/right based on X delta with proportional intensity
+    const absDx = Math.abs(dx);
+    if (absDx > DEADZONE_X) {
+      if (dx < 0) newDirections.add('left');
+      if (dx > 0) newDirections.add('right');
+      
+      // Calculate rotation intensity: 0 at deadzone, 1 at MAX_DRAG_X
+      const effectiveDrag = absDx - DEADZONE_X;
+      const maxEffectiveDrag = MAX_DRAG_X - DEADZONE_X;
+      const intensity = Math.min(1, effectiveDrag / maxEffectiveDrag);
+      
+      // Apply easing for smoother control (quadratic)
+      const easedIntensity = intensity * intensity;
+      
+      if (rotationIntensityRef) {
+        rotationIntensityRef.current = easedIntensity;
+      }
+    } else {
+      // Inside deadzone - no rotation
+      if (rotationIntensityRef) {
+        rotationIntensityRef.current = 0;
+      }
+    }
     
     const prev = activeDirectionsRef.current;
     
@@ -41,7 +63,7 @@ export const MobileControls = ({ onMoveStart, onMoveEnd }: MobileControlsProps) 
     });
     
     activeDirectionsRef.current = newDirections;
-  }, [onMoveStart, onMoveEnd]);
+  }, [onMoveStart, onMoveEnd, rotationIntensityRef]);
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
     // Don't capture if touch is on UI elements
@@ -76,10 +98,14 @@ export const MobileControls = ({ onMoveStart, onMoveEnd }: MobileControlsProps) 
     touchIdRef.current = null;
     touchStartRef.current = null;
     
-    // End all active directions
+    // End all active directions and reset intensity
     activeDirectionsRef.current.forEach(dir => onMoveEnd(dir));
     activeDirectionsRef.current.clear();
-  }, [onMoveEnd]);
+    
+    if (rotationIntensityRef) {
+      rotationIntensityRef.current = 0;
+    }
+  }, [onMoveEnd, rotationIntensityRef]);
 
   useEffect(() => {
     // Attach to document for full-screen touch capture

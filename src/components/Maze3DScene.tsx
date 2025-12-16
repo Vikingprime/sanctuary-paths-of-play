@@ -14,6 +14,7 @@ interface Maze3DSceneProps {
   isMovingRef: MutableRefObject<boolean>;
   collectedPowerUps?: Set<string>;
   keysPressed: MutableRefObject<Set<string>>;
+  rotationIntensityRef?: MutableRefObject<number>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -633,6 +634,7 @@ const RefBasedPlayer = ({
   isMovingRef,
   maze,
   keysPressed,
+  rotationIntensityRef,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -643,6 +645,7 @@ const RefBasedPlayer = ({
   isMovingRef: MutableRefObject<boolean>;
   maze: Maze;
   keysPressed: MutableRefObject<Set<string>>;
+  rotationIntensityRef?: MutableRefObject<number>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -669,6 +672,7 @@ const RefBasedPlayer = ({
         backward: keysPressed.current.has('arrowdown') || keysPressed.current.has('s'),
         rotateLeft: keysPressed.current.has('arrowleft') || keysPressed.current.has('a'),
         rotateRight: keysPressed.current.has('arrowright') || keysPressed.current.has('d'),
+        rotationIntensity: rotationIntensityRef?.current,
       };
       
       // Update isMoving ref
@@ -843,7 +847,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, speedBoostActive, onCellInteraction, isPaused, onSceneReady, cornOptimizationSettings }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, onSceneReady, cornOptimizationSettings }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -981,6 +985,7 @@ return (
         isMovingRef={isMovingRef}
         maze={maze}
         keysPressed={keysPressed}
+        rotationIntensityRef={rotationIntensityRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}

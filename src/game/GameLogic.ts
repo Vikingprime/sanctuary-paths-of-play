@@ -24,6 +24,7 @@ export interface MovementInput {
   backward: boolean;
   rotateLeft: boolean;
   rotateRight: boolean;
+  rotationIntensity?: number; // 0-1, for proportional mobile rotation
 }
 
 export interface GameStateData {
@@ -204,10 +205,14 @@ export function calculateMovement(
     ? GameConfig.BOOSTED_MOVE_SPEED
     : GameConfig.BASE_MOVE_SPEED;
 
-  // Calculate rotation - slower when moving forward to prevent wall crashes
+  // Calculate rotation - use intensity for proportional control (mobile)
+  // or full speed for keyboard input
   let newRotation = currentState.rotation;
   const isMoving = input.forward || input.backward;
-  const rotationMultiplier = isMoving ? 0.4 : 1.0; // 40% turn speed while moving
+  const baseMultiplier = isMoving ? 0.5 : 1.0; // Slower while moving
+  // Use intensity if provided (0-1), otherwise full intensity for keyboard
+  const intensity = input.rotationIntensity ?? 1.0;
+  const rotationMultiplier = baseMultiplier * intensity;
   
   if (input.rotateLeft) {
     newRotation -= GameConfig.ROTATION_SPEED * rotationMultiplier * deltaTime;
