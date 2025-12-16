@@ -9,12 +9,11 @@ interface GameHUDProps {
   abilityUsed: boolean;
   onUseAbility: () => void;
   onQuit: () => void;
-  debugNoRocks?: boolean;
-  debugNoGrass?: boolean;
-  debugNoCorn?: boolean;
-  onToggleRocks?: () => void;
-  onToggleGrass?: () => void;
-  onToggleCorn?: () => void;
+  // Corn optimization toggles
+  shadowOptEnabled?: boolean;
+  distanceCullEnabled?: boolean;
+  onToggleShadowOpt?: () => void;
+  onToggleDistanceCull?: () => void;
 }
 
 export const GameHUD = ({
@@ -24,12 +23,10 @@ export const GameHUD = ({
   abilityUsed,
   onUseAbility,
   onQuit,
-  debugNoRocks,
-  debugNoGrass,
-  debugNoCorn,
-  onToggleRocks,
-  onToggleGrass,
-  onToggleCorn,
+  shadowOptEnabled = true,
+  distanceCullEnabled = true,
+  onToggleShadowOpt,
+  onToggleDistanceCull,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
 
@@ -87,37 +84,30 @@ export const GameHUD = ({
           >
             ✕ Quit
           </button>
-          {onToggleRocks && (
+          
+          {/* Corn optimization toggles */}
+          {onToggleShadowOpt && (
             <button
-              onClick={onToggleRocks}
+              onClick={onToggleShadowOpt}
               className={cn(
                 'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                debugNoRocks ? 'text-red-500 line-through' : 'text-muted-foreground'
+                shadowOptEnabled ? 'text-green-500' : 'text-red-500'
               )}
+              title="Shadow optimization (boundary corn has no shadows)"
             >
-              🪨
+              🌑 {shadowOptEnabled ? 'On' : 'Off'}
             </button>
           )}
-          {onToggleGrass && (
+          {onToggleDistanceCull && (
             <button
-              onClick={onToggleGrass}
+              onClick={onToggleDistanceCull}
               className={cn(
                 'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                debugNoGrass ? 'text-red-500 line-through' : 'text-muted-foreground'
+                distanceCullEnabled ? 'text-green-500' : 'text-red-500'
               )}
+              title="Distance culling"
             >
-              🌿
-            </button>
-          )}
-          {onToggleCorn && (
-            <button
-              onClick={onToggleCorn}
-              className={cn(
-                'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                debugNoCorn ? 'text-red-500 line-through' : 'text-muted-foreground'
-              )}
-            >
-              🌽
+              📏 {distanceCullEnabled ? 'On' : 'Off'}
             </button>
           )}
         </div>

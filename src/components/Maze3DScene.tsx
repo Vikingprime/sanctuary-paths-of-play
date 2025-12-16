@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
 import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry } from 'three';
 import { Maze, AnimalType } from '@/types/game';
-import { InstancedWalls } from './CornWall';
+import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition } from '@/game/GameLogic';
 
@@ -18,9 +18,7 @@ interface Maze3DSceneProps {
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
   onSceneReady?: () => void;
-  debugNoRocks?: boolean;
-  debugNoGrass?: boolean;
-  debugNoCorn?: boolean;
+  cornOptimizationSettings?: CornOptimizationSettings;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -393,7 +391,7 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
 };
 
 // Ground with grass/path differentiation based on wall data
-const Ground = ({ maze, rocks, debugNoRocks, debugNoGrass }: { maze: Maze; rocks: RockPosition[]; debugNoRocks?: boolean; debugNoGrass?: boolean }) => {
+const Ground = ({ maze, rocks }: { maze: Maze; rocks: RockPosition[] }) => {
   const width = maze.grid[0].length;
   const height = maze.grid.length;
   const planeWidth = width + 10;
@@ -422,14 +420,18 @@ const Ground = ({ maze, rocks, debugNoRocks, debugNoGrass }: { maze: Maze; rocks
         <shadowMaterial transparent opacity={0.4} />
       </mesh>
       
-      {/* 3D Props for visual depth - can be toggled for performance */}
-      {!debugNoRocks && <ScatteredRocks rocks={rocks} />}
-      {!debugNoGrass && <GrassTufts maze={maze} />}
+      {/* 3D Props for visual depth */}
+      <ScatteredRocks rocks={rocks} />
+      <GrassTufts maze={maze} />
     </group>
   );
 };
 
-const MazeWalls = ({ maze }: { maze: Maze }) => {
+const MazeWalls = ({ maze, playerPosition, optimizationSettings }: { 
+  maze: Maze; 
+  playerPosition?: { x: number; z: number };
+  optimizationSettings?: CornOptimizationSettings;
+}) => {
   const { interiorWalls, boundaryWalls } = useMemo(() => {
     const interior: { x: number; z: number }[] = [];
     const boundary: { x: number; z: number; offsetX: number; offsetZ: number }[] = [];
@@ -460,7 +462,14 @@ const MazeWalls = ({ maze }: { maze: Maze }) => {
     return { interiorWalls: interior, boundaryWalls: boundary };
   }, [maze]);
 
-  return <InstancedWalls positions={interiorWalls} boundaryPositions={boundaryWalls} />;
+  return (
+    <InstancedWalls 
+      positions={interiorWalls} 
+      boundaryPositions={boundaryWalls}
+      playerPosition={playerPosition}
+      optimizationSettings={optimizationSettings}
+    />
+  );
 };
 
 const PowerUp = ({ position }: { position: [number, number, number] }) => {
@@ -743,7 +752,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, speedBoostActive, onCellInteraction, isPaused, onSceneReady, debugNoRocks, debugNoGrass, debugNoCorn }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, speedBoostActive, onCellInteraction, isPaused, onSceneReady, cornOptimizationSettings }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -809,6 +818,12 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     }
   });
 
+  // Get current player position for corn optimizations
+  const playerPosition = useMemo(() => ({
+    x: playerStateRef.current.x,
+    z: playerStateRef.current.y
+  }), [playerStateRef]);
+
 return (
     <>
       {/* Lighting - 8am morning sunlight */}
@@ -852,10 +867,14 @@ return (
       <fog attach="fog" args={['#1a2810', 8, 25]} />
       
       {/* Ground */}
-      <Ground maze={maze} rocks={rocks} debugNoRocks={debugNoRocks} debugNoGrass={debugNoGrass} />
+      <Ground maze={maze} rocks={rocks} />
       
-      {/* Maze Walls (corn) - can be toggled for performance */}
-      {!debugNoCorn && <MazeWalls maze={maze} />}
+      {/* Maze Walls (corn) with optimizations */}
+      <MazeWalls 
+        maze={maze} 
+        playerPosition={playerPosition}
+        optimizationSettings={cornOptimizationSettings}
+      />
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (
@@ -894,10 +913,24 @@ return (
 export const Maze3DCanvas = (props: Maze3DSceneProps) => {
   const [fps, setFps] = useState(0);
   
+  // Detect mobile for pixel ratio capping
+  const isMobile = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
+      || window.innerWidth < 768;
+  }, []);
+  
+  // Cap pixel ratio on mobile for performance (max 1.5 instead of 2-3)
+  const pixelRatio = isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio;
+  
   return (
     <div className="w-full h-full">
       <FPSDisplay fps={fps} />
-      <Canvas shadows gl={{ logarithmicDepthBuffer: true, antialias: true }}>
+      <Canvas 
+        shadows 
+        gl={{ logarithmicDepthBuffer: true, antialias: !isMobile }} 
+        dpr={pixelRatio}
+      >
         <PerspectiveCamera makeDefault fov={60} near={0.5} far={100} />
         <Scene {...props} />
         <FPSTracker onFpsUpdate={setFps} />
