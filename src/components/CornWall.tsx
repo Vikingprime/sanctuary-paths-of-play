@@ -56,9 +56,9 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
 const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
 
-// Cheap material for far corn - darker green to match corn stalks
+// Cheap material for far corn - very dark green to match GLTF corn stalks
 const FAR_CORN_MATERIAL = new MeshLambertMaterial({ 
-  color: new Color(0.12, 0.28, 0.10), // Much darker green to match corn
+  color: new Color(0.08, 0.18, 0.06), // Very dark forest green matching GLTF
   transparent: false,
   depthWrite: true,
   depthTest: true,
