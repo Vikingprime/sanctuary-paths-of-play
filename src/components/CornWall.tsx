@@ -475,7 +475,7 @@ export const InstancedWalls = ({
         instancedMesh.instanceMatrix.needsUpdate = true;
         instancedMesh.castShadow = true;  // Edge corn casts shadows
         instancedMesh.receiveShadow = true;
-        instancedMesh.frustumCulled = true;
+        instancedMesh.frustumCulled = false;  // Disable - we do distance culling manually
         
         edgeGroup.add(instancedMesh);
         allMeshes.push(instancedMesh);
@@ -504,7 +504,7 @@ export const InstancedWalls = ({
       cheapMesh.instanceMatrix.needsUpdate = true;
       cheapMesh.castShadow = false;
       cheapMesh.receiveShadow = true;
-      cheapMesh.frustumCulled = true;
+      cheapMesh.frustumCulled = false;  // Disable - we do distance culling manually
       
       // Store refs for dynamic LOD updates
       cheapMeshRef.current = cheapMesh;
