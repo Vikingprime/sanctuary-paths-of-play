@@ -40,23 +40,25 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
 export interface CornOptimizationSettings {
   shadowRadius: number;
   cullDistance: number;
-  lodDistance: number;  // Distance at which to switch to simple geometry
-  farMaterialDistance: number; // Distance at which to use cheap material (5m)
+  lodDistance: number;
+  farMaterialDistance: number;
   enableShadowOptimization: boolean;
   enableDistanceCulling: boolean;
   enableLOD: boolean;
   enableFarMaterialOptimization: boolean;
+  enableDynamicFog: boolean; // Toggle for retreating fog + cheap corn culling
 }
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   shadowRadius: 8,
   cullDistance: 20,
-  lodDistance: 8,  // Switch to simple geo beyond 8 units
-  farMaterialDistance: 5, // Use cheap material beyond 5 meters
+  lodDistance: 8,
+  farMaterialDistance: 5,
   enableShadowOptimization: true,
   enableDistanceCulling: true,
   enableLOD: true,
   enableFarMaterialOptimization: true,
+  enableDynamicFog: true, // Enable by default
 };
 
 // Simple LOD geometry - single green box per stalk (1 draw call total)
@@ -321,6 +323,15 @@ export const InstancedWalls = ({
   
   // Dynamic fog that retreats when player approaches outer corn
   useFrame(() => {
+    // Skip if feature disabled
+    if (!optimizationSettings.enableDynamicFog) {
+      // Ensure cheap corn is always visible when fog disabled
+      if (cheapMeshRef.current && cheapMeshRef.current.count !== cheapMeshCountRef.current) {
+        cheapMeshRef.current.count = cheapMeshCountRef.current;
+      }
+      return;
+    }
+    
     if (!playerPositionRef?.current || cheapCellCenters.length === 0) return;
     
     const px = playerPositionRef.current.x;

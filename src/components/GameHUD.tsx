@@ -14,6 +14,9 @@ interface GameHUDProps {
   distanceCullEnabled?: boolean;
   onToggleShadowOpt?: () => void;
   onToggleDistanceCull?: () => void;
+  // Dynamic fog toggle
+  dynamicFogEnabled?: boolean;
+  onToggleDynamicFog?: () => void;
   // Performance debug
   lowPixelRatio?: boolean;
   onTogglePixelRatio?: () => void;
@@ -32,6 +35,8 @@ export const GameHUD = ({
   distanceCullEnabled = true,
   onToggleShadowOpt,
   onToggleDistanceCull,
+  dynamicFogEnabled = true,
+  onToggleDynamicFog,
   lowPixelRatio = false,
   onTogglePixelRatio,
   drawCalls,
@@ -117,6 +122,18 @@ export const GameHUD = ({
               title="Distance culling"
             >
               📏 {distanceCullEnabled ? 'On' : 'Off'}
+            </button>
+          )}
+          {onToggleDynamicFog && (
+            <button
+              onClick={onToggleDynamicFog}
+              className={cn(
+                'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                dynamicFogEnabled ? 'text-green-500' : 'text-red-500'
+              )}
+              title="Dynamic fog (hides outer corn when far)"
+            >
+              🌫️ {dynamicFogEnabled ? 'On' : 'Off'}
             </button>
           )}
           {onTogglePixelRatio && (

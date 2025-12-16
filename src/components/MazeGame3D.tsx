@@ -63,6 +63,7 @@ export const MazeGame3D = ({
   // Corn optimization settings
   const [shadowOptEnabled, setShadowOptEnabled] = useState(true);
   const [distanceCullEnabled, setDistanceCullEnabled] = useState(true);
+  const [dynamicFogEnabled, setDynamicFogEnabled] = useState(true);
   const [lowPixelRatio, setLowPixelRatio] = useState(false);
   const [rendererInfo, setRendererInfo] = useState({ drawCalls: 0, triangles: 0 });
   const isMovingRef = useRef(false);
@@ -288,6 +289,7 @@ export const MazeGame3D = ({
           enableDistanceCulling: distanceCullEnabled,
           enableLOD: true,
           enableFarMaterialOptimization: true,
+          enableDynamicFog: dynamicFogEnabled,
         }}
       />
 
@@ -315,6 +317,8 @@ export const MazeGame3D = ({
           distanceCullEnabled={distanceCullEnabled}
           onToggleShadowOpt={() => setShadowOptEnabled(prev => !prev)}
           onToggleDistanceCull={() => setDistanceCullEnabled(prev => !prev)}
+          dynamicFogEnabled={dynamicFogEnabled}
+          onToggleDynamicFog={() => setDynamicFogEnabled(prev => !prev)}
           lowPixelRatio={lowPixelRatio}
           onTogglePixelRatio={() => setLowPixelRatio(prev => !prev)}
           drawCalls={rendererInfo.drawCalls}
