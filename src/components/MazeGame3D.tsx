@@ -288,6 +288,7 @@ export const MazeGame3D = ({
           enableDistanceCulling: distanceCullEnabled,
           enableLOD: true,
           enableFarMaterialOptimization: true,
+          maxInstances: 3000, // Cap instances to limit draw calls
         }}
       />
 
