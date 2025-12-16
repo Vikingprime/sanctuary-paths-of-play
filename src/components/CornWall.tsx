@@ -56,9 +56,9 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
 const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
 
-// Cheap material for far corn - single draw call, darker green to match corn
+// Cheap material for far corn - darker green to match corn stalks
 const FAR_CORN_MATERIAL = new MeshLambertMaterial({ 
-  color: new Color(0.18, 0.38, 0.14),
+  color: new Color(0.12, 0.28, 0.10), // Much darker green to match corn
   transparent: false,
   depthWrite: true,
   depthTest: true,
@@ -70,10 +70,10 @@ const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
 
 
 // Helper to optimize material for performance (fix transparency/overdraw issues)
-const optimizeMaterial = (material: Material, isNearCorn: boolean = true): Material => {
+const optimizeMaterial = (material: Material): Material => {
   const mat = material as any;
   
-  // CRITICAL: Disable transparency for opaque rendering
+  // CRITICAL: Disable transparency for opaque rendering - NO transparent=true allowed
   if ('transparent' in mat) {
     mat.transparent = false;
   }
@@ -83,7 +83,7 @@ const optimizeMaterial = (material: Material, isNearCorn: boolean = true): Mater
     mat.alphaTest = 0.5;
   }
   
-  // Ensure proper depth handling
+  // CRITICAL: Ensure proper depth handling - must write depth
   if ('depthWrite' in mat) {
     mat.depthWrite = true;
   }
@@ -91,10 +91,9 @@ const optimizeMaterial = (material: Material, isNearCorn: boolean = true): Mater
     mat.depthTest = true;
   }
   
-  // Use FrontSide for mid/far corn to reduce overdraw
-  // Near corn can use DoubleSide if needed for visual quality
+  // CRITICAL: Always use FrontSide to reduce overdraw - NO DoubleSide
   if ('side' in mat) {
-    mat.side = isNearCorn ? DoubleSide : FrontSide;
+    mat.side = FrontSide;
   }
   
   mat.needsUpdate = true;
@@ -334,8 +333,8 @@ export const InstancedWalls = ({
         
         // Clone and optimize material (fix transparency/overdraw issues)
         const optimizedMaterial = Array.isArray(mesh.material) 
-          ? mesh.material.map(m => optimizeMaterial(m.clone(), false))
-          : optimizeMaterial(mesh.material.clone(), false);
+          ? mesh.material.map(m => optimizeMaterial(m.clone()))
+          : optimizeMaterial(mesh.material.clone());
         
         meshes.push({
           geometry: mesh.geometry.clone(),
