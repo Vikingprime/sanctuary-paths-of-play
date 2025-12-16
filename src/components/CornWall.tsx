@@ -381,10 +381,9 @@ export const InstancedWalls = ({
     const fullQualityDistSq = LOD_FULL_QUALITY_DISTANCE * LOD_FULL_QUALITY_DISTANCE;
     const cheapDistSq = LOD_CHEAP_DISTANCE * LOD_CHEAP_DISTANCE;
     
-    // TIER 1: Full quality edge corn (< 15m)
+    // TIER 1: Full quality GLTF edge corn (0-10m) - show/hide in place, don't re-pack
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
-      let visibleCount = 0;
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
@@ -392,25 +391,26 @@ export const InstancedWalls = ({
         const tdz = pz - t.centerZ;
         const distSq = tdx * tdx + tdz * tdz;
         
+        // Show within 10m, hide beyond
         if (distSq < fullQualityDistSq) {
           for (const mesh of edgeMeshesRef.current) {
-            mesh.setMatrixAt(visibleCount, t.matrix);
+            mesh.setMatrixAt(i, t.matrix);
           }
-          visibleCount++;
+        } else {
+          for (const mesh of edgeMeshesRef.current) {
+            mesh.setMatrixAt(i, HIDDEN_MATRIX);
+          }
         }
       }
       
       for (const mesh of edgeMeshesRef.current) {
-        mesh.count = visibleCount;
-        mesh.visible = visibleCount > 0;
         mesh.instanceMatrix.needsUpdate = true;
       }
     }
     
-    // TIER 2: Cheap corn (0-30m) - always visible for interior walls, hidden beyond 30m
+    // TIER 2: Cheap corn (10-15m range ONLY) - interior/boundary walls
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
       const transforms = cheapTransformsRef.current;
-      let visibleCount = 0;
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
@@ -418,19 +418,18 @@ export const InstancedWalls = ({
         const tdz = pz - t.centerZ;
         const distSq = tdx * tdx + tdz * tdz;
         
-        // Show cheap corn within 30m (all interior/boundary walls)
-        if (distSq < cheapDistSq) {
-          cheapMeshRef.current.setMatrixAt(visibleCount, t.matrix);
-          visibleCount++;
+        // Show cheap corn only in the 10-15m band (beyond full quality range)
+        if (distSq >= fullQualityDistSq && distSq < cheapDistSq) {
+          cheapMeshRef.current.setMatrixAt(i, t.matrix);
+        } else {
+          cheapMeshRef.current.setMatrixAt(i, HIDDEN_MATRIX);
         }
       }
       
-      cheapMeshRef.current.count = visibleCount;
-      cheapMeshRef.current.visible = visibleCount > 0;
       cheapMeshRef.current.instanceMatrix.needsUpdate = true;
     }
     
-    // TIER 3: Beyond 30m is completely hidden (handled by not including in counts above)
+    // TIER 3: Beyond 15m is completely hidden via HIDDEN_MATRIX above
   });
   
   // Extract mesh data from GLTF with optimized materials + sample color for cheap material
