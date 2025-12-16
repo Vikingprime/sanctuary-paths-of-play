@@ -58,7 +58,7 @@ const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15
 
 // Cheap material for far corn - very dark green to match GLTF corn stalks
 const FAR_CORN_MATERIAL = new MeshLambertMaterial({ 
-  color: new Color(0.08, 0.18, 0.06), // Very dark forest green matching GLTF
+  color: new Color(0.04, 0.10, 0.03), // Very dark, almost black-green
   transparent: false,
   depthWrite: true,
   depthTest: true,
