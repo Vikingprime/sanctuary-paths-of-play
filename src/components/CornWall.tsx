@@ -391,13 +391,23 @@ export const InstancedWalls = ({
       
       for (const mesh of edgeMeshesRef.current) {
         mesh.count = visibleCount;
+        mesh.visible = visibleCount > 0; // Completely hide if no visible instances
         mesh.instanceMatrix.needsUpdate = true;
       }
     }
     
+    // Also hide cheap corn when culling is enabled (it's all distant)
+    if (optimizationSettings.enableEdgeCornCulling && cheapMeshRef.current) {
+      cheapMeshRef.current.visible = false;
+      cheapMeshRef.current.count = 0;
+    } else if (cheapMeshRef.current && cheapMeshRef.current.count === 0) {
+      // Restore cheap corn when culling disabled
+      cheapMeshRef.current.visible = true;
+      cheapMeshRef.current.count = cheapMeshCountRef.current;
+    }
+    
     // Fog update
     if (optimizationSettings.enableDynamicFog && scene.fog instanceof Fog) {
-      scene.fog.near = 8;
       scene.fog.far = 25;
     }
   });
