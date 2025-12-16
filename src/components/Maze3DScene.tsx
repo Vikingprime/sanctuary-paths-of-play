@@ -667,12 +667,15 @@ const RefBasedPlayer = ({
       const clampedDelta = Math.min(delta, 0.05);
       
       // Build input from pressed keys (arrow keys + WASD)
+      const isKeyboardRotation = keysPressed.current.has('arrowleft') || keysPressed.current.has('a') || 
+                                 keysPressed.current.has('arrowright') || keysPressed.current.has('d');
       const input: MovementInput = {
         forward: keysPressed.current.has('arrowup') || keysPressed.current.has('w'),
         backward: keysPressed.current.has('arrowdown') || keysPressed.current.has('s'),
         rotateLeft: keysPressed.current.has('arrowleft') || keysPressed.current.has('a'),
         rotateRight: keysPressed.current.has('arrowright') || keysPressed.current.has('d'),
-        rotationIntensity: rotationIntensityRef?.current,
+        // Use full intensity for keyboard, ref value for mobile touch
+        rotationIntensity: isKeyboardRotation ? 1.0 : (rotationIntensityRef?.current ?? 1.0),
       };
       
       // Update isMoving ref
