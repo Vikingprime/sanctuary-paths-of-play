@@ -56,9 +56,9 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
 const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
 
-// Cheap material for far corn - very dark green to match GLTF corn stalks
+// Cheap material for far corn - dark green to match GLTF corn stalks
 const FAR_CORN_MATERIAL = new MeshLambertMaterial({ 
-  color: new Color(0.04, 0.10, 0.03), // Very dark, almost black-green
+  color: new Color(0.15, 0.30, 0.12), // Darker green but still visible
   transparent: false,
   depthWrite: true,
   depthTest: true,
@@ -445,7 +445,7 @@ export const InstancedWalls = ({
     if (!playerPositionRef) return;
     
     const px = playerPositionRef.current.x;
-    const pz = playerPositionRef.current.y;
+    const pz = playerPositionRef.current.y; // Note: y is used for Z coordinate
     const farDistance = optimizationSettings.farMaterialDistance;
     
     const transforms = allTransformsRef.current;
@@ -454,8 +454,8 @@ export const InstancedWalls = ({
     
     if (transforms.length === 0 || expensiveMeshes.length === 0 || !cheapMesh) return;
     
-    let needsExpensiveUpdate = false;
-    let needsCheapUpdate = false;
+    let nearCount = 0;
+    let farCount = 0;
     
     // Check each instance and toggle visibility based on distance
     for (let i = 0; i < transforms.length; i++) {
@@ -471,27 +471,26 @@ export const InstancedWalls = ({
         expensiveMeshes.forEach(mesh => {
           mesh.setMatrixAt(i, HIDDEN_MATRIX);
         });
-        needsExpensiveUpdate = true;
-        needsCheapUpdate = true;
+        farCount++;
       } else {
         // NEAR: Show expensive, hide cheap
         cheapMesh.setMatrixAt(i, HIDDEN_MATRIX);
         expensiveMeshes.forEach(mesh => {
           mesh.setMatrixAt(i, t.matrix);
         });
-        needsExpensiveUpdate = true;
-        needsCheapUpdate = true;
+        nearCount++;
       }
     }
     
-    if (needsExpensiveUpdate) {
-      expensiveMeshes.forEach(mesh => {
-        mesh.instanceMatrix.needsUpdate = true;
-      });
+    // Debug: log counts occasionally
+    if (Math.random() < 0.01) {
+      console.log(`[CornLOD] Player: (${px.toFixed(1)}, ${pz.toFixed(1)}), Near: ${nearCount}, Far: ${farCount}, FarDist: ${farDistance}`);
     }
-    if (needsCheapUpdate) {
-      cheapMesh.instanceMatrix.needsUpdate = true;
-    }
+    
+    expensiveMeshes.forEach(mesh => {
+      mesh.instanceMatrix.needsUpdate = true;
+    });
+    cheapMesh.instanceMatrix.needsUpdate = true;
   });
 
   if (allTransforms.length === 0) return null;
