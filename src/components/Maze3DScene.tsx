@@ -432,61 +432,67 @@ const MazeWalls = ({ maze, playerStateRef, optimizationSettings }: {
   playerStateRef?: React.MutableRefObject<{ x: number; y: number }>;
   optimizationSettings?: CornOptimizationSettings;
 }) => {
-  const { adjacentToPathWalls, depthOnlyWalls, boundaryWalls } = useMemo(() => {
+  const { edgePositions, depthOnlyWalls, boundaryWalls } = useMemo(() => {
     const maxX = maze.grid[0].length - 1;
     const maxZ = maze.grid.length - 1;
     
-    // Start from paths - find all wall cells adjacent to paths
-    const pathAdjacentSet = new Set<string>();
-    
-    // Helper to check if a cell is a wall
-    const isWall = (cellX: number, cellY: number) => {
+    // Helper to check if a cell is a path (not wall)
+    const isPath = (cellX: number, cellY: number) => {
       if (cellX < 0 || cellX > maxX || cellY < 0 || cellY > maxZ) return false;
-      return maze.grid[cellY][cellX].isWall;
+      return !maze.grid[cellY][cellX].isWall;
     };
     
-    // Find all path tiles and mark adjacent walls
+    // Track which edges of each wall cell face a path
+    // Key: "x,z", Value: array of directions ['left', 'right', 'top', 'bottom']
+    const wallEdges = new Map<string, ('left' | 'right' | 'top' | 'bottom')[]>();
+    
+    // For each wall cell, check which sides face a path
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
-        if (!cell.isWall) {
-          // This is a path tile - check all 4 adjacent cells for walls
-          if (isWall(x - 1, y)) pathAdjacentSet.add(`${x - 1},${y}`);
-          if (isWall(x + 1, y)) pathAdjacentSet.add(`${x + 1},${y}`);
-          if (isWall(x, y - 1)) pathAdjacentSet.add(`${x},${y - 1}`);
-          if (isWall(x, y + 1)) pathAdjacentSet.add(`${x},${y + 1}`);
+        if (cell.isWall) {
+          const edges: ('left' | 'right' | 'top' | 'bottom')[] = [];
+          if (isPath(x - 1, y)) edges.push('left');
+          if (isPath(x + 1, y)) edges.push('right');
+          if (isPath(x, y - 1)) edges.push('top');    // z decreases = top
+          if (isPath(x, y + 1)) edges.push('bottom'); // z increases = bottom
+          
+          if (edges.length > 0) {
+            wallEdges.set(`${x},${y}`, edges);
+          }
         }
       });
     });
     
-    // Now categorize all walls
-    const adjacentToPath: { x: number; z: number }[] = [];  // Cast shadows
-    const depthOnly: { x: number; z: number }[] = [];       // No shadows, just visual depth
+    // Build edge positions (only the stalks on edges facing paths)
+    const edges: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[] = [];
+    const depthOnly: { x: number; z: number }[] = [];
     const boundary: { x: number; z: number; offsetX: number; offsetZ: number }[] = [];
-    const boundaryAdjacentToPath: { x: number; z: number; offsetX: number; offsetZ: number }[] = [];
     
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
         if (cell.isWall) {
           const isBoundary = x === 0 || x === maxX || y === 0 || y === maxZ;
-          const isAdjacentToPath = pathAdjacentSet.has(`${x},${y}`);
+          const cellEdges = wallEdges.get(`${x},${y}`);
           
           if (isBoundary) {
-            // Boundary wall - calculate offsets
+            // Boundary walls
             let offsetX = 0;
             let offsetZ = 0;
             if (x === 0) offsetX = -1.5;
             if (x === maxX) offsetX = 1.5;
             if (y === 0) offsetZ = -1.5;
             if (y === maxZ) offsetZ = 1.5;
+            boundary.push({ x, z: y, offsetX, offsetZ });
             
-            if (isAdjacentToPath) {
-              boundaryAdjacentToPath.push({ x, z: y, offsetX, offsetZ });
-            } else {
-              boundary.push({ x, z: y, offsetX, offsetZ });
+            // Also add edge stalks if this boundary wall touches a path
+            if (cellEdges) {
+              edges.push({ x, z: y, edges: cellEdges });
             }
-          } else if (isAdjacentToPath) {
-            // Interior wall adjacent to a path
-            adjacentToPath.push({ x, z: y });
+          } else if (cellEdges) {
+            // Interior wall with path-facing edges
+            edges.push({ x, z: y, edges: cellEdges });
+            // Also add to depth-only for the rest of the stalks
+            depthOnly.push({ x, z: y });
           } else {
             // Depth-only wall - not adjacent to any path
             depthOnly.push({ x, z: y });
@@ -495,27 +501,16 @@ const MazeWalls = ({ maze, playerStateRef, optimizationSettings }: {
       });
     });
     
-    // Merge boundary walls that are adjacent to paths with regular adjacent walls
-    // They'll be rendered with shadows too
-    // Merge boundary walls adjacent to paths into the shadow-casting array
-    const allAdjacentToPath = [
-      ...adjacentToPath,
-      ...boundaryAdjacentToPath.map(b => ({ x: b.x, z: b.z }))
-    ];
-    
-    // All boundary walls still get depth rendering, but only the non-adjacent ones skip shadows
-    const allBoundary = [...boundary, ...boundaryAdjacentToPath];
-    
     return { 
-      adjacentToPathWalls: allAdjacentToPath, 
+      edgePositions: edges, 
       depthOnlyWalls: depthOnly, 
-      boundaryWalls: allBoundary 
+      boundaryWalls: boundary 
     };
   }, [maze]);
 
   return (
     <InstancedWalls 
-      positions={adjacentToPathWalls}
+      edgePositions={edgePositions}
       noShadowPositions={depthOnlyWalls}
       boundaryPositions={boundaryWalls}
       playerPositionRef={playerStateRef}

@@ -46,8 +46,8 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 
 // Instanced walls using InstancedMesh
 interface InstancedWallsProps {
-  positions: { x: number; z: number }[];              // Inner walls (adjacent to paths)
-  noShadowPositions?: { x: number; z: number }[];     // Outer walls (not adjacent to paths)
+  edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[];  // Edge stalks only
+  noShadowPositions?: { x: number; z: number }[];     // Full cell walls (no shadows)
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
   size?: [number, number, number];
   playerPositionRef?: React.MutableRefObject<{ x: number; y: number }>;
@@ -76,7 +76,67 @@ interface WallTransformData {
   centerZ: number;
 }
 
-// Generate transforms for a set of wall positions
+// Generate transforms for edge stalks only (single row facing the path)
+const generateEdgeTransforms = (
+  edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[],
+  seedOffset: number = 0
+): WallTransformData[] => {
+  const transforms: WallTransformData[] = [];
+  const dummy = new Object3D();
+  
+  edgePositions.forEach((wallPos) => {
+    const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset;
+    const centerX = wallPos.x + 0.5;
+    const centerZ = wallPos.z + 0.5;
+    
+    // For each edge direction, generate only the single row of stalks on that edge
+    wallPos.edges.forEach((edge, edgeIdx) => {
+      for (let col = 0; col < STALKS_PER_ROW; col++) {
+        const stalkSeed = baseSeed + edgeIdx * 1000 + col;
+        
+        // Position based on which edge
+        let offsetX = 0;
+        let offsetZ = 0;
+        const edgeOffset = (ROWS - 1) / 2 * STALK_SPACING; // Position at the edge of the cell
+        const colOffset = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING;
+        
+        switch (edge) {
+          case 'left':   offsetX = -edgeOffset; offsetZ = colOffset; break;
+          case 'right':  offsetX = edgeOffset;  offsetZ = colOffset; break;
+          case 'top':    offsetX = colOffset;   offsetZ = -edgeOffset; break;
+          case 'bottom': offsetX = colOffset;   offsetZ = edgeOffset; break;
+        }
+        
+        const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.03;
+        const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
+        const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
+        
+        const baseScale = 100;
+        const heightMultiplier = 1.8;
+        const widthMultiplier = 0.7;
+        const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
+        const widthScale = baseScale * heightVariation * widthMultiplier;
+        const heightScale = baseScale * heightVariation * heightMultiplier;
+        
+        dummy.position.set(
+          centerX + offsetX + jitterX,
+          0,
+          centerZ + offsetZ + jitterZ
+        );
+        const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
+        const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
+        dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
+        dummy.scale.set(widthScale, widthScale, heightScale);
+        dummy.updateMatrix();
+        transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ });
+      }
+    });
+  });
+  
+  return transforms;
+};
+
+// Generate transforms for a set of wall positions (full 3x3 grid)
 const generateWallTransforms = (
   positions: { x: number; z: number }[],
   seedOffset: number = 0
@@ -180,7 +240,7 @@ const generateBoundaryTransforms = (
 };
 
 export const InstancedWalls = ({ 
-  positions, 
+  edgePositions, 
   noShadowPositions = [],
   boundaryPositions = [], 
   playerPositionRef,
@@ -213,12 +273,12 @@ export const InstancedWalls = ({
   }, [scene]);
   
   // Generate transforms for each group
-  const { innerTransforms, outerTransforms, boundaryTransformsData } = useMemo(() => {
-    const inner = generateWallTransforms(positions, 0);
+  const { edgeTransforms, outerTransforms, boundaryTransformsData } = useMemo(() => {
+    const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
-    return { innerTransforms: inner, outerTransforms: outer, boundaryTransformsData: boundary };
-  }, [positions, noShadowPositions, boundaryPositions]);
+    return { edgeTransforms: edge, outerTransforms: outer, boundaryTransformsData: boundary };
+  }, [edgePositions, noShadowPositions, boundaryPositions]);
 
   // Create instanced meshes
   useEffect(() => {
@@ -228,10 +288,10 @@ export const InstancedWalls = ({
     
     createdRef.current = true;
     
-    // Inner walls (adjacent to paths) - these CAST shadows
+    // Edge stalks (adjacent to paths) - these CAST shadows
     // DEBUG: Red tint to identify path-adjacent corn
     const shadowMeshes: ThreeInstancedMesh[] = [];
-    if (innerTransforms.length > 0) {
+    if (edgeTransforms.length > 0) {
       meshDataList.forEach((meshData) => {
         const clonedMat = Array.isArray(meshData.material)
           ? meshData.material.map(m => {
@@ -253,15 +313,15 @@ export const InstancedWalls = ({
         const instancedMesh = new ThreeInstancedMesh(
           meshData.geometry.clone(),
           clonedMat,
-          innerTransforms.length
+          edgeTransforms.length
         );
         
-        innerTransforms.forEach((t, i) => {
+        edgeTransforms.forEach((t, i) => {
           instancedMesh.setMatrixAt(i, t.matrix);
         });
         
         instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = true;  // Inner walls cast shadows
+        instancedMesh.castShadow = true;  // Edge stalks cast shadows
         instancedMesh.receiveShadow = true;
         instancedMesh.frustumCulled = true;
         
@@ -315,17 +375,17 @@ export const InstancedWalls = ({
       });
       createdRef.current = false;
     };
-  }, [meshDataList, innerTransforms, outerTransforms, boundaryTransformsData]);
+  }, [meshDataList, edgeTransforms, outerTransforms, boundaryTransformsData]);
 
   // Dynamic updates based on settings
   useFrame(() => {
     // Update shadow casting based on toggle
     const shouldCastShadows = optimizationSettings.enableShadowOptimization;
     
-    // When shadow optimization is ON: inner walls cast shadows, outer don't
+    // When shadow optimization is ON: edge stalks cast shadows, outer don't
     // When shadow optimization is OFF: ALL corn casts shadows (no optimization)
     shadowMeshesRef.current.forEach(mesh => {
-      mesh.castShadow = true; // Inner walls always cast shadows
+      mesh.castShadow = true; // Edge stalks always cast shadows
     });
     
     noShadowMeshesRef.current.forEach(mesh => {
@@ -338,13 +398,12 @@ export const InstancedWalls = ({
       const px = playerPositionRef.current.x;
       const pz = playerPositionRef.current.y;
       const cullDist = optimizationSettings.cullDistance;
-      const cullDistSq = cullDist * cullDist;
       
       // Hide no-shadow group if too far (rough approximation)
       const noShadowGroup = noShadowGroupRef.current;
       if (noShadowGroup) {
-        // Check approximate center of boundary corn
-        const mazeCenter = { x: positions[0]?.x ?? 0, z: positions[0]?.z ?? 0 };
+        // Check approximate center of edge positions
+        const mazeCenter = { x: edgePositions[0]?.x ?? 0, z: edgePositions[0]?.z ?? 0 };
         const distToCenter = Math.sqrt(
           (px - mazeCenter.x) ** 2 + (pz - mazeCenter.z) ** 2
         );
@@ -360,7 +419,7 @@ export const InstancedWalls = ({
     }
   });
 
-  if (innerTransforms.length === 0 && outerTransforms.length === 0 && boundaryTransformsData.length === 0) return null;
+  if (edgeTransforms.length === 0 && outerTransforms.length === 0 && boundaryTransformsData.length === 0) return null;
 
   return (
     <>
