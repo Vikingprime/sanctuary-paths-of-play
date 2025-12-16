@@ -9,6 +9,7 @@ const FOG_NEAR_DEFAULT = 2;      // Fog starts at 2m when far from outer corn
 const FOG_FAR_DEFAULT = 8;       // Fog ends at 8m when far (hides outer corn)
 const FOG_NEAR_CLOSE = 2;        // Fog starts at 2m when close to outer corn  
 const FOG_FAR_CLOSE = 25;        // Fog ends at 25m when close (shows more)
+const EDGE_CORN_CULL_DISTANCE = 50; // Hide edge corn beyond 50m
 
 interface CornWallProps {
   position: [number, number, number];
@@ -321,9 +322,46 @@ export const InstancedWalls = ({
   const cheapMeshRef = useRef<ThreeInstancedMesh | null>(null);
   const cheapMeshCountRef = useRef(0);
   
-  // Dynamic fog that retreats when player approaches outer corn
+  // Store references to edge meshes for distance culling
+  const edgeMeshesRef = useRef<ThreeInstancedMesh[]>([]);
+  const edgeTransformsRef = useRef<WallTransformData[]>([]);
+  
+  // Dynamic fog + distance culling
   useFrame(() => {
-    // When disabled, reset fog to default distant values and show all corn
+    const px = playerPositionRef?.current?.x ?? 0;
+    const pz = playerPositionRef?.current?.y ?? 0; // y is z in 2D coords
+    
+    // Edge corn distance culling (always runs)
+    if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
+      const transforms = edgeTransformsRef.current;
+      let needsUpdate = false;
+      
+      for (let i = 0; i < transforms.length; i++) {
+        const t = transforms[i];
+        const dx = px - t.centerX;
+        const dz = pz - t.centerZ;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        const shouldShow = dist < EDGE_CORN_CULL_DISTANCE;
+        
+        // Update all edge meshes (they share the same instance indices)
+        for (const mesh of edgeMeshesRef.current) {
+          if (shouldShow) {
+            mesh.setMatrixAt(i, t.matrix);
+          } else {
+            mesh.setMatrixAt(i, HIDDEN_MATRIX);
+          }
+        }
+        needsUpdate = true;
+      }
+      
+      if (needsUpdate) {
+        for (const mesh of edgeMeshesRef.current) {
+          mesh.instanceMatrix.needsUpdate = true;
+        }
+      }
+    }
+    
+    // When fog disabled, reset fog and show all cheap corn
     if (!optimizationSettings.enableDynamicFog) {
       if (scene.fog instanceof Fog) {
         scene.fog.near = 8;
@@ -336,9 +374,6 @@ export const InstancedWalls = ({
     }
     
     if (!playerPositionRef?.current || cheapCellCenters.length === 0) return;
-    
-    const px = playerPositionRef.current.x;
-    const pz = playerPositionRef.current.y; // y is z in 2D coords
     
     // Find minimum distance to any outer/boundary corn
     let minDist = Infinity;
@@ -437,6 +472,7 @@ export const InstancedWalls = ({
     const allMeshes: ThreeInstancedMesh[] = [];
     
     // EDGE CORN (adjacent to paths): Full GLTF materials
+    const edgeMeshes: ThreeInstancedMesh[] = [];
     if (edgeTransforms.length > 0) {
       meshDataList.forEach((meshData) => {
         const instancedMesh = new ThreeInstancedMesh(
@@ -458,7 +494,12 @@ export const InstancedWalls = ({
         
         edgeGroup.add(instancedMesh);
         allMeshes.push(instancedMesh);
+        edgeMeshes.push(instancedMesh);
       });
+      
+      // Store refs for distance culling
+      edgeMeshesRef.current = edgeMeshes;
+      edgeTransformsRef.current = edgeTransforms;
     }
     
     // OUTER + BOUNDARY CORN: Single cheap material (1 draw call)
@@ -501,6 +542,8 @@ export const InstancedWalls = ({
         }
       });
       cheapMeshRef.current = null;
+      edgeMeshesRef.current = [];
+      edgeTransformsRef.current = [];
       createdRef.current = false;
     };
   }, [meshDataList, firstGeometry, cheapMaterial, edgeTransforms, cheapTransforms]);
