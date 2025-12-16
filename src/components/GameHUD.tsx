@@ -9,8 +9,12 @@ interface GameHUDProps {
   abilityUsed: boolean;
   onUseAbility: () => void;
   onQuit: () => void;
-  debugNoDecorations?: boolean;
-  onToggleDecorations?: () => void;
+  debugNoRocks?: boolean;
+  debugNoGrass?: boolean;
+  debugNoCorn?: boolean;
+  onToggleRocks?: () => void;
+  onToggleGrass?: () => void;
+  onToggleCorn?: () => void;
 }
 
 export const GameHUD = ({
@@ -20,8 +24,12 @@ export const GameHUD = ({
   abilityUsed,
   onUseAbility,
   onQuit,
-  debugNoDecorations,
-  onToggleDecorations,
+  debugNoRocks,
+  debugNoGrass,
+  debugNoCorn,
+  onToggleRocks,
+  onToggleGrass,
+  onToggleCorn,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
 
@@ -79,15 +87,37 @@ export const GameHUD = ({
           >
             ✕ Quit
           </button>
-          {onToggleDecorations && (
+          {onToggleRocks && (
             <button
-              onClick={onToggleDecorations}
+              onClick={onToggleRocks}
               className={cn(
-                'bg-card/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg font-display text-xs transition-colors',
-                debugNoDecorations ? 'text-yellow-500' : 'text-muted-foreground'
+                'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                debugNoRocks ? 'text-red-500 line-through' : 'text-muted-foreground'
               )}
             >
-              {debugNoDecorations ? '🔧 Minimal' : '🌿 Full'}
+              🪨
+            </button>
+          )}
+          {onToggleGrass && (
+            <button
+              onClick={onToggleGrass}
+              className={cn(
+                'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                debugNoGrass ? 'text-red-500 line-through' : 'text-muted-foreground'
+              )}
+            >
+              🌿
+            </button>
+          )}
+          {onToggleCorn && (
+            <button
+              onClick={onToggleCorn}
+              className={cn(
+                'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                debugNoCorn ? 'text-red-500 line-through' : 'text-muted-foreground'
+              )}
+            >
+              🌽
             </button>
           )}
         </div>
