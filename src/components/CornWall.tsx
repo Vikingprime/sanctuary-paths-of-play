@@ -328,16 +328,24 @@ export const InstancedWalls = ({
   const edgeMeshesRef = useRef<ThreeInstancedMesh[]>([]);
   const edgeTransformsRef = useRef<WallTransformData[]>([]);
   
-  // Track original edge transform count
-  const edgeTransformCountRef = useRef(0);
+  // Track last update position to avoid updating every frame
+  const lastUpdatePosRef = useRef({ x: -999, z: -999 });
+  const UPDATE_THRESHOLD = 0.5; // Only update when player moves 0.5+ units
   
   // Dynamic fog + distance culling
   useFrame(() => {
     const px = playerPositionRef?.current?.x ?? 0;
     const pz = playerPositionRef?.current?.y ?? 0; // y is z in 2D coords
     
-    // Edge corn distance culling - reorder matrices and reduce count
-    if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
+    // Check if player moved enough to warrant update
+    const dx = px - lastUpdatePosRef.current.x;
+    const dz = pz - lastUpdatePosRef.current.z;
+    const movedDistance = Math.sqrt(dx * dx + dz * dz);
+    const needsUpdate = movedDistance > UPDATE_THRESHOLD;
+    
+    // Edge corn distance culling - only update when player moves significantly
+    if (needsUpdate && edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
+      lastUpdatePosRef.current = { x: px, z: pz };
       const transforms = edgeTransformsRef.current;
       
       if (optimizationSettings.enableEdgeCornCulling) {
@@ -345,12 +353,11 @@ export const InstancedWalls = ({
         let visibleCount = 0;
         for (let i = 0; i < transforms.length; i++) {
           const t = transforms[i];
-          const dx = px - t.centerX;
-          const dz = pz - t.centerZ;
-          const dist = Math.sqrt(dx * dx + dz * dz);
+          const tdx = px - t.centerX;
+          const tdz = pz - t.centerZ;
+          const dist = Math.sqrt(tdx * tdx + tdz * tdz);
           
           if (dist < EDGE_CORN_CULL_DISTANCE) {
-            // Move visible transform to front
             for (const mesh of edgeMeshesRef.current) {
               mesh.setMatrixAt(visibleCount, t.matrix);
             }
@@ -358,13 +365,12 @@ export const InstancedWalls = ({
           }
         }
         
-        // Update count to only visible instances
         for (const mesh of edgeMeshesRef.current) {
           mesh.count = visibleCount;
           mesh.instanceMatrix.needsUpdate = true;
         }
       } else {
-        // Culling disabled - restore all transforms
+        // Culling disabled - restore all transforms (only once when toggled)
         for (let i = 0; i < transforms.length; i++) {
           for (const mesh of edgeMeshesRef.current) {
             mesh.setMatrixAt(i, transforms[i].matrix);
