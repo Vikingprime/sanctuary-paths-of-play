@@ -323,9 +323,12 @@ export const InstancedWalls = ({
   
   // Dynamic fog that retreats when player approaches outer corn
   useFrame(() => {
-    // Skip if feature disabled
+    // When disabled, reset fog to default distant values and show all corn
     if (!optimizationSettings.enableDynamicFog) {
-      // Ensure cheap corn is always visible when fog disabled
+      if (scene.fog instanceof Fog) {
+        scene.fog.near = 8;
+        scene.fog.far = 25;
+      }
       if (cheapMeshRef.current && cheapMeshRef.current.count !== cheapMeshCountRef.current) {
         cheapMeshRef.current.count = cheapMeshCountRef.current;
       }
@@ -449,7 +452,7 @@ export const InstancedWalls = ({
         });
         
         instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = false;
+        instancedMesh.castShadow = true;  // Edge corn casts shadows
         instancedMesh.receiveShadow = true;
         instancedMesh.frustumCulled = true;
         
