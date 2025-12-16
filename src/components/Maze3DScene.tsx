@@ -433,45 +433,84 @@ const MazeWalls = ({ maze, playerStateRef, optimizationSettings }: {
   optimizationSettings?: CornOptimizationSettings;
 }) => {
   const { adjacentToPathWalls, depthOnlyWalls, boundaryWalls } = useMemo(() => {
-    const adjacentToPath: { x: number; z: number }[] = [];  // Cast shadows
-    const depthOnly: { x: number; z: number }[] = [];       // No shadows, just visual depth
-    const boundary: { x: number; z: number; offsetX: number; offsetZ: number }[] = [];
-    
     const maxX = maze.grid[0].length - 1;
     const maxZ = maze.grid.length - 1;
     
-    // Helper to check if a cell is a path (not a wall)
-    const isPath = (cellX: number, cellY: number) => {
+    // Start from paths - find all wall cells adjacent to paths
+    const pathAdjacentSet = new Set<string>();
+    
+    // Helper to check if a cell is a wall
+    const isWall = (cellX: number, cellY: number) => {
       if (cellX < 0 || cellX > maxX || cellY < 0 || cellY > maxZ) return false;
-      return !maze.grid[cellY][cellX].isWall;
+      return maze.grid[cellY][cellX].isWall;
     };
+    
+    // Find all path tiles and mark adjacent walls
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (!cell.isWall) {
+          // This is a path tile - check all 4 adjacent cells for walls
+          if (isWall(x - 1, y)) pathAdjacentSet.add(`${x - 1},${y}`);
+          if (isWall(x + 1, y)) pathAdjacentSet.add(`${x + 1},${y}`);
+          if (isWall(x, y - 1)) pathAdjacentSet.add(`${x},${y - 1}`);
+          if (isWall(x, y + 1)) pathAdjacentSet.add(`${x},${y + 1}`);
+        }
+      });
+    });
+    
+    // Now categorize all walls
+    const adjacentToPath: { x: number; z: number }[] = [];  // Cast shadows
+    const depthOnly: { x: number; z: number }[] = [];       // No shadows, just visual depth
+    const boundary: { x: number; z: number; offsetX: number; offsetZ: number }[] = [];
+    const boundaryAdjacentToPath: { x: number; z: number; offsetX: number; offsetZ: number }[] = [];
     
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
         if (cell.isWall) {
-          // Boundary walls = cells on the edge of the maze grid
-          if (x === 0 || x === maxX || y === 0 || y === maxZ) {
+          const isBoundary = x === 0 || x === maxX || y === 0 || y === maxZ;
+          const isAdjacentToPath = pathAdjacentSet.has(`${x},${y}`);
+          
+          if (isBoundary) {
+            // Boundary wall - calculate offsets
             let offsetX = 0;
             let offsetZ = 0;
             if (x === 0) offsetX = -1.5;
             if (x === maxX) offsetX = 1.5;
             if (y === 0) offsetZ = -1.5;
             if (y === maxZ) offsetZ = 1.5;
-            boundary.push({ x, z: y, offsetX, offsetZ });
-          } else {
-            // Check all 4 adjacent cells for path
-            const hasAdjacentPath = isPath(x-1, y) || isPath(x+1, y) || isPath(x, y-1) || isPath(x, y+1);
-            if (hasAdjacentPath) {
-              adjacentToPath.push({ x, z: y });
+            
+            if (isAdjacentToPath) {
+              boundaryAdjacentToPath.push({ x, z: y, offsetX, offsetZ });
             } else {
-              depthOnly.push({ x, z: y });
+              boundary.push({ x, z: y, offsetX, offsetZ });
             }
+          } else if (isAdjacentToPath) {
+            // Interior wall adjacent to a path
+            adjacentToPath.push({ x, z: y });
+          } else {
+            // Depth-only wall - not adjacent to any path
+            depthOnly.push({ x, z: y });
           }
         }
       });
     });
     
-    return { adjacentToPathWalls: adjacentToPath, depthOnlyWalls: depthOnly, boundaryWalls: boundary };
+    // Merge boundary walls that are adjacent to paths with regular adjacent walls
+    // They'll be rendered with shadows too
+    // Merge boundary walls adjacent to paths into the shadow-casting array
+    const allAdjacentToPath = [
+      ...adjacentToPath,
+      ...boundaryAdjacentToPath.map(b => ({ x: b.x, z: b.z }))
+    ];
+    
+    // All boundary walls still get depth rendering, but only the non-adjacent ones skip shadows
+    const allBoundary = [...boundary, ...boundaryAdjacentToPath];
+    
+    return { 
+      adjacentToPathWalls: allAdjacentToPath, 
+      depthOnlyWalls: depthOnly, 
+      boundaryWalls: allBoundary 
+    };
   }, [maze]);
 
   return (
