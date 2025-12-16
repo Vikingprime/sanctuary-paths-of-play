@@ -315,6 +315,10 @@ export const InstancedWalls = ({
     return centers;
   }, [noShadowPositions, boundaryPositions]);
   
+  // Store reference to cheap mesh for dynamic count updates
+  const cheapMeshRef = useRef<ThreeInstancedMesh | null>(null);
+  const cheapMeshCountRef = useRef(0);
+  
   // Dynamic fog that retreats when player approaches outer corn
   useFrame(() => {
     if (!playerPositionRef?.current || cheapCellCenters.length === 0) return;
@@ -331,7 +335,7 @@ export const InstancedWalls = ({
       if (dist < minDist) minDist = dist;
     }
     
-    // Lerp fog based on distance (retreat when within 10m)
+    // Lerp fog based on distance
     const t = Math.max(0, Math.min(1, (FOG_RETREAT_DISTANCE - minDist) / FOG_RETREAT_DISTANCE));
     const fogNear = FOG_NEAR_DEFAULT + (FOG_NEAR_CLOSE - FOG_NEAR_DEFAULT) * t;
     const fogFar = FOG_FAR_DEFAULT + (FOG_FAR_CLOSE - FOG_FAR_DEFAULT) * t;
@@ -342,9 +346,10 @@ export const InstancedWalls = ({
       scene.fog.far = fogFar;
     }
     
-    // Hide cheap corn when fog covers it (player far away)
-    if (cheapGroupRef.current) {
-      cheapGroupRef.current.visible = minDist < FOG_RETREAT_DISTANCE + 5;
+    // Hide cheap corn by setting instance count to 0 (truly prevents draw calls)
+    if (cheapMeshRef.current) {
+      const shouldShow = minDist < FOG_RETREAT_DISTANCE + 2;
+      cheapMeshRef.current.count = shouldShow ? cheapMeshCountRef.current : 0;
     }
   });
   
@@ -459,6 +464,10 @@ export const InstancedWalls = ({
       cheapMesh.receiveShadow = true;
       cheapMesh.frustumCulled = true;
       
+      // Store ref for dynamic count updates
+      cheapMeshRef.current = cheapMesh;
+      cheapMeshCountRef.current = cheapTransforms.length;
+      
       cheapGroup.add(cheapMesh);
       allMeshes.push(cheapMesh);
     }
@@ -477,6 +486,7 @@ export const InstancedWalls = ({
           mesh.dispose();
         }
       });
+      cheapMeshRef.current = null;
       createdRef.current = false;
     };
   }, [meshDataList, firstGeometry, cheapMaterial, edgeTransforms, cheapTransforms]);
