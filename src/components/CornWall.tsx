@@ -1,6 +1,7 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide } from 'three';
 import { useGLTF } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 
 interface CornWallProps {
   position: [number, number, number];
@@ -32,45 +33,69 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
 export interface CornOptimizationSettings {
   shadowRadius: number;
   cullDistance: number;
-  lodDistance: number;
-  farMaterialDistance: number;
+  lodDistance: number;  // Distance at which to switch to simple geometry
+  farMaterialDistance: number; // Distance at which to use cheap material (5m)
   enableShadowOptimization: boolean;
   enableDistanceCulling: boolean;
   enableLOD: boolean;
   enableFarMaterialOptimization: boolean;
-  maxInstances: number;
-  renderDistance: number;
 }
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   shadowRadius: 8,
   cullDistance: 20,
-  lodDistance: 8,
-  farMaterialDistance: 5,
+  lodDistance: 8,  // Switch to simple geo beyond 8 units
+  farMaterialDistance: 5, // Use cheap material beyond 5 meters
   enableShadowOptimization: true,
   enableDistanceCulling: true,
   enableLOD: true,
   enableFarMaterialOptimization: true,
-  maxInstances: 5000,
-  renderDistance: 30,
 };
 
-// Helper to optimize material for performance
+// Simple LOD geometry - single green box per stalk (1 draw call total)
+const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
+const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
+
+
+// Hidden matrix (scale 0) for hiding instances
+const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
+
+
+// Helper to optimize material for performance (fix transparency/overdraw issues)
 const optimizeMaterial = (material: Material): Material => {
   const mat = material as any;
-  if ('transparent' in mat) mat.transparent = false;
-  if ('alphaTest' in mat) mat.alphaTest = 0.5;
-  if ('depthWrite' in mat) mat.depthWrite = true;
-  if ('depthTest' in mat) mat.depthTest = true;
-  if ('side' in mat) mat.side = FrontSide;
+  
+  // CRITICAL: Disable transparency for opaque rendering - NO transparent=true allowed
+  if ('transparent' in mat) {
+    mat.transparent = false;
+  }
+  
+  // Use alphaTest instead of transparency for any alpha textures
+  if ('alphaTest' in mat) {
+    mat.alphaTest = 0.5;
+  }
+  
+  // CRITICAL: Ensure proper depth handling - must write depth
+  if ('depthWrite' in mat) {
+    mat.depthWrite = true;
+  }
+  if ('depthTest' in mat) {
+    mat.depthTest = true;
+  }
+  
+  // CRITICAL: Always use FrontSide to reduce overdraw - NO DoubleSide
+  if ('side' in mat) {
+    mat.side = FrontSide;
+  }
+  
   mat.needsUpdate = true;
   return material;
 };
 
 // Instanced walls using InstancedMesh
 interface InstancedWallsProps {
-  edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[];
-  noShadowPositions?: { x: number; z: number }[];
+  edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[];  // Edge stalks only
+  noShadowPositions?: { x: number; z: number }[];     // Full cell walls (no shadows)
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
   size?: [number, number, number];
   playerPositionRef?: React.MutableRefObject<{ x: number; y: number }>;
@@ -82,7 +107,7 @@ const ROWS = 3;
 const STALKS_PER_ROW = 3;
 const STALK_SPACING = 0.28;
 
-// Boundary walls
+// Boundary walls - reduced for performance
 const BOUNDARY_ROWS = 3;
 const BOUNDARY_STALKS_PER_ROW = 3;
 const BOUNDARY_SPACING = 0.35;
@@ -99,7 +124,7 @@ interface WallTransformData {
   centerZ: number;
 }
 
-// Generate transforms for edge stalks only
+// Generate transforms for edge stalks only (single row facing the path)
 const generateEdgeTransforms = (
   edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[],
   seedOffset: number = 0
@@ -112,13 +137,15 @@ const generateEdgeTransforms = (
     const centerX = wallPos.x + 0.5;
     const centerZ = wallPos.z + 0.5;
     
+    // For each edge direction, generate only the single row of stalks on that edge
     wallPos.edges.forEach((edge, edgeIdx) => {
       for (let col = 0; col < STALKS_PER_ROW; col++) {
         const stalkSeed = baseSeed + edgeIdx * 1000 + col;
         
+        // Position based on which edge
         let offsetX = 0;
         let offsetZ = 0;
-        const edgeOffset = (ROWS - 1) / 2 * STALK_SPACING;
+        const edgeOffset = (ROWS - 1) / 2 * STALK_SPACING; // Position at the edge of the cell
         const colOffset = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING;
         
         switch (edge) {
@@ -139,7 +166,11 @@ const generateEdgeTransforms = (
         const widthScale = baseScale * heightVariation * widthMultiplier;
         const heightScale = baseScale * heightVariation * heightMultiplier;
         
-        dummy.position.set(centerX + offsetX + jitterX, 0, centerZ + offsetZ + jitterZ);
+        dummy.position.set(
+          centerX + offsetX + jitterX,
+          0,
+          centerZ + offsetZ + jitterZ
+        );
         const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
         const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
@@ -183,7 +214,11 @@ const generateWallTransforms = (
         const widthScale = baseScale * heightVariation * widthMultiplier;
         const heightScale = baseScale * heightVariation * heightMultiplier;
         
-        dummy.position.set(centerX + offsetX + jitterX, 0, centerZ + offsetZ + jitterZ);
+        dummy.position.set(
+          centerX + offsetX + jitterX,
+          0,
+          centerZ + offsetZ + jitterZ
+        );
         const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
         const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
@@ -264,7 +299,7 @@ export const InstancedWalls = ({
   const createdRef = useRef(false);
   const { scene } = useGLTF('/models/Corn.glb');
   
-  // Extract mesh data from GLTF
+  // Extract mesh data from GLTF with optimized materials + sample color for cheap material
   const { meshDataList, firstGeometry, cheapMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
     let firstGeo: BufferGeometry | null = null;
@@ -275,10 +310,13 @@ export const InstancedWalls = ({
         const mesh = child as Mesh;
         const mat = mesh.material as any;
         
+        // Sample color from GLTF for cheap material
         if (!sampledColor && mat.color) {
           sampledColor = mat.color.clone();
+          console.log('[CornWall] Sampled GLTF color for cheap material:', sampledColor.getHexString());
         }
         
+        // Clone and optimize material (fix transparency/overdraw issues)
         const optimizedMaterial = Array.isArray(mesh.material) 
           ? mesh.material.map(m => optimizeMaterial(m.clone()))
           : optimizeMaterial(mesh.material.clone());
@@ -294,6 +332,7 @@ export const InstancedWalls = ({
       }
     });
     
+    // Create cheap material using sampled GLTF color
     const cheapMat = new MeshLambertMaterial({ 
       color: sampledColor || new Color(0.12, 0.25, 0.10),
       transparent: false,
@@ -309,29 +348,18 @@ export const InstancedWalls = ({
     };
   }, [scene]);
   
-  // Generate all transforms and cap by maxInstances (static, no per-frame updates)
+  // Generate transforms separately for edge vs non-edge corn
   const { edgeTransforms, cheapTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
-    
-    const maxInstances = optimizationSettings.maxInstances;
-    
-    // Cap edge corn to maxInstances
-    const edgeCapped = edge.slice(0, maxInstances);
-    const remainingBudget = Math.max(0, maxInstances - edgeCapped.length);
-    
-    // Combine outer + boundary for cheap material, cap to remaining budget
-    const cheapAll = [...outer, ...boundary];
-    const cheapCapped = cheapAll.slice(0, remainingBudget);
-    
     return { 
-      edgeTransforms: edgeCapped, 
-      cheapTransforms: cheapCapped 
+      edgeTransforms: edge, 
+      cheapTransforms: [...outer, ...boundary] 
     };
-  }, [edgePositions, noShadowPositions, boundaryPositions, optimizationSettings.maxInstances]);
+  }, [edgePositions, noShadowPositions, boundaryPositions]);
 
-  // Create instanced meshes (static, one-time setup)
+  // Create instanced meshes
   useEffect(() => {
     const edgeGroup = edgeGroupRef.current;
     const cheapGroup = cheapGroupRef.current;
@@ -340,7 +368,7 @@ export const InstancedWalls = ({
     createdRef.current = true;
     const allMeshes: ThreeInstancedMesh[] = [];
     
-    // EDGE CORN: Full GLTF materials
+    // EDGE CORN (adjacent to paths): Full GLTF materials
     if (edgeTransforms.length > 0) {
       meshDataList.forEach((meshData) => {
         const instancedMesh = new ThreeInstancedMesh(
@@ -365,7 +393,7 @@ export const InstancedWalls = ({
       });
     }
     
-    // CHEAP CORN: Single cheap material
+    // OUTER + BOUNDARY CORN: Single cheap material (1 draw call)
     if (cheapTransforms.length > 0) {
       const cheapMesh = new ThreeInstancedMesh(
         firstGeometry.clone(),
@@ -413,5 +441,3 @@ export const InstancedWalls = ({
     </>
   );
 };
-
-export default CornWall;
