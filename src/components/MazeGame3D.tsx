@@ -288,7 +288,8 @@ export const MazeGame3D = ({
           enableDistanceCulling: distanceCullEnabled,
           enableLOD: true,
           enableFarMaterialOptimization: true,
-          maxInstances: 3000, // Cap instances to limit draw calls
+          maxInstances: 3000,
+          renderDistance: 30, // Only render corn within 30m, fog hides beyond
         }}
       />
 

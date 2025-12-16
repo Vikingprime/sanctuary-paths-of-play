@@ -906,8 +906,8 @@ return (
       {/* Dark green background to hide sky through corn gaps */}
       <color attach="background" args={['#1a2810']} />
       
-      {/* Fog to fade distant corn to background color */}
-      <fog attach="fog" args={['#1a2810', 8, 25]} />
+      {/* Fog to fade distant corn to background color - extends to 35m to hide render cutoff at 30m */}
+      <fog attach="fog" args={['#1a2810', 15, 35]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} />
