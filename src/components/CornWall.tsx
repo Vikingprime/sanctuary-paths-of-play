@@ -3,13 +3,13 @@ import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, Bu
 import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 
-// Fog settings for hiding outer corn
-const FOG_RETREAT_DISTANCE = 1; // Player must be within 1m for fog to retreat
-const FOG_NEAR_DEFAULT = 2;      // Fog starts at 2m when far from outer corn
-const FOG_FAR_DEFAULT = 8;       // Fog ends at 8m when far (hides outer corn)
-const FOG_NEAR_CLOSE = 2;        // Fog starts at 2m when close to outer corn  
-const FOG_FAR_CLOSE = 25;        // Fog ends at 25m when close (shows more)
-const EDGE_CORN_CULL_DISTANCE = 2; // Very aggressive culling for testing
+// LOD distance tiers
+const LOD_FULL_QUALITY_DISTANCE = 15;  // Full GLTF materials within 15m
+const LOD_CHEAP_DISTANCE = 30;          // Cheap material 15-30m, hidden beyond 30m
+
+// Fog settings
+const FOG_NEAR = 8;
+const FOG_FAR = 30;  // Match the cull distance
 
 interface CornWallProps {
   position: [number, number, number];
@@ -323,6 +323,7 @@ export const InstancedWalls = ({
   // Store reference to cheap mesh for dynamic count updates
   const cheapMeshRef = useRef<ThreeInstancedMesh | null>(null);
   const cheapMeshCountRef = useRef(0);
+  const cheapTransformsRef = useRef<WallTransformData[]>([]);
   
   // Store references to edge meshes for distance culling
   const edgeMeshesRef = useRef<ThreeInstancedMesh[]>([]);
@@ -333,10 +334,16 @@ export const InstancedWalls = ({
   const lastCullingEnabledRef = useRef<boolean | null>(null);
   const UPDATE_THRESHOLD = 0.5;
   
-  // Dynamic fog + distance culling
+  // Dynamic LOD + fog
   useFrame(() => {
     const px = playerPositionRef?.current?.x ?? 0;
     const pz = playerPositionRef?.current?.y ?? 0;
+    
+    // Always set fog to match cull distance
+    if (scene.fog instanceof Fog) {
+      scene.fog.near = FOG_NEAR;
+      scene.fog.far = FOG_FAR;
+    }
     
     // Check if culling was just toggled off - restore all transforms
     if (lastCullingEnabledRef.current === true && !optimizationSettings.enableEdgeCornCulling) {
@@ -345,6 +352,7 @@ export const InstancedWalls = ({
         for (let i = 0; i < transforms.length; i++) {
           for (const mesh of edgeMeshesRef.current) {
             mesh.setMatrixAt(i, transforms[i].matrix);
+            mesh.visible = true;
           }
         }
         for (const mesh of edgeMeshesRef.current) {
@@ -352,28 +360,31 @@ export const InstancedWalls = ({
           mesh.instanceMatrix.needsUpdate = true;
         }
       }
+      // Restore cheap corn
+      if (cheapMeshRef.current) {
+        cheapMeshRef.current.visible = true;
+        cheapMeshRef.current.count = cheapMeshCountRef.current;
+      }
     }
     lastCullingEnabledRef.current = optimizationSettings.enableEdgeCornCulling;
     
-    // Skip processing if both features disabled
-    if (!optimizationSettings.enableEdgeCornCulling && !optimizationSettings.enableDynamicFog) {
-      return;
-    }
+    // Skip if culling disabled
+    if (!optimizationSettings.enableEdgeCornCulling) return;
     
-    // Check if player moved enough to warrant any update
+    // Check if player moved enough to warrant update
     const dx = px - lastUpdatePosRef.current.x;
     const dz = pz - lastUpdatePosRef.current.z;
     const movedDistance = dx * dx + dz * dz;
-    const needsUpdate = movedDistance > UPDATE_THRESHOLD * UPDATE_THRESHOLD;
-    
-    if (!needsUpdate) return;
+    if (movedDistance < UPDATE_THRESHOLD * UPDATE_THRESHOLD) return;
     lastUpdatePosRef.current = { x: px, z: pz };
     
-    // Edge corn culling
-    if (optimizationSettings.enableEdgeCornCulling && edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
+    const fullQualityDistSq = LOD_FULL_QUALITY_DISTANCE * LOD_FULL_QUALITY_DISTANCE;
+    const cheapDistSq = LOD_CHEAP_DISTANCE * LOD_CHEAP_DISTANCE;
+    
+    // TIER 1: Full quality edge corn (< 15m)
+    if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
       let visibleCount = 0;
-      const cullDistSq = EDGE_CORN_CULL_DISTANCE * EDGE_CORN_CULL_DISTANCE;
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
@@ -381,7 +392,7 @@ export const InstancedWalls = ({
         const tdz = pz - t.centerZ;
         const distSq = tdx * tdx + tdz * tdz;
         
-        if (distSq < cullDistSq) {
+        if (distSq < fullQualityDistSq) {
           for (const mesh of edgeMeshesRef.current) {
             mesh.setMatrixAt(visibleCount, t.matrix);
           }
@@ -391,25 +402,35 @@ export const InstancedWalls = ({
       
       for (const mesh of edgeMeshesRef.current) {
         mesh.count = visibleCount;
-        mesh.visible = visibleCount > 0; // Completely hide if no visible instances
+        mesh.visible = visibleCount > 0;
         mesh.instanceMatrix.needsUpdate = true;
       }
     }
     
-    // Also hide cheap corn when culling is enabled (it's all distant)
-    if (optimizationSettings.enableEdgeCornCulling && cheapMeshRef.current) {
-      cheapMeshRef.current.visible = false;
-      cheapMeshRef.current.count = 0;
-    } else if (cheapMeshRef.current && cheapMeshRef.current.count === 0) {
-      // Restore cheap corn when culling disabled
-      cheapMeshRef.current.visible = true;
-      cheapMeshRef.current.count = cheapMeshCountRef.current;
+    // TIER 2: Cheap corn (15-30m) - use the cheap mesh for mid-distance
+    if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
+      const transforms = cheapTransformsRef.current;
+      let visibleCount = 0;
+      
+      for (let i = 0; i < transforms.length; i++) {
+        const t = transforms[i];
+        const tdx = px - t.centerX;
+        const tdz = pz - t.centerZ;
+        const distSq = tdx * tdx + tdz * tdz;
+        
+        // Show cheap corn between 15m and 30m
+        if (distSq >= fullQualityDistSq && distSq < cheapDistSq) {
+          cheapMeshRef.current.setMatrixAt(visibleCount, t.matrix);
+          visibleCount++;
+        }
+      }
+      
+      cheapMeshRef.current.count = visibleCount;
+      cheapMeshRef.current.visible = visibleCount > 0;
+      cheapMeshRef.current.instanceMatrix.needsUpdate = true;
     }
     
-    // Fog update
-    if (optimizationSettings.enableDynamicFog && scene.fog instanceof Fog) {
-      scene.fog.far = 25;
-    }
+    // TIER 3: Beyond 30m is completely hidden (handled by not including in counts above)
   });
   
   // Extract mesh data from GLTF with optimized materials + sample color for cheap material
@@ -531,9 +552,10 @@ export const InstancedWalls = ({
       cheapMesh.receiveShadow = true;
       cheapMesh.frustumCulled = true;
       
-      // Store ref for dynamic count updates
+      // Store refs for dynamic LOD updates
       cheapMeshRef.current = cheapMesh;
       cheapMeshCountRef.current = cheapTransforms.length;
+      cheapTransformsRef.current = cheapTransforms;
       
       cheapGroup.add(cheapMesh);
       allMeshes.push(cheapMesh);
@@ -554,6 +576,7 @@ export const InstancedWalls = ({
         }
       });
       cheapMeshRef.current = null;
+      cheapTransformsRef.current = [];
       edgeMeshesRef.current = [];
       edgeTransformsRef.current = [];
       createdRef.current = false;
