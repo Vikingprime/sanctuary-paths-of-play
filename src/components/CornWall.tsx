@@ -332,95 +332,56 @@ export const InstancedWalls = ({
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
   const UPDATE_THRESHOLD = 0.5; // Only update when player moves 0.5+ units
   
-  // Dynamic fog + distance culling
+  // Dynamic fog + distance culling - SIMPLIFIED for stability testing
   useFrame(() => {
-    const px = playerPositionRef?.current?.x ?? 0;
-    const pz = playerPositionRef?.current?.y ?? 0; // y is z in 2D coords
-    
-    // Check if player moved enough to warrant update
-    const dx = px - lastUpdatePosRef.current.x;
-    const dz = pz - lastUpdatePosRef.current.z;
-    const movedDistance = Math.sqrt(dx * dx + dz * dz);
-    const needsUpdate = movedDistance > UPDATE_THRESHOLD;
-    
-    // Edge corn distance culling - only update when player moves significantly
-    if (needsUpdate && edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
-      lastUpdatePosRef.current = { x: px, z: pz };
-      const transforms = edgeTransformsRef.current;
-      
-      if (optimizationSettings.enableEdgeCornCulling) {
-        // Find visible transforms
-        let visibleCount = 0;
-        for (let i = 0; i < transforms.length; i++) {
-          const t = transforms[i];
-          const tdx = px - t.centerX;
-          const tdz = pz - t.centerZ;
-          const dist = Math.sqrt(tdx * tdx + tdz * tdz);
-          
-          if (dist < EDGE_CORN_CULL_DISTANCE) {
-            for (const mesh of edgeMeshesRef.current) {
-              mesh.setMatrixAt(visibleCount, t.matrix);
-            }
-            visibleCount++;
-          }
-        }
-        
-        for (const mesh of edgeMeshesRef.current) {
-          mesh.count = visibleCount;
-          mesh.instanceMatrix.needsUpdate = true;
-        }
-      } else {
-        // Culling disabled - restore all transforms (only once when toggled)
-        for (let i = 0; i < transforms.length; i++) {
-          for (const mesh of edgeMeshesRef.current) {
-            mesh.setMatrixAt(i, transforms[i].matrix);
-          }
-        }
-        for (const mesh of edgeMeshesRef.current) {
-          mesh.count = transforms.length;
-          mesh.instanceMatrix.needsUpdate = true;
-        }
-      }
-    }
-    
-    // When fog disabled, reset fog and show all cheap corn
-    if (!optimizationSettings.enableDynamicFog) {
-      if (scene.fog instanceof Fog) {
-        scene.fog.near = 8;
-        scene.fog.far = 25;
-      }
-      if (cheapMeshRef.current && cheapMeshRef.current.count !== cheapMeshCountRef.current) {
-        cheapMeshRef.current.count = cheapMeshCountRef.current;
-      }
+    // Skip all per-frame processing if both features disabled
+    if (!optimizationSettings.enableEdgeCornCulling && !optimizationSettings.enableDynamicFog) {
       return;
     }
     
-    if (!playerPositionRef?.current || cheapCellCenters.length === 0) return;
+    const px = playerPositionRef?.current?.x ?? 0;
+    const pz = playerPositionRef?.current?.y ?? 0;
     
-    // Find minimum distance to any outer/boundary corn
-    let minDist = Infinity;
-    for (const center of cheapCellCenters) {
-      const dx = px - center.x;
-      const dz = pz - center.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-      if (dist < minDist) minDist = dist;
+    // Check if player moved enough to warrant any update
+    const dx = px - lastUpdatePosRef.current.x;
+    const dz = pz - lastUpdatePosRef.current.z;
+    const movedDistance = dx * dx + dz * dz; // Skip sqrt for perf
+    const needsUpdate = movedDistance > UPDATE_THRESHOLD * UPDATE_THRESHOLD;
+    
+    if (!needsUpdate) return;
+    lastUpdatePosRef.current = { x: px, z: pz };
+    
+    // Edge corn culling
+    if (optimizationSettings.enableEdgeCornCulling && edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
+      const transforms = edgeTransformsRef.current;
+      let visibleCount = 0;
+      const cullDistSq = EDGE_CORN_CULL_DISTANCE * EDGE_CORN_CULL_DISTANCE;
+      
+      for (let i = 0; i < transforms.length; i++) {
+        const t = transforms[i];
+        const tdx = px - t.centerX;
+        const tdz = pz - t.centerZ;
+        const distSq = tdx * tdx + tdz * tdz;
+        
+        if (distSq < cullDistSq) {
+          for (const mesh of edgeMeshesRef.current) {
+            mesh.setMatrixAt(visibleCount, t.matrix);
+          }
+          visibleCount++;
+        }
+      }
+      
+      for (const mesh of edgeMeshesRef.current) {
+        mesh.count = visibleCount;
+        mesh.instanceMatrix.needsUpdate = true;
+      }
     }
     
-    // Lerp fog based on distance
-    const t = Math.max(0, Math.min(1, (FOG_RETREAT_DISTANCE - minDist) / FOG_RETREAT_DISTANCE));
-    const fogNear = FOG_NEAR_DEFAULT + (FOG_NEAR_CLOSE - FOG_NEAR_DEFAULT) * t;
-    const fogFar = FOG_FAR_DEFAULT + (FOG_FAR_CLOSE - FOG_FAR_DEFAULT) * t;
-    
-    // Update scene fog
-    if (scene.fog instanceof Fog) {
-      scene.fog.near = fogNear;
-      scene.fog.far = fogFar;
-    }
-    
-    // Hide cheap corn by setting instance count to 0 (truly prevents draw calls)
-    if (cheapMeshRef.current) {
-      const shouldShow = minDist < FOG_RETREAT_DISTANCE + 2;
-      cheapMeshRef.current.count = shouldShow ? cheapMeshCountRef.current : 0;
+    // Fog update (simplified - skip the expensive minDist calculation)
+    if (optimizationSettings.enableDynamicFog && scene.fog instanceof Fog) {
+      // Just use static fog values for now
+      scene.fog.near = 8;
+      scene.fog.far = 25;
     }
   });
   
