@@ -63,6 +63,8 @@ export const MazeGame3D = ({
   // Corn optimization settings
   const [shadowOptEnabled, setShadowOptEnabled] = useState(true);
   const [distanceCullEnabled, setDistanceCullEnabled] = useState(true);
+  const [lowPixelRatio, setLowPixelRatio] = useState(false);
+  const [rendererInfo, setRendererInfo] = useState({ drawCalls: 0, triangles: 0 });
   const isMovingRef = useRef(false);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
 
@@ -275,6 +277,8 @@ export const MazeGame3D = ({
         onCellInteraction={handleCellInteraction}
         isPaused={showMiniMap || isPreviewing}
         onSceneReady={() => setSceneReady(true)}
+        lowPixelRatio={lowPixelRatio}
+        onRendererInfo={setRendererInfo}
         cornOptimizationSettings={{
           shadowRadius: 8,
           cullDistance: 20,
@@ -309,6 +313,10 @@ export const MazeGame3D = ({
           distanceCullEnabled={distanceCullEnabled}
           onToggleShadowOpt={() => setShadowOptEnabled(prev => !prev)}
           onToggleDistanceCull={() => setDistanceCullEnabled(prev => !prev)}
+          lowPixelRatio={lowPixelRatio}
+          onTogglePixelRatio={() => setLowPixelRatio(prev => !prev)}
+          drawCalls={rendererInfo.drawCalls}
+          triangles={rendererInfo.triangles}
         />
       )}
 

@@ -19,6 +19,8 @@ interface Maze3DSceneProps {
   isPaused: boolean;
   onSceneReady?: () => void;
   cornOptimizationSettings?: CornOptimizationSettings;
+  lowPixelRatio?: boolean;
+  onRendererInfo?: (info: { drawCalls: number; triangles: number }) => void;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -951,6 +953,22 @@ return (
   );
 };
 
+// Component to track and report renderer info
+const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: { drawCalls: number; triangles: number }) => void }) => {
+  const { gl } = useThree();
+  
+  useFrame(() => {
+    if (onRendererInfo) {
+      onRendererInfo({
+        drawCalls: gl.info.render.calls,
+        triangles: gl.info.render.triangles,
+      });
+    }
+  });
+  
+  return null;
+};
+
 export const Maze3DCanvas = (props: Maze3DSceneProps) => {
   const [fps, setFps] = useState(0);
   
@@ -961,20 +979,22 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
       || window.innerWidth < 768;
   }, []);
   
-  // Cap pixel ratio on mobile for performance (max 1.5 instead of 2-3)
-  const pixelRatio = isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio;
+  // Pixel ratio: use low (0.5) if testing, otherwise auto-detect
+  const basePixelRatio = isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio;
+  const pixelRatio = props.lowPixelRatio ? 0.5 : basePixelRatio;
   
   return (
     <div className="w-full h-full">
       <FPSDisplay fps={fps} />
       <Canvas 
         shadows 
-        gl={{ logarithmicDepthBuffer: true, antialias: !isMobile }} 
+        gl={{ logarithmicDepthBuffer: true, antialias: !isMobile && !props.lowPixelRatio }} 
         dpr={pixelRatio}
       >
         <PerspectiveCamera makeDefault fov={60} near={0.5} far={100} />
         <Scene {...props} />
         <FPSTracker onFpsUpdate={setFps} />
+        <RendererInfoTracker onRendererInfo={props.onRendererInfo} />
       </Canvas>
     </div>
   );
