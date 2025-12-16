@@ -67,7 +67,7 @@ const mat = new ShaderMaterial({
         rockDark: { value: new Color('#705540') },
         // Fog uniforms
         fogColor: { value: new Color('#5a6b55') },  // Desaturated atmospheric
-        fogDensity: { value: 0.08 },
+        fogDensity: { value: 0.12 },
       },
       fog: true,
       vertexShader: `
@@ -921,7 +921,7 @@ return (
       <color attach="background" args={['#5a6b55']} />
       
       {/* Exponential fog for smoother atmospheric haze */}
-      <fogExp2 attach="fog" args={['#5a6b55', 0.08]} />
+      <fogExp2 attach="fog" args={['#5a6b55', 0.12]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} />
