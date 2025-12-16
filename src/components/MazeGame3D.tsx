@@ -60,9 +60,9 @@ export const MazeGame3D = ({
   const [abilityUsed, setAbilityUsed] = useState(false);
   const [collectedPowerUps, setCollectedPowerUps] = useState<Set<string>>(new Set());
   const [speedBoostActive, setSpeedBoostActive] = useState(false);
-  const [debugNoRocks, setDebugNoRocks] = useState(false);
-  const [debugNoGrass, setDebugNoGrass] = useState(false);
-  const [debugNoCorn, setDebugNoCorn] = useState(false);
+  // Corn optimization settings
+  const [shadowOptEnabled, setShadowOptEnabled] = useState(true);
+  const [distanceCullEnabled, setDistanceCullEnabled] = useState(true);
   const isMovingRef = useRef(false);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
 
@@ -275,9 +275,12 @@ export const MazeGame3D = ({
         onCellInteraction={handleCellInteraction}
         isPaused={showMiniMap || isPreviewing}
         onSceneReady={() => setSceneReady(true)}
-        debugNoRocks={debugNoRocks}
-        debugNoGrass={debugNoGrass}
-        debugNoCorn={debugNoCorn}
+        cornOptimizationSettings={{
+          shadowRadius: 8,
+          cullDistance: 20,
+          enableShadowOptimization: shadowOptEnabled,
+          enableDistanceCulling: distanceCullEnabled,
+        }}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -300,12 +303,10 @@ export const MazeGame3D = ({
           abilityUsed={abilityUsed}
           onUseAbility={useAbility}
           onQuit={onQuit}
-          debugNoRocks={debugNoRocks}
-          debugNoGrass={debugNoGrass}
-          debugNoCorn={debugNoCorn}
-          onToggleRocks={() => setDebugNoRocks(prev => !prev)}
-          onToggleGrass={() => setDebugNoGrass(prev => !prev)}
-          onToggleCorn={() => setDebugNoCorn(prev => !prev)}
+          shadowOptEnabled={shadowOptEnabled}
+          distanceCullEnabled={distanceCullEnabled}
+          onToggleShadowOpt={() => setShadowOptEnabled(prev => !prev)}
+          onToggleDistanceCull={() => setDistanceCullEnabled(prev => !prev)}
         />
       )}
 
