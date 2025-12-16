@@ -504,7 +504,7 @@ export const InstancedWalls = ({
         });
         
         instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = true;  // Edge corn casts shadows
+        instancedMesh.castShadow = false;  // Disabled for draw call testing
         instancedMesh.receiveShadow = true;
         instancedMesh.frustumCulled = true;
         
@@ -516,6 +516,8 @@ export const InstancedWalls = ({
       // Store refs for distance culling
       edgeMeshesRef.current = edgeMeshes;
       edgeTransformsRef.current = edgeTransforms;
+      
+      console.log('[CornWall] Edge meshes created:', edgeMeshes.length, 'with', edgeTransforms.length, 'instances each');
     }
     
     // OUTER + BOUNDARY CORN: Single cheap material (1 draw call)
