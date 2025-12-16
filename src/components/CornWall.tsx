@@ -9,7 +9,7 @@ const FOG_NEAR_DEFAULT = 2;      // Fog starts at 2m when far from outer corn
 const FOG_FAR_DEFAULT = 8;       // Fog ends at 8m when far (hides outer corn)
 const FOG_NEAR_CLOSE = 2;        // Fog starts at 2m when close to outer corn  
 const FOG_FAR_CLOSE = 25;        // Fog ends at 25m when close (shows more)
-const EDGE_CORN_CULL_DISTANCE = 50; // Hide edge corn beyond 50m
+const EDGE_CORN_CULL_DISTANCE = 1; // Hide edge corn beyond 1m (testing)
 
 interface CornWallProps {
   position: [number, number, number];
@@ -47,7 +47,8 @@ export interface CornOptimizationSettings {
   enableDistanceCulling: boolean;
   enableLOD: boolean;
   enableFarMaterialOptimization: boolean;
-  enableDynamicFog: boolean; // Toggle for retreating fog + cheap corn culling
+  enableDynamicFog: boolean;
+  enableEdgeCornCulling: boolean; // Toggle for edge corn distance culling
 }
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
@@ -59,7 +60,8 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   enableDistanceCulling: true,
   enableLOD: true,
   enableFarMaterialOptimization: true,
-  enableDynamicFog: true, // Enable by default
+  enableDynamicFog: true,
+  enableEdgeCornCulling: true,
 };
 
 // Simple LOD geometry - single green box per stalk (1 draw call total)
@@ -331,17 +333,22 @@ export const InstancedWalls = ({
     const px = playerPositionRef?.current?.x ?? 0;
     const pz = playerPositionRef?.current?.y ?? 0; // y is z in 2D coords
     
-    // Edge corn distance culling (always runs)
+    // Edge corn distance culling
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
       let needsUpdate = false;
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
-        const dx = px - t.centerX;
-        const dz = pz - t.centerZ;
-        const dist = Math.sqrt(dx * dx + dz * dz);
-        const shouldShow = dist < EDGE_CORN_CULL_DISTANCE;
+        
+        // If culling disabled, always show; otherwise check distance
+        let shouldShow = true;
+        if (optimizationSettings.enableEdgeCornCulling) {
+          const dx = px - t.centerX;
+          const dz = pz - t.centerZ;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          shouldShow = dist < EDGE_CORN_CULL_DISTANCE;
+        }
         
         // Update all edge meshes (they share the same instance indices)
         for (const mesh of edgeMeshesRef.current) {
