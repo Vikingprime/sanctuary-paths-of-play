@@ -432,19 +432,25 @@ const MazeWalls = ({ maze, playerPosition, optimizationSettings }: {
   playerPosition?: { x: number; z: number };
   optimizationSettings?: CornOptimizationSettings;
 }) => {
-  const { interiorWalls, boundaryWalls } = useMemo(() => {
-    const interior: { x: number; z: number }[] = [];
+  const { innerWalls, outerWalls, boundaryWalls } = useMemo(() => {
+    const inner: { x: number; z: number }[] = [];  // Adjacent to paths - cast shadows
+    const outer: { x: number; z: number }[] = [];  // Not adjacent to paths - no shadows
     const boundary: { x: number; z: number; offsetX: number; offsetZ: number }[] = [];
     
     const maxX = maze.grid[0].length - 1;
     const maxZ = maze.grid.length - 1;
+    
+    // Helper to check if a cell is a path (not a wall)
+    const isPath = (x: number, y: number) => {
+      if (x < 0 || x > maxX || y < 0 || y > maxZ) return false;
+      return !maze.grid[y][x].isWall;
+    };
     
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
         if (cell.isWall) {
           // Check if this is a boundary wall (on the edge of the maze)
           if (x === 0 || x === maxX || y === 0 || y === maxZ) {
-            // Calculate offset direction to push block far OUTSIDE the maze
             let offsetX = 0;
             let offsetZ = 0;
             if (x === 0) offsetX = -1.5;
@@ -453,18 +459,25 @@ const MazeWalls = ({ maze, playerPosition, optimizationSettings }: {
             if (y === maxZ) offsetZ = 1.5;
             boundary.push({ x, z: y, offsetX, offsetZ });
           } else {
-            interior.push({ x, z: y });
+            // Check if this wall is adjacent to any path (innermost layer)
+            const adjacentToPath = isPath(x-1, y) || isPath(x+1, y) || isPath(x, y-1) || isPath(x, y+1);
+            if (adjacentToPath) {
+              inner.push({ x, z: y });
+            } else {
+              outer.push({ x, z: y });
+            }
           }
         }
       });
     });
     
-    return { interiorWalls: interior, boundaryWalls: boundary };
+    return { innerWalls: inner, outerWalls: outer, boundaryWalls: boundary };
   }, [maze]);
 
   return (
     <InstancedWalls 
-      positions={interiorWalls} 
+      positions={innerWalls}
+      noShadowPositions={outerWalls}
       boundaryPositions={boundaryWalls}
       playerPosition={playerPosition}
       optimizationSettings={optimizationSettings}
