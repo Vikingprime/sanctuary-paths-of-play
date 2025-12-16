@@ -67,8 +67,7 @@ const mat = new ShaderMaterial({
         rockDark: { value: new Color('#705540') },
         // Fog uniforms
         fogColor: { value: new Color('#5a6b55') },  // Desaturated atmospheric
-        fogDensity: { value: 0.06 },
-        fogDensityOutside: { value: 0.15 },  // Higher fog outside path
+        fogDensity: { value: 0.08 },
       },
       fog: true,
       vertexShader: `
@@ -99,7 +98,6 @@ const mat = new ShaderMaterial({
         uniform vec3 rockDark;
         uniform vec3 fogColor;
         uniform float fogDensity;
-        uniform float fogDensityOutside;
         varying vec2 vUv;
         varying float vFogDepth;
         varying vec3 vWorldPos;
@@ -259,9 +257,8 @@ const mat = new ShaderMaterial({
           vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
 finalColor = mix(finalColor, mudColor, transition * 0.2);
           
-          // Apply exponential fog with higher density outside path
-          float effectiveFogDensity = mix(fogDensity, fogDensityOutside, wallMask);
-          float fogFactor = 1.0 - exp(-effectiveFogDensity * effectiveFogDensity * vFogDepth * vFogDepth);
+          // Apply exponential fog (matches FogExp2)
+          float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
           finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
           
           gl_FragColor = vec4(finalColor, 1.0);
@@ -924,7 +921,7 @@ return (
       <color attach="background" args={['#5a6b55']} />
       
       {/* Exponential fog for smoother atmospheric haze */}
-      <fogExp2 attach="fog" args={['#5a6b55', 0.06]} />
+      <fogExp2 attach="fog" args={['#5a6b55', 0.08]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} />
