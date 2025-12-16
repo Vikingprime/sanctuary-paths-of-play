@@ -7,9 +7,9 @@ import { useFrame, useThree } from '@react-three/fiber';
 const LOD_FULL_QUALITY_DISTANCE = 10;  // Full GLTF materials within 10m
 const LOD_CHEAP_DISTANCE = 15;          // Cheap material 10-15m, hidden beyond 15m
 
-// Fog settings - denser fog to fully hide cull edge
-const FOG_NEAR = 5;
-const FOG_FAR = 12;  // Fully opaque before cull distance (15m)
+// Fog settings - match ground shader
+const FOG_NEAR = 8;
+const FOG_FAR = 15;
 
 interface CornWallProps {
   position: [number, number, number];

@@ -67,8 +67,8 @@ const mat = new ShaderMaterial({
         rockDark: { value: new Color('#705540') },
         // Fog uniforms
         fogColor: { value: new Color('#1a2810') },
-        fogNear: { value: 5.0 },
-        fogFar: { value: 12.0 },
+        fogNear: { value: 8.0 },
+        fogFar: { value: 15.0 },
       },
       fog: true,
       vertexShader: `
