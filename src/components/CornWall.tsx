@@ -1,7 +1,6 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, Vector3 } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler } from 'three';
 import { useGLTF } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
 
 interface CornWallProps {
   position: [number, number, number];
@@ -31,8 +30,8 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
 
 // Optimization settings interface
 export interface CornOptimizationSettings {
-  shadowRadius: number;        // Only corn within this radius casts shadows
-  cullDistance: number;        // Hide corn beyond this distance
+  shadowRadius: number;
+  cullDistance: number;
   enableShadowOptimization: boolean;
   enableDistanceCulling: boolean;
 }
@@ -44,16 +43,17 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   enableDistanceCulling: true,
 };
 
-// Instanced walls using InstancedMesh for each mesh in the GLTF (2 draw calls)
+// Instanced walls using InstancedMesh
 interface InstancedWallsProps {
-  positions: { x: number; z: number }[];
+  positions: { x: number; z: number }[];              // Inner walls (adjacent to paths) - cast shadows
+  noShadowPositions?: { x: number; z: number }[];     // Outer walls (not adjacent to paths) - no shadows
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
   size?: [number, number, number];
   playerPosition?: { x: number; z: number };
   optimizationSettings?: CornOptimizationSettings;
 }
 
-// Density settings - full density for visual quality
+// Density settings
 const ROWS = 3;
 const STALKS_PER_ROW = 3;
 const STALK_SPACING = 0.28;
@@ -64,24 +64,151 @@ const BOUNDARY_STALKS_PER_ROW = 4;
 const BOUNDARY_SPACING = 0.30;
 const BOUNDARY_DEPTH = 2.0;
 
-// Extract mesh data from GLTF for instancing
 interface MeshData {
   geometry: BufferGeometry;
   material: Material | Material[];
 }
 
-interface StalkTransform {
-  matrix: Matrix4;
-  wallX: number;
-  wallZ: number;
-  isBoundary: boolean;
-}
+// Generate transforms for a set of wall positions
+const generateWallTransforms = (
+  positions: { x: number; z: number }[],
+  seedOffset: number = 0
+): Matrix4[] => {
+  const transforms: Matrix4[] = [];
+  const dummy = new Object3D();
+  
+  positions.forEach((wallPos) => {
+    const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset;
+    for (let row = 0; row < ROWS; row++) {
+      const rowOffset = (row % 2) * (STALK_SPACING / 2);
+      for (let col = 0; col < STALKS_PER_ROW; col++) {
+        const stalkSeed = baseSeed + row * 100 + col;
+        const offsetX = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING + rowOffset;
+        const offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
+        const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.03;
+        const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
+        const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
+        
+        const baseScale = 100;
+        const heightMultiplier = 1.8;
+        const widthMultiplier = 0.7;
+        const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
+        const widthScale = baseScale * heightVariation * widthMultiplier;
+        const heightScale = baseScale * heightVariation * heightMultiplier;
+        
+        dummy.position.set(
+          wallPos.x + 0.5 + offsetX + jitterX,
+          0,
+          wallPos.z + 0.5 + offsetZ + jitterZ
+        );
+        const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
+        const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
+        dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
+        dummy.scale.set(widthScale, widthScale, heightScale);
+        dummy.updateMatrix();
+        transforms.push(dummy.matrix.clone());
+      }
+    }
+  });
+  
+  return transforms;
+};
+
+// Generate transforms for boundary walls
+const generateBoundaryTransforms = (
+  boundaryPositions: { x: number; z: number; offsetX: number; offsetZ: number }[]
+): Matrix4[] => {
+  const transforms: Matrix4[] = [];
+  const dummy = new Object3D();
+  
+  boundaryPositions.forEach((wallPos) => {
+    const baseSeed = wallPos.x * 1000 + wallPos.z + 50000;
+    const dirX = wallPos.offsetX !== 0 ? Math.sign(wallPos.offsetX) : 0;
+    const dirZ = wallPos.offsetZ !== 0 ? Math.sign(wallPos.offsetZ) : 0;
+    
+    for (let row = 0; row < BOUNDARY_ROWS; row++) {
+      const rowOffset = (row % 2) * (BOUNDARY_SPACING / 2);
+      const depthOffset = (row / (BOUNDARY_ROWS - 1)) * BOUNDARY_DEPTH;
+      
+      for (let col = 0; col < BOUNDARY_STALKS_PER_ROW; col++) {
+        const stalkSeed = baseSeed + row * 100 + col;
+        const offsetX = (col - (BOUNDARY_STALKS_PER_ROW - 1) / 2) * BOUNDARY_SPACING + rowOffset;
+        const offsetZ = (col - (BOUNDARY_STALKS_PER_ROW - 1) / 2) * BOUNDARY_SPACING + rowOffset;
+        const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.03;
+        const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
+        const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
+        
+        let posX = wallPos.x + 0.5 + jitterX;
+        let posZ = wallPos.z + 0.5 + jitterZ;
+        
+        if (dirX !== 0) {
+          posX += dirX * depthOffset;
+          posZ += offsetZ;
+        } else {
+          posX += offsetX;
+          posZ += dirZ * depthOffset;
+        }
+        
+        const baseScale = 100;
+        const heightMultiplier = 1.8;
+        const widthMultiplier = 0.7;
+        const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
+        const widthScale = baseScale * heightVariation * widthMultiplier;
+        const heightScale = baseScale * heightVariation * heightMultiplier;
+        dummy.position.set(posX, 0, posZ);
+        const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
+        const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
+        dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
+        dummy.scale.set(widthScale, widthScale, heightScale);
+        dummy.updateMatrix();
+        transforms.push(dummy.matrix.clone());
+      }
+    }
+  });
+  
+  return transforms;
+};
+
+// Create instanced meshes from transforms
+const createInstancedMeshes = (
+  meshDataList: MeshData[],
+  transforms: Matrix4[],
+  castShadow: boolean,
+  group: Group
+): ThreeInstancedMesh[] => {
+  const meshes: ThreeInstancedMesh[] = [];
+  
+  if (transforms.length === 0) return meshes;
+  
+  meshDataList.forEach((meshData) => {
+    const instancedMesh = new ThreeInstancedMesh(
+      meshData.geometry.clone(),
+      Array.isArray(meshData.material)
+        ? meshData.material.map(m => m.clone())
+        : meshData.material.clone(),
+      transforms.length
+    );
+    
+    transforms.forEach((matrix, i) => {
+      instancedMesh.setMatrixAt(i, matrix);
+    });
+    
+    instancedMesh.instanceMatrix.needsUpdate = true;
+    instancedMesh.castShadow = castShadow;
+    instancedMesh.receiveShadow = true;
+    instancedMesh.frustumCulled = true;
+    
+    group.add(instancedMesh);
+    meshes.push(instancedMesh);
+  });
+  
+  return meshes;
+};
 
 export const InstancedWalls = ({ 
   positions, 
+  noShadowPositions = [],
   boundaryPositions = [], 
-  size = [0.6, 1, 0.6],
-  playerPosition,
   optimizationSettings = DEFAULT_CORN_SETTINGS,
 }: InstancedWallsProps) => {
   const shadowGroupRef = useRef<Group>(null);
@@ -89,11 +216,7 @@ export const InstancedWalls = ({
   const createdRef = useRef(false);
   const { scene } = useGLTF('/models/Corn.glb');
   
-  // Refs for instanced meshes so we can update visibility
-  const shadowMeshesRef = useRef<ThreeInstancedMesh[]>([]);
-  const noShadowMeshesRef = useRef<ThreeInstancedMesh[]>([]);
-  
-  // Extract all meshes from the GLTF model (preserves original materials)
+  // Extract mesh data from GLTF
   const meshDataList = useMemo(() => {
     const meshes: MeshData[] = [];
     scene.traverse((child) => {
@@ -110,176 +233,32 @@ export const InstancedWalls = ({
     return meshes;
   }, [scene]);
   
-  // Create stable key for positions
-  const positionsKey = useMemo(() => {
-    return JSON.stringify(positions) + JSON.stringify(boundaryPositions);
-  }, [positions, boundaryPositions]);
-  
-  // Generate all stalk transforms with wall position info
-  const stalkTransforms = useMemo(() => {
-    const transforms: StalkTransform[] = [];
-    const dummy = new Object3D();
+  // Generate transforms for each group
+  const { shadowTransforms, noShadowTransforms } = useMemo(() => {
+    // Inner walls (adjacent to paths) - these cast shadows
+    const shadow = generateWallTransforms(positions, 0);
     
-    // Regular interior walls
-    positions.forEach((wallPos) => {
-      const baseSeed = wallPos.x * 1000 + wallPos.z;
-      for (let row = 0; row < ROWS; row++) {
-        const rowOffset = (row % 2) * (STALK_SPACING / 2);
-        for (let col = 0; col < STALKS_PER_ROW; col++) {
-          const stalkSeed = baseSeed + row * 100 + col;
-          const offsetX = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING + rowOffset;
-          const offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
-          const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.03;
-          const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
-          const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
-          
-          const baseScale = 100;
-          const heightMultiplier = 1.8;
-          const widthMultiplier = 0.7;
-          const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
-          const widthScale = baseScale * heightVariation * widthMultiplier;
-          const heightScale = baseScale * heightVariation * heightMultiplier;
-          
-          dummy.position.set(
-            wallPos.x + 0.5 + offsetX + jitterX,
-            0,
-            wallPos.z + 0.5 + offsetZ + jitterZ
-          );
-          const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
-          const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
-          dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
-          dummy.scale.set(widthScale, widthScale, heightScale);
-          dummy.updateMatrix();
-          transforms.push({
-            matrix: dummy.matrix.clone(),
-            wallX: wallPos.x + 0.5,
-            wallZ: wallPos.z + 0.5,
-            isBoundary: false,
-          });
-        }
-      }
-    });
+    // Outer walls + boundary - these don't cast shadows
+    const noShadow = [
+      ...generateWallTransforms(noShadowPositions, 10000),
+      ...generateBoundaryTransforms(boundaryPositions)
+    ];
     
-    // Boundary walls - these are outer border, never cast shadows (optimization)
-    boundaryPositions.forEach((wallPos) => {
-      const baseSeed = wallPos.x * 1000 + wallPos.z + 50000;
-      const dirX = wallPos.offsetX !== 0 ? Math.sign(wallPos.offsetX) : 0;
-      const dirZ = wallPos.offsetZ !== 0 ? Math.sign(wallPos.offsetZ) : 0;
-      
-      for (let row = 0; row < BOUNDARY_ROWS; row++) {
-        const rowOffset = (row % 2) * (BOUNDARY_SPACING / 2);
-        const depthOffset = (row / (BOUNDARY_ROWS - 1)) * BOUNDARY_DEPTH;
-        
-        for (let col = 0; col < BOUNDARY_STALKS_PER_ROW; col++) {
-          const stalkSeed = baseSeed + row * 100 + col;
-          const offsetX = (col - (BOUNDARY_STALKS_PER_ROW - 1) / 2) * BOUNDARY_SPACING + rowOffset;
-          const offsetZ = (col - (BOUNDARY_STALKS_PER_ROW - 1) / 2) * BOUNDARY_SPACING + rowOffset;
-          const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.03;
-          const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
-          const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
-          
-          let posX = wallPos.x + 0.5 + jitterX;
-          let posZ = wallPos.z + 0.5 + jitterZ;
-          
-          if (dirX !== 0) {
-            posX += dirX * depthOffset;
-            posZ += offsetZ;
-          } else {
-            posX += offsetX;
-            posZ += dirZ * depthOffset;
-          }
-          
-          const baseScale = 100;
-          const heightMultiplier = 1.8;
-          const widthMultiplier = 0.7;
-          const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
-          const widthScale = baseScale * heightVariation * widthMultiplier;
-          const heightScale = baseScale * heightVariation * heightMultiplier;
-          dummy.position.set(posX, 0, posZ);
-          const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
-          const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
-          dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
-          dummy.scale.set(widthScale, widthScale, heightScale);
-          dummy.updateMatrix();
-          transforms.push({
-            matrix: dummy.matrix.clone(),
-            wallX: posX,
-            wallZ: posZ,
-            isBoundary: true,
-          });
-        }
-      }
-    });
-    
-    return transforms;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionsKey]);
-
-  // Split transforms into interior (can cast shadow) and boundary (never shadows)
-  const { interiorTransforms, boundaryTransformsList } = useMemo(() => {
-    const interior = stalkTransforms.filter(t => !t.isBoundary);
-    const boundary = stalkTransforms.filter(t => t.isBoundary);
-    return { interiorTransforms: interior, boundaryTransformsList: boundary };
-  }, [stalkTransforms]);
+    return { shadowTransforms: shadow, noShadowTransforms: noShadow };
+  }, [positions, noShadowPositions, boundaryPositions]);
 
   useEffect(() => {
     const shadowGroup = shadowGroupRef.current;
     const noShadowGroup = noShadowGroupRef.current;
-    if (!shadowGroup || !noShadowGroup || stalkTransforms.length === 0 || meshDataList.length === 0 || createdRef.current) return;
+    if (!shadowGroup || !noShadowGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     
-    // Create shadow-casting instances (interior corn only)
-    const shadowMeshes: ThreeInstancedMesh[] = [];
-    meshDataList.forEach((meshData) => {
-      const instancedMesh = new ThreeInstancedMesh(
-        meshData.geometry.clone(), 
-        Array.isArray(meshData.material) 
-          ? meshData.material.map(m => m.clone()) 
-          : meshData.material.clone(), 
-        interiorTransforms.length
-      );
-      
-      interiorTransforms.forEach((transform, i) => {
-        instancedMesh.setMatrixAt(i, transform.matrix);
-      });
-      
-      instancedMesh.instanceMatrix.needsUpdate = true;
-      instancedMesh.castShadow = true;
-      instancedMesh.receiveShadow = true;
-      instancedMesh.frustumCulled = true;
-      
-      shadowGroup.add(instancedMesh);
-      shadowMeshes.push(instancedMesh);
-    });
-    shadowMeshesRef.current = shadowMeshes;
+    // Create shadow-casting instances (inner walls only)
+    const shadowMeshes = createInstancedMeshes(meshDataList, shadowTransforms, true, shadowGroup);
     
-    // Create non-shadow instances (boundary corn)
-    const noShadowMeshes: ThreeInstancedMesh[] = [];
-    if (boundaryTransformsList.length > 0) {
-      meshDataList.forEach((meshData) => {
-        const instancedMesh = new ThreeInstancedMesh(
-          meshData.geometry.clone(), 
-          Array.isArray(meshData.material) 
-            ? meshData.material.map(m => m.clone()) 
-            : meshData.material.clone(), 
-          boundaryTransformsList.length
-        );
-        
-        boundaryTransformsList.forEach((transform, i) => {
-          instancedMesh.setMatrixAt(i, transform.matrix);
-        });
-        
-        instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = false; // No shadows for boundary
-        instancedMesh.receiveShadow = true;
-        instancedMesh.frustumCulled = true;
-        
-        noShadowGroup.add(instancedMesh);
-        noShadowMeshes.push(instancedMesh);
-      });
-    }
-    noShadowMeshesRef.current = noShadowMeshes;
+    // Create non-shadow instances (outer walls + boundary)
+    const noShadowMeshes = createInstancedMeshes(meshDataList, noShadowTransforms, false, noShadowGroup);
     
     return () => {
       [...shadowMeshes, ...noShadowMeshes].forEach(mesh => {
@@ -297,23 +276,9 @@ export const InstancedWalls = ({
       });
       createdRef.current = false;
     };
-  }, [stalkTransforms, meshDataList, interiorTransforms, boundaryTransformsList]);
+  }, [meshDataList, shadowTransforms, noShadowTransforms]);
 
-  // Dynamic shadow/visibility updates based on player position
-  useFrame(() => {
-    if (!playerPosition || !optimizationSettings.enableDistanceCulling) return;
-    
-    const cullDistSq = optimizationSettings.cullDistance * optimizationSettings.cullDistance;
-    
-    // Update visibility of boundary corn based on distance
-    noShadowMeshesRef.current.forEach(mesh => {
-      // Simple distance-based visibility - hide if player is far from maze center
-      // For now, boundary corn is always visible but doesn't cast shadows
-      mesh.visible = true;
-    });
-  });
-
-  if (stalkTransforms.length === 0) return null;
+  if (shadowTransforms.length === 0 && noShadowTransforms.length === 0) return null;
 
   return (
     <>
