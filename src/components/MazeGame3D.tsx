@@ -283,9 +283,11 @@ export const MazeGame3D = ({
           shadowRadius: 8,
           cullDistance: 20,
           lodDistance: 8,
+          farMaterialDistance: 5,
           enableShadowOptimization: shadowOptEnabled,
           enableDistanceCulling: distanceCullEnabled,
           enableLOD: true,
+          enableFarMaterialOptimization: true,
         }}
       />
 
