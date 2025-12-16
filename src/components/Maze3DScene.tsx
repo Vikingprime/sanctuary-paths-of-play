@@ -317,13 +317,17 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
   );
 };
 
-// 3D Grass tufts - memoized clones for performance
-const GrassTufts = ({ maze }: { maze: Maze }) => {
+// 3D Grass tufts - with distance culling for performance
+const GRASS_CULL_DISTANCE = 25; // Match corn culling distance
+
+const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: MutableRefObject<PlayerState> }) => {
   const grass231 = useGLTF('/models/Grass_231.glb');
   const grass232 = useGLTF('/models/Grass_232.glb');
+  const groupRef = useRef<any>(null);
+  const [visibleIndices, setVisibleIndices] = useState<number[]>([]);
   
-  // Pre-clone scenes once and memoize
-  const { tufts, clonedScenes } = useMemo(() => {
+  // Pre-calculate all grass positions once
+  const allGrassData = useMemo(() => {
     const positions: { x: number; z: number; scale: number; rotation: number; type: 1 | 2 }[] = [];
     const seededRandom = (seed: number) => {
       const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
@@ -384,8 +388,12 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
       }
     }
     
-    // Pre-clone all scenes once
-    const scenes = positions.map((tuft) => {
+    return positions;
+  }, [maze]);
+  
+  // Pre-clone all scenes once
+  const clonedScenes = useMemo(() => {
+    return allGrassData.map((tuft) => {
       const scene = (tuft.type === 1 ? grass231 : grass232).scene.clone();
       scene.position.set(tuft.x, 0, tuft.z);
       scene.rotation.set(0, tuft.rotation, 0);
@@ -393,21 +401,41 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
       scene.scale.set(s, s, s);
       return scene;
     });
+  }, [allGrassData, grass231, grass232]);
+  
+  // Update visible grass based on player distance
+  useFrame(() => {
+    const px = playerStateRef.current.x;
+    const pz = playerStateRef.current.y;
+    const cullDistSq = GRASS_CULL_DISTANCE * GRASS_CULL_DISTANCE;
     
-    return { tufts: positions, clonedScenes: scenes };
-  }, [maze, grass231, grass232]);
+    const visible: number[] = [];
+    for (let i = 0; i < allGrassData.length; i++) {
+      const dx = allGrassData[i].x - px;
+      const dz = allGrassData[i].z - pz;
+      if (dx * dx + dz * dz < cullDistSq) {
+        visible.push(i);
+      }
+    }
+    
+    // Only update state if changed significantly (avoid re-renders every frame)
+    if (visible.length !== visibleIndices.length || 
+        visible.some((v, idx) => visibleIndices[idx] !== v)) {
+      setVisibleIndices(visible);
+    }
+  });
   
   return (
-    <>
-      {clonedScenes.map((scene, i) => (
-        <primitive key={i} object={scene} />
+    <group ref={groupRef}>
+      {visibleIndices.map((i) => (
+        <primitive key={i} object={clonedScenes[i]} />
       ))}
-    </>
+    </group>
   );
 };
 
 // Ground with grass/path differentiation based on wall data
-const Ground = ({ maze, rocks }: { maze: Maze; rocks: RockPosition[] }) => {
+const Ground = ({ maze, rocks, playerStateRef }: { maze: Maze; rocks: RockPosition[]; playerStateRef: MutableRefObject<PlayerState> }) => {
   const width = maze.grid[0].length;
   const height = maze.grid.length;
   const planeWidth = width + 10;
@@ -438,7 +466,7 @@ const Ground = ({ maze, rocks }: { maze: Maze; rocks: RockPosition[] }) => {
       
       {/* 3D Props for visual depth */}
       <ScatteredRocks rocks={rocks} />
-      {/* <GrassTufts maze={maze} /> */}{/* Disabled - causes thousands of draw calls */}
+      <GrassTufts maze={maze} playerStateRef={playerStateRef} />
     </group>
   );
 };
@@ -924,7 +952,7 @@ return (
       <fogExp2 attach="fog" args={['#5a6b55', 0.08]} />
       
       {/* Ground */}
-      <Ground maze={maze} rocks={rocks} />
+      <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
       
       {/* Maze Walls (corn) with optimizations */}
       <MazeWalls 
