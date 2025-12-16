@@ -5,7 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 
 // LOD distance tiers
 const LOD_FULL_QUALITY_DISTANCE = 10;  // Full GLTF materials within 10m
-const LOD_CHEAP_DISTANCE = 25;          // Cheap material 10-25m, hidden beyond 25m (matches fog)
+const LOD_CHEAP_DISTANCE = 15;          // Cheap material 10-15m, hidden beyond 15m
 
 interface CornWallProps {
   position: [number, number, number];
