@@ -1,15 +1,11 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Fog } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide } from 'three';
 import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 
 // LOD distance tiers
 const LOD_FULL_QUALITY_DISTANCE = 10;  // Full GLTF materials within 10m
 const LOD_CHEAP_DISTANCE = 15;          // Cheap material 10-15m, hidden beyond 15m
-
-// Fog settings - atmospheric haze
-const FOG_NEAR = 10;
-const FOG_FAR = 18;
 
 interface CornWallProps {
   position: [number, number, number];
@@ -334,16 +330,10 @@ export const InstancedWalls = ({
   const lastCullingEnabledRef = useRef<boolean | null>(null);
   const UPDATE_THRESHOLD = 0.5;
   
-  // Distance culling + fog
+  // Distance culling (fog is now handled by scene's FogExp2)
   useFrame(() => {
     const px = playerPositionRef?.current?.x ?? 0;
     const pz = playerPositionRef?.current?.y ?? 0;
-    
-    // Set fog
-    if (scene.fog instanceof Fog) {
-      scene.fog.near = FOG_NEAR;
-      scene.fog.far = FOG_FAR;
-    }
     
     // Skip culling if disabled
     if (!optimizationSettings.enableEdgeCornCulling) return;

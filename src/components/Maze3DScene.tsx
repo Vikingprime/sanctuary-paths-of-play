@@ -66,9 +66,8 @@ const mat = new ShaderMaterial({
         rockMid: { value: new Color('#A08060') },
         rockDark: { value: new Color('#705540') },
         // Fog uniforms
-        fogColor: { value: new Color('#3a5a30') },  // Lighter, hazier green
-        fogNear: { value: 10.0 },
-        fogFar: { value: 18.0 },
+        fogColor: { value: new Color('#5a6b55') },  // Desaturated atmospheric
+        fogDensity: { value: 0.06 },
       },
       fog: true,
       vertexShader: `
@@ -98,8 +97,7 @@ const mat = new ShaderMaterial({
         uniform vec3 rockMid;
         uniform vec3 rockDark;
         uniform vec3 fogColor;
-        uniform float fogNear;
-        uniform float fogFar;
+        uniform float fogDensity;
         varying vec2 vUv;
         varying float vFogDepth;
         varying vec3 vWorldPos;
@@ -259,9 +257,9 @@ const mat = new ShaderMaterial({
           vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
 finalColor = mix(finalColor, mudColor, transition * 0.2);
           
-          // Apply fog
-          float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
-          finalColor = mix(finalColor, fogColor, fogFactor);
+          // Apply exponential fog (matches FogExp2)
+          float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+          finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
@@ -919,11 +917,11 @@ return (
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
       
-      {/* Atmospheric background to blend with fog */}
-      <color attach="background" args={['#3a5a30']} />
+      {/* Atmospheric background - desaturated to match fog */}
+      <color attach="background" args={['#5a6b55']} />
       
-      {/* Fog to fade distant corn - atmospheric haze */}
-      <fog attach="fog" args={['#3a5a30', 10, 18]} />
+      {/* Exponential fog for smoother atmospheric haze */}
+      <fogExp2 attach="fog" args={['#5a6b55', 0.06]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} />
