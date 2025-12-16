@@ -18,6 +18,7 @@ interface Maze3DSceneProps {
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
   onSceneReady?: () => void;
+  debugNoDecorations?: boolean;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -390,7 +391,7 @@ const GrassTufts = ({ maze }: { maze: Maze }) => {
 };
 
 // Ground with grass/path differentiation based on wall data
-const Ground = ({ maze, rocks }: { maze: Maze; rocks: RockPosition[] }) => {
+const Ground = ({ maze, rocks, debugNoDecorations }: { maze: Maze; rocks: RockPosition[]; debugNoDecorations?: boolean }) => {
   const width = maze.grid[0].length;
   const height = maze.grid.length;
   const planeWidth = width + 10;
@@ -419,9 +420,9 @@ const Ground = ({ maze, rocks }: { maze: Maze; rocks: RockPosition[] }) => {
         <shadowMaterial transparent opacity={0.4} />
       </mesh>
       
-      {/* 3D Props for visual depth */}
-      <ScatteredRocks rocks={rocks} />
-      <GrassTufts maze={maze} />
+      {/* 3D Props for visual depth - disabled in debug mode */}
+      {!debugNoDecorations && <ScatteredRocks rocks={rocks} />}
+      {!debugNoDecorations && <GrassTufts maze={maze} />}
     </group>
   );
 };
@@ -740,7 +741,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, speedBoostActive, onCellInteraction, isPaused, onSceneReady }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, speedBoostActive, onCellInteraction, isPaused, onSceneReady, debugNoDecorations }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -849,10 +850,10 @@ return (
       <fog attach="fog" args={['#1a2810', 8, 25]} />
       
       {/* Ground */}
-      <Ground maze={maze} rocks={rocks} />
+      <Ground maze={maze} rocks={rocks} debugNoDecorations={debugNoDecorations} />
       
-      {/* Maze Walls */}
-      <MazeWalls maze={maze} />
+      {/* Maze Walls (corn) - disabled in debug mode */}
+      {!debugNoDecorations && <MazeWalls maze={maze} />}
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (

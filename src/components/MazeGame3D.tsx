@@ -60,6 +60,7 @@ export const MazeGame3D = ({
   const [abilityUsed, setAbilityUsed] = useState(false);
   const [collectedPowerUps, setCollectedPowerUps] = useState<Set<string>>(new Set());
   const [speedBoostActive, setSpeedBoostActive] = useState(false);
+  const [debugNoDecorations, setDebugNoDecorations] = useState(false);
   const isMovingRef = useRef(false);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
 
@@ -272,6 +273,7 @@ export const MazeGame3D = ({
         onCellInteraction={handleCellInteraction}
         isPaused={showMiniMap || isPreviewing}
         onSceneReady={() => setSceneReady(true)}
+        debugNoDecorations={debugNoDecorations}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -294,6 +296,8 @@ export const MazeGame3D = ({
           abilityUsed={abilityUsed}
           onUseAbility={useAbility}
           onQuit={onQuit}
+          debugNoDecorations={debugNoDecorations}
+          onToggleDecorations={() => setDebugNoDecorations(prev => !prev)}
         />
       )}
 
