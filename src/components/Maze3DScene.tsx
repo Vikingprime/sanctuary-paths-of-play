@@ -427,9 +427,9 @@ const Ground = ({ maze, rocks }: { maze: Maze; rocks: RockPosition[] }) => {
   );
 };
 
-const MazeWalls = ({ maze, playerPosition, optimizationSettings }: { 
+const MazeWalls = ({ maze, playerStateRef, optimizationSettings }: { 
   maze: Maze; 
-  playerPosition?: { x: number; z: number };
+  playerStateRef?: React.MutableRefObject<{ x: number; y: number }>;
   optimizationSettings?: CornOptimizationSettings;
 }) => {
   const { innerWalls, outerWalls, boundaryWalls } = useMemo(() => {
@@ -479,7 +479,7 @@ const MazeWalls = ({ maze, playerPosition, optimizationSettings }: {
       positions={innerWalls}
       noShadowPositions={outerWalls}
       boundaryPositions={boundaryWalls}
-      playerPosition={playerPosition}
+      playerPositionRef={playerStateRef}
       optimizationSettings={optimizationSettings}
     />
   );
@@ -831,12 +831,6 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     }
   });
 
-  // Get current player position for corn optimizations
-  const playerPosition = useMemo(() => ({
-    x: playerStateRef.current.x,
-    z: playerStateRef.current.y
-  }), [playerStateRef]);
-
 return (
     <>
       {/* Lighting - 8am morning sunlight */}
@@ -885,7 +879,7 @@ return (
       {/* Maze Walls (corn) with optimizations */}
       <MazeWalls 
         maze={maze} 
-        playerPosition={playerPosition}
+        playerStateRef={playerStateRef}
         optimizationSettings={cornOptimizationSettings}
       />
       
