@@ -33,23 +33,25 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
 export interface CornOptimizationSettings {
   shadowRadius: number;
   cullDistance: number;
-  lodDistance: number;  // Distance at which to switch to simple geometry
-  farMaterialDistance: number; // Distance at which to use cheap material (5m)
+  lodDistance: number;
+  farMaterialDistance: number;
   enableShadowOptimization: boolean;
   enableDistanceCulling: boolean;
   enableLOD: boolean;
   enableFarMaterialOptimization: boolean;
+  maxInstances: number; // Cap total corn instances to limit draw calls
 }
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   shadowRadius: 8,
   cullDistance: 20,
-  lodDistance: 8,  // Switch to simple geo beyond 8 units
-  farMaterialDistance: 5, // Use cheap material beyond 5 meters
+  lodDistance: 8,
+  farMaterialDistance: 5,
   enableShadowOptimization: true,
   enableDistanceCulling: true,
   enableLOD: true,
   enableFarMaterialOptimization: true,
+  maxInstances: 5000, // Limit total instances (roughly ~1000 draw calls with 2 materials + cheap)
 };
 
 // Simple LOD geometry - single green box per stalk (1 draw call total)
@@ -348,16 +350,35 @@ export const InstancedWalls = ({
     };
   }, [scene]);
   
-  // Generate transforms separately for edge vs non-edge corn
+  // Generate transforms separately for edge vs non-edge corn, with instance cap
   const { edgeTransforms, cheapTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
+    
+    const maxInstances = optimizationSettings.maxInstances;
+    const totalInstances = edge.length + outer.length + boundary.length;
+    
+    // If over budget, prioritize edge corn (visible from path), then reduce cheap corn
+    if (totalInstances > maxInstances) {
+      const edgeCount = Math.min(edge.length, maxInstances);
+      const remainingBudget = maxInstances - edgeCount;
+      const cheapAll = [...outer, ...boundary];
+      const cheapCount = Math.min(cheapAll.length, remainingBudget);
+      
+      console.log(`[CornWall] Instance cap: ${maxInstances}, Total: ${totalInstances}, Edge: ${edgeCount}, Cheap: ${cheapCount}`);
+      
+      return { 
+        edgeTransforms: edge.slice(0, edgeCount), 
+        cheapTransforms: cheapAll.slice(0, cheapCount) 
+      };
+    }
+    
     return { 
       edgeTransforms: edge, 
       cheapTransforms: [...outer, ...boundary] 
     };
-  }, [edgePositions, noShadowPositions, boundaryPositions]);
+  }, [edgePositions, noShadowPositions, boundaryPositions, optimizationSettings.maxInstances]);
 
   // Create instanced meshes
   useEffect(() => {
