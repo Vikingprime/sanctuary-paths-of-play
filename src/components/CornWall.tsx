@@ -56,6 +56,18 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
 const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
 
+// Cheap material for far corn - single draw call, darker green to match corn
+const FAR_CORN_MATERIAL = new MeshLambertMaterial({ 
+  color: new Color(0.18, 0.38, 0.14),
+  transparent: false,
+  depthWrite: true,
+  depthTest: true,
+  side: FrontSide,
+});
+
+// Hidden matrix (scale 0) for hiding instances
+const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
+
 
 // Helper to optimize material for performance (fix transparency/overdraw issues)
 const optimizeMaterial = (material: Material, isNearCorn: boolean = true): Material => {
@@ -292,21 +304,23 @@ export const InstancedWalls = ({
   optimizationSettings = DEFAULT_CORN_SETTINGS,
 }: InstancedWallsProps) => {
   const shadowGroupRef = useRef<Group>(null);
-  const noShadowGroupRef = useRef<Group>(null);
-  const lodGroupRef = useRef<Group>(null);
+  const expensiveGroupRef = useRef<Group>(null);
+  const cheapGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene } = useGLTF('/models/Corn.glb');
   
-  // Store mesh refs for dynamic updates
-  const shadowMeshesRef = useRef<ThreeInstancedMesh[]>([]);
-  const noShadowMeshesRef = useRef<ThreeInstancedMesh[]>([]);
-  const lodMeshRef = useRef<ThreeInstancedMesh | null>(null);
+  // Store mesh refs for dynamic LOD updates
+  const expensiveMeshesRef = useRef<ThreeInstancedMesh[]>([]);
+  const cheapMeshRef = useRef<ThreeInstancedMesh | null>(null);
   
-  // Extract mesh data from GLTF with optimized materials (transparency fixes)
-  const meshDataList = useMemo(() => {
+  // Store original transforms for distance-based LOD
+  const allTransformsRef = useRef<WallTransformData[]>([]);
+  
+  // Extract mesh data from GLTF with optimized materials
+  const { meshDataList, firstGeometry } = useMemo(() => {
     const meshes: MeshData[] = [];
+    let firstGeo: BufferGeometry | null = null;
     
-    // Log material properties for debugging
     scene.traverse((child) => {
       if ((child as Mesh).isMesh) {
         const mesh = child as Mesh;
@@ -320,126 +334,90 @@ export const InstancedWalls = ({
         
         // Clone and optimize material (fix transparency/overdraw issues)
         const optimizedMaterial = Array.isArray(mesh.material) 
-          ? mesh.material.map(m => optimizeMaterial(m.clone(), false)) // FrontSide for all
+          ? mesh.material.map(m => optimizeMaterial(m.clone(), false))
           : optimizeMaterial(mesh.material.clone(), false);
         
         meshes.push({
           geometry: mesh.geometry.clone(),
           material: optimizedMaterial
         });
+        
+        if (!firstGeo) {
+          firstGeo = mesh.geometry.clone();
+        }
       }
     });
     
-    return meshes;
+    return { meshDataList: meshes, firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1) };
   }, [scene]);
   
-  // Generate transforms for each group
-  const { edgeTransforms, outerTransforms, boundaryTransformsData, allTransforms } = useMemo(() => {
+  // Generate ALL transforms (edge + outer + boundary)
+  const allTransforms = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
     const all = [...edge, ...outer, ...boundary];
-    return { edgeTransforms: edge, outerTransforms: outer, boundaryTransformsData: boundary, allTransforms: all };
+    return all;
   }, [edgePositions, noShadowPositions, boundaryPositions]);
 
-  // Create instanced meshes
+  // Create instanced meshes - BOTH expensive and cheap for ALL corn
   useEffect(() => {
-    const shadowGroup = shadowGroupRef.current;
-    const noShadowGroup = noShadowGroupRef.current;
-    const lodGroup = lodGroupRef.current;
-    if (!shadowGroup || !noShadowGroup || !lodGroup || meshDataList.length === 0 || createdRef.current) return;
+    const expensiveGroup = expensiveGroupRef.current;
+    const cheapGroup = cheapGroupRef.current;
+    if (!expensiveGroup || !cheapGroup || meshDataList.length === 0 || allTransforms.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
+    allTransformsRef.current = allTransforms;
     
-    // Edge stalks (adjacent to paths) - these CAST shadows
-    const shadowMeshes: ThreeInstancedMesh[] = [];
-    if (edgeTransforms.length > 0) {
-      meshDataList.forEach((meshData) => {
-        const instancedMesh = new ThreeInstancedMesh(
-          meshData.geometry.clone(),
-          Array.isArray(meshData.material)
-            ? meshData.material.map(m => m.clone())
-            : meshData.material.clone(),
-          edgeTransforms.length
-        );
-        
-        edgeTransforms.forEach((t, i) => {
-          instancedMesh.setMatrixAt(i, t.matrix);
-        });
-        
-        instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = true;
-        instancedMesh.receiveShadow = true;
-        instancedMesh.frustumCulled = true;
-        
-        shadowGroup.add(instancedMesh);
-        shadowMeshes.push(instancedMesh);
-      });
-    }
-    shadowMeshesRef.current = shadowMeshes;
-    
-    // Outer walls + boundary - same GLTF materials but NO shadows (optimization)
-    const allNoShadowTransforms = [...outerTransforms, ...boundaryTransformsData];
-    const noShadowMeshes: ThreeInstancedMesh[] = [];
-    if (allNoShadowTransforms.length > 0) {
-      meshDataList.forEach((meshData) => {
-        const instancedMesh = new ThreeInstancedMesh(
-          meshData.geometry.clone(),
-          Array.isArray(meshData.material)
-            ? meshData.material.map(m => m.clone())
-            : meshData.material.clone(),
-          allNoShadowTransforms.length
-        );
-        
-        allNoShadowTransforms.forEach((t, i) => {
-          instancedMesh.setMatrixAt(i, t.matrix);
-        });
-        
-        instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = false;
-        instancedMesh.receiveShadow = true;
-        instancedMesh.frustumCulled = true;
-        
-        noShadowGroup.add(instancedMesh);
-        noShadowMeshes.push(instancedMesh);
-      });
-    }
-    noShadowMeshesRef.current = noShadowMeshes;
-    
-    // LOD mesh - simple boxes for ALL corn (single draw call)
-    if (allTransforms.length > 0) {
-      const lodMesh = new ThreeInstancedMesh(
-        LOD_BOX_GEOMETRY,
-        LOD_BOX_MATERIAL,
+    // EXPENSIVE: Full GLTF materials for all corn (multiple draw calls per material)
+    const expensiveMeshes: ThreeInstancedMesh[] = [];
+    meshDataList.forEach((meshData) => {
+      const instancedMesh = new ThreeInstancedMesh(
+        meshData.geometry.clone(),
+        Array.isArray(meshData.material)
+          ? meshData.material.map(m => m.clone())
+          : meshData.material.clone(),
         allTransforms.length
       );
       
-      const lodDummy = new Object3D();
       allTransforms.forEach((t, i) => {
-        // Extract position from the transform matrix and create simple upright box
-        const pos = { x: 0, y: 0, z: 0 };
-        t.matrix.decompose(lodDummy.position, lodDummy.quaternion, lodDummy.scale);
-        lodDummy.position.y = 1.25; // Center the box vertically
-        lodDummy.quaternion.identity(); // Reset rotation for simple boxes
-        lodDummy.scale.set(1, 1, 1);
-        lodDummy.updateMatrix();
-        lodMesh.setMatrixAt(i, lodDummy.matrix);
+        instancedMesh.setMatrixAt(i, t.matrix);
       });
       
-      lodMesh.instanceMatrix.needsUpdate = true;
-      lodMesh.castShadow = false;
-      lodMesh.receiveShadow = false;
-      lodMesh.frustumCulled = true;
-      lodMesh.visible = false; // Start hidden, shown when far
+      instancedMesh.instanceMatrix.needsUpdate = true;
+      instancedMesh.castShadow = false; // Disable shadows for performance
+      instancedMesh.receiveShadow = true;
+      instancedMesh.frustumCulled = true;
       
-      lodGroup.add(lodMesh);
-      lodMeshRef.current = lodMesh;
-    }
+      expensiveGroup.add(instancedMesh);
+      expensiveMeshes.push(instancedMesh);
+    });
+    expensiveMeshesRef.current = expensiveMeshes;
+    
+    // CHEAP: Single material for all corn (1 draw call)
+    const cheapMesh = new ThreeInstancedMesh(
+      firstGeometry.clone(),
+      FAR_CORN_MATERIAL.clone(),
+      allTransforms.length
+    );
+    
+    // Start all cheap instances as hidden, expensive as visible
+    allTransforms.forEach((t, i) => {
+      cheapMesh.setMatrixAt(i, HIDDEN_MATRIX);
+    });
+    
+    cheapMesh.instanceMatrix.needsUpdate = true;
+    cheapMesh.castShadow = false;
+    cheapMesh.receiveShadow = true;
+    cheapMesh.frustumCulled = true;
+    
+    cheapGroup.add(cheapMesh);
+    cheapMeshRef.current = cheapMesh;
     
     return () => {
-      [...shadowMeshes, ...noShadowMeshes].forEach(mesh => {
+      expensiveMeshes.forEach(mesh => {
         const parent = mesh.parent;
-        if (parent && parent.children.includes(mesh)) {
+        if (parent) {
           parent.remove(mesh);
           mesh.geometry.dispose();
           if (Array.isArray(mesh.material)) {
@@ -450,72 +428,79 @@ export const InstancedWalls = ({
           mesh.dispose();
         }
       });
-      if (lodMeshRef.current) {
-        const parent = lodMeshRef.current.parent;
+      if (cheapMeshRef.current) {
+        const parent = cheapMeshRef.current.parent;
         if (parent) {
-          parent.remove(lodMeshRef.current);
+          parent.remove(cheapMeshRef.current);
         }
-        lodMeshRef.current.dispose();
+        cheapMeshRef.current.geometry.dispose();
+        (cheapMeshRef.current.material as Material).dispose();
+        cheapMeshRef.current.dispose();
       }
       createdRef.current = false;
     };
-  }, [meshDataList, edgeTransforms, outerTransforms, boundaryTransformsData, allTransforms]);
+  }, [meshDataList, firstGeometry, allTransforms]);
 
-  // Dynamic LOD and culling based on player position
+  // Dynamic distance-based LOD - switch between expensive/cheap per instance
   useFrame(() => {
     if (!playerPositionRef) return;
     
     const px = playerPositionRef.current.x;
     const pz = playerPositionRef.current.y;
-    const lodDist = optimizationSettings.lodDistance;
-    const cullDist = optimizationSettings.cullDistance;
+    const farDistance = optimizationSettings.farMaterialDistance;
     
-    // LOD switching - show simple geometry when far, detailed when close
-    if (optimizationSettings.enableLOD) {
-      const shadowGroup = shadowGroupRef.current;
-      const noShadowGroup = noShadowGroupRef.current;
-      const lodMesh = lodMeshRef.current;
-      
-      // Calculate distance to maze center (rough approximation)
-      const mazeCenterX = edgePositions.length > 0 
-        ? edgePositions.reduce((sum, p) => sum + p.x, 0) / edgePositions.length 
-        : 0;
-      const mazeCenterZ = edgePositions.length > 0 
-        ? edgePositions.reduce((sum, p) => sum + p.z, 0) / edgePositions.length 
-        : 0;
-      
-      // For now, use simple toggle: detailed when playing, always show detailed
-      // TODO: Could do per-chunk LOD switching for larger mazes
-      if (shadowGroup) shadowGroup.visible = true;
-      if (noShadowGroup) noShadowGroup.visible = true;
-      if (lodMesh) lodMesh.visible = false;
-    }
+    const transforms = allTransformsRef.current;
+    const expensiveMeshes = expensiveMeshesRef.current;
+    const cheapMesh = cheapMeshRef.current;
     
-    // Distance culling for boundary corn
-    if (optimizationSettings.enableDistanceCulling) {
-      const noShadowGroup = noShadowGroupRef.current;
-      if (noShadowGroup) {
-        noShadowGroup.visible = true; // Keep visible for now
+    if (transforms.length === 0 || expensiveMeshes.length === 0 || !cheapMesh) return;
+    
+    let needsExpensiveUpdate = false;
+    let needsCheapUpdate = false;
+    
+    // Check each instance and toggle visibility based on distance
+    for (let i = 0; i < transforms.length; i++) {
+      const t = transforms[i];
+      const dx = t.centerX - px;
+      const dz = t.centerZ - pz;
+      const distSq = dx * dx + dz * dz;
+      const farDistSq = farDistance * farDistance;
+      
+      if (distSq > farDistSq) {
+        // FAR: Show cheap, hide expensive
+        cheapMesh.setMatrixAt(i, t.matrix);
+        expensiveMeshes.forEach(mesh => {
+          mesh.setMatrixAt(i, HIDDEN_MATRIX);
+        });
+        needsExpensiveUpdate = true;
+        needsCheapUpdate = true;
+      } else {
+        // NEAR: Show expensive, hide cheap
+        cheapMesh.setMatrixAt(i, HIDDEN_MATRIX);
+        expensiveMeshes.forEach(mesh => {
+          mesh.setMatrixAt(i, t.matrix);
+        });
+        needsExpensiveUpdate = true;
+        needsCheapUpdate = true;
       }
     }
     
-    // Update shadow casting based on toggle
-    const shouldCastShadows = optimizationSettings.enableShadowOptimization;
-    shadowMeshesRef.current.forEach(mesh => {
-      mesh.castShadow = true;
-    });
-    noShadowMeshesRef.current.forEach(mesh => {
-      mesh.castShadow = !shouldCastShadows;
-    });
+    if (needsExpensiveUpdate) {
+      expensiveMeshes.forEach(mesh => {
+        mesh.instanceMatrix.needsUpdate = true;
+      });
+    }
+    if (needsCheapUpdate) {
+      cheapMesh.instanceMatrix.needsUpdate = true;
+    }
   });
 
-  if (edgeTransforms.length === 0 && outerTransforms.length === 0 && boundaryTransformsData.length === 0) return null;
+  if (allTransforms.length === 0) return null;
 
   return (
     <>
-      <group ref={shadowGroupRef} />
-      <group ref={noShadowGroupRef} />
-      <group ref={lodGroupRef} />
+      <group ref={expensiveGroupRef} />
+      <group ref={cheapGroupRef} />
     </>
   );
 };
