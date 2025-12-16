@@ -9,7 +9,7 @@ const FOG_NEAR_DEFAULT = 2;      // Fog starts at 2m when far from outer corn
 const FOG_FAR_DEFAULT = 8;       // Fog ends at 8m when far (hides outer corn)
 const FOG_NEAR_CLOSE = 2;        // Fog starts at 2m when close to outer corn  
 const FOG_FAR_CLOSE = 25;        // Fog ends at 25m when close (shows more)
-const EDGE_CORN_CULL_DISTANCE = 20; // Hide edge corn beyond 20m (fog hides it anyway)
+const EDGE_CORN_CULL_DISTANCE = 2; // Very aggressive culling for testing
 
 interface CornWallProps {
   position: [number, number, number];
