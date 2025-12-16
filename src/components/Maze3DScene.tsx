@@ -953,16 +953,21 @@ return (
   );
 };
 
-// Component to track and report renderer info
+// Component to track and report renderer info (throttled to avoid state churn)
 const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: { drawCalls: number; triangles: number }) => void }) => {
   const { gl } = useThree();
+  const lastUpdate = useRef(0);
   
   useFrame(() => {
     if (onRendererInfo) {
-      onRendererInfo({
-        drawCalls: gl.info.render.calls,
-        triangles: gl.info.render.triangles,
-      });
+      const now = performance.now();
+      if (now - lastUpdate.current > 500) { // Only update every 500ms
+        lastUpdate.current = now;
+        onRendererInfo({
+          drawCalls: gl.info.render.calls,
+          triangles: gl.info.render.triangles,
+        });
+      }
     }
   });
   
