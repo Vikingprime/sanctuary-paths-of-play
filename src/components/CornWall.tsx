@@ -56,14 +56,6 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
 const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
 
-// Cheap material for far corn - dark green to match GLTF corn stalks
-const FAR_CORN_MATERIAL = new MeshLambertMaterial({ 
-  color: new Color(0.15, 0.30, 0.12), // Darker green but still visible
-  transparent: false,
-  depthWrite: true,
-  depthTest: true,
-  side: FrontSide,
-});
 
 // Hidden matrix (scale 0) for hiding instances
 const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
@@ -315,20 +307,29 @@ export const InstancedWalls = ({
   // Store original transforms for distance-based LOD
   const allTransformsRef = useRef<WallTransformData[]>([]);
   
-  // Extract mesh data from GLTF with optimized materials
-  const { meshDataList, firstGeometry } = useMemo(() => {
+  // Extract mesh data from GLTF with optimized materials and sample color for cheap material
+  const { meshDataList, firstGeometry, cheapMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
     let firstGeo: BufferGeometry | null = null;
+    let sampledColor: Color | null = null;
     
     scene.traverse((child) => {
       if ((child as Mesh).isMesh) {
         const mesh = child as Mesh;
         const mat = mesh.material as any;
+        
+        // Extract color from first material for cheap LOD material
+        if (!sampledColor && mat.color) {
+          sampledColor = mat.color.clone();
+          console.log('[CornWall] Sampled GLTF color:', sampledColor.getHexString());
+        }
+        
         console.log('[CornWall] Original material:', {
           transparent: mat.transparent,
           alphaTest: mat.alphaTest,
           depthWrite: mat.depthWrite,
           side: mat.side,
+          color: mat.color ? mat.color.getHexString() : 'none',
         });
         
         // Clone and optimize material (fix transparency/overdraw issues)
@@ -347,7 +348,20 @@ export const InstancedWalls = ({
       }
     });
     
-    return { meshDataList: meshes, firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1) };
+    // Create cheap material using sampled GLTF color
+    const cheapMat = new MeshLambertMaterial({ 
+      color: sampledColor || new Color(0.12, 0.25, 0.10),
+      transparent: false,
+      depthWrite: true,
+      depthTest: true,
+      side: FrontSide,
+    });
+    
+    return { 
+      meshDataList: meshes, 
+      firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1),
+      cheapMaterial: cheapMat
+    };
   }, [scene]);
   
   // Generate ALL transforms (edge + outer + boundary)
@@ -393,10 +407,10 @@ export const InstancedWalls = ({
     });
     expensiveMeshesRef.current = expensiveMeshes;
     
-    // CHEAP: Single material for all corn (1 draw call)
+    // CHEAP: Single material using sampled GLTF color (1 draw call)
     const cheapMesh = new ThreeInstancedMesh(
       firstGeometry.clone(),
-      FAR_CORN_MATERIAL.clone(),
+      cheapMaterial.clone(),
       allTransforms.length
     );
     
@@ -438,7 +452,7 @@ export const InstancedWalls = ({
       }
       createdRef.current = false;
     };
-  }, [meshDataList, firstGeometry, allTransforms]);
+  }, [meshDataList, firstGeometry, cheapMaterial, allTransforms]);
 
   // Dynamic distance-based LOD - switch between expensive/cheap per instance
   useFrame(() => {
