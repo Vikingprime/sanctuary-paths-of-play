@@ -278,8 +278,10 @@ export const MazeGame3D = ({
         cornOptimizationSettings={{
           shadowRadius: 8,
           cullDistance: 20,
+          lodDistance: 8,
           enableShadowOptimization: shadowOptEnabled,
           enableDistanceCulling: distanceCullEnabled,
+          enableLOD: true,
         }}
       />
 
