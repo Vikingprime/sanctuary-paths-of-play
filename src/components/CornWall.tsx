@@ -228,7 +228,7 @@ export const InstancedWalls = ({
     
     createdRef.current = true;
     
-    // Create shadow-casting instances (inner walls)
+    // Inner walls (adjacent to paths) - these CAST shadows
     const shadowMeshes: ThreeInstancedMesh[] = [];
     if (innerTransforms.length > 0) {
       meshDataList.forEach((meshData) => {
@@ -245,7 +245,7 @@ export const InstancedWalls = ({
         });
         
         instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = true;
+        instancedMesh.castShadow = true;  // Inner walls cast shadows
         instancedMesh.receiveShadow = true;
         instancedMesh.frustumCulled = true;
         
@@ -255,7 +255,7 @@ export const InstancedWalls = ({
     }
     shadowMeshesRef.current = shadowMeshes;
     
-    // Create non-shadow instances (outer walls + boundary)
+    // Outer walls + boundary - these do NOT cast shadows (optimization)
     const allNoShadowTransforms = [...outerTransforms, ...boundaryTransformsData];
     const noShadowMeshes: ThreeInstancedMesh[] = [];
     if (allNoShadowTransforms.length > 0) {
@@ -273,7 +273,7 @@ export const InstancedWalls = ({
         });
         
         instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = false;
+        instancedMesh.castShadow = false;  // Outer walls don't cast shadows
         instancedMesh.receiveShadow = true;
         instancedMesh.frustumCulled = true;
         
