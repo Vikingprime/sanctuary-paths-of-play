@@ -4,7 +4,7 @@ import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 
 // Fog settings for hiding outer corn
-const FOG_RETREAT_DISTANCE = 5; // Player must be within 5m for fog to retreat
+const FOG_RETREAT_DISTANCE = 1; // Player must be within 1m for fog to retreat
 const FOG_NEAR_DEFAULT = 2;      // Fog starts at 2m when far from outer corn
 const FOG_FAR_DEFAULT = 8;       // Fog ends at 8m when far (hides outer corn)
 const FOG_NEAR_CLOSE = 2;        // Fog starts at 2m when close to outer corn  
