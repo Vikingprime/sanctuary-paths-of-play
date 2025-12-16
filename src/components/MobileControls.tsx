@@ -10,18 +10,19 @@ export const MobileControls = ({ onMoveStart, onMoveEnd }: MobileControlsProps) 
   const activeDirectionsRef = useRef<Set<'forward' | 'back' | 'left' | 'right'>>(new Set());
   const touchIdRef = useRef<number | null>(null);
   
-  const DEADZONE = 20; // Pixels of movement before registering direction
+  const DEADZONE_X = 60; // Larger deadzone for turning (left/right)
+  const DEADZONE_Y = 40; // Smaller deadzone for forward/back
 
   const updateDirections = useCallback((dx: number, dy: number) => {
     const newDirections = new Set<'forward' | 'back' | 'left' | 'right'>();
     
     // Forward/back based on Y delta (negative = drag up = forward)
-    if (dy < -DEADZONE) newDirections.add('forward');
-    if (dy > DEADZONE) newDirections.add('back');
+    if (dy < -DEADZONE_Y) newDirections.add('forward');
+    if (dy > DEADZONE_Y) newDirections.add('back');
     
-    // Left/right based on X delta
-    if (dx < -DEADZONE) newDirections.add('left');
-    if (dx > DEADZONE) newDirections.add('right');
+    // Left/right based on X delta - larger deadzone to prevent accidental turns
+    if (dx < -DEADZONE_X) newDirections.add('left');
+    if (dx > DEADZONE_X) newDirections.add('right');
     
     const prev = activeDirectionsRef.current;
     
