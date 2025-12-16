@@ -334,15 +334,67 @@ export const InstancedWalls = ({
   const lastCullingEnabledRef = useRef<boolean | null>(null);
   const UPDATE_THRESHOLD = 0.5;
   
-  // Simple fog-based culling - removed complex per-instance LOD that was causing disappearing corn
+  // Distance culling + fog
   useFrame(() => {
-    // Set fog to create visual falloff
+    const px = playerPositionRef?.current?.x ?? 0;
+    const pz = playerPositionRef?.current?.y ?? 0;
+    
+    // Set fog
     if (scene.fog instanceof Fog) {
       scene.fog.near = FOG_NEAR;
       scene.fog.far = FOG_FAR;
     }
-    // All corn meshes stay visible - fog handles the distance fadeout
-    // This is more stable than per-instance matrix manipulation
+    
+    // Skip culling if disabled
+    if (!optimizationSettings.enableEdgeCornCulling) return;
+    
+    // Throttle updates - only update when player moves significantly
+    const dx = px - lastUpdatePosRef.current.x;
+    const dz = pz - lastUpdatePosRef.current.z;
+    if (dx * dx + dz * dz < 0.25) return; // 0.5m threshold
+    lastUpdatePosRef.current = { x: px, z: pz };
+    
+    const cullDistSq = LOD_CHEAP_DISTANCE * LOD_CHEAP_DISTANCE;
+    
+    // Cull edge corn (GLTF) - re-pack visible instances
+    if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
+      const transforms = edgeTransformsRef.current;
+      let count = 0;
+      
+      for (let i = 0; i < transforms.length; i++) {
+        const t = transforms[i];
+        const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
+        if (distSq < cullDistSq) {
+          for (const mesh of edgeMeshesRef.current) {
+            mesh.setMatrixAt(count, t.matrix);
+          }
+          count++;
+        }
+      }
+      
+      for (const mesh of edgeMeshesRef.current) {
+        mesh.count = count;
+        mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+    
+    // Cull cheap corn (interior/boundary) - re-pack visible instances
+    if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
+      const transforms = cheapTransformsRef.current;
+      let count = 0;
+      
+      for (let i = 0; i < transforms.length; i++) {
+        const t = transforms[i];
+        const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
+        if (distSq < cullDistSq) {
+          cheapMeshRef.current.setMatrixAt(count, t.matrix);
+          count++;
+        }
+      }
+      
+      cheapMeshRef.current.count = count;
+      cheapMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
   });
   
   // Extract mesh data from GLTF with optimized materials + sample color for cheap material
