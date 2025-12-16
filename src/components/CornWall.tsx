@@ -1,6 +1,7 @@
 import { useRef, useMemo, useEffect } from 'react';
 import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler } from 'three';
 import { useGLTF } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 
 interface CornWallProps {
   position: [number, number, number];
@@ -38,18 +39,18 @@ export interface CornOptimizationSettings {
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   shadowRadius: 8,
-  cullDistance: 20,
+  cullDistance: 15,
   enableShadowOptimization: true,
   enableDistanceCulling: true,
 };
 
 // Instanced walls using InstancedMesh
 interface InstancedWallsProps {
-  positions: { x: number; z: number }[];              // Inner walls (adjacent to paths) - cast shadows
-  noShadowPositions?: { x: number; z: number }[];     // Outer walls (not adjacent to paths) - no shadows
+  positions: { x: number; z: number }[];              // Inner walls (adjacent to paths)
+  noShadowPositions?: { x: number; z: number }[];     // Outer walls (not adjacent to paths)
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
   size?: [number, number, number];
-  playerPosition?: { x: number; z: number };
+  playerPositionRef?: React.MutableRefObject<{ x: number; y: number }>;
   optimizationSettings?: CornOptimizationSettings;
 }
 
@@ -69,16 +70,25 @@ interface MeshData {
   material: Material | Material[];
 }
 
+interface WallTransformData {
+  matrix: Matrix4;
+  centerX: number;
+  centerZ: number;
+}
+
 // Generate transforms for a set of wall positions
 const generateWallTransforms = (
   positions: { x: number; z: number }[],
   seedOffset: number = 0
-): Matrix4[] => {
-  const transforms: Matrix4[] = [];
+): WallTransformData[] => {
+  const transforms: WallTransformData[] = [];
   const dummy = new Object3D();
   
   positions.forEach((wallPos) => {
     const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset;
+    const centerX = wallPos.x + 0.5;
+    const centerZ = wallPos.z + 0.5;
+    
     for (let row = 0; row < ROWS; row++) {
       const rowOffset = (row % 2) * (STALK_SPACING / 2);
       for (let col = 0; col < STALKS_PER_ROW; col++) {
@@ -97,16 +107,16 @@ const generateWallTransforms = (
         const heightScale = baseScale * heightVariation * heightMultiplier;
         
         dummy.position.set(
-          wallPos.x + 0.5 + offsetX + jitterX,
+          centerX + offsetX + jitterX,
           0,
-          wallPos.z + 0.5 + offsetZ + jitterZ
+          centerZ + offsetZ + jitterZ
         );
         const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
         const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
         dummy.scale.set(widthScale, widthScale, heightScale);
         dummy.updateMatrix();
-        transforms.push(dummy.matrix.clone());
+        transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ });
       }
     }
   });
@@ -117,8 +127,8 @@ const generateWallTransforms = (
 // Generate transforms for boundary walls
 const generateBoundaryTransforms = (
   boundaryPositions: { x: number; z: number; offsetX: number; offsetZ: number }[]
-): Matrix4[] => {
-  const transforms: Matrix4[] = [];
+): WallTransformData[] => {
+  const transforms: WallTransformData[] = [];
   const dummy = new Object3D();
   
   boundaryPositions.forEach((wallPos) => {
@@ -161,7 +171,7 @@ const generateBoundaryTransforms = (
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
         dummy.scale.set(widthScale, widthScale, heightScale);
         dummy.updateMatrix();
-        transforms.push(dummy.matrix.clone());
+        transforms.push({ matrix: dummy.matrix.clone(), centerX: posX, centerZ: posZ });
       }
     }
   });
@@ -169,52 +179,21 @@ const generateBoundaryTransforms = (
   return transforms;
 };
 
-// Create instanced meshes from transforms
-const createInstancedMeshes = (
-  meshDataList: MeshData[],
-  transforms: Matrix4[],
-  castShadow: boolean,
-  group: Group
-): ThreeInstancedMesh[] => {
-  const meshes: ThreeInstancedMesh[] = [];
-  
-  if (transforms.length === 0) return meshes;
-  
-  meshDataList.forEach((meshData) => {
-    const instancedMesh = new ThreeInstancedMesh(
-      meshData.geometry.clone(),
-      Array.isArray(meshData.material)
-        ? meshData.material.map(m => m.clone())
-        : meshData.material.clone(),
-      transforms.length
-    );
-    
-    transforms.forEach((matrix, i) => {
-      instancedMesh.setMatrixAt(i, matrix);
-    });
-    
-    instancedMesh.instanceMatrix.needsUpdate = true;
-    instancedMesh.castShadow = castShadow;
-    instancedMesh.receiveShadow = true;
-    instancedMesh.frustumCulled = true;
-    
-    group.add(instancedMesh);
-    meshes.push(instancedMesh);
-  });
-  
-  return meshes;
-};
-
 export const InstancedWalls = ({ 
   positions, 
   noShadowPositions = [],
   boundaryPositions = [], 
+  playerPositionRef,
   optimizationSettings = DEFAULT_CORN_SETTINGS,
 }: InstancedWallsProps) => {
   const shadowGroupRef = useRef<Group>(null);
   const noShadowGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene } = useGLTF('/models/Corn.glb');
+  
+  // Store mesh refs for dynamic updates
+  const shadowMeshesRef = useRef<ThreeInstancedMesh[]>([]);
+  const noShadowMeshesRef = useRef<ThreeInstancedMesh[]>([]);
   
   // Extract mesh data from GLTF
   const meshDataList = useMemo(() => {
@@ -234,19 +213,14 @@ export const InstancedWalls = ({
   }, [scene]);
   
   // Generate transforms for each group
-  const { shadowTransforms, noShadowTransforms } = useMemo(() => {
-    // Inner walls (adjacent to paths) - these cast shadows
-    const shadow = generateWallTransforms(positions, 0);
-    
-    // Outer walls + boundary - these don't cast shadows
-    const noShadow = [
-      ...generateWallTransforms(noShadowPositions, 10000),
-      ...generateBoundaryTransforms(boundaryPositions)
-    ];
-    
-    return { shadowTransforms: shadow, noShadowTransforms: noShadow };
+  const { innerTransforms, outerTransforms, boundaryTransformsData } = useMemo(() => {
+    const inner = generateWallTransforms(positions, 0);
+    const outer = generateWallTransforms(noShadowPositions, 10000);
+    const boundary = generateBoundaryTransforms(boundaryPositions);
+    return { innerTransforms: inner, outerTransforms: outer, boundaryTransformsData: boundary };
   }, [positions, noShadowPositions, boundaryPositions]);
 
+  // Create instanced meshes
   useEffect(() => {
     const shadowGroup = shadowGroupRef.current;
     const noShadowGroup = noShadowGroupRef.current;
@@ -254,11 +228,60 @@ export const InstancedWalls = ({
     
     createdRef.current = true;
     
-    // Create shadow-casting instances (inner walls only)
-    const shadowMeshes = createInstancedMeshes(meshDataList, shadowTransforms, true, shadowGroup);
+    // Create shadow-casting instances (inner walls)
+    const shadowMeshes: ThreeInstancedMesh[] = [];
+    if (innerTransforms.length > 0) {
+      meshDataList.forEach((meshData) => {
+        const instancedMesh = new ThreeInstancedMesh(
+          meshData.geometry.clone(),
+          Array.isArray(meshData.material)
+            ? meshData.material.map(m => m.clone())
+            : meshData.material.clone(),
+          innerTransforms.length
+        );
+        
+        innerTransforms.forEach((t, i) => {
+          instancedMesh.setMatrixAt(i, t.matrix);
+        });
+        
+        instancedMesh.instanceMatrix.needsUpdate = true;
+        instancedMesh.castShadow = true;
+        instancedMesh.receiveShadow = true;
+        instancedMesh.frustumCulled = true;
+        
+        shadowGroup.add(instancedMesh);
+        shadowMeshes.push(instancedMesh);
+      });
+    }
+    shadowMeshesRef.current = shadowMeshes;
     
     // Create non-shadow instances (outer walls + boundary)
-    const noShadowMeshes = createInstancedMeshes(meshDataList, noShadowTransforms, false, noShadowGroup);
+    const allNoShadowTransforms = [...outerTransforms, ...boundaryTransformsData];
+    const noShadowMeshes: ThreeInstancedMesh[] = [];
+    if (allNoShadowTransforms.length > 0) {
+      meshDataList.forEach((meshData) => {
+        const instancedMesh = new ThreeInstancedMesh(
+          meshData.geometry.clone(),
+          Array.isArray(meshData.material)
+            ? meshData.material.map(m => m.clone())
+            : meshData.material.clone(),
+          allNoShadowTransforms.length
+        );
+        
+        allNoShadowTransforms.forEach((t, i) => {
+          instancedMesh.setMatrixAt(i, t.matrix);
+        });
+        
+        instancedMesh.instanceMatrix.needsUpdate = true;
+        instancedMesh.castShadow = false;
+        instancedMesh.receiveShadow = true;
+        instancedMesh.frustumCulled = true;
+        
+        noShadowGroup.add(instancedMesh);
+        noShadowMeshes.push(instancedMesh);
+      });
+    }
+    noShadowMeshesRef.current = noShadowMeshes;
     
     return () => {
       [...shadowMeshes, ...noShadowMeshes].forEach(mesh => {
@@ -276,9 +299,52 @@ export const InstancedWalls = ({
       });
       createdRef.current = false;
     };
-  }, [meshDataList, shadowTransforms, noShadowTransforms]);
+  }, [meshDataList, innerTransforms, outerTransforms, boundaryTransformsData]);
 
-  if (shadowTransforms.length === 0 && noShadowTransforms.length === 0) return null;
+  // Dynamic updates based on settings
+  useFrame(() => {
+    // Update shadow casting based on toggle
+    const shouldCastShadows = optimizationSettings.enableShadowOptimization;
+    
+    // When shadow optimization is ON: inner walls cast shadows, outer don't
+    // When shadow optimization is OFF: ALL corn casts shadows (no optimization)
+    shadowMeshesRef.current.forEach(mesh => {
+      mesh.castShadow = true; // Inner walls always cast shadows
+    });
+    
+    noShadowMeshesRef.current.forEach(mesh => {
+      // If optimization is OFF, outer walls also cast shadows
+      mesh.castShadow = !shouldCastShadows;
+    });
+    
+    // Distance culling
+    if (playerPositionRef && optimizationSettings.enableDistanceCulling) {
+      const px = playerPositionRef.current.x;
+      const pz = playerPositionRef.current.y;
+      const cullDist = optimizationSettings.cullDistance;
+      const cullDistSq = cullDist * cullDist;
+      
+      // Hide no-shadow group if too far (rough approximation)
+      const noShadowGroup = noShadowGroupRef.current;
+      if (noShadowGroup) {
+        // Check approximate center of boundary corn
+        const mazeCenter = { x: positions[0]?.x ?? 0, z: positions[0]?.z ?? 0 };
+        const distToCenter = Math.sqrt(
+          (px - mazeCenter.x) ** 2 + (pz - mazeCenter.z) ** 2
+        );
+        // Only show boundary corn if within reasonable distance
+        noShadowGroup.visible = distToCenter < cullDist * 2;
+      }
+    } else {
+      // Distance culling OFF - show everything
+      const noShadowGroup = noShadowGroupRef.current;
+      if (noShadowGroup) {
+        noShadowGroup.visible = true;
+      }
+    }
+  });
+
+  if (innerTransforms.length === 0 && outerTransforms.length === 0 && boundaryTransformsData.length === 0) return null;
 
   return (
     <>
