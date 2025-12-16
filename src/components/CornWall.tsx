@@ -328,41 +328,50 @@ export const InstancedWalls = ({
   const edgeMeshesRef = useRef<ThreeInstancedMesh[]>([]);
   const edgeTransformsRef = useRef<WallTransformData[]>([]);
   
+  // Track original edge transform count
+  const edgeTransformCountRef = useRef(0);
+  
   // Dynamic fog + distance culling
   useFrame(() => {
     const px = playerPositionRef?.current?.x ?? 0;
     const pz = playerPositionRef?.current?.y ?? 0; // y is z in 2D coords
     
-    // Edge corn distance culling
+    // Edge corn distance culling - reorder matrices and reduce count
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
-      let needsUpdate = false;
       
-      for (let i = 0; i < transforms.length; i++) {
-        const t = transforms[i];
-        
-        // If culling disabled, always show; otherwise check distance
-        let shouldShow = true;
-        if (optimizationSettings.enableEdgeCornCulling) {
+      if (optimizationSettings.enableEdgeCornCulling) {
+        // Find visible transforms
+        let visibleCount = 0;
+        for (let i = 0; i < transforms.length; i++) {
+          const t = transforms[i];
           const dx = px - t.centerX;
           const dz = pz - t.centerZ;
           const dist = Math.sqrt(dx * dx + dz * dz);
-          shouldShow = dist < EDGE_CORN_CULL_DISTANCE;
-        }
-        
-        // Update all edge meshes (they share the same instance indices)
-        for (const mesh of edgeMeshesRef.current) {
-          if (shouldShow) {
-            mesh.setMatrixAt(i, t.matrix);
-          } else {
-            mesh.setMatrixAt(i, HIDDEN_MATRIX);
+          
+          if (dist < EDGE_CORN_CULL_DISTANCE) {
+            // Move visible transform to front
+            for (const mesh of edgeMeshesRef.current) {
+              mesh.setMatrixAt(visibleCount, t.matrix);
+            }
+            visibleCount++;
           }
         }
-        needsUpdate = true;
-      }
-      
-      if (needsUpdate) {
+        
+        // Update count to only visible instances
         for (const mesh of edgeMeshesRef.current) {
+          mesh.count = visibleCount;
+          mesh.instanceMatrix.needsUpdate = true;
+        }
+      } else {
+        // Culling disabled - restore all transforms
+        for (let i = 0; i < transforms.length; i++) {
+          for (const mesh of edgeMeshesRef.current) {
+            mesh.setMatrixAt(i, transforms[i].matrix);
+          }
+        }
+        for (const mesh of edgeMeshesRef.current) {
+          mesh.count = transforms.length;
           mesh.instanceMatrix.needsUpdate = true;
         }
       }
