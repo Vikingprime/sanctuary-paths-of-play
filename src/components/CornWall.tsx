@@ -294,35 +294,18 @@ export const InstancedWalls = ({
   playerPositionRef,
   optimizationSettings = DEFAULT_CORN_SETTINGS,
 }: InstancedWallsProps) => {
-  const shadowGroupRef = useRef<Group>(null);
-  const expensiveGroupRef = useRef<Group>(null);
-  const cheapGroupRef = useRef<Group>(null);
+  const cornGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene } = useGLTF('/models/Corn.glb');
   
-  // Store mesh refs for dynamic LOD updates
-  const expensiveMeshesRef = useRef<ThreeInstancedMesh[]>([]);
-  const cheapMeshRef = useRef<ThreeInstancedMesh | null>(null);
-  
-  // Store original transforms for distance-based LOD
-  const allTransformsRef = useRef<WallTransformData[]>([]);
-  
-  // Extract mesh data from GLTF with optimized materials and sample color for cheap material
-  const { meshDataList, firstGeometry, cheapMaterial } = useMemo(() => {
+  // Extract mesh data from GLTF with optimized materials
+  const meshDataList = useMemo(() => {
     const meshes: MeshData[] = [];
-    let firstGeo: BufferGeometry | null = null;
-    let sampledColor: Color | null = null;
     
     scene.traverse((child) => {
       if ((child as Mesh).isMesh) {
         const mesh = child as Mesh;
         const mat = mesh.material as any;
-        
-        // Extract color from first material for cheap LOD material
-        if (!sampledColor && mat.color) {
-          sampledColor = mat.color.clone();
-          console.log('[CornWall] Sampled GLTF color:', sampledColor.getHexString());
-        }
         
         console.log('[CornWall] Original material:', {
           transparent: mat.transparent,
@@ -341,49 +324,28 @@ export const InstancedWalls = ({
           geometry: mesh.geometry.clone(),
           material: optimizedMaterial
         });
-        
-        if (!firstGeo) {
-          firstGeo = mesh.geometry.clone();
-        }
       }
     });
     
-    // Create cheap material using sampled GLTF color
-    const cheapMat = new MeshLambertMaterial({ 
-      color: sampledColor || new Color(0.12, 0.25, 0.10),
-      transparent: false,
-      depthWrite: true,
-      depthTest: true,
-      side: FrontSide,
-    });
-    
-    return { 
-      meshDataList: meshes, 
-      firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1),
-      cheapMaterial: cheapMat
-    };
+    return meshes;
   }, [scene]);
   
-  // Generate ALL transforms (edge + outer + boundary)
+  // Generate ALL transforms
   const allTransforms = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
-    const all = [...edge, ...outer, ...boundary];
-    return all;
+    return [...edge, ...outer, ...boundary];
   }, [edgePositions, noShadowPositions, boundaryPositions]);
 
-  // Create instanced meshes - BOTH expensive and cheap for ALL corn
+  // Create instanced meshes - all corn uses optimized GLTF materials
   useEffect(() => {
-    const expensiveGroup = expensiveGroupRef.current;
-    const cheapGroup = cheapGroupRef.current;
-    if (!expensiveGroup || !cheapGroup || meshDataList.length === 0 || allTransforms.length === 0 || createdRef.current) return;
+    const cornGroup = cornGroupRef.current;
+    if (!cornGroup || meshDataList.length === 0 || allTransforms.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
-    allTransformsRef.current = allTransforms;
     
-    // EXPENSIVE: Full GLTF materials for all corn (multiple draw calls per material)
-    const expensiveMeshes: ThreeInstancedMesh[] = [];
+    const meshes: ThreeInstancedMesh[] = [];
     meshDataList.forEach((meshData) => {
       const instancedMesh = new ThreeInstancedMesh(
         meshData.geometry.clone(),
@@ -398,37 +360,16 @@ export const InstancedWalls = ({
       });
       
       instancedMesh.instanceMatrix.needsUpdate = true;
-      instancedMesh.castShadow = false; // Disable shadows for performance
+      instancedMesh.castShadow = false;
       instancedMesh.receiveShadow = true;
       instancedMesh.frustumCulled = true;
       
-      expensiveGroup.add(instancedMesh);
-      expensiveMeshes.push(instancedMesh);
+      cornGroup.add(instancedMesh);
+      meshes.push(instancedMesh);
     });
-    expensiveMeshesRef.current = expensiveMeshes;
-    
-    // CHEAP: Single material using sampled GLTF color (1 draw call)
-    const cheapMesh = new ThreeInstancedMesh(
-      firstGeometry.clone(),
-      cheapMaterial.clone(),
-      allTransforms.length
-    );
-    
-    // Start all cheap instances as hidden, expensive as visible
-    allTransforms.forEach((t, i) => {
-      cheapMesh.setMatrixAt(i, HIDDEN_MATRIX);
-    });
-    
-    cheapMesh.instanceMatrix.needsUpdate = true;
-    cheapMesh.castShadow = false;
-    cheapMesh.receiveShadow = true;
-    cheapMesh.frustumCulled = true;
-    
-    cheapGroup.add(cheapMesh);
-    cheapMeshRef.current = cheapMesh;
     
     return () => {
-      expensiveMeshes.forEach(mesh => {
+      meshes.forEach(mesh => {
         const parent = mesh.parent;
         if (parent) {
           parent.remove(mesh);
@@ -441,78 +382,11 @@ export const InstancedWalls = ({
           mesh.dispose();
         }
       });
-      if (cheapMeshRef.current) {
-        const parent = cheapMeshRef.current.parent;
-        if (parent) {
-          parent.remove(cheapMeshRef.current);
-        }
-        cheapMeshRef.current.geometry.dispose();
-        (cheapMeshRef.current.material as Material).dispose();
-        cheapMeshRef.current.dispose();
-      }
       createdRef.current = false;
     };
-  }, [meshDataList, firstGeometry, cheapMaterial, allTransforms]);
-
-  // Dynamic distance-based LOD - switch between expensive/cheap per instance
-  useFrame(() => {
-    if (!playerPositionRef) return;
-    
-    const px = playerPositionRef.current.x;
-    const pz = playerPositionRef.current.y; // Note: y is used for Z coordinate
-    const farDistance = optimizationSettings.farMaterialDistance;
-    
-    const transforms = allTransformsRef.current;
-    const expensiveMeshes = expensiveMeshesRef.current;
-    const cheapMesh = cheapMeshRef.current;
-    
-    if (transforms.length === 0 || expensiveMeshes.length === 0 || !cheapMesh) return;
-    
-    let nearCount = 0;
-    let farCount = 0;
-    
-    // Check each instance and toggle visibility based on distance
-    for (let i = 0; i < transforms.length; i++) {
-      const t = transforms[i];
-      const dx = t.centerX - px;
-      const dz = t.centerZ - pz;
-      const distSq = dx * dx + dz * dz;
-      const farDistSq = farDistance * farDistance;
-      
-      if (distSq > farDistSq) {
-        // FAR: Show cheap, hide expensive
-        cheapMesh.setMatrixAt(i, t.matrix);
-        expensiveMeshes.forEach(mesh => {
-          mesh.setMatrixAt(i, HIDDEN_MATRIX);
-        });
-        farCount++;
-      } else {
-        // NEAR: Show expensive, hide cheap
-        cheapMesh.setMatrixAt(i, HIDDEN_MATRIX);
-        expensiveMeshes.forEach(mesh => {
-          mesh.setMatrixAt(i, t.matrix);
-        });
-        nearCount++;
-      }
-    }
-    
-    // Debug: log counts occasionally
-    if (Math.random() < 0.01) {
-      console.log(`[CornLOD] Player: (${px.toFixed(1)}, ${pz.toFixed(1)}), Near: ${nearCount}, Far: ${farCount}, FarDist: ${farDistance}`);
-    }
-    
-    expensiveMeshes.forEach(mesh => {
-      mesh.instanceMatrix.needsUpdate = true;
-    });
-    cheapMesh.instanceMatrix.needsUpdate = true;
-  });
+  }, [meshDataList, allTransforms]);
 
   if (allTransforms.length === 0) return null;
 
-  return (
-    <>
-      <group ref={expensiveGroupRef} />
-      <group ref={cheapGroupRef} />
-    </>
-  );
+  return <group ref={cornGroupRef} />;
 };
