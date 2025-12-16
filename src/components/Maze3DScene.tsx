@@ -432,12 +432,19 @@ const MazeWalls = ({ maze, playerStateRef, optimizationSettings }: {
   playerStateRef?: React.MutableRefObject<{ x: number; y: number }>;
   optimizationSettings?: CornOptimizationSettings;
 }) => {
-  const { interiorWalls, boundaryWalls } = useMemo(() => {
-    const interior: { x: number; z: number }[] = [];
+  const { adjacentToPathWalls, depthOnlyWalls, boundaryWalls } = useMemo(() => {
+    const adjacentToPath: { x: number; z: number }[] = [];  // Cast shadows
+    const depthOnly: { x: number; z: number }[] = [];       // No shadows, just visual depth
     const boundary: { x: number; z: number; offsetX: number; offsetZ: number }[] = [];
     
     const maxX = maze.grid[0].length - 1;
     const maxZ = maze.grid.length - 1;
+    
+    // Helper to check if a cell is a path (not a wall)
+    const isPath = (cellX: number, cellY: number) => {
+      if (cellX < 0 || cellX > maxX || cellY < 0 || cellY > maxZ) return false;
+      return !maze.grid[cellY][cellX].isWall;
+    };
     
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
@@ -452,20 +459,25 @@ const MazeWalls = ({ maze, playerStateRef, optimizationSettings }: {
             if (y === maxZ) offsetZ = 1.5;
             boundary.push({ x, z: y, offsetX, offsetZ });
           } else {
-            // All other walls are interior walls
-            interior.push({ x, z: y });
+            // Check all 4 adjacent cells for path
+            const hasAdjacentPath = isPath(x-1, y) || isPath(x+1, y) || isPath(x, y-1) || isPath(x, y+1);
+            if (hasAdjacentPath) {
+              adjacentToPath.push({ x, z: y });
+            } else {
+              depthOnly.push({ x, z: y });
+            }
           }
         }
       });
     });
     
-    return { interiorWalls: interior, boundaryWalls: boundary };
+    return { adjacentToPathWalls: adjacentToPath, depthOnlyWalls: depthOnly, boundaryWalls: boundary };
   }, [maze]);
 
   return (
     <InstancedWalls 
-      positions={interiorWalls}
-      noShadowPositions={[]}
+      positions={adjacentToPathWalls}
+      noShadowPositions={depthOnlyWalls}
       boundaryPositions={boundaryWalls}
       playerPositionRef={playerStateRef}
       optimizationSettings={optimizationSettings}
