@@ -204,13 +204,16 @@ export function calculateMovement(
     ? GameConfig.BOOSTED_MOVE_SPEED
     : GameConfig.BASE_MOVE_SPEED;
 
-  // Calculate rotation and normalize to 0-2π to prevent floating-point issues
+  // Calculate rotation - slower when moving forward to prevent wall crashes
   let newRotation = currentState.rotation;
+  const isMoving = input.forward || input.backward;
+  const rotationMultiplier = isMoving ? 0.4 : 1.0; // 40% turn speed while moving
+  
   if (input.rotateLeft) {
-    newRotation -= GameConfig.ROTATION_SPEED * deltaTime;
+    newRotation -= GameConfig.ROTATION_SPEED * rotationMultiplier * deltaTime;
   }
   if (input.rotateRight) {
-    newRotation += GameConfig.ROTATION_SPEED * deltaTime;
+    newRotation += GameConfig.ROTATION_SPEED * rotationMultiplier * deltaTime;
   }
   // Normalize rotation to prevent accumulation of large values
   newRotation = ((newRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
