@@ -408,7 +408,7 @@ export const InstancedWalls = ({
       }
     }
     
-    // TIER 2: Cheap corn (10-15m range ONLY) - interior/boundary walls
+    // TIER 2: Cheap corn (0-15m) - interior/boundary walls always use cheap material
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
       const transforms = cheapTransformsRef.current;
       
@@ -418,8 +418,8 @@ export const InstancedWalls = ({
         const tdz = pz - t.centerZ;
         const distSq = tdx * tdx + tdz * tdz;
         
-        // Show cheap corn only in the 10-15m band (beyond full quality range)
-        if (distSq >= fullQualityDistSq && distSq < cheapDistSq) {
+        // Show cheap corn within 15m, hide beyond
+        if (distSq < cheapDistSq) {
           cheapMeshRef.current.setMatrixAt(i, t.matrix);
         } else {
           cheapMeshRef.current.setMatrixAt(i, HIDDEN_MATRIX);
