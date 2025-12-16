@@ -294,26 +294,27 @@ export const InstancedWalls = ({
   playerPositionRef,
   optimizationSettings = DEFAULT_CORN_SETTINGS,
 }: InstancedWallsProps) => {
-  const cornGroupRef = useRef<Group>(null);
+  const edgeGroupRef = useRef<Group>(null);
+  const cheapGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene } = useGLTF('/models/Corn.glb');
   
-  // Extract mesh data from GLTF with optimized materials
-  const meshDataList = useMemo(() => {
+  // Extract mesh data from GLTF with optimized materials + sample color for cheap material
+  const { meshDataList, firstGeometry, cheapMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
+    let firstGeo: BufferGeometry | null = null;
+    let sampledColor: Color | null = null;
     
     scene.traverse((child) => {
       if ((child as Mesh).isMesh) {
         const mesh = child as Mesh;
         const mat = mesh.material as any;
         
-        console.log('[CornWall] Original material:', {
-          transparent: mat.transparent,
-          alphaTest: mat.alphaTest,
-          depthWrite: mat.depthWrite,
-          side: mat.side,
-          color: mat.color ? mat.color.getHexString() : 'none',
-        });
+        // Sample color from GLTF for cheap material
+        if (!sampledColor && mat.color) {
+          sampledColor = mat.color.clone();
+          console.log('[CornWall] Sampled GLTF color for cheap material:', sampledColor.getHexString());
+        }
         
         // Clone and optimize material (fix transparency/overdraw issues)
         const optimizedMaterial = Array.isArray(mesh.material) 
@@ -324,52 +325,97 @@ export const InstancedWalls = ({
           geometry: mesh.geometry.clone(),
           material: optimizedMaterial
         });
+        
+        if (!firstGeo) {
+          firstGeo = mesh.geometry.clone();
+        }
       }
     });
     
-    return meshes;
+    // Create cheap material using sampled GLTF color
+    const cheapMat = new MeshLambertMaterial({ 
+      color: sampledColor || new Color(0.12, 0.25, 0.10),
+      transparent: false,
+      depthWrite: true,
+      depthTest: true,
+      side: FrontSide,
+    });
+    
+    return { 
+      meshDataList: meshes, 
+      firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1),
+      cheapMaterial: cheapMat
+    };
   }, [scene]);
   
-  // Generate ALL transforms
-  const allTransforms = useMemo(() => {
+  // Generate transforms separately for edge vs non-edge corn
+  const { edgeTransforms, cheapTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
-    return [...edge, ...outer, ...boundary];
+    return { 
+      edgeTransforms: edge, 
+      cheapTransforms: [...outer, ...boundary] 
+    };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
 
-  // Create instanced meshes - all corn uses optimized GLTF materials
+  // Create instanced meshes
   useEffect(() => {
-    const cornGroup = cornGroupRef.current;
-    if (!cornGroup || meshDataList.length === 0 || allTransforms.length === 0 || createdRef.current) return;
+    const edgeGroup = edgeGroupRef.current;
+    const cheapGroup = cheapGroupRef.current;
+    if (!edgeGroup || !cheapGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
+    const allMeshes: ThreeInstancedMesh[] = [];
     
-    const meshes: ThreeInstancedMesh[] = [];
-    meshDataList.forEach((meshData) => {
-      const instancedMesh = new ThreeInstancedMesh(
-        meshData.geometry.clone(),
-        Array.isArray(meshData.material)
-          ? meshData.material.map(m => m.clone())
-          : meshData.material.clone(),
-        allTransforms.length
+    // EDGE CORN (adjacent to paths): Full GLTF materials
+    if (edgeTransforms.length > 0) {
+      meshDataList.forEach((meshData) => {
+        const instancedMesh = new ThreeInstancedMesh(
+          meshData.geometry.clone(),
+          Array.isArray(meshData.material)
+            ? meshData.material.map(m => m.clone())
+            : meshData.material.clone(),
+          edgeTransforms.length
+        );
+        
+        edgeTransforms.forEach((t, i) => {
+          instancedMesh.setMatrixAt(i, t.matrix);
+        });
+        
+        instancedMesh.instanceMatrix.needsUpdate = true;
+        instancedMesh.castShadow = false;
+        instancedMesh.receiveShadow = true;
+        instancedMesh.frustumCulled = true;
+        
+        edgeGroup.add(instancedMesh);
+        allMeshes.push(instancedMesh);
+      });
+    }
+    
+    // OUTER + BOUNDARY CORN: Single cheap material (1 draw call)
+    if (cheapTransforms.length > 0) {
+      const cheapMesh = new ThreeInstancedMesh(
+        firstGeometry.clone(),
+        cheapMaterial.clone(),
+        cheapTransforms.length
       );
       
-      allTransforms.forEach((t, i) => {
-        instancedMesh.setMatrixAt(i, t.matrix);
+      cheapTransforms.forEach((t, i) => {
+        cheapMesh.setMatrixAt(i, t.matrix);
       });
       
-      instancedMesh.instanceMatrix.needsUpdate = true;
-      instancedMesh.castShadow = false;
-      instancedMesh.receiveShadow = true;
-      instancedMesh.frustumCulled = true;
+      cheapMesh.instanceMatrix.needsUpdate = true;
+      cheapMesh.castShadow = false;
+      cheapMesh.receiveShadow = true;
+      cheapMesh.frustumCulled = true;
       
-      cornGroup.add(instancedMesh);
-      meshes.push(instancedMesh);
-    });
+      cheapGroup.add(cheapMesh);
+      allMeshes.push(cheapMesh);
+    }
     
     return () => {
-      meshes.forEach(mesh => {
+      allMeshes.forEach(mesh => {
         const parent = mesh.parent;
         if (parent) {
           parent.remove(mesh);
@@ -384,9 +430,14 @@ export const InstancedWalls = ({
       });
       createdRef.current = false;
     };
-  }, [meshDataList, allTransforms]);
+  }, [meshDataList, firstGeometry, cheapMaterial, edgeTransforms, cheapTransforms]);
 
-  if (allTransforms.length === 0) return null;
+  if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
-  return <group ref={cornGroupRef} />;
+  return (
+    <>
+      <group ref={edgeGroupRef} />
+      <group ref={cheapGroupRef} />
+    </>
+  );
 };
