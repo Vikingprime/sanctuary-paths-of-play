@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 
 interface MobileControlsProps {
   onMoveStart: (direction: 'forward' | 'back' | 'left' | 'right') => void;
@@ -6,37 +6,26 @@ interface MobileControlsProps {
 }
 
 export const MobileControls = ({ onMoveStart, onMoveEnd }: MobileControlsProps) => {
-  const joystickRef = useRef<HTMLDivElement>(null);
-  const [knobPosition, setKnobPosition] = useState({ x: 0, y: 0 });
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const activeDirectionsRef = useRef<Set<'forward' | 'back' | 'left' | 'right'>>(new Set());
   const touchIdRef = useRef<number | null>(null);
   
-  const JOYSTICK_RADIUS = 50;
-  const DEADZONE = 15;
+  const DEADZONE = 20; // Pixels of movement before registering direction
 
   const updateDirections = useCallback((dx: number, dy: number) => {
     const newDirections = new Set<'forward' | 'back' | 'left' | 'right'>();
     
-    // Calculate distance from center
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    // Forward/back based on Y delta (negative = drag up = forward)
+    if (dy < -DEADZONE) newDirections.add('forward');
+    if (dy > DEADZONE) newDirections.add('back');
     
-    if (distance > DEADZONE) {
-      // Normalize for direction detection
-      const angle = Math.atan2(dy, dx);
-      
-      // Forward/back based on Y (negative Y = forward in screen coords)
-      if (dy < -DEADZONE) newDirections.add('forward');
-      if (dy > DEADZONE) newDirections.add('back');
-      
-      // Left/right based on X
-      if (dx < -DEADZONE) newDirections.add('left');
-      if (dx > DEADZONE) newDirections.add('right');
-    }
+    // Left/right based on X delta
+    if (dx < -DEADZONE) newDirections.add('left');
+    if (dx > DEADZONE) newDirections.add('right');
     
-    // Determine what changed
     const prev = activeDirectionsRef.current;
     
-    // End directions that are no longer active
+    // End directions no longer active
     prev.forEach(dir => {
       if (!newDirections.has(dir)) {
         onMoveEnd(dir);
@@ -53,96 +42,59 @@ export const MobileControls = ({ onMoveStart, onMoveEnd }: MobileControlsProps) 
     activeDirectionsRef.current = newDirections;
   }, [onMoveStart, onMoveEnd]);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
-    if (touchIdRef.current !== null) return; // Already tracking a touch
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    // Don't capture if touch is on UI elements
+    const target = e.target as HTMLElement;
+    if (target.closest('button, [role="button"], .z-50')) return;
+    
+    if (touchIdRef.current !== null) return;
     
     const touch = e.touches[0];
     touchIdRef.current = touch.identifier;
-    
-    const rect = joystickRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    
-    let dx = touch.clientX - centerX;
-    let dy = touch.clientY - centerY;
-    
-    // Clamp to radius
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance > JOYSTICK_RADIUS) {
-      dx = (dx / distance) * JOYSTICK_RADIUS;
-      dy = (dy / distance) * JOYSTICK_RADIUS;
-    }
-    
-    setKnobPosition({ x: dx, y: dy });
-    updateDirections(dx, dy);
-  }, [updateDirections]);
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  }, []);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (touchIdRef.current === null || !touchStartRef.current) return;
     
-    // Find our tracked touch
     const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
     if (!touch) return;
     
-    const rect = joystickRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const dx = touch.clientX - touchStartRef.current.x;
+    const dy = touch.clientY - touchStartRef.current.y;
     
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    
-    let dx = touch.clientX - centerX;
-    let dy = touch.clientY - centerY;
-    
-    // Clamp to radius
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance > JOYSTICK_RADIUS) {
-      dx = (dx / distance) * JOYSTICK_RADIUS;
-      dy = (dy / distance) * JOYSTICK_RADIUS;
-    }
-    
-    setKnobPosition({ x: dx, y: dy });
     updateDirections(dx, dy);
   }, [updateDirections]);
 
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
+    if (touchIdRef.current === null) return;
     
-    // Check if our tracked touch ended
     const touchStillActive = Array.from(e.touches).some(t => t.identifier === touchIdRef.current);
     if (touchStillActive) return;
     
     touchIdRef.current = null;
-    setKnobPosition({ x: 0, y: 0 });
+    touchStartRef.current = null;
     
     // End all active directions
     activeDirectionsRef.current.forEach(dir => onMoveEnd(dir));
     activeDirectionsRef.current.clear();
   }, [onMoveEnd]);
 
-  return (
-    <div className="absolute bottom-8 left-8 z-40 md:hidden">
-      <div
-        ref={joystickRef}
-        className="relative w-32 h-32 rounded-full bg-black/30 backdrop-blur-sm border-2 border-white/20 touch-none select-none"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
-      >
-        {/* Center marker */}
-        <div className="absolute top-1/2 left-1/2 w-4 h-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/20" />
-        
-        {/* Draggable knob */}
-        <div
-          className="absolute top-1/2 left-1/2 w-12 h-12 rounded-full bg-secondary/80 border-2 border-secondary shadow-lg transition-none"
-          style={{
-            transform: `translate(calc(-50% + ${knobPosition.x}px), calc(-50% + ${knobPosition.y}px))`,
-          }}
-        />
-      </div>
-    </div>
-  );
+  useEffect(() => {
+    // Attach to document for full-screen touch capture
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchmove', handleTouchMove, { passive: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true });
+    document.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
+
+  // No visible UI - completely invisible control layer
+  return null;
 };
