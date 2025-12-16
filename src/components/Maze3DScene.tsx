@@ -424,7 +424,7 @@ const Ground = ({ maze, rocks }: { maze: Maze; rocks: RockPosition[] }) => {
       
       {/* 3D Props for visual depth */}
       <ScatteredRocks rocks={rocks} />
-      <GrassTufts maze={maze} />
+      {/* <GrassTufts maze={maze} /> */}{/* Disabled - causes thousands of draw calls */}
     </group>
   );
 };
