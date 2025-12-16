@@ -1,7 +1,14 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Fog } from 'three';
 import { useGLTF } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
+
+// Fog settings for hiding outer corn
+const FOG_RETREAT_DISTANCE = 10; // Player must be within 10m for fog to retreat
+const FOG_NEAR_DEFAULT = 2;      // Fog starts at 2m when far from outer corn
+const FOG_FAR_DEFAULT = 8;       // Fog ends at 8m when far (hides outer corn)
+const FOG_NEAR_CLOSE = 2;        // Fog starts at 2m when close to outer corn  
+const FOG_FAR_CLOSE = 25;        // Fog ends at 25m when close (shows more)
 
 interface CornWallProps {
   position: [number, number, number];
@@ -297,7 +304,49 @@ export const InstancedWalls = ({
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
-  const { scene } = useGLTF('/models/Corn.glb');
+  const { scene: gltfScene } = useGLTF('/models/Corn.glb');
+  const { scene } = useThree();
+  
+  // Track closest distance to any outer/boundary corn cell
+  const cheapCellCenters = useMemo(() => {
+    const centers: { x: number; z: number }[] = [];
+    noShadowPositions.forEach(pos => centers.push({ x: pos.x + 0.5, z: pos.z + 0.5 }));
+    boundaryPositions.forEach(pos => centers.push({ x: pos.x + 0.5, z: pos.z + 0.5 }));
+    return centers;
+  }, [noShadowPositions, boundaryPositions]);
+  
+  // Dynamic fog that retreats when player approaches outer corn
+  useFrame(() => {
+    if (!playerPositionRef?.current || cheapCellCenters.length === 0) return;
+    
+    const px = playerPositionRef.current.x;
+    const pz = playerPositionRef.current.y; // y is z in 2D coords
+    
+    // Find minimum distance to any outer/boundary corn
+    let minDist = Infinity;
+    for (const center of cheapCellCenters) {
+      const dx = px - center.x;
+      const dz = pz - center.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < minDist) minDist = dist;
+    }
+    
+    // Lerp fog based on distance (retreat when within 10m)
+    const t = Math.max(0, Math.min(1, (FOG_RETREAT_DISTANCE - minDist) / FOG_RETREAT_DISTANCE));
+    const fogNear = FOG_NEAR_DEFAULT + (FOG_NEAR_CLOSE - FOG_NEAR_DEFAULT) * t;
+    const fogFar = FOG_FAR_DEFAULT + (FOG_FAR_CLOSE - FOG_FAR_DEFAULT) * t;
+    
+    // Update scene fog
+    if (scene.fog instanceof Fog) {
+      scene.fog.near = fogNear;
+      scene.fog.far = fogFar;
+    }
+    
+    // Hide cheap corn when fog covers it (player far away)
+    if (cheapGroupRef.current) {
+      cheapGroupRef.current.visible = minDist < FOG_RETREAT_DISTANCE + 5;
+    }
+  });
   
   // Extract mesh data from GLTF with optimized materials + sample color for cheap material
   const { meshDataList, firstGeometry, cheapMaterial } = useMemo(() => {
@@ -305,7 +354,7 @@ export const InstancedWalls = ({
     let firstGeo: BufferGeometry | null = null;
     let sampledColor: Color | null = null;
     
-    scene.traverse((child) => {
+    gltfScene.traverse((child) => {
       if ((child as Mesh).isMesh) {
         const mesh = child as Mesh;
         const mat = mesh.material as any;
@@ -346,7 +395,7 @@ export const InstancedWalls = ({
       firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1),
       cheapMaterial: cheapMat
     };
-  }, [scene]);
+  }, [gltfScene]);
   
   // Generate transforms separately for edge vs non-edge corn
   const { edgeTransforms, cheapTransforms } = useMemo(() => {
