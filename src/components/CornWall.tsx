@@ -4,12 +4,12 @@ import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 
 // LOD distance tiers
-const LOD_FULL_QUALITY_DISTANCE = 15;  // Full GLTF materials within 15m
-const LOD_CHEAP_DISTANCE = 30;          // Cheap material 15-30m, hidden beyond 30m
+const LOD_FULL_QUALITY_DISTANCE = 10;  // Full GLTF materials within 10m
+const LOD_CHEAP_DISTANCE = 15;          // Cheap material 10-15m, hidden beyond 15m
 
 // Fog settings
-const FOG_NEAR = 8;
-const FOG_FAR = 30;  // Match the cull distance
+const FOG_NEAR = 5;
+const FOG_FAR = 15;  // Match the cull distance
 
 interface CornWallProps {
   position: [number, number, number];
