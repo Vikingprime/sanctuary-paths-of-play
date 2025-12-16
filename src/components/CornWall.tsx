@@ -289,30 +289,14 @@ export const InstancedWalls = ({
     createdRef.current = true;
     
     // Edge stalks (adjacent to paths) - these CAST shadows
-    // DEBUG: Red tint to identify path-adjacent corn
     const shadowMeshes: ThreeInstancedMesh[] = [];
     if (edgeTransforms.length > 0) {
       meshDataList.forEach((meshData) => {
-        const clonedMat = Array.isArray(meshData.material)
-          ? meshData.material.map(m => {
-              const cloned = m.clone();
-              // DEBUG: Add red tint
-              if ('color' in cloned) {
-                (cloned as any).color.setRGB(1, 0.3, 0.3);
-              }
-              return cloned;
-            })
-          : (() => {
-              const cloned = meshData.material.clone();
-              if ('color' in cloned) {
-                (cloned as any).color.setRGB(1, 0.3, 0.3);
-              }
-              return cloned;
-            })();
-        
         const instancedMesh = new ThreeInstancedMesh(
           meshData.geometry.clone(),
-          clonedMat,
+          Array.isArray(meshData.material)
+            ? meshData.material.map(m => m.clone())
+            : meshData.material.clone(),
           edgeTransforms.length
         );
         
@@ -321,7 +305,7 @@ export const InstancedWalls = ({
         });
         
         instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = true;  // Edge stalks cast shadows
+        instancedMesh.castShadow = true;
         instancedMesh.receiveShadow = true;
         instancedMesh.frustumCulled = true;
         
