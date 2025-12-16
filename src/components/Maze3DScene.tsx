@@ -66,9 +66,9 @@ const mat = new ShaderMaterial({
         rockMid: { value: new Color('#A08060') },
         rockDark: { value: new Color('#705540') },
         // Fog uniforms
-        fogColor: { value: new Color('#1a2810') },
-        fogNear: { value: 8.0 },
-        fogFar: { value: 15.0 },
+        fogColor: { value: new Color('#3a5a30') },  // Lighter, hazier green
+        fogNear: { value: 10.0 },
+        fogFar: { value: 18.0 },
       },
       fog: true,
       vertexShader: `
@@ -919,11 +919,11 @@ return (
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
       
-      {/* Dark green background to hide sky through corn gaps */}
-      <color attach="background" args={['#1a2810']} />
+      {/* Atmospheric background to blend with fog */}
+      <color attach="background" args={['#3a5a30']} />
       
-      {/* Fog to fade distant corn to background color */}
-      <fog attach="fog" args={['#1a2810', 8, 25]} />
+      {/* Fog to fade distant corn - atmospheric haze */}
+      <fog attach="fog" args={['#3a5a30', 10, 18]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} />
