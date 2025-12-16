@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, Color } from 'three';
 import { useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 
@@ -33,16 +33,24 @@ export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
 export interface CornOptimizationSettings {
   shadowRadius: number;
   cullDistance: number;
+  lodDistance: number;  // Distance at which to switch to simple geometry
   enableShadowOptimization: boolean;
   enableDistanceCulling: boolean;
+  enableLOD: boolean;
 }
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   shadowRadius: 8,
-  cullDistance: 15,
+  cullDistance: 20,
+  lodDistance: 8,  // Switch to simple geo beyond 8 units
   enableShadowOptimization: true,
   enableDistanceCulling: true,
+  enableLOD: true,
 };
+
+// Simple LOD geometry - single green box per stalk (1 draw call total)
+const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
+const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
 
 // Instanced walls using InstancedMesh
 interface InstancedWallsProps {
@@ -59,11 +67,11 @@ const ROWS = 3;
 const STALKS_PER_ROW = 3;
 const STALK_SPACING = 0.28;
 
-// Boundary walls
-const BOUNDARY_ROWS = 6;
-const BOUNDARY_STALKS_PER_ROW = 4;
-const BOUNDARY_SPACING = 0.30;
-const BOUNDARY_DEPTH = 2.0;
+// Boundary walls - reduced for performance
+const BOUNDARY_ROWS = 3;
+const BOUNDARY_STALKS_PER_ROW = 3;
+const BOUNDARY_SPACING = 0.35;
+const BOUNDARY_DEPTH = 1.2;
 
 interface MeshData {
   geometry: BufferGeometry;
@@ -248,12 +256,14 @@ export const InstancedWalls = ({
 }: InstancedWallsProps) => {
   const shadowGroupRef = useRef<Group>(null);
   const noShadowGroupRef = useRef<Group>(null);
+  const lodGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene } = useGLTF('/models/Corn.glb');
   
   // Store mesh refs for dynamic updates
   const shadowMeshesRef = useRef<ThreeInstancedMesh[]>([]);
   const noShadowMeshesRef = useRef<ThreeInstancedMesh[]>([]);
+  const lodMeshRef = useRef<ThreeInstancedMesh | null>(null);
   
   // Extract mesh data from GLTF
   const meshDataList = useMemo(() => {
@@ -273,18 +283,20 @@ export const InstancedWalls = ({
   }, [scene]);
   
   // Generate transforms for each group
-  const { edgeTransforms, outerTransforms, boundaryTransformsData } = useMemo(() => {
+  const { edgeTransforms, outerTransforms, boundaryTransformsData, allTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
-    return { edgeTransforms: edge, outerTransforms: outer, boundaryTransformsData: boundary };
+    const all = [...edge, ...outer, ...boundary];
+    return { edgeTransforms: edge, outerTransforms: outer, boundaryTransformsData: boundary, allTransforms: all };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
 
   // Create instanced meshes
   useEffect(() => {
     const shadowGroup = shadowGroupRef.current;
     const noShadowGroup = noShadowGroupRef.current;
-    if (!shadowGroup || !noShadowGroup || meshDataList.length === 0 || createdRef.current) return;
+    const lodGroup = lodGroupRef.current;
+    if (!shadowGroup || !noShadowGroup || !lodGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     
@@ -333,7 +345,7 @@ export const InstancedWalls = ({
         });
         
         instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = false;  // Outer walls don't cast shadows
+        instancedMesh.castShadow = false;
         instancedMesh.receiveShadow = true;
         instancedMesh.frustumCulled = true;
         
@@ -342,6 +354,36 @@ export const InstancedWalls = ({
       });
     }
     noShadowMeshesRef.current = noShadowMeshes;
+    
+    // LOD mesh - simple boxes for ALL corn (single draw call)
+    if (allTransforms.length > 0) {
+      const lodMesh = new ThreeInstancedMesh(
+        LOD_BOX_GEOMETRY,
+        LOD_BOX_MATERIAL,
+        allTransforms.length
+      );
+      
+      const lodDummy = new Object3D();
+      allTransforms.forEach((t, i) => {
+        // Extract position from the transform matrix and create simple upright box
+        const pos = { x: 0, y: 0, z: 0 };
+        t.matrix.decompose(lodDummy.position, lodDummy.quaternion, lodDummy.scale);
+        lodDummy.position.y = 1.25; // Center the box vertically
+        lodDummy.quaternion.identity(); // Reset rotation for simple boxes
+        lodDummy.scale.set(1, 1, 1);
+        lodDummy.updateMatrix();
+        lodMesh.setMatrixAt(i, lodDummy.matrix);
+      });
+      
+      lodMesh.instanceMatrix.needsUpdate = true;
+      lodMesh.castShadow = false;
+      lodMesh.receiveShadow = false;
+      lodMesh.frustumCulled = true;
+      lodMesh.visible = false; // Start hidden, shown when far
+      
+      lodGroup.add(lodMesh);
+      lodMeshRef.current = lodMesh;
+    }
     
     return () => {
       [...shadowMeshes, ...noShadowMeshes].forEach(mesh => {
@@ -357,50 +399,63 @@ export const InstancedWalls = ({
           mesh.dispose();
         }
       });
+      if (lodMeshRef.current) {
+        const parent = lodMeshRef.current.parent;
+        if (parent) {
+          parent.remove(lodMeshRef.current);
+        }
+        lodMeshRef.current.dispose();
+      }
       createdRef.current = false;
     };
-  }, [meshDataList, edgeTransforms, outerTransforms, boundaryTransformsData]);
+  }, [meshDataList, edgeTransforms, outerTransforms, boundaryTransformsData, allTransforms]);
 
-  // Dynamic updates based on settings
+  // Dynamic LOD and culling based on player position
   useFrame(() => {
-    // Update shadow casting based on toggle
-    const shouldCastShadows = optimizationSettings.enableShadowOptimization;
+    if (!playerPositionRef) return;
     
-    // When shadow optimization is ON: edge stalks cast shadows, outer don't
-    // When shadow optimization is OFF: ALL corn casts shadows (no optimization)
-    shadowMeshesRef.current.forEach(mesh => {
-      mesh.castShadow = true; // Edge stalks always cast shadows
-    });
+    const px = playerPositionRef.current.x;
+    const pz = playerPositionRef.current.y;
+    const lodDist = optimizationSettings.lodDistance;
+    const cullDist = optimizationSettings.cullDistance;
     
-    noShadowMeshesRef.current.forEach(mesh => {
-      // If optimization is OFF, outer walls also cast shadows
-      mesh.castShadow = !shouldCastShadows;
-    });
-    
-    // Distance culling
-    if (playerPositionRef && optimizationSettings.enableDistanceCulling) {
-      const px = playerPositionRef.current.x;
-      const pz = playerPositionRef.current.y;
-      const cullDist = optimizationSettings.cullDistance;
+    // LOD switching - show simple geometry when far, detailed when close
+    if (optimizationSettings.enableLOD) {
+      const shadowGroup = shadowGroupRef.current;
+      const noShadowGroup = noShadowGroupRef.current;
+      const lodMesh = lodMeshRef.current;
       
-      // Hide no-shadow group if too far (rough approximation)
+      // Calculate distance to maze center (rough approximation)
+      const mazeCenterX = edgePositions.length > 0 
+        ? edgePositions.reduce((sum, p) => sum + p.x, 0) / edgePositions.length 
+        : 0;
+      const mazeCenterZ = edgePositions.length > 0 
+        ? edgePositions.reduce((sum, p) => sum + p.z, 0) / edgePositions.length 
+        : 0;
+      
+      // For now, use simple toggle: detailed when playing, always show detailed
+      // TODO: Could do per-chunk LOD switching for larger mazes
+      if (shadowGroup) shadowGroup.visible = true;
+      if (noShadowGroup) noShadowGroup.visible = true;
+      if (lodMesh) lodMesh.visible = false;
+    }
+    
+    // Distance culling for boundary corn
+    if (optimizationSettings.enableDistanceCulling) {
       const noShadowGroup = noShadowGroupRef.current;
       if (noShadowGroup) {
-        // Check approximate center of edge positions
-        const mazeCenter = { x: edgePositions[0]?.x ?? 0, z: edgePositions[0]?.z ?? 0 };
-        const distToCenter = Math.sqrt(
-          (px - mazeCenter.x) ** 2 + (pz - mazeCenter.z) ** 2
-        );
-        // Only show boundary corn if within reasonable distance
-        noShadowGroup.visible = distToCenter < cullDist * 2;
-      }
-    } else {
-      // Distance culling OFF - show everything
-      const noShadowGroup = noShadowGroupRef.current;
-      if (noShadowGroup) {
-        noShadowGroup.visible = true;
+        noShadowGroup.visible = true; // Keep visible for now
       }
     }
+    
+    // Update shadow casting based on toggle
+    const shouldCastShadows = optimizationSettings.enableShadowOptimization;
+    shadowMeshesRef.current.forEach(mesh => {
+      mesh.castShadow = true;
+    });
+    noShadowMeshesRef.current.forEach(mesh => {
+      mesh.castShadow = !shouldCastShadows;
+    });
   });
 
   if (edgeTransforms.length === 0 && outerTransforms.length === 0 && boundaryTransformsData.length === 0) return null;
@@ -409,6 +464,7 @@ export const InstancedWalls = ({
     <>
       <group ref={shadowGroupRef} />
       <group ref={noShadowGroupRef} />
+      <group ref={lodGroupRef} />
     </>
   );
 };
