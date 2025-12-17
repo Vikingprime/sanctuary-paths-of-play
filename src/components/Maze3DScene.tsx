@@ -19,8 +19,8 @@ export interface PerformanceInfo {
 }
 
 // === PERFORMANCE TOGGLES (for testing) ===
-const ENABLE_3D_ROCKS = false;        // 3D rock meshes scattered in scene
-const ENABLE_3D_GRASS = false;        // 3D grass tuft meshes
+const ENABLE_3D_ROCKS = true;         // 3D rock meshes scattered in scene
+const ENABLE_3D_GRASS = true;         // 3D grass tuft meshes
 
 interface Maze3DSceneProps {
   maze: Maze;
@@ -242,27 +242,29 @@ const mat = new ShaderMaterial({
   return <primitive object={material} attach="material" />;
 };
 
-// 3D Rocks using InstancedMesh for performance
-const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
+// 3D Rocks using InstancedMesh with distance + camera culling
+const ROCK_CULL_DISTANCE = 15; // Match corn culling distance
+const ROCK_NEAR_DISTANCE = 3;  // No back-culling within this distance
+const ROCK_BACK_CULL_DOT = -0.707; // cos(135°)
+
+const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; playerStateRef?: MutableRefObject<PlayerState> }) => {
   const meshRef = useRef<InstancedMesh>(null);
+  const { camera } = useThree();
+  const lastUpdateRef = useRef({ x: -999, z: -999, dirX: 0, dirZ: -1 });
   
-  const { geometry, material } = useMemo(() => {
+  const { geometry, material, rockTransforms } = useMemo(() => {
     const geo = new DodecahedronGeometry(1, 0);
     const mat = new MeshStandardMaterial({ color: "#7A6350", roughness: 0.9 });
-    return { geometry: geo, material: mat };
-  }, []);
-  
-  // Set up instances after mount
-  useEffect(() => {
-    if (!meshRef.current || rocks.length === 0) return;
     
-    const tempObject = new Object3D();
     const seededRandom = (seed: number) => {
       const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
       return x - Math.floor(x);
     };
     
-    rocks.forEach((rock, i) => {
+    const transforms: { matrix: any; x: number; z: number }[] = [];
+    const tempObject = new Object3D();
+    
+    rocks.forEach((rock) => {
       const scale = rock.radius * 2;
       const seed = Math.floor(rock.x * 1000 + rock.z);
       const rotation = seededRandom(seed + 4) * Math.PI * 2;
@@ -271,10 +273,61 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
       tempObject.rotation.set(0, rotation, 0);
       tempObject.scale.set(scale * 1.2, scale * 0.6, scale);
       tempObject.updateMatrix();
-      meshRef.current!.setMatrixAt(i, tempObject.matrix);
+      transforms.push({ matrix: tempObject.matrix.clone(), x: rock.x, z: rock.z });
     });
-    meshRef.current.instanceMatrix.needsUpdate = true;
+    
+    return { geometry: geo, material: mat, rockTransforms: transforms };
   }, [rocks]);
+  
+  // Distance + camera culling
+  useFrame(() => {
+    if (!meshRef.current || !playerStateRef) return;
+    
+    const px = playerStateRef.current.x;
+    const pz = playerStateRef.current.y;
+    
+    // Get camera direction
+    const camDir = new Vector3();
+    camera.getWorldDirection(camDir);
+    camDir.y = 0;
+    camDir.normalize();
+    
+    // Throttle updates
+    const dx = px - lastUpdateRef.current.x;
+    const dz = pz - lastUpdateRef.current.z;
+    const camDx = camDir.x - lastUpdateRef.current.dirX;
+    const camDz = camDir.z - lastUpdateRef.current.dirZ;
+    const shouldUpdate = dx*dx + dz*dz >= 0.25 || camDx*camDx + camDz*camDz >= 0.01 || lastUpdateRef.current.x === -999;
+    
+    if (!shouldUpdate) return;
+    lastUpdateRef.current = { x: px, z: pz, dirX: camDir.x, dirZ: camDir.z };
+    
+    const cullDistSq = ROCK_CULL_DISTANCE * ROCK_CULL_DISTANCE;
+    const nearDistSq = ROCK_NEAR_DISTANCE * ROCK_NEAR_DISTANCE;
+    let count = 0;
+    
+    for (let i = 0; i < rockTransforms.length; i++) {
+      const t = rockTransforms[i];
+      const distSq = (px - t.x) ** 2 + (pz - t.z) ** 2;
+      
+      if (distSq >= cullDistSq) continue;
+      
+      // Camera culling only for distant rocks
+      if (distSq >= nearDistSq) {
+        const toRockX = t.x - px;
+        const toRockZ = t.z - pz;
+        const len = Math.sqrt(distSq);
+        const dot = (toRockX / len) * camDir.x + (toRockZ / len) * camDir.z;
+        if (dot <= ROCK_BACK_CULL_DOT) continue;
+      }
+      
+      meshRef.current.setMatrixAt(count, t.matrix);
+      count++;
+    }
+    
+    meshRef.current.count = count;
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  });
   
   if (rocks.length === 0) return null;
   
@@ -287,14 +340,19 @@ const ScatteredRocks = ({ rocks }: { rocks: RockPosition[] }) => {
   );
 };
 
-// 3D Grass tufts - with distance culling for performance
-const GRASS_CULL_DISTANCE = 25; // Match corn culling distance
+// 3D Grass tufts - with distance + camera culling for performance
+const GRASS_CULL_DISTANCE = 15; // Match corn culling distance
+const GRASS_NEAR_DISTANCE = 3;  // No back-culling within this distance
+const GRASS_BACK_CULL_DOT = -0.707; // cos(135°)
 
 const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: MutableRefObject<PlayerState> }) => {
   const grass231 = useGLTF('/models/Grass_231.glb');
   const grass232 = useGLTF('/models/Grass_232.glb');
   const groupRef = useRef<any>(null);
-  const [visibleIndices, setVisibleIndices] = useState<number[]>([]);
+  const { camera } = useThree();
+  const lastUpdateRef = useRef({ x: -999, z: -999, dirX: 0, dirZ: -1 });
+  const visibleRef = useRef<number[]>([]);
+  const [, forceUpdate] = useState(0);
   
   // Pre-calculate all grass positions once
   const allGrassData = useMemo(() => {
@@ -373,31 +431,60 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     });
   }, [allGrassData, grass231, grass232]);
   
-  // Update visible grass based on player distance
+  // Update visible grass based on player distance + camera direction
   useFrame(() => {
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
+    
+    // Get camera direction
+    const camDir = new Vector3();
+    camera.getWorldDirection(camDir);
+    camDir.y = 0;
+    camDir.normalize();
+    
+    // Throttle updates
+    const dx = px - lastUpdateRef.current.x;
+    const dz = pz - lastUpdateRef.current.z;
+    const camDx = camDir.x - lastUpdateRef.current.dirX;
+    const camDz = camDir.z - lastUpdateRef.current.dirZ;
+    const shouldUpdate = dx*dx + dz*dz >= 0.25 || camDx*camDx + camDz*camDz >= 0.01 || lastUpdateRef.current.x === -999;
+    
+    if (!shouldUpdate) return;
+    lastUpdateRef.current = { x: px, z: pz, dirX: camDir.x, dirZ: camDir.z };
+    
     const cullDistSq = GRASS_CULL_DISTANCE * GRASS_CULL_DISTANCE;
+    const nearDistSq = GRASS_NEAR_DISTANCE * GRASS_NEAR_DISTANCE;
     
     const visible: number[] = [];
     for (let i = 0; i < allGrassData.length; i++) {
-      const dx = allGrassData[i].x - px;
-      const dz = allGrassData[i].z - pz;
-      if (dx * dx + dz * dz < cullDistSq) {
-        visible.push(i);
+      const g = allGrassData[i];
+      const distSq = (g.x - px) ** 2 + (g.z - pz) ** 2;
+      
+      if (distSq >= cullDistSq) continue;
+      
+      // Camera culling only for distant grass
+      if (distSq >= nearDistSq) {
+        const toGrassX = g.x - px;
+        const toGrassZ = g.z - pz;
+        const len = Math.sqrt(distSq);
+        const dot = (toGrassX / len) * camDir.x + (toGrassZ / len) * camDir.z;
+        if (dot <= GRASS_BACK_CULL_DOT) continue;
       }
+      
+      visible.push(i);
     }
     
-    // Only update state if changed significantly (avoid re-renders every frame)
-    if (visible.length !== visibleIndices.length || 
-        visible.some((v, idx) => visibleIndices[idx] !== v)) {
-      setVisibleIndices(visible);
+    // Only update if changed
+    if (visible.length !== visibleRef.current.length || 
+        visible.some((v, idx) => visibleRef.current[idx] !== v)) {
+      visibleRef.current = visible;
+      forceUpdate(n => n + 1);
     }
   });
   
   return (
     <group ref={groupRef}>
-      {visibleIndices.map((i) => (
+      {visibleRef.current.map((i) => (
         <primitive key={i} object={clonedScenes[i]} />
       ))}
     </group>
@@ -435,7 +522,7 @@ const Ground = ({ maze, rocks, playerStateRef }: { maze: Maze; rocks: RockPositi
       </mesh>
       
       {/* 3D Props for visual depth (toggleable for performance testing) */}
-      {ENABLE_3D_ROCKS && <ScatteredRocks rocks={rocks} />}
+      {ENABLE_3D_ROCKS && <ScatteredRocks rocks={rocks} playerStateRef={playerStateRef} />}
       {ENABLE_3D_GRASS && <GrassTufts maze={maze} playerStateRef={playerStateRef} />}
     </group>
   );
@@ -931,13 +1018,13 @@ return (
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
       
-      {/* Maze Walls (corn) with optimizations - TEMPORARILY DISABLED */}
-      {/* <MazeWalls 
+      {/* Maze Walls (corn) with optimizations */}
+      <MazeWalls 
         maze={maze} 
         playerStateRef={playerStateRef}
         optimizationSettings={cornOptimizationSettings}
         onCullStats={onCullStats}
-      /> */}
+      />
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (
