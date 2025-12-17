@@ -360,7 +360,8 @@ export const InstancedWalls = ({
     if (!shouldUpdate) return;
     lastUpdatePosRef.current = { x: px, z: pz };
     
-    const cullDistSq = LOD_CHEAP_DISTANCE * LOD_CHEAP_DISTANCE;
+    // Cull ALL corn beyond 10m - this is what actually reduces triangles
+    const cullDistSq = FLATTEN_DISTANCE_SQ; // Use 10m as hard cull distance
     let edgeCount = 0;
     let cheapCount = 0;
     
