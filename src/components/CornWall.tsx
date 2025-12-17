@@ -481,37 +481,47 @@ export const InstancedWalls = ({
       side: FrontSide,
     });
     
-    // Low-poly LOD corn: cylinder stalk + triangular leaves
-    // Create stalk (6-sided cylinder, very few tris)
-    const stalk = new CylinderGeometry(0.02, 0.03, 2.2, 6, 1);
-    stalk.translate(0, 1.1, 0); // Move up so base is at y=0
+    // Low-poly LOD corn: thicker stalk + larger drooping leaves
+    // Create stalk (6-sided cylinder, thicker for visibility)
+    const stalk = new CylinderGeometry(0.04, 0.05, 2.0, 6, 1);
+    stalk.translate(0, 1.0, 0); // Base at y=0
     
-    // Create triangular leaves (simple triangles angled outward)
+    // Create larger, drooping triangular leaves
     const leafPositions: number[] = [];
     const leafNormals: number[] = [];
-    const leafCount = 4; // 4 leaves at different heights/angles
-    const leafHeight = 0.6;
-    const leafWidth = 0.15;
+    const leafCount = 6; // More leaves for better coverage
+    const leafLength = 0.5; // Longer leaves
+    const leafWidth = 0.08; // Wider base
     
     for (let i = 0; i < leafCount; i++) {
-      const angle = (i / leafCount) * Math.PI * 2 + Math.PI / 4;
-      const baseY = 0.5 + i * 0.4; // Leaves at different heights
+      const angle = (i / leafCount) * Math.PI * 2;
+      const baseY = 0.4 + i * 0.28; // Leaves spread along stalk
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
       
-      // Triangle vertices: base at stalk, tip pointing outward and up
-      // Base point 1 (on stalk)
-      leafPositions.push(cos * 0.025, baseY, sin * 0.025);
-      // Base point 2 (on stalk, slightly higher)
-      leafPositions.push(cos * 0.025, baseY + 0.1, sin * 0.025);
-      // Tip (extended outward and upward)
-      leafPositions.push(cos * leafWidth, baseY + leafHeight, sin * leafWidth);
+      // Leaf droops downward at tip (tip is lower than mid-point)
+      const tipY = baseY + 0.15; // Tip slightly above base but leaf curves out
+      const midY = baseY + 0.25; // Mid-point higher, creates arch
       
-      // Normal pointing outward (approximate)
-      const nx = cos * 0.5;
-      const nz = sin * 0.5;
-      const ny = 0.866; // 60 degree upward
+      // Triangle: base on stalk, extends outward and curves down
+      // Vertex 0: base bottom (on stalk)
+      leafPositions.push(cos * 0.05, baseY, sin * 0.05);
+      // Vertex 1: base top (on stalk, slightly higher)
+      leafPositions.push(cos * 0.05, baseY + leafWidth * 2, sin * 0.05);
+      // Vertex 2: tip (extended outward, drooping)
+      leafPositions.push(cos * leafLength, tipY, sin * leafLength);
+      
+      // Normal pointing outward-upward
+      const nx = cos * 0.7;
+      const nz = sin * 0.7;
+      const ny = 0.7;
       leafNormals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
+      
+      // Add second triangle for backface (leaf has thickness visually)
+      leafPositions.push(cos * 0.05, baseY + leafWidth * 2, sin * 0.05);
+      leafPositions.push(cos * 0.05, baseY, sin * 0.05);
+      leafPositions.push(cos * leafLength, tipY, sin * leafLength);
+      leafNormals.push(-nx, -ny, -nz, -nx, -ny, -nz, -nx, -ny, -nz);
     }
     
     // Get stalk data
@@ -520,7 +530,8 @@ export const InstancedWalls = ({
     const stalkIdx = stalk.index!.array;
     
     // Combine stalk + leaves into single geometry
-    const totalVerts = stalk.attributes.position.count + leafCount * 3;
+    const totalLeafVerts = leafCount * 6; // 2 triangles per leaf, 3 verts each
+    const totalVerts = stalk.attributes.position.count + totalLeafVerts;
     const combinedPos = new Float32Array(totalVerts * 3);
     const combinedNorm = new Float32Array(totalVerts * 3);
     
@@ -535,7 +546,7 @@ export const InstancedWalls = ({
     // Build indices: stalk indices + leaf triangles
     const leafIndices: number[] = [];
     const stalkVertCount = stalk.attributes.position.count;
-    for (let i = 0; i < leafCount; i++) {
+    for (let i = 0; i < leafCount * 2; i++) { // 2 triangles per leaf
       const base = stalkVertCount + i * 3;
       leafIndices.push(base, base + 1, base + 2);
     }
@@ -549,10 +560,10 @@ export const InstancedWalls = ({
     lodCornGeo.setAttribute('normal', new BufferAttribute(combinedNorm, 3));
     lodCornGeo.setIndex(new BufferAttribute(combinedIdx, 1));
     
-    // Simple green material for LOD corn
+    // Green material matching the corn color
     const lodCornMat = new MeshLambertMaterial({
-      color: new Color(0.15, 0.4, 0.12),
-      side: FrontSide,
+      color: new Color(0.2, 0.45, 0.15),
+      side: DoubleSide, // See leaves from both sides
       depthWrite: true,
     });
     
