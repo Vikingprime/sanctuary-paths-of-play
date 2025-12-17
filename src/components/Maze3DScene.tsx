@@ -202,22 +202,28 @@ const mat = new ShaderMaterial({
           pathColor = mix(pathColor, rockColor, rockMask * 0.85);
           
           // GRASS TEXTURE with dirt patches and variation (under corn areas)
-          vec3 grassAreaColor = grassBase;
-          // Add grass color variation
-          grassAreaColor = mix(grassAreaColor, grassDark, fbm(worldUV * 2.5) * 0.4);
-          grassAreaColor = mix(grassAreaColor, grassMoss, noise(worldUV * 3.0 + 300.0) * 0.3);
+          // Start with darker green base
+          vec3 grassAreaColor = grassDark;
+          // Add grass color variation - mostly dark with some lighter patches
+          grassAreaColor = mix(grassAreaColor, grassBase, fbm(worldUV * 2.5) * 0.35);
+          grassAreaColor = mix(grassAreaColor, grassMoss, noise(worldUV * 3.0 + 300.0) * 0.25);
           
-          // Add dirt patches showing through grass
-          float dirtPatches = fbm(worldUV * 1.2 + 400.0);
-          float dirtPatchMask = smoothstep(0.45, 0.65, dirtPatches);
-          vec3 dirtColor = mix(pathDark, pathBase, noise(worldUV * 2.0 + 500.0) * 0.5);
-          grassAreaColor = mix(grassAreaColor, dirtColor, dirtPatchMask * 0.5);
+          // Add prominent dirt patches showing through grass
+          float dirtPatches = fbm(worldUV * 1.0 + 400.0);
+          float dirtPatchMask = smoothstep(0.35, 0.55, dirtPatches); // Lower threshold = more dirt
+          vec3 dirtColor = mix(pathDark, pathBase, noise(worldUV * 2.0 + 500.0) * 0.6);
+          grassAreaColor = mix(grassAreaColor, dirtColor, dirtPatchMask * 0.65); // Stronger dirt mix
           
-          // Add rocks/pebbles in grass areas
-          float grassRockNoise = hash(floor(worldUV * 4.0 + 80.0));
-          float grassRockShape = length(fract(worldUV * 4.0 + 80.0) - 0.5);
-          float grassRocks = smoothstep(0.14, 0.08, grassRockShape) * step(0.85, grassRockNoise);
-          grassAreaColor = mix(grassAreaColor, rockColor, grassRocks * 0.7);
+          // Add more visible rocks/pebbles in grass areas
+          float grassRockNoise = hash(floor(worldUV * 3.5 + 80.0));
+          float grassRockShape = length(fract(worldUV * 3.5 + 80.0) - 0.5);
+          float grassRocks = smoothstep(0.16, 0.08, grassRockShape) * step(0.78, grassRockNoise); // More rocks
+          // Smaller pebbles too
+          float pebbleNoise = hash(floor(worldUV * 7.0 + 120.0));
+          float pebbleShape = length(fract(worldUV * 7.0 + 120.0) - 0.5);
+          float pebbles = smoothstep(0.12, 0.06, pebbleShape) * step(0.82, pebbleNoise);
+          float allRocks = max(grassRocks, pebbles * 0.8);
+          grassAreaColor = mix(grassAreaColor, rockColor, allRocks * 0.85);
           
           vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
           
