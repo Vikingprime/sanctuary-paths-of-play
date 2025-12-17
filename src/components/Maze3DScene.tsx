@@ -22,6 +22,7 @@ export interface PerformanceInfo {
 const ENABLE_3D_ROCKS = false;        // 3D rock meshes scattered in scene
 const ENABLE_3D_GRASS = false;        // 3D grass tuft meshes
 const ENABLE_GRASS_SHADER_DETAIL = false;  // Detailed grass patches in ground shader
+const ENABLE_SIMPLE_GROUND = true;    // Use simple ground shader (no noise/fbm calculations)
 
 interface Maze3DSceneProps {
   maze: Maze;
@@ -155,46 +156,44 @@ const mat = new ShaderMaterial({
         
         void main() {
           vec2 worldUV = vWorldPos.xz;
-          
-          // Sample wall map with linear filtering for smooth edges
           vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
           float isWall = texture2D(wallMap, mazeUV).r;
           
+          ${ENABLE_SIMPLE_GROUND ? `
+          // === SIMPLE GROUND (for performance testing) ===
+          float wallMask = smoothstep(0.3, 0.7, isWall);
+          float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
+                          step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
+          wallMask = mix(1.0, wallMask, inBounds);
+          vec3 finalColor = mix(pathBase, grassBase, wallMask);
+          ` : `
+          // === FULL QUALITY GROUND ===
           // Organic edge distortion for natural grass patches
           float edgeWarp = fbm(worldUV * 1.5 + 10.0) * 0.35;
           float edgeDetail = noise(worldUV * 4.0) * 0.15;
           float wallMask = smoothstep(0.15, 0.85, isWall + edgeWarp - edgeDetail);
-          
-          // Extra softening pass
           wallMask = smoothstep(0.0, 1.0, wallMask);
           
-          // Outside maze = grass
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
           wallMask = mix(1.0, wallMask, inBounds);
           
-          // === PATH TEXTURE ===
+          // PATH TEXTURE
           float largeVar = fbm(worldUV * 0.6);
           float medVar = fbm(worldUV * 1.8 + 50.0);
           float fineVar = fbm(worldUV * 4.0 + 100.0);
-          
-          // Worn center effect
           float wornPattern = fbm(worldUV * 0.9 + 150.0);
           float wornCenter = pow(1.0 - wallMask, 0.4) * wornPattern;
           
-          // Build path color with organic layers
           vec3 pathColor = pathBase;
           pathColor = mix(pathColor, pathRich, largeVar * 0.5);
           pathColor = mix(pathColor, pathWorn, wornCenter * 0.6 + medVar * 0.25);
           
-          // Shadow patches
           float shadows = pow(fbm(worldUV * 2.0 + 200.0), 1.3);
           pathColor = mix(pathColor, pathDark, shadows * 0.4);
-          
-          // Fine texture
           pathColor = mix(pathColor, pathDark * 0.85, (1.0 - fineVar) * 0.12);
           
-          // === PATH ROCKS (always on - adds visual interest to path) ===
+          // PATH ROCKS
           float largeRockNoise = hash(floor(worldUV * 1.8));
           float largeRockShape = length((fract(worldUV * 1.8) - 0.5) * vec2(1.0 + hash2(floor(worldUV * 1.8)) * 0.5, 1.0));
           float largeRocks = smoothstep(0.18, 0.12, largeRockShape) * step(0.92, largeRockNoise);
@@ -212,44 +211,11 @@ const mat = new ShaderMaterial({
           rockColor = mix(rockColor, rockLight, noise(worldUV * 25.0) * 0.4);
           pathColor = mix(pathColor, rockColor, rockMask * 0.85);
           
-          // === GRASS AREA (toggleable shader detail) ===
-          ${ENABLE_GRASS_SHADER_DETAIL ? `
-          vec3 grassAreaBase = mix(pathDark * 0.9, pathRich * 0.8, noise(worldUV * 2.0) * 0.5 + 0.3);
-          float grassClump1 = pow(fbm(worldUV * 3.0 + 300.0), 1.2);
-          float grassClump2 = pow(noise(worldUV * 5.0 + 350.0), 0.8);
-          float grassClump3 = pow(fbm(worldUV * 8.0 + 400.0), 1.5);
-          float grassCoverage = grassClump1 * 0.5 + grassClump2 * 0.3 + grassClump3 * 0.2;
-          grassCoverage = smoothstep(0.25, 0.6, grassCoverage);
-          float grassVar = fbm(worldUV * 1.5 + 500.0);
-          vec3 grassTuftColor = mix(grassDark, grassBase, grassVar * 0.6 + 0.4);
-          grassTuftColor = mix(grassTuftColor, grassMoss, noise(worldUV * 4.0) * 0.4);
-          float highlights = pow(noise(worldUV * 12.0 + 600.0), 2.0);
-          grassTuftColor = mix(grassTuftColor, grassBase * 1.3, highlights * 0.3);
-          float edgeTufts = pow(noise(worldUV * 6.0 + 450.0), 1.5);
-          float edgeZone = smoothstep(0.3, 0.6, wallMask) * (1.0 - smoothstep(0.6, 0.85, wallMask));
-          float edgeGrass = edgeTufts * edgeZone;
-          vec3 grassAreaColor = mix(grassAreaBase, grassTuftColor, grassCoverage * 0.85);
-          float smallTufts = step(0.75, noise(worldUV * 10.0 + 700.0));
-          grassAreaColor = mix(grassAreaColor, grassBase * 1.1, smallTufts * 0.3 * grassCoverage);
-          float grassRockNoise = hash(floor(worldUV * 2.5 + 80.0));
-          float grassRockShape = length(fract(worldUV * 2.5 + 80.0) - 0.5);
-          float grassRockMask = smoothstep(0.18, 0.08, grassRockShape) * step(0.88, grassRockNoise);
-          grassAreaColor = mix(grassAreaColor, rockMid * 0.9, grassRockMask * 0.8);
-          ` : `
           vec3 grassAreaColor = grassBase;
-          float edgeGrass = 0.0;
-          vec3 grassTuftColor = grassBase;
-          vec3 grassAreaBase = grassDark;
+          vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
           `}
           
-          // === FINAL BLEND ===
-          vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
-          ${ENABLE_GRASS_SHADER_DETAIL ? `finalColor = mix(finalColor, grassTuftColor, edgeGrass * 0.5);
-          float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
-          vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
-          finalColor = mix(finalColor, mudColor, transition * 0.2);` : '// Simplified blend'}
-          
-          // Apply exponential fog (matches FogExp2)
+          // Apply exponential fog
           float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
           finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
           
