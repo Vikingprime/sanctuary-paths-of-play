@@ -1,7 +1,8 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3 } from 'three';
-import { useGLTF } from '@react-three/drei';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader } from 'three';
+import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
+import cornTexture from '@/assets/corn-texture.png';
 
 // LOD distance tiers
 const LOD_FULL_QUALITY_DISTANCE = 8;   // Full GLTF materials within 8m
@@ -314,9 +315,13 @@ export const InstancedWalls = ({
 }: InstancedWallsProps) => {
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
+  const billboardGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
-  const { scene } = useThree();
+  const { scene, camera } = useThree();
+  
+  // Load corn texture for billboards
+  const cornTex = useTexture(cornTexture);
   
   // Track closest distance to any outer/boundary corn cell
   const cheapCellCenters = useMemo(() => {
@@ -334,6 +339,10 @@ export const InstancedWalls = ({
   // Store references to edge meshes for distance culling
   const edgeMeshesRef = useRef<ThreeInstancedMesh[]>([]);
   const edgeTransformsRef = useRef<WallTransformData[]>([]);
+  
+  // Billboard mesh for distant corn (2 triangles per stalk vs hundreds)
+  const billboardMeshRef = useRef<ThreeInstancedMesh | null>(null);
+  const billboardTransformsRef = useRef<WallTransformData[]>([]);
   
   // Track last update position and culling state
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
@@ -386,25 +395,41 @@ export const InstancedWalls = ({
       }
     }
     
-    // Cull cheap corn (interior/boundary) - use flat vs 3D based on distance
+    // Cull cheap corn (interior/boundary) - only show within 10m
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
-      const transforms3D = cheapTransformsRef.current;
-      const transformsFlat = cheapFlatTransformsRef.current;
+      const transforms = cheapTransformsRef.current;
       
-      for (let i = 0; i < transforms3D.length; i++) {
-        const t3D = transforms3D[i];
-        const distSq = (px - t3D.centerX) ** 2 + (pz - t3D.centerZ) ** 2;
+      for (let i = 0; i < transforms.length; i++) {
+        const t = transforms[i];
+        const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
         if (distSq < cullDistSq) {
-          // Use flat transform if beyond flatten distance, else use 3D
-          const useFlat = distSq > FLATTEN_DISTANCE_SQ && transformsFlat[i];
-          const matrix = useFlat ? transformsFlat[i].matrix : t3D.matrix;
-          cheapMeshRef.current.setMatrixAt(cheapCount, matrix);
+          cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
           cheapCount++;
         }
       }
       
       cheapMeshRef.current.count = cheapCount;
       cheapMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+    
+    // BILLBOARDS: Show for ALL corn beyond 10m (2 triangles each!)
+    let billboardCount = 0;
+    if (billboardMeshRef.current && billboardTransformsRef.current.length > 0) {
+      const transforms = billboardTransformsRef.current;
+      const farDistSq = LOD_CHEAP_DISTANCE * LOD_CHEAP_DISTANCE;
+      
+      for (let i = 0; i < transforms.length; i++) {
+        const t = transforms[i];
+        const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
+        // Show billboard for corn between 10m and far distance
+        if (distSq >= cullDistSq && distSq < farDistSq) {
+          billboardMeshRef.current.setMatrixAt(billboardCount, t.matrix);
+          billboardCount++;
+        }
+      }
+      
+      billboardMeshRef.current.count = billboardCount;
+      billboardMeshRef.current.instanceMatrix.needsUpdate = true;
     }
     
     // Always report cull stats
@@ -418,8 +443,8 @@ export const InstancedWalls = ({
     onCullStats?.(stats);
   });
   
-  // Extract mesh data from GLTF with optimized materials
-  const { meshDataList, firstGeometry, cheapMaterial } = useMemo(() => {
+  // Extract mesh data from GLTF with optimized materials + billboard geometry
+  const { meshDataList, firstGeometry, cheapMaterial, billboardGeometry, billboardMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
     let firstGeo: BufferGeometry | null = null;
     let sampledColor: Color | null = null;
@@ -456,54 +481,66 @@ export const InstancedWalls = ({
       side: FrontSide,
     });
     
+    // Billboard: simple plane with corn texture (2 triangles!)
+    const bbGeo = new PlaneGeometry(0.4, 2.5);
+    const bbMat = new MeshBasicMaterial({
+      map: cornTex,
+      transparent: true,
+      alphaTest: 0.5,
+      side: DoubleSide,
+      depthWrite: true,
+    });
+    
     return { 
       meshDataList: meshes, 
       firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1),
-      cheapMaterial: cheapMat
+      cheapMaterial: cheapMat,
+      billboardGeometry: bbGeo,
+      billboardMaterial: bbMat
     };
-  }, [gltfScene]);
+  }, [gltfScene, cornTex]);
   
-  // Generate transforms with BOTH 3D and flattened versions for cheap corn
-  const { edgeTransforms, cheapTransforms, cheapFlatTransforms } = useMemo(() => {
+  // Generate transforms for all corn types + billboard transforms
+  const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
     const cheap3D = [...outer, ...boundary];
     
-    // Create flattened versions (scale X to near 0 for billboard effect)
-    const cheapFlat: WallTransformData[] = [];
-    const flatDummy = new Object3D();
+    // Generate billboard transforms for ALL corn (edge + cheap)
+    const allTransforms = [...edge, ...cheap3D];
+    const billboardTransforms: WallTransformData[] = [];
+    const bbDummy = new Object3D();
     
-    cheap3D.forEach(t => {
+    allTransforms.forEach(t => {
       const pos = new Vector3();
       const quat = new Quaternion();
       const scale = new Vector3();
       t.matrix.decompose(pos, quat, scale);
       
-      // Flatten X scale to create 2D billboard effect
-      flatDummy.position.copy(pos);
-      flatDummy.quaternion.copy(quat);
-      flatDummy.scale.set(scale.x * 0.12, scale.y, scale.z);
-      flatDummy.updateMatrix();
+      // Billboard: upright plane at stalk position, slightly above ground
+      bbDummy.position.set(pos.x, 1.25, pos.z); // Center billboard vertically
+      bbDummy.rotation.set(0, 0, 0); // Reset rotation (will face camera via shader or lookAt)
+      bbDummy.scale.set(1, 1, 1);
+      bbDummy.updateMatrix();
       
-      cheapFlat.push({ matrix: flatDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ });
+      billboardTransforms.push({ matrix: bbDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ });
     });
     
     return { 
       edgeTransforms: edge, 
       cheapTransforms: cheap3D,
-      cheapFlatTransforms: cheapFlat
+      allBillboardTransforms: billboardTransforms
     };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
   
-  // Store flat transforms ref
-  const cheapFlatTransformsRef = useRef<WallTransformData[]>([]);
 
   // Create instanced meshes
   useEffect(() => {
     const edgeGroup = edgeGroupRef.current;
     const cheapGroup = cheapGroupRef.current;
-    if (!edgeGroup || !cheapGroup || meshDataList.length === 0 || createdRef.current) return;
+    const billboardGroup = billboardGroupRef.current;
+    if (!edgeGroup || !cheapGroup || !billboardGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     const allMeshes: ThreeInstancedMesh[] = [];
@@ -562,10 +599,34 @@ export const InstancedWalls = ({
       cheapMeshRef.current = cheapMesh;
       cheapMeshCountRef.current = cheapTransforms.length;
       cheapTransformsRef.current = cheapTransforms;
-      cheapFlatTransformsRef.current = cheapFlatTransforms;
       
       cheapGroup.add(cheapMesh);
       allMeshes.push(cheapMesh);
+    }
+    
+    // BILLBOARD CORN: For all corn beyond 10m (2 triangles per billboard!)
+    if (allBillboardTransforms.length > 0) {
+      const bbMesh = new ThreeInstancedMesh(
+        billboardGeometry.clone(),
+        billboardMaterial.clone(),
+        allBillboardTransforms.length
+      );
+      
+      allBillboardTransforms.forEach((t, i) => {
+        bbMesh.setMatrixAt(i, t.matrix);
+      });
+      
+      bbMesh.instanceMatrix.needsUpdate = true;
+      bbMesh.castShadow = false;
+      bbMesh.receiveShadow = false;
+      bbMesh.frustumCulled = false;
+      bbMesh.count = 0; // Start with 0 visible (only show beyond 10m)
+      
+      billboardMeshRef.current = bbMesh;
+      billboardTransformsRef.current = allBillboardTransforms;
+      
+      billboardGroup.add(bbMesh);
+      allMeshes.push(bbMesh);
     }
     
     return () => {
@@ -588,7 +649,7 @@ export const InstancedWalls = ({
       edgeTransformsRef.current = [];
       createdRef.current = false;
     };
-  }, [meshDataList, firstGeometry, cheapMaterial, edgeTransforms, cheapTransforms]);
+  }, [meshDataList, firstGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
@@ -596,6 +657,7 @@ export const InstancedWalls = ({
     <>
       <group ref={edgeGroupRef} />
       <group ref={cheapGroupRef} />
+      <group ref={billboardGroupRef} />
     </>
   );
 };
