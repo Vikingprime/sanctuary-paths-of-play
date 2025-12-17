@@ -108,73 +108,88 @@ export const GameHUD = ({
             ✕ Quit
           </button>
           
-          {/* Corn optimization toggles */}
-          {onToggleShadowOpt && (
-            <button
-              onClick={onToggleShadowOpt}
-              className={cn(
-                'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                shadowOptEnabled ? 'text-green-500' : 'text-red-500'
-              )}
-              title="Shadow optimization (boundary corn has no shadows)"
-            >
-              🌑 {shadowOptEnabled ? 'On' : 'Off'}
-            </button>
-          )}
-          {onToggleDistanceCull && (
-            <button
-              onClick={onToggleDistanceCull}
-              className={cn(
-                'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                distanceCullEnabled ? 'text-green-500' : 'text-red-500'
-              )}
-              title="Distance culling"
-            >
-              📏 {distanceCullEnabled ? 'On' : 'Off'}
-            </button>
-          )}
-          {onToggleDynamicFog && (
-            <button
-              onClick={onToggleDynamicFog}
-              className={cn(
-                'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                dynamicFogEnabled ? 'text-green-500' : 'text-red-500'
-              )}
-              title="Dynamic fog (hides outer corn when far)"
-            >
-              🌫️ {dynamicFogEnabled ? 'On' : 'Off'}
-            </button>
-          )}
-          {onToggleEdgeCornCull && (
-            <button
-              onClick={onToggleEdgeCornCull}
-              className={cn(
-                'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                edgeCornCullEnabled ? 'text-green-500' : 'text-red-500'
-              )}
-              title="Edge corn culling (hides distant edge corn)"
-            >
-              🌽 {edgeCornCullEnabled ? 'On' : 'Off'}
-            </button>
-          )}
-          {onTogglePixelRatio && (
-            <button
-              onClick={onTogglePixelRatio}
-              className={cn(
-                'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                lowPixelRatio ? 'text-yellow-500' : 'text-green-500'
-              )}
-              title="Pixel ratio (low = better performance)"
-            >
-              🖼️ {lowPixelRatio ? '0.5x' : '1x'}
-            </button>
-          )}
+          {/* Corn optimization toggles - hidden on mobile */}
+          <div className="hidden md:flex flex-col gap-2">
+            {onToggleShadowOpt && (
+              <button
+                onClick={onToggleShadowOpt}
+                className={cn(
+                  'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                  shadowOptEnabled ? 'text-green-500' : 'text-red-500'
+                )}
+                title="Shadow optimization (boundary corn has no shadows)"
+              >
+                🌑 {shadowOptEnabled ? 'On' : 'Off'}
+              </button>
+            )}
+            {onToggleDistanceCull && (
+              <button
+                onClick={onToggleDistanceCull}
+                className={cn(
+                  'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                  distanceCullEnabled ? 'text-green-500' : 'text-red-500'
+                )}
+                title="Distance culling"
+              >
+                📏 {distanceCullEnabled ? 'On' : 'Off'}
+              </button>
+            )}
+            {onToggleDynamicFog && (
+              <button
+                onClick={onToggleDynamicFog}
+                className={cn(
+                  'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                  dynamicFogEnabled ? 'text-green-500' : 'text-red-500'
+                )}
+                title="Dynamic fog (hides outer corn when far)"
+              >
+                🌫️ {dynamicFogEnabled ? 'On' : 'Off'}
+              </button>
+            )}
+            {onToggleEdgeCornCull && (
+              <button
+                onClick={onToggleEdgeCornCull}
+                className={cn(
+                  'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                  edgeCornCullEnabled ? 'text-green-500' : 'text-red-500'
+                )}
+                title="Edge corn culling (hides distant edge corn)"
+              >
+                🌽 {edgeCornCullEnabled ? 'On' : 'Off'}
+              </button>
+            )}
+            {onTogglePixelRatio && (
+              <button
+                onClick={onTogglePixelRatio}
+                className={cn(
+                  'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                  lowPixelRatio ? 'text-yellow-500' : 'text-green-500'
+                )}
+                title="Pixel ratio (low = better performance)"
+              >
+                🖼️ {lowPixelRatio ? '0.5x' : '1x'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Performance Profiler Panel */}
+      {/* FPS Counter - shown on all devices */}
+      {performanceInfo?.frameTime !== undefined && (
+        <div className="absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono">
+          <div className={cn(
+            'font-bold',
+            performanceInfo.frameTime > 33 ? 'text-red-400' : 
+            performanceInfo.frameTime > 20 ? 'text-yellow-400' : 'text-green-400'
+          )}>
+            {(1000 / performanceInfo.frameTime).toFixed(0)} FPS
+          </div>
+        </div>
+      )}
+
+      {/* Full Performance Profiler Panel - hidden on mobile */}
       {(performanceInfo || drawCalls !== undefined) && (
-        <div className="absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[200px]">
+        <div className="hidden md:block absolute top-32 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[200px]">
           <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">PERF PROFILER</div>
           
           {/* Frame timing */}
