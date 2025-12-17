@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
 import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry } from 'three';
 import { Maze, AnimalType } from '@/types/game';
-import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS } from './CornWall';
+import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition } from '@/game/GameLogic';
 
@@ -417,10 +417,12 @@ const Ground = ({ maze, rocks, playerStateRef }: { maze: Maze; rocks: RockPositi
   );
 };
 
-const MazeWalls = ({ maze, playerStateRef, optimizationSettings }: { 
+
+const MazeWalls = ({ maze, playerStateRef, optimizationSettings, onCullStats }: { 
   maze: Maze; 
   playerStateRef?: React.MutableRefObject<{ x: number; y: number }>;
   optimizationSettings?: CornOptimizationSettings;
+  onCullStats?: (stats: CullStats) => void;
 }) => {
   const { edgePositions, depthOnlyWalls, boundaryWalls } = useMemo(() => {
     const maxX = maze.grid[0].length - 1;
@@ -505,6 +507,7 @@ const MazeWalls = ({ maze, playerStateRef, optimizationSettings }: {
       boundaryPositions={boundaryWalls}
       playerPositionRef={playerStateRef}
       optimizationSettings={optimizationSettings}
+      onCullStats={onCullStats}
     />
   );
 };
@@ -799,6 +802,9 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
+  // Cull stats for debugging
+  const [cullStats, setCullStats] = useState<CullStats | null>(null);
+  
   useFrame(() => {
     if (!hasSignaled.current && onSceneReady) {
       hasSignaled.current = true;
@@ -909,7 +915,30 @@ return (
         maze={maze} 
         playerStateRef={playerStateRef}
         optimizationSettings={cornOptimizationSettings}
+        onCullStats={setCullStats}
       />
+      
+      {/* Cull Stats Overlay */}
+      {cullStats && cornOptimizationSettings?.enableDistanceCulling && (
+        <Html position={[playerStateRef.current.x, 3, playerStateRef.current.y]} center>
+          <div style={{
+            background: 'rgba(0,0,0,0.8)',
+            color: '#0f0',
+            padding: '8px',
+            borderRadius: '4px',
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+          }}>
+            <div>Edge: {cullStats.edgeVisible}/{cullStats.edgeTotal}</div>
+            <div>Cheap: {cullStats.cheapVisible}/{cullStats.cheapTotal}</div>
+            <div style={{ color: cullStats.edgeVisible + cullStats.cheapVisible < 500 ? '#0f0' : '#f00' }}>
+              Total: {cullStats.edgeVisible + cullStats.cheapVisible}
+            </div>
+          </div>
+        </Html>
+      )}
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (
