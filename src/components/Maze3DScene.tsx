@@ -19,8 +19,9 @@ export interface PerformanceInfo {
 }
 
 // === PERFORMANCE TOGGLES (for testing) ===
-const ENABLE_PATH_ROCKS = true;       // Rocks on the path (the pebble spots)
-const ENABLE_GRASS_DETAIL = false;    // Detailed grass patches vs solid color
+const ENABLE_3D_ROCKS = false;        // 3D rock meshes scattered in scene
+const ENABLE_3D_GRASS = false;        // 3D grass tuft meshes
+const ENABLE_GRASS_SHADER_DETAIL = false;  // Detailed grass patches in ground shader
 
 interface Maze3DSceneProps {
   maze: Maze;
@@ -193,8 +194,7 @@ const mat = new ShaderMaterial({
           // Fine texture
           pathColor = mix(pathColor, pathDark * 0.85, (1.0 - fineVar) * 0.12);
           
-          // === ROCKS (toggleable) ===
-          ${ENABLE_PATH_ROCKS ? `
+          // === PATH ROCKS (always on - adds visual interest to path) ===
           float largeRockNoise = hash(floor(worldUV * 1.8));
           float largeRockShape = length((fract(worldUV * 1.8) - 0.5) * vec2(1.0 + hash2(floor(worldUV * 1.8)) * 0.5, 1.0));
           float largeRocks = smoothstep(0.18, 0.12, largeRockShape) * step(0.92, largeRockNoise);
@@ -211,10 +211,9 @@ const mat = new ShaderMaterial({
           vec3 rockColor = mix(rockDark, rockMid, rockShade * 0.5 + largeVar * 0.3);
           rockColor = mix(rockColor, rockLight, noise(worldUV * 25.0) * 0.4);
           pathColor = mix(pathColor, rockColor, rockMask * 0.85);
-          ` : '// Rocks disabled'}
           
-          // === GRASS AREA (toggleable detail) ===
-          ${ENABLE_GRASS_DETAIL ? `
+          // === GRASS AREA (toggleable shader detail) ===
+          ${ENABLE_GRASS_SHADER_DETAIL ? `
           vec3 grassAreaBase = mix(pathDark * 0.9, pathRich * 0.8, noise(worldUV * 2.0) * 0.5 + 0.3);
           float grassClump1 = pow(fbm(worldUV * 3.0 + 300.0), 1.2);
           float grassClump2 = pow(noise(worldUV * 5.0 + 350.0), 0.8);
@@ -245,7 +244,7 @@ const mat = new ShaderMaterial({
           
           // === FINAL BLEND ===
           vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
-          ${ENABLE_GRASS_DETAIL ? `finalColor = mix(finalColor, grassTuftColor, edgeGrass * 0.5);
+          ${ENABLE_GRASS_SHADER_DETAIL ? `finalColor = mix(finalColor, grassTuftColor, edgeGrass * 0.5);
           float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
           vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
           finalColor = mix(finalColor, mudColor, transition * 0.2);` : '// Simplified blend'}
@@ -457,9 +456,9 @@ const Ground = ({ maze, rocks, playerStateRef }: { maze: Maze; rocks: RockPositi
         <shadowMaterial transparent opacity={0.4} />
       </mesh>
       
-      {/* 3D Props for visual depth */}
-      <ScatteredRocks rocks={rocks} />
-      <GrassTufts maze={maze} playerStateRef={playerStateRef} />
+      {/* 3D Props for visual depth (toggleable for performance testing) */}
+      {ENABLE_3D_ROCKS && <ScatteredRocks rocks={rocks} />}
+      {ENABLE_3D_GRASS && <GrassTufts maze={maze} playerStateRef={playerStateRef} />}
     </group>
   );
 };
