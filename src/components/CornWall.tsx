@@ -100,6 +100,14 @@ const optimizeMaterial = (material: Material): Material => {
   return material;
 };
 
+// Cull stats for debugging
+export interface CullStats {
+  edgeVisible: number;
+  edgeTotal: number;
+  cheapVisible: number;
+  cheapTotal: number;
+}
+
 // Instanced walls using InstancedMesh
 interface InstancedWallsProps {
   edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[];  // Edge stalks only
@@ -108,6 +116,7 @@ interface InstancedWallsProps {
   size?: [number, number, number];
   playerPositionRef?: React.MutableRefObject<{ x: number; y: number }>;
   optimizationSettings?: CornOptimizationSettings;
+  onCullStats?: (stats: CullStats) => void;
 }
 
 // Density settings
@@ -301,6 +310,7 @@ export const InstancedWalls = ({
   boundaryPositions = [], 
   playerPositionRef,
   optimizationSettings = DEFAULT_CORN_SETTINGS,
+  onCullStats,
 }: InstancedWallsProps) => {
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
@@ -386,12 +396,14 @@ export const InstancedWalls = ({
       cheapMeshRef.current.count = count;
       cheapMeshRef.current.instanceMatrix.needsUpdate = true;
       
-      // Debug: log cull stats every 60 frames
-      cullDebugRef.current++;
-      if (cullDebugRef.current % 60 === 1) {
-        const edgeCount = edgeMeshesRef.current[0]?.count ?? 0;
-        console.log(`[Cull] Edge: ${edgeCount}/${edgeTransformsRef.current.length}, Cheap: ${count}/${transforms.length}`);
-      }
+      // Report cull stats via callback
+      const edgeCount = edgeMeshesRef.current[0]?.count ?? 0;
+      onCullStats?.({
+        edgeVisible: edgeCount,
+        edgeTotal: edgeTransformsRef.current.length,
+        cheapVisible: count,
+        cheapTotal: transforms.length,
+      });
     }
   });
   
