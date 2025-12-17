@@ -19,7 +19,7 @@ export interface PerformanceInfo {
 }
 
 // === PERFORMANCE TOGGLES (for testing) ===
-const ENABLE_PATH_ROCKS = false;      // Rocks on the path
+const ENABLE_PATH_ROCKS = true;       // Rocks on the path (the pebble spots)
 const ENABLE_GRASS_DETAIL = false;    // Detailed grass patches vs solid color
 
 interface Maze3DSceneProps {
