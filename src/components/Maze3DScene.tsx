@@ -83,9 +83,9 @@ const mat = new ShaderMaterial({
         rockLight: { value: new Color('#C4B090') },
         rockMid: { value: new Color('#A08060') },
         rockDark: { value: new Color('#705540') },
-        // Fog uniforms (INCREASED FOR TESTING - normally 0.08)
-        fogColor: { value: new Color('#5a6b55') },  // Desaturated atmospheric
-        fogDensity: { value: 0.25 },  // Heavy fog at ~5m
+        // Fog uniforms
+        fogColor: { value: new Color('#5a6b55') },
+        fogDensity: { value: 0.08 },  // Back to normal
       },
       fog: true,
       vertexShader: `
@@ -910,8 +910,8 @@ return (
       {/* Atmospheric background - desaturated to match fog */}
       <color attach="background" args={['#5a6b55']} />
       
-      {/* Exponential fog for smoother atmospheric haze (INCREASED FOR TESTING - normally 0.08) */}
-      <fogExp2 attach="fog" args={['#5a6b55', 0.25]} />
+      {/* Exponential fog */}
+      <fogExp2 attach="fog" args={['#5a6b55', 0.08]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
