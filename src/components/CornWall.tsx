@@ -4,8 +4,8 @@ import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 
 // LOD distance tiers
-const LOD_FULL_QUALITY_DISTANCE = 10;  // Full GLTF materials within 10m
-const LOD_CHEAP_DISTANCE = 25;          // Cheap material 10-25m, hidden beyond 25m
+const LOD_FULL_QUALITY_DISTANCE = 8;   // Full GLTF materials within 8m
+const LOD_CHEAP_DISTANCE = 18;          // Cheap material 8-18m, hidden beyond 18m
 
 interface CornWallProps {
   position: [number, number, number];
