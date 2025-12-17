@@ -83,7 +83,7 @@ const mat = new ShaderMaterial({
         rockDark: { value: new Color('#705540') },
         // Fog uniforms
         fogColor: { value: new Color('#5a6b55') },
-        fogDensity: { value: 0.14 },  // Denser fog to hide corn cull at 10m
+        fogDensity: { value: 0.20 },  // Denser fog to hide corn cull at 10m
       },
       fog: true,
       vertexShader: `
@@ -905,7 +905,7 @@ return (
       <color attach="background" args={['#5a6b55']} />
       
       {/* Exponential fog */}
-      <fogExp2 attach="fog" args={['#5a6b55', 0.14]} />
+      <fogExp2 attach="fog" args={['#5a6b55', 0.20]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
