@@ -37,6 +37,7 @@ interface Maze3DSceneProps {
   cornOptimizationSettings?: CornOptimizationSettings;
   lowPixelRatio?: boolean;
   onRendererInfo?: (info: PerformanceInfo) => void;
+  onCullStats?: (stats: CullStats) => void;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -798,12 +799,9 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, onSceneReady, cornOptimizationSettings }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, onSceneReady, cornOptimizationSettings, onCullStats }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
-  
-  // Cull stats for debugging
-  const [cullStats, setCullStats] = useState<CullStats | null>(null);
   
   useFrame(() => {
     if (!hasSignaled.current && onSceneReady) {
@@ -915,40 +913,8 @@ return (
         maze={maze} 
         playerStateRef={playerStateRef}
         optimizationSettings={cornOptimizationSettings}
-        onCullStats={setCullStats}
+        onCullStats={onCullStats}
       />
-      
-      {/* Cull Stats Overlay - fixed position on screen */}
-      {cullStats && cornOptimizationSettings?.enableDistanceCulling && (
-        <Html fullscreen style={{ pointerEvents: 'none' }}>
-          <div style={{
-            position: 'fixed',
-            bottom: '80px',
-            left: '10px',
-            background: 'rgba(0,0,0,0.85)',
-            color: '#0f0',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            fontFamily: 'monospace',
-            fontSize: '12px',
-            whiteSpace: 'nowrap',
-            border: '1px solid #0f0',
-          }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#ff0' }}>CULL STATS</div>
-            <div>Edge: {cullStats.edgeVisible}/{cullStats.edgeTotal}</div>
-            <div>Cheap: {cullStats.cheapVisible}/{cullStats.cheapTotal}</div>
-            <div style={{ 
-              color: cullStats.edgeVisible + cullStats.cheapVisible < 500 ? '#0f0' : '#f00',
-              fontWeight: 'bold',
-              marginTop: '4px',
-              borderTop: '1px solid #333',
-              paddingTop: '4px'
-            }}>
-              Total Visible: {cullStats.edgeVisible + cullStats.cheapVisible}
-            </div>
-          </div>
-        </Html>
-      )}
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (
@@ -1027,6 +993,7 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
 
 export const Maze3DCanvas = (props: Maze3DSceneProps) => {
   const [fps, setFps] = useState(0);
+  const [cullStats, setCullStats] = useState<CullStats | null>(null);
   
   // Detect mobile for pixel ratio capping
   const isMobile = useMemo(() => {
@@ -1042,6 +1009,39 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
   return (
     <div className="w-full h-full">
       <FPSDisplay fps={fps} />
+      
+      {/* Cull Stats Overlay - rendered OUTSIDE Canvas for stable positioning */}
+      {cullStats && props.cornOptimizationSettings?.enableDistanceCulling && (
+        <div style={{
+          position: 'fixed',
+          bottom: '80px',
+          left: '10px',
+          background: 'rgba(0,0,0,0.85)',
+          color: '#0f0',
+          padding: '8px 12px',
+          borderRadius: '6px',
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          whiteSpace: 'nowrap',
+          border: '1px solid #0f0',
+          zIndex: 1000,
+          pointerEvents: 'none',
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#ff0' }}>CULL STATS</div>
+          <div>Edge: {cullStats.edgeVisible}/{cullStats.edgeTotal}</div>
+          <div>Cheap: {cullStats.cheapVisible}/{cullStats.cheapTotal}</div>
+          <div style={{ 
+            color: cullStats.edgeVisible + cullStats.cheapVisible < 500 ? '#0f0' : '#f00',
+            fontWeight: 'bold',
+            marginTop: '4px',
+            borderTop: '1px solid #333',
+            paddingTop: '4px'
+          }}>
+            Total Visible: {cullStats.edgeVisible + cullStats.cheapVisible}
+          </div>
+        </div>
+      )}
+      
       <Canvas 
         shadows 
         gl={{ 
@@ -1053,7 +1053,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
         frameloop="always"
       >
         <PerspectiveCamera makeDefault fov={60} near={0.5} far={100} />
-        <Scene {...props} />
+        <Scene {...props} onCullStats={setCullStats} />
         <FPSTracker onFpsUpdate={setFps} />
         <RendererInfoTracker onRendererInfo={props.onRendererInfo} />
       </Canvas>
