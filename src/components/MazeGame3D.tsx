@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Maze, AnimalType } from '@/types/game';
-import { Maze3DCanvas } from './Maze3DScene';
+import { Maze3DCanvas, PerformanceInfo } from './Maze3DScene';
 import { MazePreview } from './MazePreview';
 import { MiniMap } from './MiniMap';
 import { GameHUD } from './GameHUD';
@@ -66,7 +66,7 @@ export const MazeGame3D = ({
   const [dynamicFogEnabled, setDynamicFogEnabled] = useState(true);
   const [edgeCornCullEnabled, setEdgeCornCullEnabled] = useState(true); // Enabled for performance
   const [lowPixelRatio, setLowPixelRatio] = useState(false);
-  const [rendererInfo, setRendererInfo] = useState({ drawCalls: 0, triangles: 0 });
+  const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
   const rotationIntensityRef = useRef(0);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
@@ -327,8 +327,7 @@ export const MazeGame3D = ({
           onToggleEdgeCornCull={() => setEdgeCornCullEnabled(prev => !prev)}
           lowPixelRatio={lowPixelRatio}
           onTogglePixelRatio={() => setLowPixelRatio(prev => !prev)}
-          drawCalls={rendererInfo.drawCalls}
-          triangles={rendererInfo.triangles}
+          performanceInfo={rendererInfo}
         />
       )}
 
