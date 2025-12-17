@@ -925,13 +925,13 @@ return (
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
       
-      {/* Maze Walls (corn) with optimizations */}
-      <MazeWalls 
+      {/* Maze Walls (corn) with optimizations - TEMPORARILY DISABLED */}
+      {/* <MazeWalls 
         maze={maze} 
         playerStateRef={playerStateRef}
         optimizationSettings={cornOptimizationSettings}
         onCullStats={onCullStats}
-      />
+      /> */}
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (
