@@ -1151,10 +1151,13 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
         gl={{ 
           logarithmicDepthBuffer: true, 
           antialias: !isMobile && !props.lowPixelRatio,
-          powerPreference: 'high-performance'
+          powerPreference: 'high-performance',
+          preserveDrawingBuffer: false,
+          failIfMajorPerformanceCaveat: false,
         }} 
         dpr={pixelRatio}
         frameloop="always"
+        performance={{ min: 0.1 }}
       >
         <PerspectiveCamera makeDefault fov={60} near={0.5} far={100} />
         <Scene {...props} onCullStats={setCullStats} />
