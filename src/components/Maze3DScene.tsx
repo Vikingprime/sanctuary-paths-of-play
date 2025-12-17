@@ -1114,8 +1114,8 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
     <div className="w-full h-full">
       <FPSDisplay fps={fps} />
       
-      {/* Cull Stats Overlay - rendered OUTSIDE Canvas for stable positioning */}
-      {cullStats && props.cornOptimizationSettings?.enableDistanceCulling && (
+      {/* Cull Stats Overlay - hidden on mobile */}
+      {!isMobile && cullStats && props.cornOptimizationSettings?.enableDistanceCulling && (
         <div style={{
           position: 'fixed',
           bottom: '80px',

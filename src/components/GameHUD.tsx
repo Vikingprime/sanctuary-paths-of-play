@@ -174,22 +174,9 @@ export const GameHUD = ({
         </div>
       </div>
 
-      {/* FPS Counter - shown on all devices */}
-      {performanceInfo?.frameTime !== undefined && (
-        <div className="absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono">
-          <div className={cn(
-            'font-bold',
-            performanceInfo.frameTime > 33 ? 'text-red-400' : 
-            performanceInfo.frameTime > 20 ? 'text-yellow-400' : 'text-green-400'
-          )}>
-            {(1000 / performanceInfo.frameTime).toFixed(0)} FPS
-          </div>
-        </div>
-      )}
-
-      {/* Full Performance Profiler Panel - hidden on mobile */}
+      {/* Full Performance Profiler Panel - hidden on mobile (FPS shown via FPSDisplay in Maze3DScene) */}
       {(performanceInfo || drawCalls !== undefined) && (
-        <div className="hidden md:block absolute top-32 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[200px]">
+        <div className="hidden md:block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[200px]">
           <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">PERF PROFILER</div>
           
           {/* Frame timing */}
