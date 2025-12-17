@@ -21,7 +21,6 @@ export interface PerformanceInfo {
 // === PERFORMANCE TOGGLES (for testing) ===
 const ENABLE_3D_ROCKS = false;        // 3D rock meshes scattered in scene
 const ENABLE_3D_GRASS = false;        // 3D grass tuft meshes
-const ENABLE_SIMPLE_GROUND = false;   // DISABLED - was causing FPS issues
 
 interface Maze3DSceneProps {
   maze: Maze;
@@ -158,15 +157,6 @@ const mat = new ShaderMaterial({
           vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
           float isWall = texture2D(wallMap, mazeUV).r;
           
-          ${ENABLE_SIMPLE_GROUND ? `
-          // === SIMPLE GROUND (for performance testing) ===
-          float wallMask = smoothstep(0.3, 0.7, isWall);
-          float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
-                          step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
-          wallMask = mix(1.0, wallMask, inBounds);
-          vec3 finalColor = mix(pathBase, grassBase, wallMask);
-          ` : `
-          // === FULL QUALITY GROUND ===
           // Organic edge distortion for natural grass patches
           float edgeWarp = fbm(worldUV * 1.5 + 10.0) * 0.35;
           float edgeDetail = noise(worldUV * 4.0) * 0.15;
@@ -212,7 +202,6 @@ const mat = new ShaderMaterial({
           
           vec3 grassAreaColor = grassBase;
           vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
-          `}
           
           // Apply exponential fog
           float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
