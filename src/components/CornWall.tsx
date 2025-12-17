@@ -344,10 +344,12 @@ export const InstancedWalls = ({
   const billboardMeshRef = useRef<ThreeInstancedMesh | null>(null);
   const billboardTransformsRef = useRef<WallTransformData[]>([]);
   
-  // Track last update position and culling state
+  // Track last update position and camera direction for culling
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
+  const lastCamDirRef = useRef({ x: 0, z: -1 }); // Track camera direction for rotation-based updates
   const lastCullingEnabledRef = useRef<boolean | null>(null);
   const UPDATE_THRESHOLD = 0.5;
+  const ROTATION_THRESHOLD = 0.1; // ~5.7 degrees of rotation triggers update
   const cullDebugRef = useRef(0); // Debug counter
   
   // Distance threshold for culling
@@ -370,13 +372,21 @@ export const InstancedWalls = ({
     camForward.y = 0; // Flatten to horizontal plane
     camForward.normalize();
     
-    // Throttle updates - only update when player moves significantly
+    // Check if position changed significantly
     const dx = px - lastUpdatePosRef.current.x;
     const dz = pz - lastUpdatePosRef.current.z;
-    const shouldUpdate = dx * dx + dz * dz >= 0.25 || lastUpdatePosRef.current.x === -999;
+    const positionChanged = dx * dx + dz * dz >= 0.25;
+    
+    // Check if camera direction changed significantly
+    const camDx = camForward.x - lastCamDirRef.current.x;
+    const camDz = camForward.z - lastCamDirRef.current.z;
+    const directionChanged = camDx * camDx + camDz * camDz >= ROTATION_THRESHOLD * ROTATION_THRESHOLD;
+    
+    const shouldUpdate = positionChanged || directionChanged || lastUpdatePosRef.current.x === -999;
     
     if (!shouldUpdate) return;
     lastUpdatePosRef.current = { x: px, z: pz };
+    lastCamDirRef.current = { x: camForward.x, z: camForward.z };
     
     const cullDistSq = CULL_DISTANCE_SQ;
     let edgeCount = 0;
