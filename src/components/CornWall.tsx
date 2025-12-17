@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3 } from 'three';
 import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 
@@ -341,6 +341,9 @@ export const InstancedWalls = ({
   const UPDATE_THRESHOLD = 0.5;
   const cullDebugRef = useRef(0); // Debug counter
   
+  // Distance threshold for 2D/3D swap (move constants here so they're available in useFrame)
+  const FLATTEN_DISTANCE_SQ = 10 * 10; // 10m squared
+  
   // Distance culling (fog is now handled by scene's FogExp2)
   useFrame(() => {
     // Skip ALL culling if distance culling is disabled
@@ -382,15 +385,19 @@ export const InstancedWalls = ({
       }
     }
     
-    // Cull cheap corn (interior/boundary) - re-pack visible instances
+    // Cull cheap corn (interior/boundary) - use flat vs 3D based on distance
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
-      const transforms = cheapTransformsRef.current;
+      const transforms3D = cheapTransformsRef.current;
+      const transformsFlat = cheapFlatTransformsRef.current;
       
-      for (let i = 0; i < transforms.length; i++) {
-        const t = transforms[i];
-        const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
+      for (let i = 0; i < transforms3D.length; i++) {
+        const t3D = transforms3D[i];
+        const distSq = (px - t3D.centerX) ** 2 + (pz - t3D.centerZ) ** 2;
         if (distSq < cullDistSq) {
-          cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
+          // Use flat transform if beyond flatten distance, else use 3D
+          const useFlat = distSq > FLATTEN_DISTANCE_SQ && transformsFlat[i];
+          const matrix = useFlat ? transformsFlat[i].matrix : t3D.matrix;
+          cheapMeshRef.current.setMatrixAt(cheapCount, matrix);
           cheapCount++;
         }
       }
@@ -410,9 +417,10 @@ export const InstancedWalls = ({
     onCullStats?.(stats);
   });
   
-  // Extract mesh data from GLTF with optimized materials + simple geometry for cheap material
-  const { meshDataList, cheapGeometry, cheapMaterial } = useMemo(() => {
+  // Extract mesh data from GLTF with optimized materials
+  const { meshDataList, firstGeometry, cheapMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
+    let firstGeo: BufferGeometry | null = null;
     let sampledColor: Color | null = null;
     
     gltfScene.traverse((child) => {
@@ -420,13 +428,10 @@ export const InstancedWalls = ({
         const mesh = child as Mesh;
         const mat = mesh.material as any;
         
-        // Sample color from GLTF for cheap material
         if (!sampledColor && mat.color) {
           sampledColor = mat.color.clone();
-          console.log('[CornWall] Sampled GLTF color for cheap material:', sampledColor.getHexString());
         }
         
-        // Clone and optimize material (fix transparency/overdraw issues)
         const optimizedMaterial = Array.isArray(mesh.material) 
           ? mesh.material.map(m => optimizeMaterial(m.clone()))
           : optimizeMaterial(mesh.material.clone());
@@ -435,13 +440,13 @@ export const InstancedWalls = ({
           geometry: mesh.geometry.clone(),
           material: optimizedMaterial
         });
+        
+        if (!firstGeo) {
+          firstGeo = mesh.geometry.clone();
+        }
       }
     });
     
-    // Create VERY simple geometry for cheap/distant corn - just a thin box (12 triangles vs ~500+ for GLTF)
-    const cheapGeo = new BoxGeometry(0.0003, 0.0008, 0.0003);
-    
-    // Create cheap material using sampled GLTF color
     const cheapMat = new MeshLambertMaterial({ 
       color: sampledColor || new Color(0.12, 0.25, 0.10),
       transparent: false,
@@ -452,21 +457,46 @@ export const InstancedWalls = ({
     
     return { 
       meshDataList: meshes, 
-      cheapGeometry: cheapGeo,
+      firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1),
       cheapMaterial: cheapMat
     };
   }, [gltfScene]);
   
-  // Generate transforms separately for edge vs non-edge corn
-  const { edgeTransforms, cheapTransforms } = useMemo(() => {
+  // Generate transforms with BOTH 3D and flattened versions for cheap corn
+  const { edgeTransforms, cheapTransforms, cheapFlatTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
+    const cheap3D = [...outer, ...boundary];
+    
+    // Create flattened versions (scale X to near 0 for billboard effect)
+    const cheapFlat: WallTransformData[] = [];
+    const flatDummy = new Object3D();
+    
+    cheap3D.forEach(t => {
+      const pos = new Vector3();
+      const quat = new Quaternion();
+      const scale = new Vector3();
+      t.matrix.decompose(pos, quat, scale);
+      
+      // Flatten X scale to create 2D billboard effect
+      flatDummy.position.copy(pos);
+      flatDummy.quaternion.copy(quat);
+      flatDummy.scale.set(scale.x * 0.12, scale.y, scale.z);
+      flatDummy.updateMatrix();
+      
+      cheapFlat.push({ matrix: flatDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ });
+    });
+    
     return { 
       edgeTransforms: edge, 
-      cheapTransforms: [...outer, ...boundary] 
+      cheapTransforms: cheap3D,
+      cheapFlatTransforms: cheapFlat
     };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
+  
+  // Store flat transforms ref
+  const cheapFlatTransformsRef = useRef<WallTransformData[]>([]);
 
   // Create instanced meshes
   useEffect(() => {
@@ -513,7 +543,7 @@ export const InstancedWalls = ({
     // OUTER + BOUNDARY CORN: Single cheap material (1 draw call)
     if (cheapTransforms.length > 0) {
       const cheapMesh = new ThreeInstancedMesh(
-        cheapGeometry.clone(),
+        firstGeometry.clone(),
         cheapMaterial.clone(),
         cheapTransforms.length
       );
@@ -531,6 +561,7 @@ export const InstancedWalls = ({
       cheapMeshRef.current = cheapMesh;
       cheapMeshCountRef.current = cheapTransforms.length;
       cheapTransformsRef.current = cheapTransforms;
+      cheapFlatTransformsRef.current = cheapFlatTransforms;
       
       cheapGroup.add(cheapMesh);
       allMeshes.push(cheapMesh);
@@ -556,7 +587,7 @@ export const InstancedWalls = ({
       edgeTransformsRef.current = [];
       createdRef.current = false;
     };
-  }, [meshDataList, cheapGeometry, cheapMaterial, edgeTransforms, cheapTransforms]);
+  }, [meshDataList, firstGeometry, cheapMaterial, edgeTransforms, cheapTransforms]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
