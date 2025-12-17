@@ -1044,8 +1044,13 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
       <FPSDisplay fps={fps} />
       <Canvas 
         shadows 
-        gl={{ logarithmicDepthBuffer: true, antialias: !isMobile && !props.lowPixelRatio }} 
+        gl={{ 
+          logarithmicDepthBuffer: true, 
+          antialias: !isMobile && !props.lowPixelRatio,
+          powerPreference: 'high-performance'
+        }} 
         dpr={pixelRatio}
+        frameloop="always"
       >
         <PerspectiveCamera makeDefault fov={60} near={0.5} far={100} />
         <Scene {...props} />
