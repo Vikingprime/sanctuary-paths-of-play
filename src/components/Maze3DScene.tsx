@@ -21,8 +21,7 @@ export interface PerformanceInfo {
 // === PERFORMANCE TOGGLES (for testing) ===
 const ENABLE_3D_ROCKS = false;        // 3D rock meshes scattered in scene
 const ENABLE_3D_GRASS = false;        // 3D grass tuft meshes
-const ENABLE_GRASS_SHADER_DETAIL = false;  // Detailed grass patches in ground shader
-const ENABLE_SIMPLE_GROUND = true;    // Use simple ground shader (no noise/fbm calculations)
+const ENABLE_SIMPLE_GROUND = false;   // DISABLED - was causing FPS issues
 
 interface Maze3DSceneProps {
   maze: Maze;
