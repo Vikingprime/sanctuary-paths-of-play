@@ -7,6 +7,17 @@ import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS } from 
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition } from '@/game/GameLogic';
 
+// Extended performance info type
+export interface PerformanceInfo {
+  drawCalls: number;
+  triangles: number;
+  geometries: number;
+  textures: number;
+  programs: number;
+  frameTime: number;
+  gpuTime?: number;
+}
+
 interface Maze3DSceneProps {
   maze: Maze;
   animalType: AnimalType;
@@ -21,7 +32,7 @@ interface Maze3DSceneProps {
   onSceneReady?: () => void;
   cornOptimizationSettings?: CornOptimizationSettings;
   lowPixelRatio?: boolean;
-  onRendererInfo?: (info: { drawCalls: number; triangles: number }) => void;
+  onRendererInfo?: (info: PerformanceInfo) => void;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -950,8 +961,6 @@ return (
       
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
-      
-      
       {/* Atmospheric background - desaturated to match fog */}
       <color attach="background" args={['#5a6b55']} />
       
@@ -1004,18 +1013,37 @@ return (
 };
 
 // Component to track and report renderer info (throttled to avoid state churn)
-const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: { drawCalls: number; triangles: number }) => void }) => {
-  const { gl } = useThree();
+const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: PerformanceInfo) => void }) => {
+  const { gl, scene } = useThree();
   const lastUpdate = useRef(0);
+  const frameTimesRef = useRef<number[]>([]);
+  const lastFrameTime = useRef(performance.now());
   
   useFrame(() => {
+    const now = performance.now();
+    const frameTime = now - lastFrameTime.current;
+    lastFrameTime.current = now;
+    
+    // Keep last 30 frame times for averaging
+    frameTimesRef.current.push(frameTime);
+    if (frameTimesRef.current.length > 30) {
+      frameTimesRef.current.shift();
+    }
+    
     if (onRendererInfo) {
-      const now = performance.now();
-      if (now - lastUpdate.current > 500) { // Only update every 500ms
+      if (now - lastUpdate.current > 250) { // Update every 250ms for more responsive metrics
         lastUpdate.current = now;
+        
+        // Calculate average frame time
+        const avgFrameTime = frameTimesRef.current.reduce((a, b) => a + b, 0) / frameTimesRef.current.length;
+        
         onRendererInfo({
           drawCalls: gl.info.render.calls,
           triangles: gl.info.render.triangles,
+          geometries: gl.info.memory.geometries,
+          textures: gl.info.memory.textures,
+          programs: gl.info.programs?.length || 0,
+          frameTime: avgFrameTime,
         });
       }
     }

@@ -1,6 +1,7 @@
 import { AnimalType } from '@/types/game';
 import { animals } from '@/data/animals';
 import { cn } from '@/lib/utils';
+import { PerformanceInfo } from './Maze3DScene';
 
 interface GameHUDProps {
   animalType: AnimalType;
@@ -23,6 +24,8 @@ interface GameHUDProps {
   // Performance debug
   lowPixelRatio?: boolean;
   onTogglePixelRatio?: () => void;
+  performanceInfo?: PerformanceInfo;
+  // Legacy (for backwards compat)
   drawCalls?: number;
   triangles?: number;
 }
@@ -44,6 +47,7 @@ export const GameHUD = ({
   onToggleEdgeCornCull,
   lowPixelRatio = false,
   onTogglePixelRatio,
+  performanceInfo,
   drawCalls,
   triangles,
 }: GameHUDProps) => {
@@ -168,11 +172,72 @@ export const GameHUD = ({
         </div>
       </div>
 
-      {/* Draw call counter - top left under animal info */}
-      {drawCalls !== undefined && (
-        <div className="absolute top-20 left-4 bg-black/70 rounded px-2 py-1 text-xs font-mono text-white">
-          <div>Draws: {drawCalls}</div>
-          {triangles !== undefined && <div>Tris: {(triangles / 1000).toFixed(1)}k</div>}
+      {/* Performance Profiler Panel */}
+      {(performanceInfo || drawCalls !== undefined) && (
+        <div className="absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[200px]">
+          <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">PERF PROFILER</div>
+          
+          {/* Frame timing */}
+          {performanceInfo?.frameTime !== undefined && (
+            <div className={cn(
+              performanceInfo.frameTime > 33 ? 'text-red-400' : 
+              performanceInfo.frameTime > 20 ? 'text-yellow-400' : 'text-green-400'
+            )}>
+              Frame: {performanceInfo.frameTime.toFixed(1)}ms ({(1000 / performanceInfo.frameTime).toFixed(0)} fps)
+            </div>
+          )}
+          
+          {/* GPU/CPU indicators */}
+          <div className="mt-1 text-gray-400 text-[10px]">--- GPU Load ---</div>
+          
+          {/* Draw calls */}
+          <div className={cn(
+            (performanceInfo?.drawCalls ?? drawCalls ?? 0) > 100 ? 'text-red-400' : 
+            (performanceInfo?.drawCalls ?? drawCalls ?? 0) > 50 ? 'text-yellow-400' : 'text-green-400'
+          )}>
+            Draw calls: {performanceInfo?.drawCalls ?? drawCalls ?? 0}
+          </div>
+          
+          {/* Triangles */}
+          <div className={cn(
+            (performanceInfo?.triangles ?? triangles ?? 0) > 500000 ? 'text-red-400' : 
+            (performanceInfo?.triangles ?? triangles ?? 0) > 200000 ? 'text-yellow-400' : 'text-green-400'
+          )}>
+            Triangles: {((performanceInfo?.triangles ?? triangles ?? 0) / 1000).toFixed(1)}k
+          </div>
+          
+          {/* Textures & Geometries */}
+          {performanceInfo && (
+            <>
+              <div className={cn(
+                performanceInfo.textures > 50 ? 'text-yellow-400' : 'text-white'
+              )}>
+                Textures: {performanceInfo.textures}
+              </div>
+              <div className={cn(
+                performanceInfo.geometries > 100 ? 'text-yellow-400' : 'text-white'
+              )}>
+                Geometries: {performanceInfo.geometries}
+              </div>
+              <div>Shaders: {performanceInfo.programs}</div>
+            </>
+          )}
+          
+          {/* Bottleneck indicator */}
+          {performanceInfo && (
+            <div className="mt-1 pt-1 border-t border-gray-600">
+              <div className="text-[10px] text-gray-400">Bottleneck:</div>
+              <div className={cn(
+                'font-bold',
+                (performanceInfo.drawCalls > 80 || performanceInfo.triangles > 400000) ? 'text-red-400' : 'text-cyan-400'
+              )}>
+                {performanceInfo.drawCalls > 80 ? '⚠️ CPU (draw calls)' :
+                 performanceInfo.triangles > 400000 ? '⚠️ GPU (geometry)' :
+                 performanceInfo.frameTime > 33 ? '🔍 Unknown - toggle features' :
+                 '✓ Balanced'}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
