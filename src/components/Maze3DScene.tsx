@@ -189,73 +189,10 @@ const mat = new ShaderMaterial({
           // Fine texture
           pathColor = mix(pathColor, pathDark * 0.85, (1.0 - fineVar) * 0.12);
           
-          // === ROCKS - Varied sizes and shapes ===
-          // Large rocks (sparse)
-          float largeRockNoise = hash(floor(worldUV * 1.8));
-          float largeRockShape = length((fract(worldUV * 1.8) - 0.5) * vec2(1.0 + hash2(floor(worldUV * 1.8)) * 0.5, 1.0));
-          float largeRocks = smoothstep(0.18, 0.12, largeRockShape) * step(0.92, largeRockNoise);
+          // === ROCKS DISABLED FOR PERFORMANCE TESTING ===
           
-          // Medium rocks
-          float medRockNoise = hash(floor(worldUV * 3.5 + 20.0));
-          float medRockShape = length((fract(worldUV * 3.5 + 20.0) - 0.5) * vec2(1.0, 1.0 + hash3(floor(worldUV * 3.5 + 20.0)) * 0.4));
-          float medRocks = smoothstep(0.15, 0.08, medRockShape) * step(0.88, medRockNoise);
-          
-          // Small pebbles (more common)
-          float smallNoise = hash(floor(worldUV * 8.0 + 40.0));
-          float smallShape = length(fract(worldUV * 8.0 + 40.0) - 0.5);
-          float smallRocks = smoothstep(0.12, 0.06, smallShape) * step(0.82, smallNoise);
-          
-          // Tiny specks
-          float tinyNoise = hash(floor(worldUV * 15.0 + 60.0));
-          float tinyRocks = step(0.94, tinyNoise) * 0.5;
-          
-          // Combine rocks with varied colors
-          float rockMask = max(max(largeRocks, medRocks * 0.9), max(smallRocks * 0.7, tinyRocks));
-          float rockShade = noise(worldUV * 12.0);
-          vec3 rockColor = mix(rockDark, rockMid, rockShade * 0.5 + largeVar * 0.3);
-          rockColor = mix(rockColor, rockLight, noise(worldUV * 25.0) * 0.4);
-          
-          pathColor = mix(pathColor, rockColor, rockMask * 0.85);
-          
-// === GRASS AREA - Patchy with dirt showing through ===
-          // Base is actually dirt/soil, with grass clumps on top
-          vec3 grassAreaBase = mix(pathDark * 0.9, pathRich * 0.8, noise(worldUV * 2.0) * 0.5 + 0.3);
-          
-          // Grass clump pattern - scattered patches, not solid
-          float grassClump1 = pow(fbm(worldUV * 3.0 + 300.0), 1.2);
-          float grassClump2 = pow(noise(worldUV * 5.0 + 350.0), 0.8);
-          float grassClump3 = pow(fbm(worldUV * 8.0 + 400.0), 1.5);
-          
-          // Combine for patchy grass coverage (not 100%)
-          float grassCoverage = grassClump1 * 0.5 + grassClump2 * 0.3 + grassClump3 * 0.2;
-          grassCoverage = smoothstep(0.25, 0.6, grassCoverage); // Threshold for patches
-          
-          // Grass colors with variation
-          float grassVar = fbm(worldUV * 1.5 + 500.0);
-          vec3 grassTuftColor = mix(grassDark, grassBase, grassVar * 0.6 + 0.4);
-          grassTuftColor = mix(grassTuftColor, grassMoss, noise(worldUV * 4.0) * 0.4);
-          
-          // Lighter grass highlights on some tufts
-          float highlights = pow(noise(worldUV * 12.0 + 600.0), 2.0);
-          grassTuftColor = mix(grassTuftColor, grassBase * 1.3, highlights * 0.3);
-          
-          // Edge grass tufts (small clumps at path edges)
-          float edgeTufts = pow(noise(worldUV * 6.0 + 450.0), 1.5);
-          float edgeZone = smoothstep(0.3, 0.6, wallMask) * (1.0 - smoothstep(0.6, 0.85, wallMask));
-          float edgeGrass = edgeTufts * edgeZone;
-          
-          // Combine: dirt base with grass patches on top
-          vec3 grassAreaColor = mix(grassAreaBase, grassTuftColor, grassCoverage * 0.85);
-          
-          // Add scattered small tufts
-          float smallTufts = step(0.75, noise(worldUV * 10.0 + 700.0));
-          grassAreaColor = mix(grassAreaColor, grassBase * 1.1, smallTufts * 0.3 * grassCoverage);
-          
-          // Rocks in grass area
-          float grassRockNoise = hash(floor(worldUV * 2.5 + 80.0));
-          float grassRockShape = length(fract(worldUV * 2.5 + 80.0) - 0.5);
-          float grassRockMask = smoothstep(0.18, 0.08, grassRockShape) * step(0.88, grassRockNoise);
-          grassAreaColor = mix(grassAreaColor, rockMid * 0.9, grassRockMask * 0.8);
+          // === GRASS AREA - Simple solid color (disabled for performance testing) ===
+          vec3 grassAreaColor = grassBase;
           
 // === FINAL BLEND ===
           // Path to grass transition with edge grass tufts
