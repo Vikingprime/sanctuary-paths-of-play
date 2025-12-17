@@ -918,23 +918,33 @@ return (
         onCullStats={setCullStats}
       />
       
-      {/* Cull Stats Overlay */}
+      {/* Cull Stats Overlay - fixed position on screen */}
       {cullStats && cornOptimizationSettings?.enableDistanceCulling && (
-        <Html position={[playerStateRef.current.x, 3, playerStateRef.current.y]} center>
+        <Html fullscreen style={{ pointerEvents: 'none' }}>
           <div style={{
-            background: 'rgba(0,0,0,0.8)',
+            position: 'fixed',
+            bottom: '80px',
+            left: '10px',
+            background: 'rgba(0,0,0,0.85)',
             color: '#0f0',
-            padding: '8px',
-            borderRadius: '4px',
+            padding: '8px 12px',
+            borderRadius: '6px',
             fontFamily: 'monospace',
-            fontSize: '11px',
+            fontSize: '12px',
             whiteSpace: 'nowrap',
-            pointerEvents: 'none',
+            border: '1px solid #0f0',
           }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#ff0' }}>CULL STATS</div>
             <div>Edge: {cullStats.edgeVisible}/{cullStats.edgeTotal}</div>
             <div>Cheap: {cullStats.cheapVisible}/{cullStats.cheapTotal}</div>
-            <div style={{ color: cullStats.edgeVisible + cullStats.cheapVisible < 500 ? '#0f0' : '#f00' }}>
-              Total: {cullStats.edgeVisible + cullStats.cheapVisible}
+            <div style={{ 
+              color: cullStats.edgeVisible + cullStats.cheapVisible < 500 ? '#0f0' : '#f00',
+              fontWeight: 'bold',
+              marginTop: '4px',
+              borderTop: '1px solid #333',
+              paddingTop: '4px'
+            }}>
+              Total Visible: {cullStats.edgeVisible + cullStats.cheapVisible}
             </div>
           </div>
         </Html>
@@ -1040,7 +1050,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
         <PerspectiveCamera makeDefault fov={60} near={0.5} far={100} />
         <Scene {...props} />
         <FPSTracker onFpsUpdate={setFps} />
-        {/* <RendererInfoTracker onRendererInfo={props.onRendererInfo} /> */}
+        <RendererInfoTracker onRendererInfo={props.onRendererInfo} />
       </Canvas>
     </div>
   );

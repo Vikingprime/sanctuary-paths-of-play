@@ -352,29 +352,32 @@ export const InstancedWalls = ({
     // Throttle updates - only update when player moves significantly
     const dx = px - lastUpdatePosRef.current.x;
     const dz = pz - lastUpdatePosRef.current.z;
-    if (dx * dx + dz * dz < 0.25) return; // 0.5m threshold
+    const shouldUpdate = dx * dx + dz * dz >= 0.25 || lastUpdatePosRef.current.x === -999;
+    
+    if (!shouldUpdate) return;
     lastUpdatePosRef.current = { x: px, z: pz };
     
     const cullDistSq = LOD_CHEAP_DISTANCE * LOD_CHEAP_DISTANCE;
+    let edgeCount = 0;
+    let cheapCount = 0;
     
     // Cull edge corn (GLTF) - re-pack visible instances
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
-      let count = 0;
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
         if (distSq < cullDistSq) {
           for (const mesh of edgeMeshesRef.current) {
-            mesh.setMatrixAt(count, t.matrix);
+            mesh.setMatrixAt(edgeCount, t.matrix);
           }
-          count++;
+          edgeCount++;
         }
       }
       
       for (const mesh of edgeMeshesRef.current) {
-        mesh.count = count;
+        mesh.count = edgeCount;
         mesh.instanceMatrix.needsUpdate = true;
       }
     }
@@ -382,29 +385,29 @@ export const InstancedWalls = ({
     // Cull cheap corn (interior/boundary) - re-pack visible instances
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
       const transforms = cheapTransformsRef.current;
-      let count = 0;
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
         if (distSq < cullDistSq) {
-          cheapMeshRef.current.setMatrixAt(count, t.matrix);
-          count++;
+          cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
+          cheapCount++;
         }
       }
       
-      cheapMeshRef.current.count = count;
+      cheapMeshRef.current.count = cheapCount;
       cheapMeshRef.current.instanceMatrix.needsUpdate = true;
-      
-      // Report cull stats via callback
-      const edgeCount = edgeMeshesRef.current[0]?.count ?? 0;
-      onCullStats?.({
-        edgeVisible: edgeCount,
-        edgeTotal: edgeTransformsRef.current.length,
-        cheapVisible: count,
-        cheapTotal: transforms.length,
-      });
     }
+    
+    // Always report cull stats
+    const stats = {
+      edgeVisible: edgeCount,
+      edgeTotal: edgeTransformsRef.current.length,
+      cheapVisible: cheapCount,
+      cheapTotal: cheapTransformsRef.current.length,
+    };
+    console.log('[CullStats]', stats);
+    onCullStats?.(stats);
   });
   
   // Extract mesh data from GLTF with optimized materials + sample color for cheap material
