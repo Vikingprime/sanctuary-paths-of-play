@@ -1011,7 +1011,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
         <PerspectiveCamera makeDefault fov={60} near={0.5} far={100} />
         <Scene {...props} />
         <FPSTracker onFpsUpdate={setFps} />
-        <RendererInfoTracker onRendererInfo={props.onRendererInfo} />
+        {/* <RendererInfoTracker onRendererInfo={props.onRendererInfo} /> */}
       </Canvas>
     </div>
   );
