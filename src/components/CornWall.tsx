@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader } from 'three';
 import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
@@ -481,8 +481,39 @@ export const InstancedWalls = ({
       side: FrontSide,
     });
     
-    // Billboard: simple plane with corn texture (2 triangles!)
-    const bbGeo = new PlaneGeometry(0.4, 2.5);
+    // Low-poly LOD: Two crossed planes (4 triangles total - looks 3D!)
+    const plane1 = new PlaneGeometry(0.4, 2.5);
+    const plane2 = new PlaneGeometry(0.4, 2.5);
+    // Rotate second plane 90 degrees around Y axis
+    plane2.rotateY(Math.PI / 2);
+    // Merge into single geometry
+    plane1.translate(0, 0, 0);
+    plane2.translate(0, 0, 0);
+    const bbGeo = plane1; // Will add second plane as separate instance or merge
+    // Actually create crossed geometry by merging
+    const crossedPositions = new Float32Array(plane1.attributes.position.count * 3 * 2);
+    const crossedNormals = new Float32Array(plane1.attributes.normal.count * 3 * 2);
+    const crossedUvs = new Float32Array(plane1.attributes.uv.count * 2 * 2);
+    crossedPositions.set(plane1.attributes.position.array, 0);
+    crossedPositions.set(plane2.attributes.position.array, plane1.attributes.position.count * 3);
+    crossedNormals.set(plane1.attributes.normal.array, 0);
+    crossedNormals.set(plane2.attributes.normal.array, plane1.attributes.normal.count * 3);
+    crossedUvs.set(plane1.attributes.uv.array, 0);
+    crossedUvs.set(plane2.attributes.uv.array, plane1.attributes.uv.count * 2);
+    // Create crossed indices
+    const indices1 = plane1.index!.array;
+    const indices2 = plane2.index!.array;
+    const crossedIndices = new Uint16Array(indices1.length * 2);
+    crossedIndices.set(indices1, 0);
+    for (let i = 0; i < indices2.length; i++) {
+      crossedIndices[indices1.length + i] = indices2[i] + plane1.attributes.position.count;
+    }
+    const crossedGeo = new BufferGeometry();
+    crossedGeo.setAttribute('position', new BufferAttribute(crossedPositions, 3));
+    crossedGeo.setAttribute('normal', new BufferAttribute(crossedNormals, 3));
+    crossedGeo.setAttribute('uv', new BufferAttribute(crossedUvs, 2));
+    crossedGeo.setIndex(new BufferAttribute(crossedIndices, 1));
+    
     const bbMat = new MeshBasicMaterial({
       map: cornTex,
       transparent: true,
@@ -495,7 +526,7 @@ export const InstancedWalls = ({
       meshDataList: meshes, 
       firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1),
       cheapMaterial: cheapMat,
-      billboardGeometry: bbGeo,
+      billboardGeometry: crossedGeo,
       billboardMaterial: bbMat
     };
   }, [gltfScene, cornTex]);
