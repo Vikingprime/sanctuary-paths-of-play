@@ -410,10 +410,9 @@ export const InstancedWalls = ({
     onCullStats?.(stats);
   });
   
-  // Extract mesh data from GLTF with optimized materials + sample color for cheap material
-  const { meshDataList, firstGeometry, cheapMaterial } = useMemo(() => {
+  // Extract mesh data from GLTF with optimized materials + simple geometry for cheap material
+  const { meshDataList, cheapGeometry, cheapMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
-    let firstGeo: BufferGeometry | null = null;
     let sampledColor: Color | null = null;
     
     gltfScene.traverse((child) => {
@@ -436,12 +435,11 @@ export const InstancedWalls = ({
           geometry: mesh.geometry.clone(),
           material: optimizedMaterial
         });
-        
-        if (!firstGeo) {
-          firstGeo = mesh.geometry.clone();
-        }
       }
     });
+    
+    // Create VERY simple geometry for cheap/distant corn - just a thin box (12 triangles vs ~500+ for GLTF)
+    const cheapGeo = new BoxGeometry(0.015, 0.025, 0.015);
     
     // Create cheap material using sampled GLTF color
     const cheapMat = new MeshLambertMaterial({ 
@@ -454,7 +452,7 @@ export const InstancedWalls = ({
     
     return { 
       meshDataList: meshes, 
-      firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1),
+      cheapGeometry: cheapGeo,
       cheapMaterial: cheapMat
     };
   }, [gltfScene]);
@@ -515,7 +513,7 @@ export const InstancedWalls = ({
     // OUTER + BOUNDARY CORN: Single cheap material (1 draw call)
     if (cheapTransforms.length > 0) {
       const cheapMesh = new ThreeInstancedMesh(
-        firstGeometry.clone(),
+        cheapGeometry.clone(),
         cheapMaterial.clone(),
         cheapTransforms.length
       );
@@ -558,7 +556,7 @@ export const InstancedWalls = ({
       edgeTransformsRef.current = [];
       createdRef.current = false;
     };
-  }, [meshDataList, firstGeometry, cheapMaterial, edgeTransforms, cheapTransforms]);
+  }, [meshDataList, cheapGeometry, cheapMaterial, edgeTransforms, cheapTransforms]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
