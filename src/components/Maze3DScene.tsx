@@ -365,7 +365,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
     
-    // Place grass consistently along each wall edge facing paths
+    // Place grass on ~1/3 of wall edges facing paths (reduced for performance)
     for (let y = 1; y < mazeHeight - 1; y++) {
       for (let x = 1; x < mazeWidth - 1; x++) {
         if (!maze.grid[y][x].isWall) continue;
@@ -377,7 +377,8 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
         const pathDown = y < mazeHeight - 1 && !maze.grid[y+1][x].isWall;
         const pathUp = y > 0 && !maze.grid[y-1][x].isWall;
         
-        if (pathRight) {
+        // Only place grass 33% of the time on each edge
+        if (pathRight && seededRandom(seed + 500) < 0.33) {
           positions.push({
             x: x + 0.55 + seededRandom(seed) * 0.2,
             z: y + 0.3 + seededRandom(seed + 1) * 0.4,
@@ -386,7 +387,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
             type: seededRandom(seed + 4) > 0.5 ? 1 : 2,
           });
         }
-        if (pathLeft) {
+        if (pathLeft && seededRandom(seed + 600) < 0.33) {
           positions.push({
             x: x + 0.25 + seededRandom(seed + 100) * 0.2,
             z: y + 0.3 + seededRandom(seed + 101) * 0.4,
@@ -395,7 +396,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
             type: seededRandom(seed + 104) > 0.5 ? 1 : 2,
           });
         }
-        if (pathDown) {
+        if (pathDown && seededRandom(seed + 700) < 0.33) {
           positions.push({
             x: x + 0.3 + seededRandom(seed + 200) * 0.4,
             z: y + 0.55 + seededRandom(seed + 201) * 0.2,
@@ -404,7 +405,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
             type: seededRandom(seed + 204) > 0.5 ? 1 : 2,
           });
         }
-        if (pathUp) {
+        if (pathUp && seededRandom(seed + 800) < 0.33) {
           positions.push({
             x: x + 0.3 + seededRandom(seed + 300) * 0.4,
             z: y + 0.25 + seededRandom(seed + 301) * 0.2,
