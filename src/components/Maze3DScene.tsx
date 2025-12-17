@@ -242,10 +242,8 @@ const mat = new ShaderMaterial({
   return <primitive object={material} attach="material" />;
 };
 
-// 3D Rocks using InstancedMesh with distance + camera culling
-const ROCK_CULL_DISTANCE = 15; // Match corn culling distance
-const ROCK_NEAR_DISTANCE = 3;  // No back-culling within this distance
-const ROCK_BACK_CULL_DOT = -0.707; // cos(135°)
+// 3D Rocks using InstancedMesh with distance-only culling (no camera culling - too few rocks to matter)
+const ROCK_CULL_DISTANCE = 15;
 
 const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; playerStateRef?: MutableRefObject<PlayerState> }) => {
   const meshRef = useRef<InstancedMesh>(null);
@@ -292,31 +290,22 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     initializedRef.current = true;
   }, [rockTransforms]);
   
-  // Distance + camera culling (only if playerStateRef provided)
+  // Distance-only culling (no camera culling for rocks - too few to matter)
   useFrame(() => {
     if (!meshRef.current || !playerStateRef || !initializedRef.current) return;
     
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
     
-    // Get camera direction
-    const camDir = new Vector3();
-    camera.getWorldDirection(camDir);
-    camDir.y = 0;
-    camDir.normalize();
-    
-    // Throttle updates - but use smaller threshold for smoother culling
+    // Throttle updates
     const dx = px - lastUpdateRef.current.x;
     const dz = pz - lastUpdateRef.current.z;
-    const camDx = camDir.x - lastUpdateRef.current.dirX;
-    const camDz = camDir.z - lastUpdateRef.current.dirZ;
-    const shouldUpdate = dx*dx + dz*dz >= 0.1 || camDx*camDx + camDz*camDz >= 0.01 || lastUpdateRef.current.x === -999;
+    const shouldUpdate = dx*dx + dz*dz >= 0.1 || lastUpdateRef.current.x === -999;
     
     if (!shouldUpdate) return;
-    lastUpdateRef.current = { x: px, z: pz, dirX: camDir.x, dirZ: camDir.z };
+    lastUpdateRef.current = { x: px, z: pz, dirX: 0, dirZ: 0 };
     
     const cullDistSq = ROCK_CULL_DISTANCE * ROCK_CULL_DISTANCE;
-    const nearDistSq = ROCK_NEAR_DISTANCE * ROCK_NEAR_DISTANCE;
     let count = 0;
     
     for (let i = 0; i < rockTransforms.length; i++) {
@@ -324,15 +313,6 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
       const distSq = (px - t.x) ** 2 + (pz - t.z) ** 2;
       
       if (distSq >= cullDistSq) continue;
-      
-      // Camera culling only for distant rocks (>3m)
-      if (distSq >= nearDistSq) {
-        const toRockX = t.x - px;
-        const toRockZ = t.z - pz;
-        const len = Math.sqrt(distSq);
-        const dot = (toRockX / len) * camDir.x + (toRockZ / len) * camDir.z;
-        if (dot <= ROCK_BACK_CULL_DOT) continue; // Behind camera, cull it
-      }
       
       meshRef.current.setMatrixAt(count, t.matrix);
       count++;
