@@ -350,8 +350,11 @@ export const InstancedWalls = ({
   const UPDATE_THRESHOLD = 0.5;
   const cullDebugRef = useRef(0); // Debug counter
   
-  // Distance threshold for 2D/3D swap (move constants here so they're available in useFrame)
-  const FLATTEN_DISTANCE_SQ = 10 * 10; // 10m squared
+  // Distance threshold for culling
+  const CULL_DISTANCE_SQ = 15 * 15; // 15m squared
+  
+  // Camera direction culling - cull back 90 degrees (keep front 270 degrees)
+  const BACK_CULL_DOT_THRESHOLD = -0.707; // cos(135°) - corn behind this angle gets culled
   
   // Distance culling (fog is now handled by scene's FogExp2)
   useFrame(() => {
@@ -361,6 +364,12 @@ export const InstancedWalls = ({
     const px = playerPositionRef?.current?.x ?? 0;
     const pz = playerPositionRef?.current?.y ?? 0;
     
+    // Get camera forward direction for back-culling
+    const camForward = new Vector3();
+    camera.getWorldDirection(camForward);
+    camForward.y = 0; // Flatten to horizontal plane
+    camForward.normalize();
+    
     // Throttle updates - only update when player moves significantly
     const dx = px - lastUpdatePosRef.current.x;
     const dz = pz - lastUpdatePosRef.current.z;
@@ -369,10 +378,19 @@ export const InstancedWalls = ({
     if (!shouldUpdate) return;
     lastUpdatePosRef.current = { x: px, z: pz };
     
-    // Cull ALL corn beyond 10m - this is what actually reduces triangles
-    const cullDistSq = FLATTEN_DISTANCE_SQ; // Use 10m as hard cull distance
+    const cullDistSq = CULL_DISTANCE_SQ;
     let edgeCount = 0;
     let cheapCount = 0;
+    
+    // Helper to check if corn is in viewable arc (front 270 degrees)
+    const isInViewArc = (cornX: number, cornZ: number): boolean => {
+      const toCornX = cornX - px;
+      const toCornZ = cornZ - pz;
+      const len = Math.sqrt(toCornX * toCornX + toCornZ * toCornZ);
+      if (len < 0.001) return true; // Very close, always visible
+      const dot = (toCornX / len) * camForward.x + (toCornZ / len) * camForward.z;
+      return dot > BACK_CULL_DOT_THRESHOLD; // Keep if not directly behind
+    };
     
     // Cull edge corn (GLTF) - re-pack visible instances
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
@@ -381,7 +399,8 @@ export const InstancedWalls = ({
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
-        if (distSq < cullDistSq) {
+        // Distance cull AND camera-direction cull
+        if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ)) {
           for (const mesh of edgeMeshesRef.current) {
             mesh.setMatrixAt(edgeCount, t.matrix);
           }
@@ -395,14 +414,15 @@ export const InstancedWalls = ({
       }
     }
     
-    // Cull cheap corn (interior/boundary) - only show within 10m
+    // Cull cheap corn (interior/boundary)
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
       const transforms = cheapTransformsRef.current;
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
-        if (distSq < cullDistSq) {
+        // Distance cull AND camera-direction cull
+        if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ)) {
           cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
           cheapCount++;
         }
@@ -412,8 +432,7 @@ export const InstancedWalls = ({
       cheapMeshRef.current.instanceMatrix.needsUpdate = true;
     }
     
-    // Disable LOD corn - just let fog hide the empty space beyond 10m
-    // (LOD corn looked bad, this is cleaner)
+    // Disable LOD corn - just let fog hide the empty space
     if (billboardMeshRef.current) {
       billboardMeshRef.current.count = 0;
     }
