@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader, CylinderGeometry } from 'three';
 import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
@@ -481,44 +481,78 @@ export const InstancedWalls = ({
       side: FrontSide,
     });
     
-    // Low-poly LOD: Two crossed planes (4 triangles total - looks 3D!)
-    const plane1 = new PlaneGeometry(0.4, 2.5);
-    const plane2 = new PlaneGeometry(0.4, 2.5);
-    // Rotate second plane 90 degrees around Y axis
-    plane2.rotateY(Math.PI / 2);
-    // Merge into single geometry
-    plane1.translate(0, 0, 0);
-    plane2.translate(0, 0, 0);
-    const bbGeo = plane1; // Will add second plane as separate instance or merge
-    // Actually create crossed geometry by merging
-    const crossedPositions = new Float32Array(plane1.attributes.position.count * 3 * 2);
-    const crossedNormals = new Float32Array(plane1.attributes.normal.count * 3 * 2);
-    const crossedUvs = new Float32Array(plane1.attributes.uv.count * 2 * 2);
-    crossedPositions.set(plane1.attributes.position.array, 0);
-    crossedPositions.set(plane2.attributes.position.array, plane1.attributes.position.count * 3);
-    crossedNormals.set(plane1.attributes.normal.array, 0);
-    crossedNormals.set(plane2.attributes.normal.array, plane1.attributes.normal.count * 3);
-    crossedUvs.set(plane1.attributes.uv.array, 0);
-    crossedUvs.set(plane2.attributes.uv.array, plane1.attributes.uv.count * 2);
-    // Create crossed indices
-    const indices1 = plane1.index!.array;
-    const indices2 = plane2.index!.array;
-    const crossedIndices = new Uint16Array(indices1.length * 2);
-    crossedIndices.set(indices1, 0);
-    for (let i = 0; i < indices2.length; i++) {
-      crossedIndices[indices1.length + i] = indices2[i] + plane1.attributes.position.count;
-    }
-    const crossedGeo = new BufferGeometry();
-    crossedGeo.setAttribute('position', new BufferAttribute(crossedPositions, 3));
-    crossedGeo.setAttribute('normal', new BufferAttribute(crossedNormals, 3));
-    crossedGeo.setAttribute('uv', new BufferAttribute(crossedUvs, 2));
-    crossedGeo.setIndex(new BufferAttribute(crossedIndices, 1));
+    // Low-poly LOD corn: cylinder stalk + triangular leaves
+    // Create stalk (6-sided cylinder, very few tris)
+    const stalk = new CylinderGeometry(0.02, 0.03, 2.2, 6, 1);
+    stalk.translate(0, 1.1, 0); // Move up so base is at y=0
     
-    const bbMat = new MeshBasicMaterial({
-      map: cornTex,
-      transparent: true,
-      alphaTest: 0.5,
-      side: DoubleSide,
+    // Create triangular leaves (simple triangles angled outward)
+    const leafPositions: number[] = [];
+    const leafNormals: number[] = [];
+    const leafCount = 4; // 4 leaves at different heights/angles
+    const leafHeight = 0.6;
+    const leafWidth = 0.15;
+    
+    for (let i = 0; i < leafCount; i++) {
+      const angle = (i / leafCount) * Math.PI * 2 + Math.PI / 4;
+      const baseY = 0.5 + i * 0.4; // Leaves at different heights
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      
+      // Triangle vertices: base at stalk, tip pointing outward and up
+      // Base point 1 (on stalk)
+      leafPositions.push(cos * 0.025, baseY, sin * 0.025);
+      // Base point 2 (on stalk, slightly higher)
+      leafPositions.push(cos * 0.025, baseY + 0.1, sin * 0.025);
+      // Tip (extended outward and upward)
+      leafPositions.push(cos * leafWidth, baseY + leafHeight, sin * leafWidth);
+      
+      // Normal pointing outward (approximate)
+      const nx = cos * 0.5;
+      const nz = sin * 0.5;
+      const ny = 0.866; // 60 degree upward
+      leafNormals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
+    }
+    
+    // Get stalk data
+    const stalkPos = stalk.attributes.position.array;
+    const stalkNorm = stalk.attributes.normal.array;
+    const stalkIdx = stalk.index!.array;
+    
+    // Combine stalk + leaves into single geometry
+    const totalVerts = stalk.attributes.position.count + leafCount * 3;
+    const combinedPos = new Float32Array(totalVerts * 3);
+    const combinedNorm = new Float32Array(totalVerts * 3);
+    
+    // Copy stalk
+    combinedPos.set(stalkPos, 0);
+    combinedNorm.set(stalkNorm, 0);
+    
+    // Copy leaves
+    combinedPos.set(leafPositions, stalkPos.length);
+    combinedNorm.set(leafNormals, stalkNorm.length);
+    
+    // Build indices: stalk indices + leaf triangles
+    const leafIndices: number[] = [];
+    const stalkVertCount = stalk.attributes.position.count;
+    for (let i = 0; i < leafCount; i++) {
+      const base = stalkVertCount + i * 3;
+      leafIndices.push(base, base + 1, base + 2);
+    }
+    
+    const combinedIdx = new Uint16Array(stalkIdx.length + leafIndices.length);
+    combinedIdx.set(stalkIdx, 0);
+    combinedIdx.set(leafIndices, stalkIdx.length);
+    
+    const lodCornGeo = new BufferGeometry();
+    lodCornGeo.setAttribute('position', new BufferAttribute(combinedPos, 3));
+    lodCornGeo.setAttribute('normal', new BufferAttribute(combinedNorm, 3));
+    lodCornGeo.setIndex(new BufferAttribute(combinedIdx, 1));
+    
+    // Simple green material for LOD corn
+    const lodCornMat = new MeshLambertMaterial({
+      color: new Color(0.15, 0.4, 0.12),
+      side: FrontSide,
       depthWrite: true,
     });
     
@@ -526,8 +560,8 @@ export const InstancedWalls = ({
       meshDataList: meshes, 
       firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1),
       cheapMaterial: cheapMat,
-      billboardGeometry: crossedGeo,
-      billboardMaterial: bbMat
+      billboardGeometry: lodCornGeo,
+      billboardMaterial: lodCornMat
     };
   }, [gltfScene, cornTex]);
   
