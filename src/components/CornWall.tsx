@@ -329,14 +329,15 @@ export const InstancedWalls = ({
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
   const lastCullingEnabledRef = useRef<boolean | null>(null);
   const UPDATE_THRESHOLD = 0.5;
+  const cullDebugRef = useRef(0); // Debug counter
   
   // Distance culling (fog is now handled by scene's FogExp2)
   useFrame(() => {
+    // Skip ALL culling if distance culling is disabled
+    if (!optimizationSettings.enableDistanceCulling) return;
+    
     const px = playerPositionRef?.current?.x ?? 0;
     const pz = playerPositionRef?.current?.y ?? 0;
-    
-    // Skip culling if disabled
-    if (!optimizationSettings.enableEdgeCornCulling) return;
     
     // Throttle updates - only update when player moves significantly
     const dx = px - lastUpdatePosRef.current.x;
@@ -384,6 +385,13 @@ export const InstancedWalls = ({
       
       cheapMeshRef.current.count = count;
       cheapMeshRef.current.instanceMatrix.needsUpdate = true;
+      
+      // Debug: log cull stats every 60 frames
+      cullDebugRef.current++;
+      if (cullDebugRef.current % 60 === 1) {
+        const edgeCount = edgeMeshesRef.current[0]?.count ?? 0;
+        console.log(`[Cull] Edge: ${edgeCount}/${edgeTransformsRef.current.length}, Cheap: ${count}/${transforms.length}`);
+      }
     }
   });
   
