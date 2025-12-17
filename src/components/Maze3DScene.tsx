@@ -18,6 +18,10 @@ export interface PerformanceInfo {
   gpuTime?: number;
 }
 
+// === PERFORMANCE TOGGLES (for testing) ===
+const ENABLE_PATH_ROCKS = false;      // Rocks on the path
+const ENABLE_GRASS_DETAIL = false;    // Detailed grass patches vs solid color
+
 interface Maze3DSceneProps {
   maze: Maze;
   animalType: AnimalType;
@@ -189,13 +193,62 @@ const mat = new ShaderMaterial({
           // Fine texture
           pathColor = mix(pathColor, pathDark * 0.85, (1.0 - fineVar) * 0.12);
           
-          // === ROCKS DISABLED FOR PERFORMANCE TESTING ===
+          // === ROCKS (toggleable) ===
+          ${ENABLE_PATH_ROCKS ? `
+          float largeRockNoise = hash(floor(worldUV * 1.8));
+          float largeRockShape = length((fract(worldUV * 1.8) - 0.5) * vec2(1.0 + hash2(floor(worldUV * 1.8)) * 0.5, 1.0));
+          float largeRocks = smoothstep(0.18, 0.12, largeRockShape) * step(0.92, largeRockNoise);
+          float medRockNoise = hash(floor(worldUV * 3.5 + 20.0));
+          float medRockShape = length((fract(worldUV * 3.5 + 20.0) - 0.5) * vec2(1.0, 1.0 + hash3(floor(worldUV * 3.5 + 20.0)) * 0.4));
+          float medRocks = smoothstep(0.15, 0.08, medRockShape) * step(0.88, medRockNoise);
+          float smallNoise = hash(floor(worldUV * 8.0 + 40.0));
+          float smallShape = length(fract(worldUV * 8.0 + 40.0) - 0.5);
+          float smallRocks = smoothstep(0.12, 0.06, smallShape) * step(0.82, smallNoise);
+          float tinyNoise = hash(floor(worldUV * 15.0 + 60.0));
+          float tinyRocks = step(0.94, tinyNoise) * 0.5;
+          float rockMask = max(max(largeRocks, medRocks * 0.9), max(smallRocks * 0.7, tinyRocks));
+          float rockShade = noise(worldUV * 12.0);
+          vec3 rockColor = mix(rockDark, rockMid, rockShade * 0.5 + largeVar * 0.3);
+          rockColor = mix(rockColor, rockLight, noise(worldUV * 25.0) * 0.4);
+          pathColor = mix(pathColor, rockColor, rockMask * 0.85);
+          ` : '// Rocks disabled'}
           
-          // === GRASS AREA - Simple solid color (disabled for performance testing) ===
+          // === GRASS AREA (toggleable detail) ===
+          ${ENABLE_GRASS_DETAIL ? `
+          vec3 grassAreaBase = mix(pathDark * 0.9, pathRich * 0.8, noise(worldUV * 2.0) * 0.5 + 0.3);
+          float grassClump1 = pow(fbm(worldUV * 3.0 + 300.0), 1.2);
+          float grassClump2 = pow(noise(worldUV * 5.0 + 350.0), 0.8);
+          float grassClump3 = pow(fbm(worldUV * 8.0 + 400.0), 1.5);
+          float grassCoverage = grassClump1 * 0.5 + grassClump2 * 0.3 + grassClump3 * 0.2;
+          grassCoverage = smoothstep(0.25, 0.6, grassCoverage);
+          float grassVar = fbm(worldUV * 1.5 + 500.0);
+          vec3 grassTuftColor = mix(grassDark, grassBase, grassVar * 0.6 + 0.4);
+          grassTuftColor = mix(grassTuftColor, grassMoss, noise(worldUV * 4.0) * 0.4);
+          float highlights = pow(noise(worldUV * 12.0 + 600.0), 2.0);
+          grassTuftColor = mix(grassTuftColor, grassBase * 1.3, highlights * 0.3);
+          float edgeTufts = pow(noise(worldUV * 6.0 + 450.0), 1.5);
+          float edgeZone = smoothstep(0.3, 0.6, wallMask) * (1.0 - smoothstep(0.6, 0.85, wallMask));
+          float edgeGrass = edgeTufts * edgeZone;
+          vec3 grassAreaColor = mix(grassAreaBase, grassTuftColor, grassCoverage * 0.85);
+          float smallTufts = step(0.75, noise(worldUV * 10.0 + 700.0));
+          grassAreaColor = mix(grassAreaColor, grassBase * 1.1, smallTufts * 0.3 * grassCoverage);
+          float grassRockNoise = hash(floor(worldUV * 2.5 + 80.0));
+          float grassRockShape = length(fract(worldUV * 2.5 + 80.0) - 0.5);
+          float grassRockMask = smoothstep(0.18, 0.08, grassRockShape) * step(0.88, grassRockNoise);
+          grassAreaColor = mix(grassAreaColor, rockMid * 0.9, grassRockMask * 0.8);
+          ` : `
           vec3 grassAreaColor = grassBase;
+          float edgeGrass = 0.0;
+          vec3 grassTuftColor = grassBase;
+          vec3 grassAreaBase = grassDark;
+          `}
           
-// === FINAL BLEND (simplified for performance testing) ===
+          // === FINAL BLEND ===
           vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
+          ${ENABLE_GRASS_DETAIL ? `finalColor = mix(finalColor, grassTuftColor, edgeGrass * 0.5);
+          float transition = smoothstep(0.35, 0.5, wallMask) * (1.0 - smoothstep(0.5, 0.65, wallMask));
+          vec3 mudColor = mix(pathDark, grassAreaBase, 0.5);
+          finalColor = mix(finalColor, mudColor, transition * 0.2);` : '// Simplified blend'}
           
           // Apply exponential fog (matches FogExp2)
           float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
