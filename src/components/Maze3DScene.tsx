@@ -201,7 +201,24 @@ const mat = new ShaderMaterial({
           rockColor = mix(rockColor, rockLight, noise(worldUV * 25.0) * 0.4);
           pathColor = mix(pathColor, rockColor, rockMask * 0.85);
           
+          // GRASS TEXTURE with dirt patches and variation (under corn areas)
           vec3 grassAreaColor = grassBase;
+          // Add grass color variation
+          grassAreaColor = mix(grassAreaColor, grassDark, fbm(worldUV * 2.5) * 0.4);
+          grassAreaColor = mix(grassAreaColor, grassMoss, noise(worldUV * 3.0 + 300.0) * 0.3);
+          
+          // Add dirt patches showing through grass
+          float dirtPatches = fbm(worldUV * 1.2 + 400.0);
+          float dirtPatchMask = smoothstep(0.45, 0.65, dirtPatches);
+          vec3 dirtColor = mix(pathDark, pathBase, noise(worldUV * 2.0 + 500.0) * 0.5);
+          grassAreaColor = mix(grassAreaColor, dirtColor, dirtPatchMask * 0.5);
+          
+          // Add rocks/pebbles in grass areas
+          float grassRockNoise = hash(floor(worldUV * 4.0 + 80.0));
+          float grassRockShape = length(fract(worldUV * 4.0 + 80.0) - 0.5);
+          float grassRocks = smoothstep(0.14, 0.08, grassRockShape) * step(0.85, grassRockNoise);
+          grassAreaColor = mix(grassAreaColor, rockColor, grassRocks * 0.7);
+          
           vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
           
           // Apply exponential fog
