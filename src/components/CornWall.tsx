@@ -393,11 +393,16 @@ export const InstancedWalls = ({
     let cheapCount = 0;
     
     // Helper to check if corn is in viewable arc (front 270 degrees)
-    const isInViewArc = (cornX: number, cornZ: number): boolean => {
+    // Only apply back-culling to corn >3m away - nearby corn always visible
+    const NEAR_DISTANCE_SQ = 3 * 3; // 3m squared - no back-culling within this
+    const isInViewArc = (cornX: number, cornZ: number, distSq: number): boolean => {
+      // Always show corn within 3m regardless of angle
+      if (distSq < NEAR_DISTANCE_SQ) return true;
+      
       const toCornX = cornX - px;
       const toCornZ = cornZ - pz;
-      const len = Math.sqrt(toCornX * toCornX + toCornZ * toCornZ);
-      if (len < 0.001) return true; // Very close, always visible
+      const len = Math.sqrt(distSq);
+      if (len < 0.001) return true;
       const dot = (toCornX / len) * camForward.x + (toCornZ / len) * camForward.z;
       return dot > BACK_CULL_DOT_THRESHOLD; // Keep if not directly behind
     };
@@ -409,8 +414,8 @@ export const InstancedWalls = ({
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
-        // Distance cull AND camera-direction cull
-        if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ)) {
+        // Distance cull AND camera-direction cull (back-cull only for >3m)
+        if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
           for (const mesh of edgeMeshesRef.current) {
             mesh.setMatrixAt(edgeCount, t.matrix);
           }
@@ -431,8 +436,8 @@ export const InstancedWalls = ({
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
-        // Distance cull AND camera-direction cull
-        if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ)) {
+        // Distance cull AND camera-direction cull (back-cull only for >3m)
+        if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
           cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
           cheapCount++;
         }
