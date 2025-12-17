@@ -439,7 +439,7 @@ export const InstancedWalls = ({
     });
     
     // Create VERY simple geometry for cheap/distant corn - just a thin box (12 triangles vs ~500+ for GLTF)
-    const cheapGeo = new BoxGeometry(0.015, 0.025, 0.015);
+    const cheapGeo = new BoxGeometry(0.0003, 0.0008, 0.0003);
     
     // Create cheap material using sampled GLTF color
     const cheapMat = new MeshLambertMaterial({ 
