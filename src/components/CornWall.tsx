@@ -3,9 +3,9 @@ import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, Bu
 import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 
-// LOD distance tiers (REDUCED FOR TESTING - normally 10/25)
-const LOD_FULL_QUALITY_DISTANCE = 5;   // Full GLTF materials within 5m
-const LOD_CHEAP_DISTANCE = 7;           // Cheap material 5-7m, hidden beyond 7m
+// LOD distance tiers
+const LOD_FULL_QUALITY_DISTANCE = 10;  // Full GLTF materials within 10m
+const LOD_CHEAP_DISTANCE = 25;          // Cheap material 10-25m, hidden beyond 25m
 
 interface CornWallProps {
   position: [number, number, number];
@@ -48,10 +48,10 @@ export interface CornOptimizationSettings {
 }
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
-  shadowRadius: 5,
-  cullDistance: 7,    // REDUCED FOR TESTING - normally 20
-  lodDistance: 5,     // REDUCED FOR TESTING - normally 8
-  farMaterialDistance: 3,
+  shadowRadius: 8,
+  cullDistance: 20,
+  lodDistance: 8,
+  farMaterialDistance: 5,
   enableShadowOptimization: true,
   enableDistanceCulling: true,
   enableLOD: true,
