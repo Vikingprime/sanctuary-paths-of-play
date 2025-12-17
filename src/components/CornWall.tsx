@@ -412,24 +412,10 @@ export const InstancedWalls = ({
       cheapMeshRef.current.instanceMatrix.needsUpdate = true;
     }
     
-    // BILLBOARDS: Show for ALL corn beyond 10m (2 triangles each!)
-    let billboardCount = 0;
-    if (billboardMeshRef.current && billboardTransformsRef.current.length > 0) {
-      const transforms = billboardTransformsRef.current;
-      const farDistSq = LOD_CHEAP_DISTANCE * LOD_CHEAP_DISTANCE;
-      
-      for (let i = 0; i < transforms.length; i++) {
-        const t = transforms[i];
-        const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
-        // Show billboard for corn between 10m and far distance
-        if (distSq >= cullDistSq && distSq < farDistSq) {
-          billboardMeshRef.current.setMatrixAt(billboardCount, t.matrix);
-          billboardCount++;
-        }
-      }
-      
-      billboardMeshRef.current.count = billboardCount;
-      billboardMeshRef.current.instanceMatrix.needsUpdate = true;
+    // Disable LOD corn - just let fog hide the empty space beyond 10m
+    // (LOD corn looked bad, this is cleaner)
+    if (billboardMeshRef.current) {
+      billboardMeshRef.current.count = 0;
     }
     
     // Always report cull stats
