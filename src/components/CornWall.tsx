@@ -464,9 +464,10 @@ export const InstancedWalls = ({
   });
   
   // Extract mesh data from GLTF with optimized materials + billboard geometry
-  const { meshDataList, firstGeometry, cheapMaterial, billboardGeometry, billboardMaterial } = useMemo(() => {
+  // For cheap corn (non-edge): only use stalk/leaf geometry, skip corn cobs
+  const { meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
-    let firstGeo: BufferGeometry | null = null;
+    const stalkMeshes: MeshData[] = []; // Only stalk/leaf meshes (no corn cobs)
     let sampledColor: Color | null = null;
     
     gltfScene.traverse((child) => {
@@ -474,7 +475,18 @@ export const InstancedWalls = ({
         const mesh = child as Mesh;
         const mat = mesh.material as any;
         
-        if (!sampledColor && mat.color) {
+        // Check if this is a corn cob by color (yellow/orange hues)
+        let isCornCob = false;
+        if (mat.color) {
+          const r = mat.color.r;
+          const g = mat.color.g;
+          const b = mat.color.b;
+          // Corn cobs are yellow/orange: high red, medium-high green, low blue
+          // Stalks/leaves are green: low-medium red, high green, low blue
+          isCornCob = r > 0.5 && g > 0.3 && b < 0.3 && r > g * 0.8;
+        }
+        
+        if (!sampledColor && mat.color && !isCornCob) {
           sampledColor = mat.color.clone();
         }
         
@@ -482,16 +494,81 @@ export const InstancedWalls = ({
           ? mesh.material.map(m => optimizeMaterial(m.clone()))
           : optimizeMaterial(mesh.material.clone());
         
-        meshes.push({
+        const meshData = {
           geometry: mesh.geometry.clone(),
           material: optimizedMaterial
-        });
+        };
         
-        if (!firstGeo) {
-          firstGeo = mesh.geometry.clone();
+        meshes.push(meshData);
+        
+        // Only add non-corn-cob meshes to stalk collection
+        if (!isCornCob) {
+          stalkMeshes.push(meshData);
         }
       }
     });
+    
+    // Merge stalk meshes into a single geometry for cheap corn
+    let mergedStalkGeo: BufferGeometry;
+    if (stalkMeshes.length === 1) {
+      mergedStalkGeo = stalkMeshes[0].geometry.clone();
+    } else if (stalkMeshes.length > 1) {
+      // Merge multiple geometries into one
+      let totalPositions = 0;
+      let totalNormals = 0;
+      let totalIndices = 0;
+      
+      stalkMeshes.forEach(m => {
+        totalPositions += m.geometry.attributes.position.count * 3;
+        if (m.geometry.attributes.normal) {
+          totalNormals += m.geometry.attributes.normal.count * 3;
+        }
+        if (m.geometry.index) {
+          totalIndices += m.geometry.index.count;
+        }
+      });
+      
+      const mergedPositions = new Float32Array(totalPositions);
+      const mergedNormals = new Float32Array(totalNormals);
+      const mergedIndices: number[] = [];
+      
+      let posOffset = 0;
+      let normOffset = 0;
+      let vertexOffset = 0;
+      
+      stalkMeshes.forEach(m => {
+        const pos = m.geometry.attributes.position.array;
+        mergedPositions.set(pos, posOffset);
+        posOffset += pos.length;
+        
+        if (m.geometry.attributes.normal) {
+          const norm = m.geometry.attributes.normal.array;
+          mergedNormals.set(norm, normOffset);
+          normOffset += norm.length;
+        }
+        
+        if (m.geometry.index) {
+          const idx = m.geometry.index.array;
+          for (let i = 0; i < idx.length; i++) {
+            mergedIndices.push(idx[i] + vertexOffset);
+          }
+        }
+        
+        vertexOffset += m.geometry.attributes.position.count;
+      });
+      
+      mergedStalkGeo = new BufferGeometry();
+      mergedStalkGeo.setAttribute('position', new BufferAttribute(mergedPositions, 3));
+      if (totalNormals > 0) {
+        mergedStalkGeo.setAttribute('normal', new BufferAttribute(mergedNormals, 3));
+      }
+      if (mergedIndices.length > 0) {
+        mergedStalkGeo.setIndex(new BufferAttribute(new Uint32Array(mergedIndices), 1));
+      }
+    } else {
+      // Fallback if no stalk meshes found
+      mergedStalkGeo = new BoxGeometry(0.1, 2, 0.1);
+    }
     
     const cheapMat = new MeshLambertMaterial({ 
       color: sampledColor || new Color(0.12, 0.25, 0.10),
@@ -521,7 +598,6 @@ export const InstancedWalls = ({
       
       // Leaf droops downward at tip (tip is lower than mid-point)
       const tipY = baseY + 0.15; // Tip slightly above base but leaf curves out
-      const midY = baseY + 0.25; // Mid-point higher, creates arch
       
       // Triangle: base on stalk, extends outward and curves down
       // Vertex 0: base bottom (on stalk)
@@ -589,7 +665,7 @@ export const InstancedWalls = ({
     
     return { 
       meshDataList: meshes, 
-      firstGeometry: firstGeo || new BoxGeometry(0.1, 2, 0.1),
+      cheapStalkGeometry: mergedStalkGeo,
       cheapMaterial: cheapMat,
       billboardGeometry: lodCornGeo,
       billboardMaterial: lodCornMat
@@ -677,7 +753,7 @@ export const InstancedWalls = ({
     // OUTER + BOUNDARY CORN: Single cheap material (1 draw call)
     if (cheapTransforms.length > 0) {
       const cheapMesh = new ThreeInstancedMesh(
-        firstGeometry.clone(),
+        cheapStalkGeometry.clone(),
         cheapMaterial.clone(),
         cheapTransforms.length
       );
@@ -745,7 +821,7 @@ export const InstancedWalls = ({
       edgeTransformsRef.current = [];
       createdRef.current = false;
     };
-  }, [meshDataList, firstGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
+  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
