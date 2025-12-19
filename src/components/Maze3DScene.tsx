@@ -659,7 +659,8 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
 
 const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   const groupRef = useRef<Group>(null);
-  const { scene } = useGLTF('/models/Farmer.glb');
+  const { scene, animations } = useGLTF('/models/Farmer.glb');
+  const mixerRef = useRef<any>(null);
   
   // Use SkeletonUtils.clone for skinned/animated meshes
   const model = useMemo(() => {
@@ -673,17 +674,45 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
     return clone;
   }, [scene]);
   
-  useFrame((state) => {
+  // Set up animation mixer for wave animation
+  useEffect(() => {
+    if (animations.length > 0 && model) {
+      const { AnimationMixer } = require('three');
+      mixerRef.current = new AnimationMixer(model);
+      
+      // Try to find a wave animation, otherwise use the first one
+      const waveAnim = animations.find((a: any) => 
+        a.name.toLowerCase().includes('wave')
+      ) || animations[0];
+      
+      if (waveAnim) {
+        const action = mixerRef.current.clipAction(waveAnim);
+        action.play();
+      }
+    }
+    
+    return () => {
+      if (mixerRef.current) {
+        mixerRef.current.stopAllAction();
+      }
+    };
+  }, [animations, model]);
+  
+  useFrame((state, delta) => {
     if (groupRef.current) {
+      // Slow rotation only, no floating
       groupRef.current.rotation.y = state.clock.elapsedTime * 0.5;
-      groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 2) * 0.05;
+    }
+    // Update animation mixer
+    if (mixerRef.current) {
+      mixerRef.current.update(delta);
     }
   });
 
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={model} scale={0.5} />
+        <primitive object={model} scale={0.8} />
       </group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <circleGeometry args={[0.8, 16]} />
