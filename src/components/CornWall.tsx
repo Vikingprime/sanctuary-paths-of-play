@@ -316,7 +316,6 @@ export const InstancedWalls = ({
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
   const billboardGroupRef = useRef<Group>(null);
-  const stalkOnlyGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
   const { scene, camera } = useThree();
@@ -344,9 +343,6 @@ export const InstancedWalls = ({
   // Billboard mesh for distant corn (2 triangles per stalk vs hundreds)
   const billboardMeshRef = useRef<ThreeInstancedMesh | null>(null);
   const billboardTransformsRef = useRef<WallTransformData[]>([]);
-  
-  // Stalk-only mesh for extra fill (no leaves, no corn)
-  const stalkOnlyMeshRef = useRef<ThreeInstancedMesh | null>(null);
   
   // Track last update position and camera direction for culling
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
@@ -467,19 +463,17 @@ export const InstancedWalls = ({
     onCullStats?.(stats);
   });
   
-  // Extract mesh data from GLTF with optimized materials + stalk-only geometry for fill
+  // Extract mesh data from GLTF with optimized materials
   // For cheap corn (non-edge): only use stalk/leaf geometry, skip corn cobs
-  const { meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, stalkOnlyGeometry, stalkOnlyMaterial } = useMemo(() => {
+  const { meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
     const stalkMeshes: MeshData[] = []; // Only stalk/leaf meshes (no corn cobs)
     let sampledColor: Color | null = null;
-    let stalkOnlyGeo: BufferGeometry | null = null; // The actual stalk (thinnest geometry)
     
     gltfScene.traverse((child) => {
       if ((child as Mesh).isMesh) {
         const mesh = child as Mesh;
         const mat = mesh.material as any;
-        const geo = mesh.geometry;
         
         // Check if this is a corn cob by color (yellow/orange hues)
         let isCornCob = false;
@@ -491,20 +485,6 @@ export const InstancedWalls = ({
           isCornCob = r > 0.5 && g > 0.3 && b < 0.3 && r > g * 0.8;
         }
         
-        // Check if this is a leaf by analyzing geometry bounds (leaves are wider)
-        // Stalks are narrow cylinders, leaves are flat and wide
-        let isLeaf = false;
-        if (geo.boundingBox === null) geo.computeBoundingBox();
-        if (geo.boundingBox) {
-          const size = new Vector3();
-          geo.boundingBox.getSize(size);
-          // Leaves tend to have larger X or Z dimensions relative to their overall size
-          const maxHorizontal = Math.max(size.x, size.z);
-          const aspectRatio = maxHorizontal / (size.y || 0.001);
-          // If wider than tall, it's likely a leaf
-          isLeaf = aspectRatio > 0.3;
-        }
-        
         if (!sampledColor && mat.color && !isCornCob) {
           sampledColor = mat.color.clone();
         }
@@ -514,20 +494,15 @@ export const InstancedWalls = ({
           : optimizeMaterial(mesh.material.clone());
         
         const meshData = {
-          geometry: geo.clone(),
+          geometry: mesh.geometry.clone(),
           material: optimizedMaterial
         };
         
         meshes.push(meshData);
         
-        // Only add non-corn-cob meshes to stalk collection (includes leaves)
+        // Only add non-corn-cob meshes to stalk collection
         if (!isCornCob) {
           stalkMeshes.push(meshData);
-        }
-        
-        // Find the actual stalk (not corn, not leaf - the narrow cylinder)
-        if (!isCornCob && !isLeaf && !stalkOnlyGeo) {
-          stalkOnlyGeo = geo.clone();
         }
       }
     });
@@ -536,23 +511,8 @@ export const InstancedWalls = ({
       ? stalkMeshes[0].geometry.clone()
       : new BoxGeometry(0.1, 2, 0.1); // Fallback if no stalk meshes found
     
-    // Fallback to a simple cylinder if we couldn't find stalk-only geo
-    const finalStalkOnlyGeo = stalkOnlyGeo || new CylinderGeometry(0.03, 0.04, 2.2, 6, 1);
-    if (!stalkOnlyGeo) {
-      (finalStalkOnlyGeo as CylinderGeometry).translate(0, 1.1, 0);
-    }
-    
     const cheapMat = new MeshLambertMaterial({ 
       color: sampledColor || new Color(0.12, 0.25, 0.10),
-      transparent: false,
-      depthWrite: true,
-      depthTest: true,
-      side: FrontSide,
-    });
-    
-    // Stalk-only material - slightly darker green for depth
-    const stalkOnlyMat = new MeshLambertMaterial({
-      color: new Color(0.08, 0.18, 0.06),
       transparent: false,
       depthWrite: true,
       depthTest: true,
@@ -649,14 +609,12 @@ export const InstancedWalls = ({
       cheapStalkGeometry: firstStalkGeo,
       cheapMaterial: cheapMat,
       billboardGeometry: lodCornGeo,
-      billboardMaterial: lodCornMat,
-      stalkOnlyGeometry: finalStalkOnlyGeo,
-      stalkOnlyMaterial: stalkOnlyMat
+      billboardMaterial: lodCornMat
     };
   }, [gltfScene, cornTex]);
   
-  // Generate transforms for all corn types + billboard transforms + stalk-only fill transforms
-  const { edgeTransforms, cheapTransforms, allBillboardTransforms, stalkOnlyTransforms } = useMemo(() => {
+  // Generate transforms for all corn types + billboard transforms
+  const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
@@ -682,53 +640,10 @@ export const InstancedWalls = ({
       billboardTransforms.push({ matrix: bbDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ });
     });
     
-    // Generate stalk-only transforms - extra stalks scattered throughout corn cells for fill
-    const stalkOnlies: WallTransformData[] = [];
-    const stalkDummy = new Object3D();
-    const STALKS_PER_CELL = 4; // Extra stalks per cell
-    
-    // Collect unique cell positions
-    const cellSet = new Set<string>();
-    edgePositions.forEach(pos => cellSet.add(`${pos.x},${pos.z}`));
-    noShadowPositions.forEach(pos => cellSet.add(`${pos.x},${pos.z}`));
-    
-    cellSet.forEach(key => {
-      const [xStr, zStr] = key.split(',');
-      const cellX = parseInt(xStr);
-      const cellZ = parseInt(zStr);
-      const centerX = cellX + 0.5;
-      const centerZ = cellZ + 0.5;
-      
-      for (let i = 0; i < STALKS_PER_CELL; i++) {
-        const seed = cellX * 1000 + cellZ * 100 + i + 50000; // Different seed offset
-        // Random position within cell
-        const offsetX = (seededRandom(seed) - 0.5) * 0.7;
-        const offsetZ = (seededRandom(seed + 1) - 0.5) * 0.7;
-        // Random Y rotation for variety
-        const rotation = seededRandom(seed + 2) * Math.PI * 2;
-        // Height and scale variation
-        const heightScale = 0.7 + seededRandom(seed + 3) * 0.6;
-        const widthScale = 0.8 + seededRandom(seed + 4) * 0.4;
-        
-        // Use similar scale to cheap corn transforms
-        const baseScale = 100;
-        
-        stalkDummy.position.set(centerX + offsetX, 0, centerZ + offsetZ);
-        const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
-        const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
-        stalkDummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
-        stalkDummy.scale.set(baseScale * widthScale * 0.5, baseScale * widthScale * 0.5, baseScale * heightScale * 1.5);
-        stalkDummy.updateMatrix();
-        
-        stalkOnlies.push({ matrix: stalkDummy.matrix.clone(), centerX, centerZ });
-      }
-    });
-    
     return { 
       edgeTransforms: edge, 
       cheapTransforms: cheap3D,
-      allBillboardTransforms: billboardTransforms,
-      stalkOnlyTransforms: stalkOnlies
+      allBillboardTransforms: billboardTransforms
     };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
   
@@ -738,8 +653,7 @@ export const InstancedWalls = ({
     const edgeGroup = edgeGroupRef.current;
     const cheapGroup = cheapGroupRef.current;
     const billboardGroup = billboardGroupRef.current;
-    const stalkOnlyGroup = stalkOnlyGroupRef.current;
-    if (!edgeGroup || !cheapGroup || !billboardGroup || !stalkOnlyGroup || meshDataList.length === 0 || createdRef.current) return;
+    if (!edgeGroup || !cheapGroup || !billboardGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     const allMeshes: ThreeInstancedMesh[] = [];
@@ -803,30 +717,6 @@ export const InstancedWalls = ({
       allMeshes.push(cheapMesh);
     }
     
-    // STALK-ONLY FILL: Extra stalks scattered in corn cells (no leaves, no corn cobs)
-    if (stalkOnlyTransforms.length > 0) {
-      const stalkOnlyMesh = new ThreeInstancedMesh(
-        stalkOnlyGeometry.clone(),
-        stalkOnlyMaterial.clone(),
-        stalkOnlyTransforms.length
-      );
-      
-      stalkOnlyTransforms.forEach((t, i) => {
-        stalkOnlyMesh.setMatrixAt(i, t.matrix);
-      });
-      
-      stalkOnlyMesh.instanceMatrix.needsUpdate = true;
-      stalkOnlyMesh.castShadow = false;
-      stalkOnlyMesh.receiveShadow = false;
-      stalkOnlyMesh.frustumCulled = false;
-      
-      stalkOnlyMeshRef.current = stalkOnlyMesh;
-      stalkOnlyGroup.add(stalkOnlyMesh);
-      allMeshes.push(stalkOnlyMesh);
-      
-      console.log('[CornWall] Stalk-only fill created:', stalkOnlyTransforms.length);
-    }
-    
     return () => {
       allMeshes.forEach(mesh => {
         const parent = mesh.parent;
@@ -845,10 +735,9 @@ export const InstancedWalls = ({
       cheapTransformsRef.current = [];
       edgeMeshesRef.current = [];
       edgeTransformsRef.current = [];
-      stalkOnlyMeshRef.current = null;
       createdRef.current = false;
     };
-  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, stalkOnlyGeometry, stalkOnlyMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms, stalkOnlyTransforms]);
+  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
@@ -857,7 +746,6 @@ export const InstancedWalls = ({
       <group ref={edgeGroupRef} />
       <group ref={cheapGroupRef} />
       <group ref={billboardGroupRef} />
-      <group ref={stalkOnlyGroupRef} />
     </>
   );
 };
