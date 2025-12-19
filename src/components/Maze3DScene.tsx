@@ -681,7 +681,7 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={model} scale={[1, 1, 1]} />
+        <primitive object={model} scale={[100, 100, 100]} />
       </group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <circleGeometry args={[0.8, 16]} />
