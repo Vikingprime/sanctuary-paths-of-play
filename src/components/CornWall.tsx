@@ -4,9 +4,9 @@ import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
 
-// LOD distance tiers
-const LOD_FULL_QUALITY_DISTANCE = 8;   // Full GLTF materials within 8m
-const LOD_CHEAP_DISTANCE = 18;          // Cheap material 8-18m, hidden beyond 18m
+// LOD distance tiers - aggressive LOD for performance
+const LOD_FULL_QUALITY_DISTANCE = 5;   // Full GLTF materials within 5m
+const LOD_CHEAP_DISTANCE = 15;          // Cheap material 5-15m, hidden beyond 15m
 
 interface CornWallProps {
   position: [number, number, number];
@@ -120,16 +120,16 @@ interface InstancedWallsProps {
   onCullStats?: (stats: CullStats) => void;
 }
 
-// Density settings
-const ROWS = 3;
-const STALKS_PER_ROW = 3;
-const STALK_SPACING = 0.28;
+// Density settings - reduced for performance
+const ROWS = 2;
+const STALKS_PER_ROW = 2;
+const STALK_SPACING = 0.35;
 
 // Boundary walls - reduced for performance
-const BOUNDARY_ROWS = 3;
-const BOUNDARY_STALKS_PER_ROW = 3;
-const BOUNDARY_SPACING = 0.35;
-const BOUNDARY_DEPTH = 1.2;
+const BOUNDARY_ROWS = 2;
+const BOUNDARY_STALKS_PER_ROW = 2;
+const BOUNDARY_SPACING = 0.45;
+const BOUNDARY_DEPTH = 1.0;
 
 interface MeshData {
   geometry: BufferGeometry;
@@ -352,11 +352,14 @@ export const InstancedWalls = ({
   const ROTATION_THRESHOLD = 0.1; // ~5.7 degrees of rotation triggers update
   const cullDebugRef = useRef(0); // Debug counter
   
-  // Distance threshold for culling
-  const CULL_DISTANCE_SQ = 15 * 15; // 15m squared
+  // Distance threshold for culling - aggressive for performance
+  const CULL_DISTANCE_SQ = 12 * 12; // 12m squared
   
   // Camera direction culling - cull back 90 degrees (keep front 270 degrees)
   const BACK_CULL_DOT_THRESHOLD = -0.707; // cos(135°) - corn behind this angle gets culled
+  
+  // Aggressive LOD: beyond this distance, edge corn uses cheap geometry
+  const LOD_SWITCH_DISTANCE_SQ = 5 * 5; // 5m squared
   
   // Distance culling (fog is now handled by scene's FogExp2)
   useFrame(() => {
@@ -407,15 +410,15 @@ export const InstancedWalls = ({
       return dot > BACK_CULL_DOT_THRESHOLD; // Keep if not directly behind
     };
     
-    // Cull edge corn (GLTF) - re-pack visible instances
+    // Cull edge corn (GLTF) - only show within LOD_SWITCH_DISTANCE for aggressive LOD
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
-        // Distance cull AND camera-direction cull (back-cull only for >3m)
-        if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
+        // AGGRESSIVE LOD: Only show full GLTF within 5m, AND apply view arc culling
+        if (distSq < LOD_SWITCH_DISTANCE_SQ && isInViewArc(t.centerX, t.centerZ, distSq)) {
           for (const mesh of edgeMeshesRef.current) {
             mesh.setMatrixAt(edgeCount, t.matrix);
           }
