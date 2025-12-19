@@ -29,6 +29,7 @@ export interface SaveDataV1 {
     musicVolume: number;
     sfxVolume: number;
     sensitivity: number;
+    debugMode: boolean;
   };
 }
 
@@ -50,5 +51,6 @@ export const DEFAULT_SAVE: SaveData = {
     musicVolume: 0.7,
     sfxVolume: 1.0,
     sensitivity: 1.0,
+    debugMode: false,
   },
 };
