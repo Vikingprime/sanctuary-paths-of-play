@@ -316,7 +316,7 @@ export const InstancedWalls = ({
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
   const billboardGroupRef = useRef<Group>(null);
-  const fogStripsGroupRef = useRef<Group>(null);
+  const stalkOnlyGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
   const { scene, camera } = useThree();
@@ -345,8 +345,8 @@ export const InstancedWalls = ({
   const billboardMeshRef = useRef<ThreeInstancedMesh | null>(null);
   const billboardTransformsRef = useRef<WallTransformData[]>([]);
   
-  // Fog strips mesh for obscuring vision through corn
-  const fogStripsMeshRef = useRef<ThreeInstancedMesh | null>(null);
+  // Stalk-only mesh for extra fill (no leaves, no corn)
+  const stalkOnlyMeshRef = useRef<ThreeInstancedMesh | null>(null);
   
   // Track last update position and camera direction for culling
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
@@ -467,17 +467,19 @@ export const InstancedWalls = ({
     onCullStats?.(stats);
   });
   
-  // Extract mesh data from GLTF with optimized materials + billboard geometry + fog strips
+  // Extract mesh data from GLTF with optimized materials + stalk-only geometry for fill
   // For cheap corn (non-edge): only use stalk/leaf geometry, skip corn cobs
-  const { meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, fogStripGeometry, fogStripMaterial } = useMemo(() => {
+  const { meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, stalkOnlyGeometry, stalkOnlyMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
     const stalkMeshes: MeshData[] = []; // Only stalk/leaf meshes (no corn cobs)
     let sampledColor: Color | null = null;
+    let stalkOnlyGeo: BufferGeometry | null = null; // The actual stalk (thinnest geometry)
     
     gltfScene.traverse((child) => {
       if ((child as Mesh).isMesh) {
         const mesh = child as Mesh;
         const mat = mesh.material as any;
+        const geo = mesh.geometry;
         
         // Check if this is a corn cob by color (yellow/orange hues)
         let isCornCob = false;
@@ -486,8 +488,21 @@ export const InstancedWalls = ({
           const g = mat.color.g;
           const b = mat.color.b;
           // Corn cobs are yellow/orange: high red, medium-high green, low blue
-          // Stalks/leaves are green: low-medium red, high green, low blue
           isCornCob = r > 0.5 && g > 0.3 && b < 0.3 && r > g * 0.8;
+        }
+        
+        // Check if this is a leaf by analyzing geometry bounds (leaves are wider)
+        // Stalks are narrow cylinders, leaves are flat and wide
+        let isLeaf = false;
+        if (geo.boundingBox === null) geo.computeBoundingBox();
+        if (geo.boundingBox) {
+          const size = new Vector3();
+          geo.boundingBox.getSize(size);
+          // Leaves tend to have larger X or Z dimensions relative to their overall size
+          const maxHorizontal = Math.max(size.x, size.z);
+          const aspectRatio = maxHorizontal / (size.y || 0.001);
+          // If wider than tall, it's likely a leaf
+          isLeaf = aspectRatio > 0.3;
         }
         
         if (!sampledColor && mat.color && !isCornCob) {
@@ -499,26 +514,45 @@ export const InstancedWalls = ({
           : optimizeMaterial(mesh.material.clone());
         
         const meshData = {
-          geometry: mesh.geometry.clone(),
+          geometry: geo.clone(),
           material: optimizedMaterial
         };
         
         meshes.push(meshData);
         
-        // Only add non-corn-cob meshes to stalk collection
+        // Only add non-corn-cob meshes to stalk collection (includes leaves)
         if (!isCornCob) {
           stalkMeshes.push(meshData);
         }
+        
+        // Find the actual stalk (not corn, not leaf - the narrow cylinder)
+        if (!isCornCob && !isLeaf && !stalkOnlyGeo) {
+          stalkOnlyGeo = geo.clone();
+        }
       }
     });
-    
     // Use just the FIRST stalk geometry for cheap corn (keeps triangle count low)
     const firstStalkGeo: BufferGeometry = stalkMeshes.length >= 1 
       ? stalkMeshes[0].geometry.clone()
       : new BoxGeometry(0.1, 2, 0.1); // Fallback if no stalk meshes found
     
+    // Fallback to a simple cylinder if we couldn't find stalk-only geo
+    const finalStalkOnlyGeo = stalkOnlyGeo || new CylinderGeometry(0.03, 0.04, 2.2, 6, 1);
+    if (!stalkOnlyGeo) {
+      (finalStalkOnlyGeo as CylinderGeometry).translate(0, 1.1, 0);
+    }
+    
     const cheapMat = new MeshLambertMaterial({ 
       color: sampledColor || new Color(0.12, 0.25, 0.10),
+      transparent: false,
+      depthWrite: true,
+      depthTest: true,
+      side: FrontSide,
+    });
+    
+    // Stalk-only material - slightly darker green for depth
+    const stalkOnlyMat = new MeshLambertMaterial({
+      color: new Color(0.08, 0.18, 0.06),
       transparent: false,
       depthWrite: true,
       depthTest: true,
@@ -610,32 +644,19 @@ export const InstancedWalls = ({
       depthWrite: true,
     });
     
-    // Fog strip geometry - tall thin vertical planes
-    const fogStripGeo = new PlaneGeometry(0.15, 2.8); // Thin and tall
-    fogStripGeo.translate(0, 1.4, 0); // Base at ground level
-    
-    // Fog strip material - very soft, semi-transparent
-    const fogStripMat = new MeshBasicMaterial({
-      color: new Color(0.25, 0.32, 0.22), // Slight green tint to blend with corn
-      transparent: true,
-      opacity: 0.12, // Very subtle
-      depthWrite: false,
-      side: DoubleSide,
-    });
-    
     return { 
       meshDataList: meshes, 
       cheapStalkGeometry: firstStalkGeo,
       cheapMaterial: cheapMat,
       billboardGeometry: lodCornGeo,
       billboardMaterial: lodCornMat,
-      fogStripGeometry: fogStripGeo,
-      fogStripMaterial: fogStripMat
+      stalkOnlyGeometry: finalStalkOnlyGeo,
+      stalkOnlyMaterial: stalkOnlyMat
     };
   }, [gltfScene, cornTex]);
   
-  // Generate transforms for all corn types + billboard transforms + fog strip transforms
-  const { edgeTransforms, cheapTransforms, allBillboardTransforms, fogStripTransforms } = useMemo(() => {
+  // Generate transforms for all corn types + billboard transforms + stalk-only fill transforms
+  const { edgeTransforms, cheapTransforms, allBillboardTransforms, stalkOnlyTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
@@ -661,10 +682,10 @@ export const InstancedWalls = ({
       billboardTransforms.push({ matrix: bbDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ });
     });
     
-    // Generate fog strip transforms - scattered throughout corn cells with random rotations
-    const fogStrips: WallTransformData[] = [];
-    const fogDummy = new Object3D();
-    const STRIPS_PER_CELL = 3; // Multiple strips per cell for layered effect
+    // Generate stalk-only transforms - extra stalks scattered throughout corn cells for fill
+    const stalkOnlies: WallTransformData[] = [];
+    const stalkDummy = new Object3D();
+    const STALKS_PER_CELL = 4; // Extra stalks per cell
     
     // Collect unique cell positions
     const cellSet = new Set<string>();
@@ -678,22 +699,28 @@ export const InstancedWalls = ({
       const centerX = cellX + 0.5;
       const centerZ = cellZ + 0.5;
       
-      for (let i = 0; i < STRIPS_PER_CELL; i++) {
-        const seed = cellX * 1000 + cellZ * 100 + i;
+      for (let i = 0; i < STALKS_PER_CELL; i++) {
+        const seed = cellX * 1000 + cellZ * 100 + i + 50000; // Different seed offset
         // Random position within cell
-        const offsetX = (seededRandom(seed) - 0.5) * 0.6;
-        const offsetZ = (seededRandom(seed + 1) - 0.5) * 0.6;
+        const offsetX = (seededRandom(seed) - 0.5) * 0.7;
+        const offsetZ = (seededRandom(seed + 1) - 0.5) * 0.7;
         // Random Y rotation for variety
-        const rotation = seededRandom(seed + 2) * Math.PI;
-        // Slight height variation
-        const heightScale = 0.8 + seededRandom(seed + 3) * 0.4;
+        const rotation = seededRandom(seed + 2) * Math.PI * 2;
+        // Height and scale variation
+        const heightScale = 0.7 + seededRandom(seed + 3) * 0.6;
+        const widthScale = 0.8 + seededRandom(seed + 4) * 0.4;
         
-        fogDummy.position.set(centerX + offsetX, 0, centerZ + offsetZ);
-        fogDummy.rotation.set(0, rotation, 0);
-        fogDummy.scale.set(1, heightScale, 1);
-        fogDummy.updateMatrix();
+        // Use similar scale to cheap corn transforms
+        const baseScale = 100;
         
-        fogStrips.push({ matrix: fogDummy.matrix.clone(), centerX, centerZ });
+        stalkDummy.position.set(centerX + offsetX, 0, centerZ + offsetZ);
+        const uprightQuat = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'));
+        const yRotQuat = new Quaternion().setFromEuler(new Euler(0, rotation, 0, 'XYZ'));
+        stalkDummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
+        stalkDummy.scale.set(baseScale * widthScale * 0.5, baseScale * widthScale * 0.5, baseScale * heightScale * 1.5);
+        stalkDummy.updateMatrix();
+        
+        stalkOnlies.push({ matrix: stalkDummy.matrix.clone(), centerX, centerZ });
       }
     });
     
@@ -701,7 +728,7 @@ export const InstancedWalls = ({
       edgeTransforms: edge, 
       cheapTransforms: cheap3D,
       allBillboardTransforms: billboardTransforms,
-      fogStripTransforms: fogStrips
+      stalkOnlyTransforms: stalkOnlies
     };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
   
@@ -711,8 +738,8 @@ export const InstancedWalls = ({
     const edgeGroup = edgeGroupRef.current;
     const cheapGroup = cheapGroupRef.current;
     const billboardGroup = billboardGroupRef.current;
-    const fogStripsGroup = fogStripsGroupRef.current;
-    if (!edgeGroup || !cheapGroup || !billboardGroup || !fogStripsGroup || meshDataList.length === 0 || createdRef.current) return;
+    const stalkOnlyGroup = stalkOnlyGroupRef.current;
+    if (!edgeGroup || !cheapGroup || !billboardGroup || !stalkOnlyGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     const allMeshes: ThreeInstancedMesh[] = [];
@@ -776,29 +803,28 @@ export const InstancedWalls = ({
       allMeshes.push(cheapMesh);
     }
     
-    // FOG STRIPS: Thin vertical planes scattered in corn for atmospheric fog
-    if (fogStripTransforms.length > 0) {
-      const fogStripsMesh = new ThreeInstancedMesh(
-        fogStripGeometry.clone(),
-        fogStripMaterial.clone(),
-        fogStripTransforms.length
+    // STALK-ONLY FILL: Extra stalks scattered in corn cells (no leaves, no corn cobs)
+    if (stalkOnlyTransforms.length > 0) {
+      const stalkOnlyMesh = new ThreeInstancedMesh(
+        stalkOnlyGeometry.clone(),
+        stalkOnlyMaterial.clone(),
+        stalkOnlyTransforms.length
       );
       
-      fogStripTransforms.forEach((t, i) => {
-        fogStripsMesh.setMatrixAt(i, t.matrix);
+      stalkOnlyTransforms.forEach((t, i) => {
+        stalkOnlyMesh.setMatrixAt(i, t.matrix);
       });
       
-      fogStripsMesh.instanceMatrix.needsUpdate = true;
-      fogStripsMesh.castShadow = false;
-      fogStripsMesh.receiveShadow = false;
-      fogStripsMesh.frustumCulled = false;
-      fogStripsMesh.renderOrder = 10; // Render after corn
+      stalkOnlyMesh.instanceMatrix.needsUpdate = true;
+      stalkOnlyMesh.castShadow = false;
+      stalkOnlyMesh.receiveShadow = false;
+      stalkOnlyMesh.frustumCulled = false;
       
-      fogStripsMeshRef.current = fogStripsMesh;
-      fogStripsGroup.add(fogStripsMesh);
-      allMeshes.push(fogStripsMesh);
+      stalkOnlyMeshRef.current = stalkOnlyMesh;
+      stalkOnlyGroup.add(stalkOnlyMesh);
+      allMeshes.push(stalkOnlyMesh);
       
-      console.log('[CornWall] Fog strips created:', fogStripTransforms.length);
+      console.log('[CornWall] Stalk-only fill created:', stalkOnlyTransforms.length);
     }
     
     return () => {
@@ -819,10 +845,10 @@ export const InstancedWalls = ({
       cheapTransformsRef.current = [];
       edgeMeshesRef.current = [];
       edgeTransformsRef.current = [];
-      fogStripsMeshRef.current = null;
+      stalkOnlyMeshRef.current = null;
       createdRef.current = false;
     };
-  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, fogStripGeometry, fogStripMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms, fogStripTransforms]);
+  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, stalkOnlyGeometry, stalkOnlyMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms, stalkOnlyTransforms]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
@@ -831,7 +857,7 @@ export const InstancedWalls = ({
       <group ref={edgeGroupRef} />
       <group ref={cheapGroupRef} />
       <group ref={billboardGroupRef} />
-      <group ref={fogStripsGroupRef} />
+      <group ref={stalkOnlyGroupRef} />
     </>
   );
 };
