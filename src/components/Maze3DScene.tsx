@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
@@ -677,7 +677,6 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   // Set up animation mixer for wave animation
   useEffect(() => {
     if (animations.length > 0 && model) {
-      const { AnimationMixer } = require('three');
       mixerRef.current = new AnimationMixer(model);
       
       // Try to find a wave animation, otherwise use the first one
