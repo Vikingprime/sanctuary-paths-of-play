@@ -658,25 +658,10 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
 
 const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   const groupRef = useRef<Group>(null);
-  const farmerResult = useGLTF('/models/Farmer.glb');
-  const pigResult = useGLTF('/models/Pig.glb');
-  
-  // Check if farmer has meshes
-  const farmerHasMeshes = useMemo(() => {
-    let hasMesh = false;
-    farmerResult.scene.traverse((child: any) => {
-      if (child.isMesh) hasMesh = true;
-    });
-    console.log('[GoalMarker] Farmer has meshes:', hasMesh);
-    return hasMesh;
-  }, [farmerResult.scene]);
-  
-  // Use farmer if it has meshes, otherwise fallback to pig
-  const sourceScene = farmerHasMeshes ? farmerResult.scene : pigResult.scene;
-  const modelScale = farmerHasMeshes ? 0.015 : 0.012;
+  const { scene } = useGLTF('/models/Pig.glb');
   
   const model = useMemo(() => {
-    const clone = sourceScene.clone();
+    const clone = scene.clone();
     clone.traverse((child: any) => {
       if (child.isMesh) {
         child.castShadow = true;
@@ -684,7 +669,7 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
       }
     });
     return clone;
-  }, [sourceScene]);
+  }, [scene]);
   
   useFrame((state) => {
     if (groupRef.current) {
@@ -696,7 +681,7 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={model} scale={[modelScale, modelScale, modelScale]} />
+        <primitive object={model} scale={[0.012, 0.012, 0.012]} />
       </group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <circleGeometry args={[0.8, 16]} />
