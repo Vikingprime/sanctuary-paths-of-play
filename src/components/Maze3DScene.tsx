@@ -658,25 +658,15 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
 
 const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   const groupRef = useRef<Group>(null);
-  const { scene, nodes } = useGLTF('/models/Farmer.glb');
+  // Try loading Pig model first to confirm loading works, then switch to Farmer
+  const { scene } = useGLTF('/models/Pig.glb');
   
-  // Debug: log what's in the model
-  useEffect(() => {
-    console.log('[Farmer] Scene loaded:', scene);
-    console.log('[Farmer] Nodes:', nodes);
-    console.log('[Farmer] Children:', scene.children);
-    scene.traverse((child: any) => {
-      console.log('[Farmer] Child:', child.name, child.type);
-    });
-  }, [scene, nodes]);
-  
-  const farmerModel = useMemo(() => {
+  const model = useMemo(() => {
     const clone = scene.clone();
     clone.traverse((child: any) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        console.log('[Farmer] Mesh found:', child.name);
       }
     });
     return clone;
@@ -686,7 +676,7 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
     if (groupRef.current) {
       // Slow rotation in place
       groupRef.current.rotation.y = state.clock.elapsedTime * 0.5;
-      // Subtle wave motion (bob up and down slightly)
+      // Subtle bob
       groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 2) * 0.05;
     }
   });
@@ -694,13 +684,8 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={farmerModel} scale={100} />
+        <primitive object={model} scale={0.8} />
       </group>
-      {/* Fallback visible marker for debugging */}
-      <mesh position={[0, 1.5, 0]}>
-        <boxGeometry args={[0.5, 3, 0.5]} />
-        <meshStandardMaterial color="#ff0000" />
-      </mesh>
       {/* Ground glow */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <circleGeometry args={[0.8, 16]} />
