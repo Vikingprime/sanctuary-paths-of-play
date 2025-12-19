@@ -508,67 +508,10 @@ export const InstancedWalls = ({
       }
     });
     
-    // Merge stalk meshes into a single geometry for cheap corn
-    let mergedStalkGeo: BufferGeometry;
-    if (stalkMeshes.length === 1) {
-      mergedStalkGeo = stalkMeshes[0].geometry.clone();
-    } else if (stalkMeshes.length > 1) {
-      // Merge multiple geometries into one
-      let totalPositions = 0;
-      let totalNormals = 0;
-      let totalIndices = 0;
-      
-      stalkMeshes.forEach(m => {
-        totalPositions += m.geometry.attributes.position.count * 3;
-        if (m.geometry.attributes.normal) {
-          totalNormals += m.geometry.attributes.normal.count * 3;
-        }
-        if (m.geometry.index) {
-          totalIndices += m.geometry.index.count;
-        }
-      });
-      
-      const mergedPositions = new Float32Array(totalPositions);
-      const mergedNormals = new Float32Array(totalNormals);
-      const mergedIndices: number[] = [];
-      
-      let posOffset = 0;
-      let normOffset = 0;
-      let vertexOffset = 0;
-      
-      stalkMeshes.forEach(m => {
-        const pos = m.geometry.attributes.position.array;
-        mergedPositions.set(pos, posOffset);
-        posOffset += pos.length;
-        
-        if (m.geometry.attributes.normal) {
-          const norm = m.geometry.attributes.normal.array;
-          mergedNormals.set(norm, normOffset);
-          normOffset += norm.length;
-        }
-        
-        if (m.geometry.index) {
-          const idx = m.geometry.index.array;
-          for (let i = 0; i < idx.length; i++) {
-            mergedIndices.push(idx[i] + vertexOffset);
-          }
-        }
-        
-        vertexOffset += m.geometry.attributes.position.count;
-      });
-      
-      mergedStalkGeo = new BufferGeometry();
-      mergedStalkGeo.setAttribute('position', new BufferAttribute(mergedPositions, 3));
-      if (totalNormals > 0) {
-        mergedStalkGeo.setAttribute('normal', new BufferAttribute(mergedNormals, 3));
-      }
-      if (mergedIndices.length > 0) {
-        mergedStalkGeo.setIndex(new BufferAttribute(new Uint32Array(mergedIndices), 1));
-      }
-    } else {
-      // Fallback if no stalk meshes found
-      mergedStalkGeo = new BoxGeometry(0.1, 2, 0.1);
-    }
+    // Use just the FIRST stalk geometry for cheap corn (keeps triangle count low)
+    const firstStalkGeo: BufferGeometry = stalkMeshes.length >= 1 
+      ? stalkMeshes[0].geometry.clone()
+      : new BoxGeometry(0.1, 2, 0.1); // Fallback if no stalk meshes found
     
     const cheapMat = new MeshLambertMaterial({ 
       color: sampledColor || new Color(0.12, 0.25, 0.10),
@@ -665,7 +608,7 @@ export const InstancedWalls = ({
     
     return { 
       meshDataList: meshes, 
-      cheapStalkGeometry: mergedStalkGeo,
+      cheapStalkGeometry: firstStalkGeo,
       cheapMaterial: cheapMat,
       billboardGeometry: lodCornGeo,
       billboardMaterial: lodCornMat
