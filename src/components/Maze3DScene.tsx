@@ -334,6 +334,7 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
       ref={meshRef} 
       args={[geometry, material, rocks.length]}
       castShadow
+      frustumCulled={false}
     />
   );
 };
