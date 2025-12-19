@@ -38,6 +38,7 @@ interface Maze3DSceneProps {
   lowPixelRatio?: boolean;
   onRendererInfo?: (info: PerformanceInfo) => void;
   onCullStats?: (stats: CullStats) => void;
+  debugMode?: boolean;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -290,35 +291,39 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     initializedRef.current = true;
   }, [rockTransforms]);
   
-  // Distance-only culling (no camera culling for rocks - too few to matter)
+  // Distance-only culling - no camera direction culling (prevents rocks from disappearing on turn)
   useFrame(() => {
     if (!meshRef.current || !playerStateRef || !initializedRef.current) return;
     
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
     
-    // Throttle updates
+    // Throttle updates - only update when player moves significantly
     const dx = px - lastUpdateRef.current.x;
     const dz = pz - lastUpdateRef.current.z;
-    const shouldUpdate = dx*dx + dz*dz >= 0.1 || lastUpdateRef.current.x === -999;
+    const shouldUpdate = dx*dx + dz*dz >= 0.25 || lastUpdateRef.current.x === -999;
     
     if (!shouldUpdate) return;
     lastUpdateRef.current = { x: px, z: pz, dirX: 0, dirZ: 0 };
     
     const cullDistSq = ROCK_CULL_DISTANCE * ROCK_CULL_DISTANCE;
-    let count = 0;
+    let visibleCount = 0;
     
+    // Two-pass: first count visible, then set matrices
     for (let i = 0; i < rockTransforms.length; i++) {
       const t = rockTransforms[i];
       const distSq = (px - t.x) ** 2 + (pz - t.z) ** 2;
       
-      if (distSq >= cullDistSq) continue;
-      
-      meshRef.current.setMatrixAt(count, t.matrix);
-      count++;
+      if (distSq < cullDistSq) {
+        meshRef.current.setMatrixAt(visibleCount, t.matrix);
+        visibleCount++;
+      }
     }
     
-    meshRef.current.count = count;
+    // Only update if count changed to avoid unnecessary GPU uploads
+    if (meshRef.current.count !== visibleCount) {
+      meshRef.current.count = visibleCount;
+    }
     meshRef.current.instanceMatrix.needsUpdate = true;
   });
   
@@ -1112,10 +1117,11 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
   
   return (
     <div className="w-full h-full">
-      <FPSDisplay fps={fps} />
+      {/* FPS Display - only in debug mode */}
+      {props.debugMode && <FPSDisplay fps={fps} />}
       
-      {/* Cull Stats Overlay - hidden on mobile */}
-      {!isMobile && cullStats && props.cornOptimizationSettings?.enableDistanceCulling && (
+      {/* Cull Stats Overlay - only in debug mode, hidden on mobile */}
+      {props.debugMode && !isMobile && cullStats && props.cornOptimizationSettings?.enableDistanceCulling && (
         <div style={{
           position: 'fixed',
           bottom: '80px',

@@ -282,6 +282,7 @@ export const MazeGame3D = ({
         onSceneReady={() => setSceneReady(true)}
         lowPixelRatio={lowPixelRatio}
         onRendererInfo={setRendererInfo}
+        debugMode={debugMode}
         cornOptimizationSettings={{
           shadowRadius: 8,
           cullDistance: 20,
