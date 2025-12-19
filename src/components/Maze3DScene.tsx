@@ -659,7 +659,17 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
 const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   const groupRef = useRef<Group>(null);
   const { scene } = useGLTF('/models/Farmer.glb');
-  const farmerModel = useMemo(() => scene.clone(), [scene]);
+  
+  const farmerModel = useMemo(() => {
+    const clone = scene.clone();
+    clone.traverse((child: any) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [scene]);
   
   useFrame((state) => {
     if (groupRef.current) {
@@ -673,12 +683,12 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={farmerModel} scale={0.5} />
+        <primitive object={farmerModel} scale={2} />
       </group>
       {/* Ground glow */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <circleGeometry args={[0.5, 16]} />
-        <meshStandardMaterial color="#22c55e" transparent opacity={0.3} />
+        <circleGeometry args={[0.8, 16]} />
+        <meshStandardMaterial color="#22c55e" transparent opacity={0.4} />
       </mesh>
     </group>
   );
