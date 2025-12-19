@@ -658,8 +658,7 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
 
 const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   const groupRef = useRef<Group>(null);
-  // Try loading Pig model first to confirm loading works, then switch to Farmer
-  const { scene } = useGLTF('/models/Pig.glb');
+  const { scene } = useGLTF('/models/Farmer.glb');
   
   const model = useMemo(() => {
     const clone = scene.clone();
@@ -684,7 +683,7 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={model} scale={[0.012, 0.012, 0.012]} />
+        <primitive object={model} scale={[0.015, 0.015, 0.015]} />
       </group>
       {/* Ground glow */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
