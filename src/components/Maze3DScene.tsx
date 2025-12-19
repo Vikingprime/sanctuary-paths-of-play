@@ -2,6 +2,7 @@ import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
 import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group } from 'three';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
 import { PlayerCube } from './PlayerCube';
@@ -660,8 +661,9 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   const groupRef = useRef<Group>(null);
   const { scene } = useGLTF('/models/Animated_Woman.glb');
   
+  // Use SkeletonUtils.clone for skinned/animated meshes
   const model = useMemo(() => {
-    const clone = scene.clone();
+    const clone = SkeletonUtils.clone(scene);
     clone.traverse((child: any) => {
       if (child.isMesh) {
         child.castShadow = true;
@@ -681,7 +683,7 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={model} scale={[100, 100, 100]} />
+        <primitive object={model} scale={1} />
       </group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <circleGeometry args={[0.8, 16]} />
