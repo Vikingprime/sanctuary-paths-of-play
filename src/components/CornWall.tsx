@@ -316,7 +316,6 @@ export const InstancedWalls = ({
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
   const billboardGroupRef = useRef<Group>(null);
-  const fogGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
   const { scene, camera } = useThree();
@@ -344,9 +343,6 @@ export const InstancedWalls = ({
   // Billboard mesh for distant corn (2 triangles per stalk vs hundreds)
   const billboardMeshRef = useRef<ThreeInstancedMesh | null>(null);
   const billboardTransformsRef = useRef<WallTransformData[]>([]);
-  
-  // Fog volume mesh for obscuring vision through corn
-  const fogMeshRef = useRef<ThreeInstancedMesh | null>(null);
   
   // Track last update position and camera direction for culling
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
@@ -469,7 +465,7 @@ export const InstancedWalls = ({
   
   // Extract mesh data from GLTF with optimized materials + billboard geometry
   // For cheap corn (non-edge): only use stalk/leaf geometry, skip corn cobs
-  const { meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, fogGeometry, fogMaterial } = useMemo(() => {
+  const { meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
     const stalkMeshes: MeshData[] = []; // Only stalk/leaf meshes (no corn cobs)
     let sampledColor: Color | null = null;
@@ -610,32 +606,17 @@ export const InstancedWalls = ({
       depthWrite: true,
     });
     
-    // Fog volume geometry - a box that fills each corn cell
-    const fogGeo = new BoxGeometry(0.9, 2.5, 0.9);
-    fogGeo.translate(0, 1.25, 0); // Center vertically
-    
-    // Fog material - semi-transparent green-grey fog
-    const fogMat = new MeshBasicMaterial({
-      color: new Color(0.15, 0.2, 0.12),
-      transparent: true,
-      opacity: 0.35,
-      depthWrite: false, // Don't block other objects
-      side: DoubleSide,
-    });
-    
     return { 
       meshDataList: meshes, 
       cheapStalkGeometry: firstStalkGeo,
       cheapMaterial: cheapMat,
       billboardGeometry: lodCornGeo,
-      billboardMaterial: lodCornMat,
-      fogGeometry: fogGeo,
-      fogMaterial: fogMat
+      billboardMaterial: lodCornMat
     };
   }, [gltfScene, cornTex]);
   
-  // Generate transforms for all corn types + billboard transforms + fog transforms
-  const { edgeTransforms, cheapTransforms, allBillboardTransforms, fogTransforms } = useMemo(() => {
+  // Generate transforms for all corn types + billboard transforms
+  const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
@@ -661,42 +642,10 @@ export const InstancedWalls = ({
       billboardTransforms.push({ matrix: bbDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ });
     });
     
-    // Generate fog transforms - one per CELL (not per stalk)
-    // Collect unique cell positions from edge positions
-    const fogCellSet = new Set<string>();
-    const fogDummy = new Object3D();
-    const fogCellTransforms: WallTransformData[] = [];
-    
-    edgePositions.forEach(pos => {
-      const key = `${pos.x},${pos.z}`;
-      if (!fogCellSet.has(key)) {
-        fogCellSet.add(key);
-        fogDummy.position.set(pos.x + 0.5, 0, pos.z + 0.5);
-        fogDummy.rotation.set(0, 0, 0);
-        fogDummy.scale.set(1, 1, 1);
-        fogDummy.updateMatrix();
-        fogCellTransforms.push({ matrix: fogDummy.matrix.clone(), centerX: pos.x + 0.5, centerZ: pos.z + 0.5 });
-      }
-    });
-    
-    // Also add fog to noShadow and boundary positions
-    noShadowPositions.forEach(pos => {
-      const key = `${pos.x},${pos.z}`;
-      if (!fogCellSet.has(key)) {
-        fogCellSet.add(key);
-        fogDummy.position.set(pos.x + 0.5, 0, pos.z + 0.5);
-        fogDummy.rotation.set(0, 0, 0);
-        fogDummy.scale.set(1, 1, 1);
-        fogDummy.updateMatrix();
-        fogCellTransforms.push({ matrix: fogDummy.matrix.clone(), centerX: pos.x + 0.5, centerZ: pos.z + 0.5 });
-      }
-    });
-    
     return { 
       edgeTransforms: edge, 
       cheapTransforms: cheap3D,
-      allBillboardTransforms: billboardTransforms,
-      fogTransforms: fogCellTransforms
+      allBillboardTransforms: billboardTransforms
     };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
   
@@ -706,8 +655,7 @@ export const InstancedWalls = ({
     const edgeGroup = edgeGroupRef.current;
     const cheapGroup = cheapGroupRef.current;
     const billboardGroup = billboardGroupRef.current;
-    const fogGroup = fogGroupRef.current;
-    if (!edgeGroup || !cheapGroup || !billboardGroup || !fogGroup || meshDataList.length === 0 || createdRef.current) return;
+    if (!edgeGroup || !cheapGroup || !billboardGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     const allMeshes: ThreeInstancedMesh[] = [];
@@ -771,29 +719,6 @@ export const InstancedWalls = ({
       allMeshes.push(cheapMesh);
     }
     
-    // FOG VOLUMES: Semi-transparent fog inside corn walls
-    if (fogTransforms.length > 0) {
-      const fogMesh = new ThreeInstancedMesh(
-        fogGeometry.clone(),
-        fogMaterial.clone(),
-        fogTransforms.length
-      );
-      
-      fogTransforms.forEach((t, i) => {
-        fogMesh.setMatrixAt(i, t.matrix);
-      });
-      
-      fogMesh.instanceMatrix.needsUpdate = true;
-      fogMesh.castShadow = false;
-      fogMesh.receiveShadow = false;
-      fogMesh.frustumCulled = false;
-      fogMesh.renderOrder = 1; // Render after opaque objects
-      
-      fogMeshRef.current = fogMesh;
-      fogGroup.add(fogMesh);
-      allMeshes.push(fogMesh);
-    }
-    
     return () => {
       allMeshes.forEach(mesh => {
         const parent = mesh.parent;
@@ -812,10 +737,9 @@ export const InstancedWalls = ({
       cheapTransformsRef.current = [];
       edgeMeshesRef.current = [];
       edgeTransformsRef.current = [];
-      fogMeshRef.current = null;
       createdRef.current = false;
     };
-  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, fogGeometry, fogMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms, fogTransforms]);
+  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
@@ -824,7 +748,6 @@ export const InstancedWalls = ({
       <group ref={edgeGroupRef} />
       <group ref={cheapGroupRef} />
       <group ref={billboardGroupRef} />
-      <group ref={fogGroupRef} />
     </>
   );
 };
