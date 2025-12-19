@@ -658,7 +658,17 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
 
 const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   const groupRef = useRef<Group>(null);
-  const { scene } = useGLTF('/models/Farmer.glb');
+  const { scene, nodes } = useGLTF('/models/Farmer.glb');
+  
+  // Debug: log what's in the model
+  useEffect(() => {
+    console.log('[Farmer] Scene loaded:', scene);
+    console.log('[Farmer] Nodes:', nodes);
+    console.log('[Farmer] Children:', scene.children);
+    scene.traverse((child: any) => {
+      console.log('[Farmer] Child:', child.name, child.type);
+    });
+  }, [scene, nodes]);
   
   const farmerModel = useMemo(() => {
     const clone = scene.clone();
@@ -666,6 +676,7 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        console.log('[Farmer] Mesh found:', child.name);
       }
     });
     return clone;
@@ -683,8 +694,13 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={farmerModel} scale={50} />
+        <primitive object={farmerModel} scale={100} />
       </group>
+      {/* Fallback visible marker for debugging */}
+      <mesh position={[0, 1.5, 0]}>
+        <boxGeometry args={[0.5, 3, 0.5]} />
+        <meshStandardMaterial color="#ff0000" />
+      </mesh>
       {/* Ground glow */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <circleGeometry args={[0.8, 16]} />
