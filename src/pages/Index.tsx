@@ -8,12 +8,14 @@ import { MazeGame3D } from '@/components/MazeGame3D';
 import { ProgressTracker } from '@/components/ProgressTracker';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useSave } from '@/hooks/useSave';
 
 type GameScreen = 'home' | 'levels' | 'playing';
 
 const Index = () => {
-  const { save, loading, completeLevel, addScore, unlockMeal } = useSave();
+  const { save, loading, completeLevel, addScore, unlockMeal, updateSettings } = useSave();
   const [screen, setScreen] = useState<GameScreen>('home');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
@@ -71,6 +73,7 @@ const Index = () => {
       <MazeGame3D
         maze={selectedMaze}
         animalType={selectedAnimal}
+        debugMode={save.settings.debugMode}
         onComplete={handleGameComplete}
         onQuit={handleBackToHome}
       />
@@ -116,7 +119,7 @@ const Index = () => {
             </div>
 
             {/* Start Button */}
-            <div className="flex justify-center animate-fade-in-delay-3">
+            <div className="flex flex-col items-center gap-4 animate-fade-in-delay-3">
               <Button
                 variant="sunset"
                 size="xl"
@@ -126,6 +129,18 @@ const Index = () => {
               >
                 Start Adventure 🌾
               </Button>
+              
+              {/* Debug Mode Toggle */}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Switch
+                  id="debug-mode"
+                  checked={save.settings.debugMode}
+                  onCheckedChange={(checked) => updateSettings({ debugMode: checked })}
+                />
+                <Label htmlFor="debug-mode" className="cursor-pointer">
+                  Debug Mode (skip preview, infinite time)
+                </Label>
+              </div>
             </div>
 
             {/* Progress Tracker */}
