@@ -10,6 +10,7 @@ interface GameHUDProps {
   abilityUsed: boolean;
   onUseAbility: () => void;
   onQuit: () => void;
+  debugMode?: boolean;
   // Corn optimization toggles
   shadowOptEnabled?: boolean;
   distanceCullEnabled?: boolean;
@@ -25,9 +26,6 @@ interface GameHUDProps {
   lowPixelRatio?: boolean;
   onTogglePixelRatio?: () => void;
   performanceInfo?: PerformanceInfo;
-  // Legacy (for backwards compat)
-  drawCalls?: number;
-  triangles?: number;
 }
 
 export const GameHUD = ({
@@ -37,6 +35,7 @@ export const GameHUD = ({
   abilityUsed,
   onUseAbility,
   onQuit,
+  debugMode = false,
   shadowOptEnabled = true,
   distanceCullEnabled = true,
   onToggleShadowOpt,
@@ -48,8 +47,6 @@ export const GameHUD = ({
   lowPixelRatio = false,
   onTogglePixelRatio,
   performanceInfo,
-  drawCalls,
-  triangles,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
 
@@ -108,79 +105,81 @@ export const GameHUD = ({
             ✕ Quit
           </button>
           
-          {/* Corn optimization toggles - hidden on mobile */}
-          <div className="hidden md:flex flex-col gap-2">
-            {onToggleShadowOpt && (
-              <button
-                onClick={onToggleShadowOpt}
-                className={cn(
-                  'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                  shadowOptEnabled ? 'text-green-500' : 'text-red-500'
-                )}
-                title="Shadow optimization (boundary corn has no shadows)"
-              >
-                🌑 {shadowOptEnabled ? 'On' : 'Off'}
-              </button>
-            )}
-            {onToggleDistanceCull && (
-              <button
-                onClick={onToggleDistanceCull}
-                className={cn(
-                  'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                  distanceCullEnabled ? 'text-green-500' : 'text-red-500'
-                )}
-                title="Distance culling"
-              >
-                📏 {distanceCullEnabled ? 'On' : 'Off'}
-              </button>
-            )}
-            {onToggleDynamicFog && (
-              <button
-                onClick={onToggleDynamicFog}
-                className={cn(
-                  'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                  dynamicFogEnabled ? 'text-green-500' : 'text-red-500'
-                )}
-                title="Dynamic fog (hides outer corn when far)"
-              >
-                🌫️ {dynamicFogEnabled ? 'On' : 'Off'}
-              </button>
-            )}
-            {onToggleEdgeCornCull && (
-              <button
-                onClick={onToggleEdgeCornCull}
-                className={cn(
-                  'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                  edgeCornCullEnabled ? 'text-green-500' : 'text-red-500'
-                )}
-                title="Edge corn culling (hides distant edge corn)"
-              >
-                🌽 {edgeCornCullEnabled ? 'On' : 'Off'}
-              </button>
-            )}
-            {onTogglePixelRatio && (
-              <button
-                onClick={onTogglePixelRatio}
-                className={cn(
-                  'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                  lowPixelRatio ? 'text-yellow-500' : 'text-green-500'
-                )}
-                title="Pixel ratio (low = better performance)"
-              >
-                🖼️ {lowPixelRatio ? '0.5x' : '1x'}
-              </button>
-            )}
-          </div>
+          {/* Corn optimization toggles - only in debug mode, hidden on mobile */}
+          {debugMode && (
+            <div className="hidden md:flex flex-col gap-2">
+              {onToggleShadowOpt && (
+                <button
+                  onClick={onToggleShadowOpt}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    shadowOptEnabled ? 'text-green-500' : 'text-red-500'
+                  )}
+                  title="Shadow optimization (boundary corn has no shadows)"
+                >
+                  🌑 {shadowOptEnabled ? 'On' : 'Off'}
+                </button>
+              )}
+              {onToggleDistanceCull && (
+                <button
+                  onClick={onToggleDistanceCull}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    distanceCullEnabled ? 'text-green-500' : 'text-red-500'
+                  )}
+                  title="Distance culling"
+                >
+                  📏 {distanceCullEnabled ? 'On' : 'Off'}
+                </button>
+              )}
+              {onToggleDynamicFog && (
+                <button
+                  onClick={onToggleDynamicFog}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    dynamicFogEnabled ? 'text-green-500' : 'text-red-500'
+                  )}
+                  title="Dynamic fog (hides outer corn when far)"
+                >
+                  🌫️ {dynamicFogEnabled ? 'On' : 'Off'}
+                </button>
+              )}
+              {onToggleEdgeCornCull && (
+                <button
+                  onClick={onToggleEdgeCornCull}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    edgeCornCullEnabled ? 'text-green-500' : 'text-red-500'
+                  )}
+                  title="Edge corn culling (hides distant edge corn)"
+                >
+                  🌽 {edgeCornCullEnabled ? 'On' : 'Off'}
+                </button>
+              )}
+              {onTogglePixelRatio && (
+                <button
+                  onClick={onTogglePixelRatio}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    lowPixelRatio ? 'text-yellow-500' : 'text-green-500'
+                  )}
+                  title="Pixel ratio (low = better performance)"
+                >
+                  🖼️ {lowPixelRatio ? '0.5x' : '1x'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Full Performance Profiler Panel - hidden on mobile (FPS shown via FPSDisplay in Maze3DScene) */}
-      {(performanceInfo || drawCalls !== undefined) && (
+      {/* Full Performance Profiler Panel - only in debug mode, hidden on mobile */}
+      {debugMode && performanceInfo && (
         <div className="hidden md:block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[200px]">
           <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">PERF PROFILER</div>
           
           {/* Frame timing */}
-          {performanceInfo?.frameTime !== undefined && (
+          {performanceInfo.frameTime !== undefined && (
             <div className={cn(
               performanceInfo.frameTime > 33 ? 'text-red-400' : 
               performanceInfo.frameTime > 20 ? 'text-yellow-400' : 'text-green-400'
@@ -194,52 +193,46 @@ export const GameHUD = ({
           
           {/* Draw calls */}
           <div className={cn(
-            (performanceInfo?.drawCalls ?? drawCalls ?? 0) > 100 ? 'text-red-400' : 
-            (performanceInfo?.drawCalls ?? drawCalls ?? 0) > 50 ? 'text-yellow-400' : 'text-green-400'
+            performanceInfo.drawCalls > 100 ? 'text-red-400' : 
+            performanceInfo.drawCalls > 50 ? 'text-yellow-400' : 'text-green-400'
           )}>
-            Draw calls: {performanceInfo?.drawCalls ?? drawCalls ?? 0}
+            Draw calls: {performanceInfo.drawCalls}
           </div>
           
           {/* Triangles */}
           <div className={cn(
-            (performanceInfo?.triangles ?? triangles ?? 0) > 500000 ? 'text-red-400' : 
-            (performanceInfo?.triangles ?? triangles ?? 0) > 200000 ? 'text-yellow-400' : 'text-green-400'
+            performanceInfo.triangles > 500000 ? 'text-red-400' : 
+            performanceInfo.triangles > 200000 ? 'text-yellow-400' : 'text-green-400'
           )}>
-            Triangles: {((performanceInfo?.triangles ?? triangles ?? 0) / 1000).toFixed(1)}k
+            Triangles: {(performanceInfo.triangles / 1000).toFixed(1)}k
           </div>
           
           {/* Textures & Geometries */}
-          {performanceInfo && (
-            <>
-              <div className={cn(
-                performanceInfo.textures > 50 ? 'text-yellow-400' : 'text-white'
-              )}>
-                Textures: {performanceInfo.textures}
-              </div>
-              <div className={cn(
-                performanceInfo.geometries > 100 ? 'text-yellow-400' : 'text-white'
-              )}>
-                Geometries: {performanceInfo.geometries}
-              </div>
-              <div>Shaders: {performanceInfo.programs}</div>
-            </>
-          )}
+          <div className={cn(
+            performanceInfo.textures > 50 ? 'text-yellow-400' : 'text-white'
+          )}>
+            Textures: {performanceInfo.textures}
+          </div>
+          <div className={cn(
+            performanceInfo.geometries > 100 ? 'text-yellow-400' : 'text-white'
+          )}>
+            Geometries: {performanceInfo.geometries}
+          </div>
+          <div>Shaders: {performanceInfo.programs}</div>
           
           {/* Bottleneck indicator */}
-          {performanceInfo && (
-            <div className="mt-1 pt-1 border-t border-gray-600">
-              <div className="text-[10px] text-gray-400">Bottleneck:</div>
-              <div className={cn(
-                'font-bold',
-                (performanceInfo.drawCalls > 80 || performanceInfo.triangles > 400000) ? 'text-red-400' : 'text-cyan-400'
-              )}>
-                {performanceInfo.drawCalls > 80 ? '⚠️ CPU (draw calls)' :
-                 performanceInfo.triangles > 400000 ? '⚠️ GPU (geometry)' :
-                 performanceInfo.frameTime > 33 ? '🔍 Unknown - toggle features' :
-                 '✓ Balanced'}
-              </div>
+          <div className="mt-1 pt-1 border-t border-gray-600">
+            <div className="text-[10px] text-gray-400">Bottleneck:</div>
+            <div className={cn(
+              'font-bold',
+              (performanceInfo.drawCalls > 80 || performanceInfo.triangles > 400000) ? 'text-red-400' : 'text-cyan-400'
+            )}>
+              {performanceInfo.drawCalls > 80 ? '⚠️ CPU (draw calls)' :
+               performanceInfo.triangles > 400000 ? '⚠️ GPU (geometry)' :
+               performanceInfo.frameTime > 33 ? '🔍 Unknown - toggle features' :
+               '✓ Balanced'}
             </div>
-          )}
+          </div>
         </div>
       )}
 

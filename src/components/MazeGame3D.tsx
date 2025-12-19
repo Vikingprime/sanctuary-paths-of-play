@@ -316,6 +316,7 @@ export const MazeGame3D = ({
           abilityUsed={abilityUsed}
           onUseAbility={useAbility}
           onQuit={onQuit}
+          debugMode={debugMode}
           shadowOptEnabled={shadowOptEnabled}
           distanceCullEnabled={distanceCullEnabled}
           onToggleShadowOpt={() => setShadowOptEnabled(prev => !prev)}
