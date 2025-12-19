@@ -658,10 +658,25 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
 
 const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   const groupRef = useRef<Group>(null);
-  const { scene } = useGLTF('/models/Farmer.glb');
+  const farmerResult = useGLTF('/models/Farmer.glb');
+  const pigResult = useGLTF('/models/Pig.glb');
+  
+  // Check if farmer has meshes
+  const farmerHasMeshes = useMemo(() => {
+    let hasMesh = false;
+    farmerResult.scene.traverse((child: any) => {
+      if (child.isMesh) hasMesh = true;
+    });
+    console.log('[GoalMarker] Farmer has meshes:', hasMesh);
+    return hasMesh;
+  }, [farmerResult.scene]);
+  
+  // Use farmer if it has meshes, otherwise fallback to pig
+  const sourceScene = farmerHasMeshes ? farmerResult.scene : pigResult.scene;
+  const modelScale = farmerHasMeshes ? 0.015 : 0.012;
   
   const model = useMemo(() => {
-    const clone = scene.clone();
+    const clone = sourceScene.clone();
     clone.traverse((child: any) => {
       if (child.isMesh) {
         child.castShadow = true;
@@ -669,13 +684,11 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
       }
     });
     return clone;
-  }, [scene]);
+  }, [sourceScene]);
   
   useFrame((state) => {
     if (groupRef.current) {
-      // Slow rotation in place
       groupRef.current.rotation.y = state.clock.elapsedTime * 0.5;
-      // Subtle bob
       groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 2) * 0.05;
     }
   });
@@ -683,9 +696,8 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={model} scale={[0.015, 0.015, 0.015]} />
+        <primitive object={model} scale={[modelScale, modelScale, modelScale]} />
       </group>
-      {/* Ground glow */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <circleGeometry args={[0.8, 16]} />
         <meshStandardMaterial color="#22c55e" transparent opacity={0.4} />
