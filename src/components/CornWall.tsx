@@ -316,6 +316,7 @@ export const InstancedWalls = ({
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
   const billboardGroupRef = useRef<Group>(null);
+  const fogStripsGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
   const { scene, camera } = useThree();
@@ -343,6 +344,9 @@ export const InstancedWalls = ({
   // Billboard mesh for distant corn (2 triangles per stalk vs hundreds)
   const billboardMeshRef = useRef<ThreeInstancedMesh | null>(null);
   const billboardTransformsRef = useRef<WallTransformData[]>([]);
+  
+  // Fog strips mesh for obscuring vision through corn
+  const fogStripsMeshRef = useRef<ThreeInstancedMesh | null>(null);
   
   // Track last update position and camera direction for culling
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
@@ -463,9 +467,9 @@ export const InstancedWalls = ({
     onCullStats?.(stats);
   });
   
-  // Extract mesh data from GLTF with optimized materials + billboard geometry
+  // Extract mesh data from GLTF with optimized materials + billboard geometry + fog strips
   // For cheap corn (non-edge): only use stalk/leaf geometry, skip corn cobs
-  const { meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial } = useMemo(() => {
+  const { meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, fogStripGeometry, fogStripMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
     const stalkMeshes: MeshData[] = []; // Only stalk/leaf meshes (no corn cobs)
     let sampledColor: Color | null = null;
@@ -606,17 +610,32 @@ export const InstancedWalls = ({
       depthWrite: true,
     });
     
+    // Fog strip geometry - tall thin vertical planes
+    const fogStripGeo = new PlaneGeometry(0.15, 2.8); // Thin and tall
+    fogStripGeo.translate(0, 1.4, 0); // Base at ground level
+    
+    // Fog strip material - very soft, semi-transparent
+    const fogStripMat = new MeshBasicMaterial({
+      color: new Color(0.25, 0.32, 0.22), // Slight green tint to blend with corn
+      transparent: true,
+      opacity: 0.12, // Very subtle
+      depthWrite: false,
+      side: DoubleSide,
+    });
+    
     return { 
       meshDataList: meshes, 
       cheapStalkGeometry: firstStalkGeo,
       cheapMaterial: cheapMat,
       billboardGeometry: lodCornGeo,
-      billboardMaterial: lodCornMat
+      billboardMaterial: lodCornMat,
+      fogStripGeometry: fogStripGeo,
+      fogStripMaterial: fogStripMat
     };
   }, [gltfScene, cornTex]);
   
-  // Generate transforms for all corn types + billboard transforms
-  const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {
+  // Generate transforms for all corn types + billboard transforms + fog strip transforms
+  const { edgeTransforms, cheapTransforms, allBillboardTransforms, fogStripTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
@@ -642,10 +661,47 @@ export const InstancedWalls = ({
       billboardTransforms.push({ matrix: bbDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ });
     });
     
+    // Generate fog strip transforms - scattered throughout corn cells with random rotations
+    const fogStrips: WallTransformData[] = [];
+    const fogDummy = new Object3D();
+    const STRIPS_PER_CELL = 3; // Multiple strips per cell for layered effect
+    
+    // Collect unique cell positions
+    const cellSet = new Set<string>();
+    edgePositions.forEach(pos => cellSet.add(`${pos.x},${pos.z}`));
+    noShadowPositions.forEach(pos => cellSet.add(`${pos.x},${pos.z}`));
+    
+    cellSet.forEach(key => {
+      const [xStr, zStr] = key.split(',');
+      const cellX = parseInt(xStr);
+      const cellZ = parseInt(zStr);
+      const centerX = cellX + 0.5;
+      const centerZ = cellZ + 0.5;
+      
+      for (let i = 0; i < STRIPS_PER_CELL; i++) {
+        const seed = cellX * 1000 + cellZ * 100 + i;
+        // Random position within cell
+        const offsetX = (seededRandom(seed) - 0.5) * 0.6;
+        const offsetZ = (seededRandom(seed + 1) - 0.5) * 0.6;
+        // Random Y rotation for variety
+        const rotation = seededRandom(seed + 2) * Math.PI;
+        // Slight height variation
+        const heightScale = 0.8 + seededRandom(seed + 3) * 0.4;
+        
+        fogDummy.position.set(centerX + offsetX, 0, centerZ + offsetZ);
+        fogDummy.rotation.set(0, rotation, 0);
+        fogDummy.scale.set(1, heightScale, 1);
+        fogDummy.updateMatrix();
+        
+        fogStrips.push({ matrix: fogDummy.matrix.clone(), centerX, centerZ });
+      }
+    });
+    
     return { 
       edgeTransforms: edge, 
       cheapTransforms: cheap3D,
-      allBillboardTransforms: billboardTransforms
+      allBillboardTransforms: billboardTransforms,
+      fogStripTransforms: fogStrips
     };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
   
@@ -655,7 +711,8 @@ export const InstancedWalls = ({
     const edgeGroup = edgeGroupRef.current;
     const cheapGroup = cheapGroupRef.current;
     const billboardGroup = billboardGroupRef.current;
-    if (!edgeGroup || !cheapGroup || !billboardGroup || meshDataList.length === 0 || createdRef.current) return;
+    const fogStripsGroup = fogStripsGroupRef.current;
+    if (!edgeGroup || !cheapGroup || !billboardGroup || !fogStripsGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     const allMeshes: ThreeInstancedMesh[] = [];
@@ -719,6 +776,31 @@ export const InstancedWalls = ({
       allMeshes.push(cheapMesh);
     }
     
+    // FOG STRIPS: Thin vertical planes scattered in corn for atmospheric fog
+    if (fogStripTransforms.length > 0) {
+      const fogStripsMesh = new ThreeInstancedMesh(
+        fogStripGeometry.clone(),
+        fogStripMaterial.clone(),
+        fogStripTransforms.length
+      );
+      
+      fogStripTransforms.forEach((t, i) => {
+        fogStripsMesh.setMatrixAt(i, t.matrix);
+      });
+      
+      fogStripsMesh.instanceMatrix.needsUpdate = true;
+      fogStripsMesh.castShadow = false;
+      fogStripsMesh.receiveShadow = false;
+      fogStripsMesh.frustumCulled = false;
+      fogStripsMesh.renderOrder = 10; // Render after corn
+      
+      fogStripsMeshRef.current = fogStripsMesh;
+      fogStripsGroup.add(fogStripsMesh);
+      allMeshes.push(fogStripsMesh);
+      
+      console.log('[CornWall] Fog strips created:', fogStripTransforms.length);
+    }
+    
     return () => {
       allMeshes.forEach(mesh => {
         const parent = mesh.parent;
@@ -737,9 +819,10 @@ export const InstancedWalls = ({
       cheapTransformsRef.current = [];
       edgeMeshesRef.current = [];
       edgeTransformsRef.current = [];
+      fogStripsMeshRef.current = null;
       createdRef.current = false;
     };
-  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
+  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, fogStripGeometry, fogStripMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms, fogStripTransforms]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
@@ -748,6 +831,7 @@ export const InstancedWalls = ({
       <group ref={edgeGroupRef} />
       <group ref={cheapGroupRef} />
       <group ref={billboardGroupRef} />
+      <group ref={fogStripsGroupRef} />
     </>
   );
 };
