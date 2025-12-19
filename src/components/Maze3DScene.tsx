@@ -711,11 +711,12 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={model} scale={0.8} />
+        <primitive object={model} scale={0.55} />
       </group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+      {/* Invisible collision trigger for end goal */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} visible={false}>
         <circleGeometry args={[0.8, 16]} />
-        <meshStandardMaterial color="#22c55e" transparent opacity={0.4} />
+        <meshStandardMaterial color="#22c55e" transparent opacity={0} />
       </mesh>
     </group>
   );
