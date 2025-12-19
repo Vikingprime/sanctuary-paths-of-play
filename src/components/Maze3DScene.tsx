@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group } from 'three';
 import { Maze, AnimalType } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
 import { PlayerCube } from './PlayerCube';
@@ -657,28 +657,26 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
 };
 
 const GoalMarker = ({ position }: { position: [number, number, number] }) => {
-  const meshRef = useRef<any>(null);
+  const groupRef = useRef<Group>(null);
+  const { scene } = useGLTF('/models/Farmer.glb');
+  const farmerModel = useMemo(() => scene.clone(), [scene]);
   
   useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 3) * 0.15 + 0.3;
+    if (groupRef.current) {
+      // Slow rotation in place
+      groupRef.current.rotation.y = state.clock.elapsedTime * 0.5;
+      // Subtle wave motion (bob up and down slightly)
+      groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 2) * 0.05;
     }
   });
 
   return (
-    <group position={position}>
-      {/* Flag pole */}
-      <mesh position={[0.3, 1, 0.3]}>
-        <cylinderGeometry args={[0.03, 0.03, 2, 8]} />
-        <meshStandardMaterial color="#8B4513" />
-      </mesh>
-      {/* Flag */}
-      <mesh ref={meshRef} position={[0.5, 1.7, 0.3]}>
-        <boxGeometry args={[0.4, 0.25, 0.02]} />
-        <meshStandardMaterial color="#22c55e" />
-      </mesh>
+    <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
+      <group ref={groupRef}>
+        <primitive object={farmerModel} scale={0.5} />
+      </group>
       {/* Ground glow */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0.5, 0.01, 0.5]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <circleGeometry args={[0.5, 16]} />
         <meshStandardMaterial color="#22c55e" transparent opacity={0.3} />
       </mesh>
