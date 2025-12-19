@@ -659,7 +659,7 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
 
 const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   const groupRef = useRef<Group>(null);
-  const { scene } = useGLTF('/models/Animated_Woman.glb');
+  const { scene } = useGLTF('/models/Farmer.glb');
   
   // Use SkeletonUtils.clone for skinned/animated meshes
   const model = useMemo(() => {
