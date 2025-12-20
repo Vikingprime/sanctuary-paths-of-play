@@ -639,7 +639,28 @@ export const InstancedWalls = ({
           const behindOffset = depthLayer === 0 
             ? 0.15 + seededRandom(clusterSeed + 1) * 0.15  // Front layer
             : 0.35 + seededRandom(clusterSeed + 1) * 0.2;  // Back layer
-          const lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 0.8; // Wide spread
+          
+          // Constrain lateral spread based on adjacent edges
+          // If there are edges on sides, limit spread to avoid those sides
+          const hasLeftEdge = wallPos.edges.includes('left');
+          const hasRightEdge = wallPos.edges.includes('right');
+          const hasTopEdge = wallPos.edges.includes('top');
+          const hasBottomEdge = wallPos.edges.includes('bottom');
+          
+          let lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 0.6;
+          
+          // For horizontal edges (left/right), lateral is along Z
+          // For vertical edges (top/bottom), lateral is along X
+          // Constrain lateral to avoid going toward other path-facing edges
+          if (edge === 'left' || edge === 'right') {
+            // Lateral is Z direction
+            if (hasTopEdge && lateralOffset < 0) lateralOffset = Math.abs(lateralOffset) * 0.3;
+            if (hasBottomEdge && lateralOffset > 0) lateralOffset = -Math.abs(lateralOffset) * 0.3;
+          } else {
+            // Lateral is X direction
+            if (hasLeftEdge && lateralOffset < 0) lateralOffset = Math.abs(lateralOffset) * 0.3;
+            if (hasRightEdge && lateralOffset > 0) lateralOffset = -Math.abs(lateralOffset) * 0.3;
+          }
           
           let baseX = centerX;
           let baseZ = centerZ;
