@@ -120,10 +120,10 @@ interface InstancedWallsProps {
   onCullStats?: (stats: CullStats) => void;
 }
 
-// Density settings - spread evenly across cell to close gaps
-const ROWS = 2;
-const STALKS_PER_ROW = 2;
-const STALK_SPACING = 0.55; // Wider spacing to cover full cell width
+// Density settings - staggered rows to close gaps
+const ROWS = 3;
+const STALKS_PER_ROW = 2; // Base count, odd rows get +1
+const STALK_SPACING = 0.4; // Spacing between stalks
 
 // Boundary walls - reduced for performance
 const BOUNDARY_ROWS = 2;
@@ -216,13 +216,17 @@ const generateWallTransforms = (
     const centerZ = wallPos.z + 0.5;
     
     for (let row = 0; row < ROWS; row++) {
+      // Odd rows get an extra stalk for staggered coverage
+      const stalksInRow = STALKS_PER_ROW + (row % 2);
+      // Offset odd rows by half spacing to stagger gaps
       const rowOffset = (row % 2) * (STALK_SPACING / 2);
-      for (let col = 0; col < STALKS_PER_ROW; col++) {
+      
+      for (let col = 0; col < stalksInRow; col++) {
         const stalkSeed = baseSeed + row * 100 + col;
-        const offsetX = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING + rowOffset;
+        const offsetX = (col - (stalksInRow - 1) / 2) * STALK_SPACING + rowOffset;
         const offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
-        const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.03;
-        const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
+        const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.05;
+        const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.05;
         const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
         
         const baseScale = 100;
