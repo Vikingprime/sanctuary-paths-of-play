@@ -657,22 +657,6 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-// Simple low-poly corn stalk (geometric cylinder, not GLTF)
-const SimpleCornStalk = ({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) => {
-  const stalkHeight = 2.2 * scale;
-  const bottomRadius = 0.035 * scale;
-  const topRadius = 0.015 * scale;
-  
-  return (
-    <group position={position}>
-      {/* Main stalk - tapered cylinder */}
-      <mesh position={[0, stalkHeight / 2, 0]}>
-        <cylinderGeometry args={[topRadius, bottomRadius, stalkHeight, 5, 1]} />
-        <meshLambertMaterial color="#5d7a3d" />
-      </mesh>
-    </group>
-  );
-};
 
 const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   const groupRef = useRef<Group>(null);
@@ -731,10 +715,6 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
         <primitive object={model} scale={0.55} />
       </group>
       
-      {/* Test stalks around the goal - simple cylinders */}
-      <SimpleCornStalk position={[0.7, 0, 0]} scale={1.0} />
-      <SimpleCornStalk position={[-0.7, 0, 0.1]} scale={0.9} />
-      <SimpleCornStalk position={[0.1, 0, 0.7]} scale={1.1} />
       
       {/* Invisible collision trigger for end goal */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} visible={false}>

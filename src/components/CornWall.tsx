@@ -65,6 +65,14 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
 const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
 
+// Filler stalk geometry - simple tapered cylinder (darker, thinner)
+const FILLER_STALK_GEOMETRY = new CylinderGeometry(0.012, 0.03, 2.0, 5, 1);
+FILLER_STALK_GEOMETRY.translate(0, 1.0, 0); // Base at y=0
+const FILLER_STALK_MATERIAL = new MeshLambertMaterial({ 
+  color: new Color(0.18, 0.28, 0.12), // Darker green
+  side: FrontSide,
+  depthWrite: true,
+});
 
 // Hidden matrix (scale 0) for hiding instances
 const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
@@ -305,6 +313,74 @@ const generateBoundaryTransforms = (
   return transforms;
 };
 
+// Generate filler stalk transforms (1 stalk per 4 corn stalks, offset positions)
+const generateFillerTransforms = (
+  edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[],
+  noShadowPositions: { x: number; z: number }[],
+  seedOffset: number = 99999
+): WallTransformData[] => {
+  const transforms: WallTransformData[] = [];
+  const dummy = new Object3D();
+  
+  // Add fillers for edge positions (between the stalks)
+  edgePositions.forEach((wallPos, idx) => {
+    // Only add filler every 4th wall cell (4:1 ratio)
+    if (idx % 4 !== 0) return;
+    
+    const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset;
+    const centerX = wallPos.x + 0.5;
+    const centerZ = wallPos.z + 0.5;
+    
+    // Add a filler stalk at offset positions within the cell
+    const offsets = [
+      { x: 0.15, z: 0.15 },
+      { x: -0.18, z: 0.12 },
+    ];
+    
+    offsets.forEach((offset, i) => {
+      const stalkSeed = baseSeed + i;
+      const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.08;
+      const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.08;
+      const heightVar = 0.85 + seededRandom(stalkSeed + 2) * 0.3;
+      
+      dummy.position.set(centerX + offset.x + jitterX, 0, centerZ + offset.z + jitterZ);
+      dummy.rotation.set(0, seededRandom(stalkSeed + 3) * Math.PI * 2, 0);
+      dummy.scale.set(1, heightVar, 1);
+      dummy.updateMatrix();
+      transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ });
+    });
+  });
+  
+  // Add fillers for no-shadow positions
+  noShadowPositions.forEach((wallPos, idx) => {
+    if (idx % 4 !== 0) return;
+    
+    const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset + 50000;
+    const centerX = wallPos.x + 0.5;
+    const centerZ = wallPos.z + 0.5;
+    
+    const offsets = [
+      { x: 0.2, z: -0.1 },
+      { x: -0.15, z: 0.2 },
+    ];
+    
+    offsets.forEach((offset, i) => {
+      const stalkSeed = baseSeed + i;
+      const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.08;
+      const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.08;
+      const heightVar = 0.85 + seededRandom(stalkSeed + 2) * 0.3;
+      
+      dummy.position.set(centerX + offset.x + jitterX, 0, centerZ + offset.z + jitterZ);
+      dummy.rotation.set(0, seededRandom(stalkSeed + 3) * Math.PI * 2, 0);
+      dummy.scale.set(1, heightVar, 1);
+      dummy.updateMatrix();
+      transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ });
+    });
+  });
+  
+  return transforms;
+};
+
 export const InstancedWalls = ({ 
   edgePositions, 
   noShadowPositions = [],
@@ -316,6 +392,7 @@ export const InstancedWalls = ({
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
   const billboardGroupRef = useRef<Group>(null);
+  const fillerGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
   const { scene, camera } = useThree();
@@ -343,6 +420,10 @@ export const InstancedWalls = ({
   // Billboard mesh for distant corn (2 triangles per stalk vs hundreds)
   const billboardMeshRef = useRef<ThreeInstancedMesh | null>(null);
   const billboardTransformsRef = useRef<WallTransformData[]>([]);
+  
+  // Filler stalks mesh
+  const fillerMeshRef = useRef<ThreeInstancedMesh | null>(null);
+  const fillerTransformsRef = useRef<WallTransformData[]>([]);
   
   // Track last update position and camera direction for culling
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
@@ -613,12 +694,15 @@ export const InstancedWalls = ({
     };
   }, [gltfScene, cornTex]);
   
-  // Generate transforms for all corn types + billboard transforms
-  const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {
+  // Generate transforms for all corn types + billboard transforms + filler stalks
+  const { edgeTransforms, cheapTransforms, allBillboardTransforms, fillerTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
     const cheap3D = [...outer, ...boundary];
+    
+    // Generate filler stalk transforms (4:1 ratio)
+    const fillers = generateFillerTransforms(edgePositions, noShadowPositions);
     
     // Generate billboard transforms for ALL corn (edge + cheap)
     const allTransforms = [...edge, ...cheap3D];
@@ -643,7 +727,8 @@ export const InstancedWalls = ({
     return { 
       edgeTransforms: edge, 
       cheapTransforms: cheap3D,
-      allBillboardTransforms: billboardTransforms
+      allBillboardTransforms: billboardTransforms,
+      fillerTransforms: fillers
     };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
   
@@ -653,7 +738,8 @@ export const InstancedWalls = ({
     const edgeGroup = edgeGroupRef.current;
     const cheapGroup = cheapGroupRef.current;
     const billboardGroup = billboardGroupRef.current;
-    if (!edgeGroup || !cheapGroup || !billboardGroup || meshDataList.length === 0 || createdRef.current) return;
+    const fillerGroup = fillerGroupRef.current;
+    if (!edgeGroup || !cheapGroup || !billboardGroup || !fillerGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     const allMeshes: ThreeInstancedMesh[] = [];
@@ -717,6 +803,32 @@ export const InstancedWalls = ({
       allMeshes.push(cheapMesh);
     }
     
+    // FILLER STALKS: Simple cylinders to fill gaps (4:1 ratio)
+    if (fillerTransforms.length > 0) {
+      const fillerMesh = new ThreeInstancedMesh(
+        FILLER_STALK_GEOMETRY.clone(),
+        FILLER_STALK_MATERIAL.clone(),
+        fillerTransforms.length
+      );
+      
+      fillerTransforms.forEach((t, i) => {
+        fillerMesh.setMatrixAt(i, t.matrix);
+      });
+      
+      fillerMesh.instanceMatrix.needsUpdate = true;
+      fillerMesh.castShadow = false;
+      fillerMesh.receiveShadow = true;
+      fillerMesh.frustumCulled = false;
+      
+      fillerMeshRef.current = fillerMesh;
+      fillerTransformsRef.current = fillerTransforms;
+      
+      fillerGroup.add(fillerMesh);
+      allMeshes.push(fillerMesh);
+      
+      console.log('[CornWall] Filler stalks created:', fillerTransforms.length, 'instances');
+    }
+    
     return () => {
       allMeshes.forEach(mesh => {
         const parent = mesh.parent;
@@ -735,9 +847,11 @@ export const InstancedWalls = ({
       cheapTransformsRef.current = [];
       edgeMeshesRef.current = [];
       edgeTransformsRef.current = [];
+      fillerMeshRef.current = null;
+      fillerTransformsRef.current = [];
       createdRef.current = false;
     };
-  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
+  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms, fillerTransforms]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
@@ -746,6 +860,7 @@ export const InstancedWalls = ({
       <group ref={edgeGroupRef} />
       <group ref={cheapGroupRef} />
       <group ref={billboardGroupRef} />
+      <group ref={fillerGroupRef} />
     </>
   );
 };
