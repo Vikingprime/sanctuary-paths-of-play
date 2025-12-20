@@ -65,11 +65,11 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
 const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
 
-// Filler stalk geometry - simple tapered cylinder (much darker, thinner)
-const FILLER_STALK_GEOMETRY = new CylinderGeometry(0.012, 0.03, 2.0, 5, 1);
-FILLER_STALK_GEOMETRY.translate(0, 1.0, 0); // Base at y=0
+// Filler stalk geometry - simple tapered cylinder (very dark, almost brown)
+const FILLER_STALK_GEOMETRY = new CylinderGeometry(0.015, 0.035, 2.2, 5, 1);
+FILLER_STALK_GEOMETRY.translate(0, 1.1, 0); // Base at y=0
 const FILLER_STALK_MATERIAL = new MeshLambertMaterial({ 
-  color: new Color(0.08, 0.14, 0.05), // Much darker green/brown
+  color: new Color(0.12, 0.10, 0.06), // Very dark brown/green
   side: FrontSide,
   depthWrite: true,
 });
@@ -313,59 +313,33 @@ const generateBoundaryTransforms = (
   return transforms;
 };
 
-// Generate filler stalk transforms (only for interior/boundary corn, NOT edge corn)
+// Generate filler stalk transforms (only for deep interior corn, positioned at cell centers)
 const generateFillerTransforms = (
   noShadowPositions: { x: number; z: number }[],
-  boundaryPositions: { x: number; z: number; offsetX: number; offsetZ: number }[],
   seedOffset: number = 99999
 ): WallTransformData[] => {
   const transforms: WallTransformData[] = [];
   const dummy = new Object3D();
   
-  // Add fillers only for interior (no-shadow) positions - every 4th cell (4:1 ratio)
+  // Only add fillers to interior (no-shadow) positions - every 2nd cell for better coverage
   noShadowPositions.forEach((wallPos, idx) => {
-    if (idx % 4 !== 0) return;
+    if (idx % 2 !== 0) return;
     
     const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset;
     const centerX = wallPos.x + 0.5;
     const centerZ = wallPos.z + 0.5;
     
+    // Place stalks near the center of the cell (behind corn stalks which are at edges)
     const offsets = [
-      { x: 0.2, z: -0.1 },
-      { x: -0.15, z: 0.2 },
+      { x: 0.0, z: 0.0 },    // Center
+      { x: 0.08, z: -0.08 }, // Slight offset
     ];
     
     offsets.forEach((offset, i) => {
       const stalkSeed = baseSeed + i;
-      const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.08;
-      const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.08;
-      const heightVar = 0.85 + seededRandom(stalkSeed + 2) * 0.3;
-      
-      dummy.position.set(centerX + offset.x + jitterX, 0, centerZ + offset.z + jitterZ);
-      dummy.rotation.set(0, seededRandom(stalkSeed + 3) * Math.PI * 2, 0);
-      dummy.scale.set(1, heightVar, 1);
-      dummy.updateMatrix();
-      transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ });
-    });
-  });
-  
-  // Add fillers for boundary positions too
-  boundaryPositions.forEach((wallPos, idx) => {
-    if (idx % 4 !== 0) return;
-    
-    const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset + 80000;
-    const centerX = wallPos.x + 0.5;
-    const centerZ = wallPos.z + 0.5;
-    
-    const offsets = [
-      { x: 0.15, z: 0.15 },
-    ];
-    
-    offsets.forEach((offset, i) => {
-      const stalkSeed = baseSeed + i;
-      const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.08;
-      const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.08;
-      const heightVar = 0.85 + seededRandom(stalkSeed + 2) * 0.3;
+      const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.1;
+      const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.1;
+      const heightVar = 0.9 + seededRandom(stalkSeed + 2) * 0.25;
       
       dummy.position.set(centerX + offset.x + jitterX, 0, centerZ + offset.z + jitterZ);
       dummy.rotation.set(0, seededRandom(stalkSeed + 3) * Math.PI * 2, 0);
@@ -698,8 +672,8 @@ export const InstancedWalls = ({
     const boundary = generateBoundaryTransforms(boundaryPositions);
     const cheap3D = [...outer, ...boundary];
     
-    // Generate filler stalk transforms (only interior + boundary, NOT edge)
-    const fillers = generateFillerTransforms(noShadowPositions, boundaryPositions);
+    // Generate filler stalk transforms (only deep interior, no boundary)
+    const fillers = generateFillerTransforms(noShadowPositions);
     
     // Generate billboard transforms for ALL corn (edge + cheap)
     const allTransforms = [...edge, ...cheap3D];
