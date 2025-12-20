@@ -613,6 +613,81 @@ export const InstancedWalls = ({
     };
   }, [gltfScene, cornTex]);
   
+  // Generate leaf foliage filler transforms - small irregular leaf planes behind corn
+  const foliageTransforms = useMemo(() => {
+    const transforms: Matrix4[] = [];
+    const dummy = new Object3D();
+    
+    // Process edge positions to add foliage behind corn rows
+    edgePositions.forEach((wallPos) => {
+      const baseSeed = wallPos.x * 7777 + wallPos.z * 3333;
+      const centerX = wallPos.x + 0.5;
+      const centerZ = wallPos.z + 0.5;
+      
+      wallPos.edges.forEach((edge, edgeIdx) => {
+        // Generate 3-5 leaf clusters per edge (short segments with gaps)
+        const leafClusters = 3 + Math.floor(seededRandom(baseSeed + edgeIdx * 100) * 3);
+        
+        for (let cluster = 0; cluster < leafClusters; cluster++) {
+          const clusterSeed = baseSeed + edgeIdx * 1000 + cluster * 100;
+          
+          // Skip some clusters to create gaps (30% chance of gap)
+          if (seededRandom(clusterSeed + 50) < 0.3) continue;
+          
+          // Position 20-40cm behind the corn row
+          const behindOffset = 0.2 + seededRandom(clusterSeed + 1) * 0.2;
+          const lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 0.8; // Spread along edge
+          
+          let baseX = centerX;
+          let baseZ = centerZ;
+          
+          switch (edge) {
+            case 'left':   baseX -= 0.3 + behindOffset; baseZ += lateralOffset; break;
+            case 'right':  baseX += 0.3 + behindOffset; baseZ += lateralOffset; break;
+            case 'top':    baseZ -= 0.3 + behindOffset; baseX += lateralOffset; break;
+            case 'bottom': baseZ += 0.3 + behindOffset; baseX += lateralOffset; break;
+          }
+          
+          // Generate 2-4 leaf planes per cluster
+          const leavesInCluster = 2 + Math.floor(seededRandom(clusterSeed + 3) * 3);
+          
+          for (let leaf = 0; leaf < leavesInCluster; leaf++) {
+            const leafSeed = clusterSeed + leaf * 10;
+            
+            // Height: 0.4-1.0 meters (mid-height only)
+            const height = 0.4 + seededRandom(leafSeed) * 0.6;
+            
+            // Random pitch/roll/yaw: ±30-60 degrees (angled, not vertical)
+            const pitchRange = (30 + seededRandom(leafSeed + 1) * 30) * Math.PI / 180;
+            const rollRange = (30 + seededRandom(leafSeed + 2) * 30) * Math.PI / 180;
+            const yawRange = seededRandom(leafSeed + 3) * Math.PI * 2;
+            
+            const pitch = (seededRandom(leafSeed + 4) > 0.5 ? 1 : -1) * pitchRange;
+            const roll = (seededRandom(leafSeed + 5) > 0.5 ? 1 : -1) * rollRange;
+            
+            // Width variation: 0.15-0.35m
+            const width = 0.15 + seededRandom(leafSeed + 6) * 0.2;
+            const leafHeight = 0.3 + seededRandom(leafSeed + 7) * 0.25;
+            
+            // Slight position offset per leaf
+            const offsetX = (seededRandom(leafSeed + 8) - 0.5) * 0.15;
+            const offsetZ = (seededRandom(leafSeed + 9) - 0.5) * 0.15;
+            const offsetY = height + seededRandom(leafSeed + 10) * 0.3;
+            
+            dummy.position.set(baseX + offsetX, offsetY, baseZ + offsetZ);
+            dummy.rotation.set(pitch, yawRange, roll);
+            dummy.scale.set(width, leafHeight, 1);
+            dummy.updateMatrix();
+            
+            transforms.push(dummy.matrix.clone());
+          }
+        }
+      });
+    });
+    
+    return transforms;
+  }, [edgePositions]);
+
   // Generate transforms for all corn types + billboard transforms
   const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
@@ -646,6 +721,42 @@ export const InstancedWalls = ({
       allBillboardTransforms: billboardTransforms
     };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
+  
+  // Create leaf shape geometry (irregular, not rectangular)
+  const foliageGeometry = useMemo(() => {
+    // Irregular leaf shape - wider at base, pointed at tip
+    const vertices = new Float32Array([
+      // Triangle 1 (left half)
+      -0.5, 0, 0,      // bottom left
+      0, 1, 0,         // top center (tip)
+      0, 0.3, 0.05,    // mid center (slight offset for irregularity)
+      // Triangle 2 (right half)
+      0.5, 0, 0,       // bottom right
+      0, 0.3, 0.05,    // mid center
+      0, 1, 0,         // top center (tip)
+    ]);
+    
+    const normals = new Float32Array([
+      0, 0.2, 1,  0, 0.2, 1,  0, 0.2, 1,
+      0, 0.2, 1,  0, 0.2, 1,  0, 0.2, 1,
+    ]);
+    
+    const geo = new BufferGeometry();
+    geo.setAttribute('position', new BufferAttribute(vertices, 3));
+    geo.setAttribute('normal', new BufferAttribute(normals, 3));
+    return geo;
+  }, []);
+  
+  // Dark green material - 40-60% darker than corn
+  const foliageMaterial = useMemo(() => {
+    return new MeshLambertMaterial({
+      color: new Color(0.06, 0.12, 0.04), // Very dark green (shadowed interior)
+      side: DoubleSide,
+      transparent: false,
+      depthWrite: true,
+      depthTest: true,
+    });
+  }, []);
   
 
   // Create instanced meshes
@@ -738,6 +849,48 @@ export const InstancedWalls = ({
       createdRef.current = false;
     };
   }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
+
+  // Store foliage mesh ref
+  const foliageMeshRef = useRef<ThreeInstancedMesh | null>(null);
+
+  // Create foliage instanced mesh
+  useEffect(() => {
+    const billboardGroup = billboardGroupRef.current;
+    if (!billboardGroup || foliageTransforms.length === 0) return;
+    
+    // Check if foliage mesh already exists
+    if (foliageMeshRef.current) return;
+    
+    const foliageMesh = new ThreeInstancedMesh(
+      foliageGeometry.clone(),
+      foliageMaterial.clone(),
+      foliageTransforms.length
+    );
+    
+    foliageTransforms.forEach((matrix, i) => {
+      foliageMesh.setMatrixAt(i, matrix);
+    });
+    
+    foliageMesh.instanceMatrix.needsUpdate = true;
+    foliageMesh.castShadow = false;
+    foliageMesh.receiveShadow = false;
+    foliageMesh.frustumCulled = false;
+    
+    foliageMeshRef.current = foliageMesh;
+    billboardGroup.add(foliageMesh);
+    
+    console.log('[CornWall] Foliage filler created with', foliageTransforms.length, 'leaf planes');
+    
+    return () => {
+      if (foliageMeshRef.current && billboardGroup) {
+        billboardGroup.remove(foliageMeshRef.current);
+        foliageMeshRef.current.geometry.dispose();
+        (foliageMeshRef.current.material as Material).dispose();
+        foliageMeshRef.current.dispose();
+        foliageMeshRef.current = null;
+      }
+    };
+  }, [foliageTransforms, foliageGeometry, foliageMaterial]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
