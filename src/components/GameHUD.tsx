@@ -2,6 +2,7 @@ import { AnimalType } from '@/types/game';
 import { animals } from '@/data/animals';
 import { cn } from '@/lib/utils';
 import { PerformanceInfo } from './Maze3DScene';
+import { Volume2, VolumeX } from 'lucide-react';
 
 interface GameHUDProps {
   animalType: AnimalType;
@@ -11,6 +12,9 @@ interface GameHUDProps {
   onUseAbility: () => void;
   onQuit: () => void;
   debugMode?: boolean;
+  // Sound control
+  isMuted?: boolean;
+  onToggleMute?: () => void;
   // Corn optimization toggles
   shadowOptEnabled?: boolean;
   distanceCullEnabled?: boolean;
@@ -36,6 +40,8 @@ export const GameHUD = ({
   onUseAbility,
   onQuit,
   debugMode = false,
+  isMuted = false,
+  onToggleMute,
   shadowOptEnabled = true,
   distanceCullEnabled = true,
   onToggleShadowOpt,
@@ -98,6 +104,16 @@ export const GameHUD = ({
           >
             {animal.ability.icon} {abilityUsed ? 'Used' : animal.ability.name}
           </button>
+          {onToggleMute && (
+            <button
+              onClick={onToggleMute}
+              className="bg-card/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg font-display text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              <span className="hidden sm:inline">{isMuted ? 'Muted' : 'Sound'}</span>
+            </button>
+          )}
           <button
             onClick={onQuit}
             className="bg-card/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg font-display text-sm text-muted-foreground hover:text-foreground transition-colors"

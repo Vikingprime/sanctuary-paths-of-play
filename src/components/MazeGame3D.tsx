@@ -59,6 +59,7 @@ export const MazeGame3D = ({
   const [abilityUsed, setAbilityUsed] = useState(false);
   const [collectedPowerUps, setCollectedPowerUps] = useState<Set<string>>(new Set());
   const [speedBoostActive, setSpeedBoostActive] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   // Corn optimization settings
   const [shadowOptEnabled, setShadowOptEnabled] = useState(true);
   const [distanceCullEnabled, setDistanceCullEnabled] = useState(true);
@@ -82,6 +83,17 @@ export const MazeGame3D = ({
       music.pause();
       music.src = '';
     };
+  }, []);
+
+  // Handle mute toggle
+  const handleToggleMute = useCallback(() => {
+    setIsMuted(prev => {
+      const newMuted = !prev;
+      if (bgMusicRef.current) {
+        bgMusicRef.current.muted = newMuted;
+      }
+      return newMuted;
+    });
   }, []);
 
   // Track pressed keys for smooth movement
@@ -318,6 +330,8 @@ export const MazeGame3D = ({
           onUseAbility={useAbility}
           onQuit={onQuit}
           debugMode={debugMode}
+          isMuted={isMuted}
+          onToggleMute={handleToggleMute}
           shadowOptEnabled={shadowOptEnabled}
           distanceCullEnabled={distanceCullEnabled}
           onToggleShadowOpt={() => setShadowOptEnabled(prev => !prev)}
