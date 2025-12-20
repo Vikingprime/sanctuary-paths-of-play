@@ -30,25 +30,33 @@ export function findStartPosition(maze: Maze): { x: number; y: number } {
  * Find the initial rotation for the player to face an open path
  * Returns rotation in radians
  * Priority: finds any direction that is NOT a wall
+ * 
+ * NOTE: The 3D scene applies transform: -rotation + π
+ * So we need to account for that here:
+ *   - To face +Z (down in grid, toward higher Y), we need rotation = π
+ *   - To face -Z (up in grid, toward lower Y), we need rotation = 0
+ *   - To face +X (right in grid), we need rotation = -π/2
+ *   - To face -X (left in grid), we need rotation = π/2
  */
 export function findStartRotation(maze: Maze): number {
   const startPos = findStartPosition(maze);
   const gridX = Math.floor(startPos.x);
   const gridY = Math.floor(startPos.y);
   
-  // All four cardinal directions with their rotations
+  // Directions mapped for the 3D scene's rotation transform (-rotation + π)
   const directions = [
-    { dx: 0, dy: 1, rotation: 0 },           // Down (facing +Z)
-    { dx: 1, dy: 0, rotation: Math.PI / 2 }, // Right (facing +X)
-    { dx: -1, dy: 0, rotation: -Math.PI / 2 }, // Left (facing -X)
-    { dx: 0, dy: -1, rotation: Math.PI },    // Up (facing -Z)
+    { dx: 0, dy: 1, rotation: Math.PI },      // Down in grid (facing +Z in 3D)
+    { dx: 1, dy: 0, rotation: -Math.PI / 2 }, // Right in grid (facing +X in 3D)
+    { dx: -1, dy: 0, rotation: Math.PI / 2 }, // Left in grid (facing -X in 3D)
+    { dx: 0, dy: -1, rotation: 0 },           // Up in grid (facing -Z in 3D)
   ];
   
-  // First priority: find immediate neighbor that is NOT a wall
+  // First priority: find immediate neighbor that is NOT a wall and is NOT a start cell
   for (const dir of directions) {
     const checkX = gridX + dir.dx;
     const checkY = gridY + dir.dy;
-    if (!isWall(maze, checkX, checkY)) {
+    const cell = getCell(maze, checkX, checkY);
+    if (cell && !cell.isWall && !cell.isStart) {
       return dir.rotation;
     }
   }
@@ -57,12 +65,22 @@ export function findStartRotation(maze: Maze): number {
   for (const dir of directions) {
     const checkX = gridX + dir.dx * 2;
     const checkY = gridY + dir.dy * 2;
+    const cell = getCell(maze, checkX, checkY);
+    if (cell && !cell.isWall && !cell.isStart) {
+      return dir.rotation;
+    }
+  }
+  
+  // Third priority: any non-wall neighbor (including start cells as last resort)
+  for (const dir of directions) {
+    const checkX = gridX + dir.dx;
+    const checkY = gridY + dir.dy;
     if (!isWall(maze, checkX, checkY)) {
       return dir.rotation;
     }
   }
   
-  return 0; // Default facing down if all directions are walls (shouldn't happen)
+  return Math.PI; // Default facing down if all directions are walls
 }
 
 /**
