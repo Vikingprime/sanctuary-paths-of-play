@@ -120,10 +120,10 @@ interface InstancedWallsProps {
   onCullStats?: (stats: CullStats) => void;
 }
 
-// Density settings - reduced for performance
+// Density settings - spread evenly across cell to close gaps
 const ROWS = 2;
 const STALKS_PER_ROW = 2;
-const STALK_SPACING = 0.35;
+const STALK_SPACING = 0.55; // Wider spacing to cover full cell width
 
 // Boundary walls - reduced for performance
 const BOUNDARY_ROWS = 2;
