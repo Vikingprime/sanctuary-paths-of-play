@@ -120,9 +120,9 @@ interface InstancedWallsProps {
   onCullStats?: (stats: CullStats) => void;
 }
 
-// Density settings - single stalk per position for cleaner look
-const ROWS = 1;
-const STALKS_PER_ROW = 1; // Single stalk per position
+// Density settings - staggered rows to close gaps
+const ROWS = 3;
+const STALKS_PER_ROW = 2; // Base count, odd rows get +1
 const STALK_SPACING = 0.4; // Spacing between stalks
 
 // Boundary walls - reduced for performance
@@ -163,7 +163,7 @@ const generateEdgeTransforms = (
         // Position based on which edge - push stalks to actual cell edge
         let offsetX = 0;
         let offsetZ = 0;
-        const edgeOffset = 0.35; // Fixed offset to position at cell edge (not center)
+        const edgeOffset = 0.45; // Fixed offset to position at cell edge (not center)
         const colOffset = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING;
         
         switch (edge) {
