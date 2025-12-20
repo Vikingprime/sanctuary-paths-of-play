@@ -25,6 +25,8 @@ interface MazeGame3DProps {
   maze: Maze;
   animalType: AnimalType;
   debugMode?: boolean;
+  isMuted?: boolean;
+  onMuteChange?: (muted: boolean) => void;
   onComplete: (score: number, timeUsed: number) => void;
   onQuit: () => void;
 }
@@ -33,6 +35,8 @@ export const MazeGame3D = ({
   maze,
   animalType,
   debugMode = false,
+  isMuted: initialMuted = false,
+  onMuteChange,
   onComplete,
   onQuit,
 }: MazeGame3DProps) => {
@@ -59,7 +63,7 @@ export const MazeGame3D = ({
   const [abilityUsed, setAbilityUsed] = useState(false);
   const [collectedPowerUps, setCollectedPowerUps] = useState<Set<string>>(new Set());
   const [speedBoostActive, setSpeedBoostActive] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(initialMuted);
   // Corn optimization settings
   const [shadowOptEnabled, setShadowOptEnabled] = useState(true);
   const [distanceCullEnabled, setDistanceCullEnabled] = useState(true);
@@ -76,6 +80,7 @@ export const MazeGame3D = ({
     const music = new Audio('/sounds/background-music.mp3');
     music.loop = true;
     music.volume = 0.1; // Very quiet
+    music.muted = initialMuted; // Apply initial mute state
     bgMusicRef.current = music;
     music.play().catch(() => {}); // Ignore autoplay errors
     
@@ -83,7 +88,7 @@ export const MazeGame3D = ({
       music.pause();
       music.src = '';
     };
-  }, []);
+  }, [initialMuted]);
 
   // Handle mute toggle
   const handleToggleMute = useCallback(() => {
@@ -92,9 +97,11 @@ export const MazeGame3D = ({
       if (bgMusicRef.current) {
         bgMusicRef.current.muted = newMuted;
       }
+      // Persist to save
+      onMuteChange?.(newMuted);
       return newMuted;
     });
-  }, []);
+  }, [onMuteChange]);
 
   // Track pressed keys for smooth movement
   const keysPressed = useRef<Set<string>>(new Set());
