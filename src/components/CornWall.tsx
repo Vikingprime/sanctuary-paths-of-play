@@ -614,15 +614,15 @@ export const InstancedWalls = ({
       depthWrite: true,
     });
     
-    // Only use ONE stalk mesh + ONE corn cob for edge corn (reduces from 2+ stalks to 1)
-    const singleStalkMesh = stalkMeshes.length > 0 ? [stalkMeshes[0]] : [];
-    const firstCornCob = cornCobMeshes.length > 0 ? [cornCobMeshes[0]] : [];
-    const limitedMeshList = [...singleStalkMesh, ...firstCornCob];
+    // Use first 2 meshes from the model (typically 1 stalk + 1 corn cob)
+    // The model likely has: stalk mesh, corn cob mesh, possibly more
+    const limitedMeshList = meshes.slice(0, 2);
     
-    console.log(`[Corn] Using ${limitedMeshList.length} meshes for edge corn (${singleStalkMesh.length} stalk, ${firstCornCob.length} cob)`);
+    console.log(`[Corn] Total: ${meshes.length} meshes, stalks detected: ${stalkMeshes.length}, cobs detected: ${cornCobMeshes.length}`);
+    console.log(`[Corn] Using first ${limitedMeshList.length} meshes for edge corn`);
     
     return { 
-      meshDataList: limitedMeshList.length > 0 ? limitedMeshList : meshes.slice(0, 1), 
+      meshDataList: limitedMeshList.length > 0 ? limitedMeshList : meshes, 
       cheapStalkGeometry: firstStalkGeo,
       cheapMaterial: cheapMat,
       billboardGeometry: lodCornGeo,
