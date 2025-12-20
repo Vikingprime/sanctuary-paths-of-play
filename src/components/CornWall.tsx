@@ -634,19 +634,19 @@ export const InstancedWalls = ({
           // Skip some clusters to create gaps (15% chance of gap - less gaps)
           if (seededRandom(clusterSeed + 50) < 0.15) continue;
           
-          // Position 15-50cm behind the corn row (more depth variation)
-          const behindOffset = 0.15 + seededRandom(clusterSeed + 1) * 0.35;
-          const lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 1.0; // Wider spread along edge
+          // Position 30-70cm behind the corn row (deeper into wall)
+          const behindOffset = 0.3 + seededRandom(clusterSeed + 1) * 0.4;
+          const lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 0.5; // Narrower spread to stay within cell
           
           let baseX = centerX;
           let baseZ = centerZ;
           
           // Position BEHIND the corn (deeper into the wall, away from the path)
           switch (edge) {
-            case 'left':   baseX += 0.25 + behindOffset; baseZ += lateralOffset; break;
-            case 'right':  baseX -= 0.25 + behindOffset; baseZ += lateralOffset; break;
-            case 'top':    baseZ += 0.25 + behindOffset; baseX += lateralOffset; break;
-            case 'bottom': baseZ -= 0.25 + behindOffset; baseX += lateralOffset; break;
+            case 'left':   baseX += 0.4 + behindOffset; baseZ += lateralOffset; break;
+            case 'right':  baseX -= 0.4 + behindOffset; baseZ += lateralOffset; break;
+            case 'top':    baseZ += 0.4 + behindOffset; baseX += lateralOffset; break;
+            case 'bottom': baseZ -= 0.4 + behindOffset; baseX += lateralOffset; break;
           }
           
           // Generate 4-8 leaf planes per cluster (more leaves)
@@ -681,10 +681,10 @@ export const InstancedWalls = ({
             const width = 0.18 + seededRandom(leafSeed + 6) * 0.27;
             const leafHeight = 0.35 + seededRandom(leafSeed + 7) * 0.3;
             
-            // More position scatter per leaf
-            const offsetX = (seededRandom(leafSeed + 8) - 0.5) * 0.25;
-            const offsetZ = (seededRandom(leafSeed + 9) - 0.5) * 0.25;
-            const offsetY = height + seededRandom(leafSeed + 10) * 0.2;
+            // Tighter position scatter to keep within wall
+            const offsetX = (seededRandom(leafSeed + 8) - 0.5) * 0.12;
+            const offsetZ = (seededRandom(leafSeed + 9) - 0.5) * 0.12;
+            const offsetY = height + seededRandom(leafSeed + 10) * 0.15;
             
             dummy.position.set(baseX + offsetX, offsetY, baseZ + offsetZ);
             dummy.rotation.set(pitch, yawRange, roll);
