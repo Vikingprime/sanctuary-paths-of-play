@@ -614,12 +614,11 @@ export const InstancedWalls = ({
       depthWrite: true,
     });
     
-    // Use first 2 meshes from the model (typically 1 stalk + 1 corn cob)
-    // The model likely has: stalk mesh, corn cob mesh, possibly more
-    const limitedMeshList = meshes.slice(0, 2);
+    // Use only 1 mesh from the model to avoid overlayed stalks
+    const limitedMeshList = meshes.slice(0, 1);
     
     console.log(`[Corn] Total: ${meshes.length} meshes, stalks detected: ${stalkMeshes.length}, cobs detected: ${cornCobMeshes.length}`);
-    console.log(`[Corn] Using first ${limitedMeshList.length} meshes for edge corn`);
+    console.log(`[Corn] Using first ${limitedMeshList.length} mesh for edge corn`);
     
     return { 
       meshDataList: limitedMeshList.length > 0 ? limitedMeshList : meshes, 
