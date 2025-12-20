@@ -65,14 +65,6 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
 const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
 
-// Filler stalk geometry - simple tapered cylinder (dark green)
-const FILLER_STALK_GEOMETRY = new CylinderGeometry(0.015, 0.035, 2.2, 5, 1);
-FILLER_STALK_GEOMETRY.translate(0, 1.1, 0); // Base at y=0
-const FILLER_STALK_MATERIAL = new MeshLambertMaterial({ 
-  color: new Color(0.08, 0.14, 0.05), // Dark green
-  side: FrontSide,
-  depthWrite: true,
-});
 
 // Hidden matrix (scale 0) for hiding instances
 const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
@@ -313,46 +305,6 @@ const generateBoundaryTransforms = (
   return transforms;
 };
 
-// Generate filler stalk transforms - place in gaps at cell corners/edges
-const generateFillerTransforms = (
-  noShadowPositions: { x: number; z: number }[],
-  seedOffset: number = 99999
-): WallTransformData[] => {
-  const transforms: WallTransformData[] = [];
-  const dummy = new Object3D();
-  
-  // Only add 1 filler per every 4th cell, positioned at corner/edge gaps
-  noShadowPositions.forEach((wallPos, idx) => {
-    if (idx % 4 !== 0) return;
-    
-    const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset;
-    const centerX = wallPos.x + 0.5;
-    const centerZ = wallPos.z + 0.5;
-    
-    // Position at corner of cell (gap between corn stalks from adjacent cells)
-    const cornerIdx = Math.floor(seededRandom(baseSeed) * 4);
-    const corners = [
-      { x: 0.4, z: 0.4 },   // SE corner
-      { x: -0.4, z: 0.4 },  // SW corner  
-      { x: 0.4, z: -0.4 },  // NE corner
-      { x: -0.4, z: -0.4 }, // NW corner
-    ];
-    const corner = corners[cornerIdx];
-    
-    const jitterX = (seededRandom(baseSeed + 1) - 0.5) * 0.15;
-    const jitterZ = (seededRandom(baseSeed + 2) - 0.5) * 0.15;
-    const heightVar = 0.85 + seededRandom(baseSeed + 3) * 0.3;
-    
-    dummy.position.set(centerX + corner.x + jitterX, 0, centerZ + corner.z + jitterZ);
-    dummy.rotation.set(0, seededRandom(baseSeed + 4) * Math.PI * 2, 0);
-    dummy.scale.set(1, heightVar, 1);
-    dummy.updateMatrix();
-    transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ });
-  });
-  
-  return transforms;
-};
-
 export const InstancedWalls = ({ 
   edgePositions, 
   noShadowPositions = [],
@@ -364,7 +316,6 @@ export const InstancedWalls = ({
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
   const billboardGroupRef = useRef<Group>(null);
-  const fillerGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
   const { scene, camera } = useThree();
@@ -392,10 +343,6 @@ export const InstancedWalls = ({
   // Billboard mesh for distant corn (2 triangles per stalk vs hundreds)
   const billboardMeshRef = useRef<ThreeInstancedMesh | null>(null);
   const billboardTransformsRef = useRef<WallTransformData[]>([]);
-  
-  // Filler stalks mesh
-  const fillerMeshRef = useRef<ThreeInstancedMesh | null>(null);
-  const fillerTransformsRef = useRef<WallTransformData[]>([]);
   
   // Track last update position and camera direction for culling
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
@@ -666,15 +613,12 @@ export const InstancedWalls = ({
     };
   }, [gltfScene, cornTex]);
   
-  // Generate transforms for all corn types + billboard transforms + filler stalks
-  const { edgeTransforms, cheapTransforms, allBillboardTransforms, fillerTransforms } = useMemo(() => {
+  // Generate transforms for all corn types + billboard transforms
+  const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
     const cheap3D = [...outer, ...boundary];
-    
-    // Generate filler stalk transforms (only deep interior, no boundary)
-    const fillers = generateFillerTransforms(noShadowPositions);
     
     // Generate billboard transforms for ALL corn (edge + cheap)
     const allTransforms = [...edge, ...cheap3D];
@@ -699,8 +643,7 @@ export const InstancedWalls = ({
     return { 
       edgeTransforms: edge, 
       cheapTransforms: cheap3D,
-      allBillboardTransforms: billboardTransforms,
-      fillerTransforms: fillers
+      allBillboardTransforms: billboardTransforms
     };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
   
@@ -710,8 +653,7 @@ export const InstancedWalls = ({
     const edgeGroup = edgeGroupRef.current;
     const cheapGroup = cheapGroupRef.current;
     const billboardGroup = billboardGroupRef.current;
-    const fillerGroup = fillerGroupRef.current;
-    if (!edgeGroup || !cheapGroup || !billboardGroup || !fillerGroup || meshDataList.length === 0 || createdRef.current) return;
+    if (!edgeGroup || !cheapGroup || !billboardGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     const allMeshes: ThreeInstancedMesh[] = [];
@@ -775,32 +717,6 @@ export const InstancedWalls = ({
       allMeshes.push(cheapMesh);
     }
     
-    // FILLER STALKS: Simple cylinders to fill gaps (4:1 ratio)
-    if (fillerTransforms.length > 0) {
-      const fillerMesh = new ThreeInstancedMesh(
-        FILLER_STALK_GEOMETRY.clone(),
-        FILLER_STALK_MATERIAL.clone(),
-        fillerTransforms.length
-      );
-      
-      fillerTransforms.forEach((t, i) => {
-        fillerMesh.setMatrixAt(i, t.matrix);
-      });
-      
-      fillerMesh.instanceMatrix.needsUpdate = true;
-      fillerMesh.castShadow = false;
-      fillerMesh.receiveShadow = true;
-      fillerMesh.frustumCulled = false;
-      
-      fillerMeshRef.current = fillerMesh;
-      fillerTransformsRef.current = fillerTransforms;
-      
-      fillerGroup.add(fillerMesh);
-      allMeshes.push(fillerMesh);
-      
-      console.log('[CornWall] Filler stalks created:', fillerTransforms.length, 'instances');
-    }
-    
     return () => {
       allMeshes.forEach(mesh => {
         const parent = mesh.parent;
@@ -819,11 +735,9 @@ export const InstancedWalls = ({
       cheapTransformsRef.current = [];
       edgeMeshesRef.current = [];
       edgeTransformsRef.current = [];
-      fillerMeshRef.current = null;
-      fillerTransformsRef.current = [];
       createdRef.current = false;
     };
-  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms, fillerTransforms]);
+  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
@@ -832,7 +746,6 @@ export const InstancedWalls = ({
       <group ref={edgeGroupRef} />
       <group ref={cheapGroupRef} />
       <group ref={billboardGroupRef} />
-      <group ref={fillerGroupRef} />
     </>
   );
 };

@@ -657,7 +657,6 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-
 const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   const groupRef = useRef<Group>(null);
   const { scene, animations } = useGLTF('/models/Farmer.glb');
@@ -714,8 +713,6 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
       <group ref={groupRef}>
         <primitive object={model} scale={0.55} />
       </group>
-      
-      
       {/* Invisible collision trigger for end goal */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} visible={false}>
         <circleGeometry args={[0.8, 16]} />
