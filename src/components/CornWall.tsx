@@ -631,20 +631,14 @@ export const InstancedWalls = ({
         for (let cluster = 0; cluster < leafClusters; cluster++) {
           const clusterSeed = baseSeed + edgeIdx * 1000 + cluster * 100;
           
-          // Position 40-70cm behind the corn row (significantly deeper)
-          const behindOffset = 0.4 + seededRandom(clusterSeed + 1) * 0.3;
-          const lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 0.4; // Tighter lateral spread
+          // Position at cell center (0.5m is center of 1m cell)
+          // This ensures leaves are well behind all edges
+          const behindOffset = 0.5; // Always at cell center
+          const lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 0.25; // Very tight spread
           
+          // Place at cell center, not relative to edge
           let baseX = centerX;
           let baseZ = centerZ;
-          
-          // Position well behind the front corn row
-          switch (edge) {
-            case 'left':   baseX += behindOffset; baseZ += lateralOffset; break;
-            case 'right':  baseX -= behindOffset; baseZ += lateralOffset; break;
-            case 'top':    baseZ += behindOffset; baseX += lateralOffset; break;
-            case 'bottom': baseZ -= behindOffset; baseX += lateralOffset; break;
-          }
           
           // Generate 3-5 leaf planes per cluster (fewer but larger)
           const leavesInCluster = 3 + Math.floor(seededRandom(clusterSeed + 3) * 3);
@@ -663,9 +657,9 @@ export const InstancedWalls = ({
             const pitch = (seededRandom(leafSeed + 4) > 0.5 ? 1 : -1) * pitchRange;
             const roll = (seededRandom(leafSeed + 5) > 0.5 ? 1 : -1) * rollRange;
             
-            // Larger leaves for better coverage with fewer instances
-            const width = 0.3 + seededRandom(leafSeed + 6) * 0.35;
-            const leafHeight = 0.5 + seededRandom(leafSeed + 7) * 0.4;
+            // Smaller leaves to stay contained even when rotated
+            const width = 0.15 + seededRandom(leafSeed + 6) * 0.15;
+            const leafHeight = 0.25 + seededRandom(leafSeed + 7) * 0.2;
             
             // Minimal position scatter
             const offsetX = (seededRandom(leafSeed + 8) - 0.5) * 0.1;
