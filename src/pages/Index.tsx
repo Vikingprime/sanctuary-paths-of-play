@@ -9,6 +9,7 @@ import { ProgressTracker } from '@/components/ProgressTracker';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useSave } from '@/hooks/useSave';
 import { Volume2, VolumeX } from 'lucide-react';
 
@@ -131,40 +132,36 @@ const Index = () => {
               </Button>
               
               {/* Sound Toggle */}
-              <button
-                onClick={() => updateSettings({ 
-                  musicVolume: save.settings.musicVolume > 0 ? 0 : 0.7,
-                  sfxVolume: save.settings.sfxVolume > 0 ? 0 : 1.0 
-                })}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 ${
-                  save.settings.musicVolume > 0 
-                    ? 'bg-primary text-primary-foreground shadow-md' 
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 {save.settings.musicVolume > 0 ? (
-                  <Volume2 className="h-5 w-5" />
+                  <Volume2 className="h-4 w-4" />
                 ) : (
-                  <VolumeX className="h-5 w-5" />
+                  <VolumeX className="h-4 w-4" />
                 )}
-                <span className="font-medium">
-                  Sound {save.settings.musicVolume > 0 ? 'On' : 'Off'}
-                </span>
-              </button>
+                <Switch
+                  id="sound-toggle"
+                  checked={save.settings.musicVolume > 0}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    musicVolume: checked ? 0.7 : 0,
+                    sfxVolume: checked ? 1.0 : 0 
+                  })}
+                />
+                <Label htmlFor="sound-toggle" className="cursor-pointer">
+                  Sound
+                </Label>
+              </div>
               
               {/* Debug Mode Toggle */}
-              <button
-                onClick={() => updateSettings({ debugMode: !save.settings.debugMode })}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 text-sm ${
-                  save.settings.debugMode 
-                    ? 'bg-amber-500 text-white shadow-md' 
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                <span className="font-medium">
-                  Debug {save.settings.debugMode ? 'On' : 'Off'}
-                </span>
-              </button>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Switch
+                  id="debug-mode"
+                  checked={save.settings.debugMode}
+                  onCheckedChange={(checked) => updateSettings({ debugMode: checked })}
+                />
+                <Label htmlFor="debug-mode" className="cursor-pointer">
+                  Debug Mode (skip preview, infinite time)
+                </Label>
+              </div>
             </div>
 
             {/* Progress Tracker */}

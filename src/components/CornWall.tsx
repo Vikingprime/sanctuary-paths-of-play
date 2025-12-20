@@ -613,68 +613,6 @@ export const InstancedWalls = ({
     };
   }, [gltfScene, cornTex]);
   
-  // Generate leaf foliage filler transforms - scattered throughout wall cells
-  const foliageTransforms = useMemo(() => {
-    const transforms: Matrix4[] = [];
-    const dummy = new Object3D();
-    
-    // Process each wall cell to add foliage throughout
-    edgePositions.forEach((wallPos) => {
-      const baseSeed = wallPos.x * 7777 + wallPos.z * 3333;
-      const centerX = wallPos.x + 0.5;
-      const centerZ = wallPos.z + 0.5;
-      
-      // Determine safe area based on which edges face paths
-      // Leaves should stay 0.3m away from path-facing edges
-      const hasLeftEdge = wallPos.edges.includes('left');
-      const hasRightEdge = wallPos.edges.includes('right');
-      const hasTopEdge = wallPos.edges.includes('top');
-      const hasBottomEdge = wallPos.edges.includes('bottom');
-      
-      // Calculate bounds for foliage placement
-      const minX = hasLeftEdge ? 0.3 : -0.4;
-      const maxX = hasRightEdge ? -0.3 : 0.4;
-      const minZ = hasTopEdge ? 0.3 : -0.4;
-      const maxZ = hasBottomEdge ? -0.3 : 0.4;
-      
-      // Generate 15-25 leaves scattered throughout the safe area
-      const leafCount = 15 + Math.floor(seededRandom(baseSeed) * 11);
-      
-      for (let i = 0; i < leafCount; i++) {
-        const leafSeed = baseSeed + i * 17;
-        
-        // Random position within safe bounds
-        const t1 = seededRandom(leafSeed);
-        const t2 = seededRandom(leafSeed + 1);
-        const offsetX = minX + t1 * (maxX - minX);
-        const offsetZ = minZ + t2 * (maxZ - minZ);
-        
-        // Height spread across 0.2-1.6m
-        const height = 0.2 + seededRandom(leafSeed + 2) * 1.4;
-        
-        // Random angles
-        const pitchRange = (25 + seededRandom(leafSeed + 3) * 35) * Math.PI / 180;
-        const rollRange = (25 + seededRandom(leafSeed + 4) * 35) * Math.PI / 180;
-        const yaw = seededRandom(leafSeed + 5) * Math.PI * 2;
-        const pitch = (seededRandom(leafSeed + 6) > 0.5 ? 1 : -1) * pitchRange;
-        const roll = (seededRandom(leafSeed + 7) > 0.5 ? 1 : -1) * rollRange;
-        
-        // Small leaves that won't extend past bounds
-        const width = 0.12 + seededRandom(leafSeed + 8) * 0.13;
-        const leafHeight = 0.2 + seededRandom(leafSeed + 9) * 0.18;
-        
-        dummy.position.set(centerX + offsetX, height, centerZ + offsetZ);
-        dummy.rotation.set(pitch, yaw, roll);
-        dummy.scale.set(width, leafHeight, 1);
-        dummy.updateMatrix();
-        
-        transforms.push(dummy.matrix.clone());
-      }
-    });
-    
-    return transforms;
-  }, [edgePositions]);
-
   // Generate transforms for all corn types + billboard transforms
   const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
@@ -708,42 +646,6 @@ export const InstancedWalls = ({
       allBillboardTransforms: billboardTransforms
     };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
-  
-  // Create leaf shape geometry (irregular, not rectangular)
-  const foliageGeometry = useMemo(() => {
-    // Irregular leaf shape - wider at base, pointed at tip
-    const vertices = new Float32Array([
-      // Triangle 1 (left half)
-      -0.5, 0, 0,      // bottom left
-      0, 1, 0,         // top center (tip)
-      0, 0.3, 0.05,    // mid center (slight offset for irregularity)
-      // Triangle 2 (right half)
-      0.5, 0, 0,       // bottom right
-      0, 0.3, 0.05,    // mid center
-      0, 1, 0,         // top center (tip)
-    ]);
-    
-    const normals = new Float32Array([
-      0, 0.2, 1,  0, 0.2, 1,  0, 0.2, 1,
-      0, 0.2, 1,  0, 0.2, 1,  0, 0.2, 1,
-    ]);
-    
-    const geo = new BufferGeometry();
-    geo.setAttribute('position', new BufferAttribute(vertices, 3));
-    geo.setAttribute('normal', new BufferAttribute(normals, 3));
-    return geo;
-  }, []);
-  
-  // Dark green material - 40-60% darker than corn
-  const foliageMaterial = useMemo(() => {
-    return new MeshLambertMaterial({
-      color: new Color(0.06, 0.12, 0.04), // Very dark green (shadowed interior)
-      side: DoubleSide,
-      transparent: false,
-      depthWrite: true,
-      depthTest: true,
-    });
-  }, []);
   
 
   // Create instanced meshes
@@ -836,48 +738,6 @@ export const InstancedWalls = ({
       createdRef.current = false;
     };
   }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
-
-  // Store foliage mesh ref
-  const foliageMeshRef = useRef<ThreeInstancedMesh | null>(null);
-
-  // Create foliage instanced mesh
-  useEffect(() => {
-    const billboardGroup = billboardGroupRef.current;
-    if (!billboardGroup || foliageTransforms.length === 0) return;
-    
-    // Check if foliage mesh already exists
-    if (foliageMeshRef.current) return;
-    
-    const foliageMesh = new ThreeInstancedMesh(
-      foliageGeometry.clone(),
-      foliageMaterial.clone(),
-      foliageTransforms.length
-    );
-    
-    foliageTransforms.forEach((matrix, i) => {
-      foliageMesh.setMatrixAt(i, matrix);
-    });
-    
-    foliageMesh.instanceMatrix.needsUpdate = true;
-    foliageMesh.castShadow = false;
-    foliageMesh.receiveShadow = false;
-    foliageMesh.frustumCulled = false;
-    
-    foliageMeshRef.current = foliageMesh;
-    billboardGroup.add(foliageMesh);
-    
-    console.log('[CornWall] Foliage filler created with', foliageTransforms.length, 'leaf planes');
-    
-    return () => {
-      if (foliageMeshRef.current && billboardGroup) {
-        billboardGroup.remove(foliageMeshRef.current);
-        foliageMeshRef.current.geometry.dispose();
-        (foliageMeshRef.current.material as Material).dispose();
-        foliageMeshRef.current.dispose();
-        foliageMeshRef.current = null;
-      }
-    };
-  }, [foliageTransforms, foliageGeometry, foliageMaterial]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
