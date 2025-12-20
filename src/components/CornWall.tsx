@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader, CylinderGeometry } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader, CylinderGeometry, BackSide } from 'three';
 import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
@@ -739,10 +739,93 @@ export const InstancedWalls = ({
     };
   }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
 
+  // Generate backdrop plane positions for all wall cells
+  const backdropTransforms = useMemo(() => {
+    const transforms: Matrix4[] = [];
+    const dummy = new Object3D();
+    const allWallPositions = [
+      ...edgePositions.map(p => ({ x: p.x, z: p.z })),
+      ...noShadowPositions,
+      ...boundaryPositions.map(p => ({ x: p.x, z: p.z }))
+    ];
+    
+    // Remove duplicates
+    const seen = new Set<string>();
+    const unique: { x: number; z: number }[] = [];
+    allWallPositions.forEach(pos => {
+      const key = `${pos.x},${pos.z}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(pos);
+      }
+    });
+    
+    // Create 4 backdrop planes per cell (one for each direction)
+    unique.forEach(pos => {
+      const cx = pos.x + 0.5;
+      const cz = pos.z + 0.5;
+      const planeHeight = 2.8;
+      const planeWidth = 1.0;
+      const offset = 0.4; // Position planes at edges of cell
+      
+      // North-facing plane (back of cell)
+      dummy.position.set(cx, planeHeight / 2, cz - offset);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(planeWidth, planeHeight, 1);
+      dummy.updateMatrix();
+      transforms.push(dummy.matrix.clone());
+      
+      // South-facing plane
+      dummy.position.set(cx, planeHeight / 2, cz + offset);
+      dummy.rotation.set(0, Math.PI, 0);
+      dummy.scale.set(planeWidth, planeHeight, 1);
+      dummy.updateMatrix();
+      transforms.push(dummy.matrix.clone());
+      
+      // East-facing plane
+      dummy.position.set(cx + offset, planeHeight / 2, cz);
+      dummy.rotation.set(0, Math.PI / 2, 0);
+      dummy.scale.set(planeWidth, planeHeight, 1);
+      dummy.updateMatrix();
+      transforms.push(dummy.matrix.clone());
+      
+      // West-facing plane
+      dummy.position.set(cx - offset, planeHeight / 2, cz);
+      dummy.rotation.set(0, -Math.PI / 2, 0);
+      dummy.scale.set(planeWidth, planeHeight, 1);
+      dummy.updateMatrix();
+      transforms.push(dummy.matrix.clone());
+    });
+    
+    return transforms;
+  }, [edgePositions, noShadowPositions, boundaryPositions]);
+
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
   return (
     <>
+      {/* Dark green backdrop planes to fill gaps between corn */}
+      {backdropTransforms.length > 0 && (
+        <instancedMesh
+          args={[undefined, undefined, backdropTransforms.length]}
+          frustumCulled={false}
+          ref={(mesh) => {
+            if (mesh) {
+              backdropTransforms.forEach((matrix, i) => {
+                mesh.setMatrixAt(i, matrix);
+              });
+              mesh.instanceMatrix.needsUpdate = true;
+            }
+          }}
+        >
+          <planeGeometry args={[1, 1]} />
+          <meshBasicMaterial 
+            color="#1a3d14" 
+            side={DoubleSide}
+            depthWrite={true}
+          />
+        </instancedMesh>
+      )}
       <group ref={edgeGroupRef} />
       <group ref={cheapGroupRef} />
       <group ref={billboardGroupRef} />
