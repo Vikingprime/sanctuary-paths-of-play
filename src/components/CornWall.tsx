@@ -488,6 +488,7 @@ export const InstancedWalls = ({
           const b = mat.color.b;
           // Corn cobs are yellow/orange: high red, medium-high green, low blue
           isCornCob = r > 0.5 && g > 0.3 && b < 0.3 && r > g * 0.8;
+          console.log(`[Corn mesh] name: ${mesh.name}, color: rgb(${r.toFixed(2)}, ${g.toFixed(2)}, ${b.toFixed(2)}), isCornCob: ${isCornCob}`);
         }
         
         if (!sampledColor && mat.color && !isCornCob) {
@@ -513,6 +514,8 @@ export const InstancedWalls = ({
         }
       }
     });
+    
+    console.log(`[Corn] Total meshes: ${meshes.length}, stalks: ${stalkMeshes.length}, corn cobs: ${cornCobMeshes.length}`);
     // Use just the FIRST stalk geometry for cheap corn (keeps triangle count low)
     const firstStalkGeo: BufferGeometry = stalkMeshes.length >= 1 
       ? stalkMeshes[0].geometry.clone()
@@ -615,6 +618,8 @@ export const InstancedWalls = ({
     const singleStalkMesh = stalkMeshes.length > 0 ? [stalkMeshes[0]] : [];
     const firstCornCob = cornCobMeshes.length > 0 ? [cornCobMeshes[0]] : [];
     const limitedMeshList = [...singleStalkMesh, ...firstCornCob];
+    
+    console.log(`[Corn] Using ${limitedMeshList.length} meshes for edge corn (${singleStalkMesh.length} stalk, ${firstCornCob.length} cob)`);
     
     return { 
       meshDataList: limitedMeshList.length > 0 ? limitedMeshList : meshes.slice(0, 1), 
