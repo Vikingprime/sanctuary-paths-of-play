@@ -870,15 +870,19 @@ const OverShoulderCameraController = ({
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
-    // Check if player has moved
+    // Check if player has moved significantly (intentional movement)
     if (!hasPlayerMoved.current) {
       const dx = playerX - lastPlayerPos.current.x;
       const dz = playerZ - lastPlayerPos.current.z;
-      if (Math.abs(dx) > 0.05 || Math.abs(dz) > 0.05) {
+      // Only trigger on significant movement (player pressed a key)
+      if (Math.abs(dx) > 0.15 || Math.abs(dz) > 0.15) {
         hasPlayerMoved.current = true;
       }
     }
-    lastPlayerPos.current = { x: playerX, z: playerZ };
+    // Only update last position after initial frame
+    if (initialized.current) {
+      lastPlayerPos.current = { x: playerX, z: playerZ };
+    }
     
     // Smoothly zoom camera out after player moves
     if (hasPlayerMoved.current && currentDistance.current < CAMERA_DISTANCE_NORMAL) {
