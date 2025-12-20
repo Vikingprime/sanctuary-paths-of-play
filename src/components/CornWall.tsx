@@ -5,8 +5,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
 
 // LOD distance tiers
-const LOD_FULL_QUALITY_DISTANCE = 8;   // Full GLTF materials within 8m
-const LOD_CHEAP_DISTANCE = 18;          // Cheap material 8-18m, hidden beyond 18m
+const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
+const LOD_CHEAP_DISTANCE = 16;          // Cheap material 6-16m, hidden beyond 16m
 
 interface CornWallProps {
   position: [number, number, number];
@@ -50,8 +50,8 @@ export interface CornOptimizationSettings {
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   shadowRadius: 8,
-  cullDistance: 20,
-  lodDistance: 8,
+  cullDistance: 18,
+  lodDistance: 6,
   farMaterialDistance: 5,
   enableShadowOptimization: true,
   enableDistanceCulling: true,
