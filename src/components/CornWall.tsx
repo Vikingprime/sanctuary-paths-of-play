@@ -613,68 +613,63 @@ export const InstancedWalls = ({
     };
   }, [gltfScene, cornTex]);
   
-  // Generate leaf foliage filler transforms - small irregular leaf planes behind corn
+  // Generate leaf foliage filler transforms - scattered throughout wall cells
   const foliageTransforms = useMemo(() => {
     const transforms: Matrix4[] = [];
     const dummy = new Object3D();
     
-    // Process edge positions to add foliage behind corn rows
+    // Process each wall cell to add foliage throughout
     edgePositions.forEach((wallPos) => {
       const baseSeed = wallPos.x * 7777 + wallPos.z * 3333;
       const centerX = wallPos.x + 0.5;
       const centerZ = wallPos.z + 0.5;
       
-      wallPos.edges.forEach((edge, edgeIdx) => {
-        // Generate 4-6 leaf clusters per edge (lower density)
-        const leafClusters = 4 + Math.floor(seededRandom(baseSeed + edgeIdx * 100) * 3);
+      // Determine safe area based on which edges face paths
+      // Leaves should stay 0.3m away from path-facing edges
+      const hasLeftEdge = wallPos.edges.includes('left');
+      const hasRightEdge = wallPos.edges.includes('right');
+      const hasTopEdge = wallPos.edges.includes('top');
+      const hasBottomEdge = wallPos.edges.includes('bottom');
+      
+      // Calculate bounds for foliage placement
+      const minX = hasLeftEdge ? 0.3 : -0.4;
+      const maxX = hasRightEdge ? -0.3 : 0.4;
+      const minZ = hasTopEdge ? 0.3 : -0.4;
+      const maxZ = hasBottomEdge ? -0.3 : 0.4;
+      
+      // Generate 15-25 leaves scattered throughout the safe area
+      const leafCount = 15 + Math.floor(seededRandom(baseSeed) * 11);
+      
+      for (let i = 0; i < leafCount; i++) {
+        const leafSeed = baseSeed + i * 17;
         
-        for (let cluster = 0; cluster < leafClusters; cluster++) {
-          const clusterSeed = baseSeed + edgeIdx * 1000 + cluster * 100;
-          
-          // Position at cell center (0.5m is center of 1m cell)
-          // This ensures leaves are well behind all edges
-          const behindOffset = 0.5; // Always at cell center
-          const lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 0.25; // Very tight spread
-          
-          // Place at cell center, not relative to edge
-          let baseX = centerX;
-          let baseZ = centerZ;
-          
-          // Generate 3-5 leaf planes per cluster (fewer but larger)
-          const leavesInCluster = 3 + Math.floor(seededRandom(clusterSeed + 3) * 3);
-          
-          for (let leaf = 0; leaf < leavesInCluster; leaf++) {
-            const leafSeed = clusterSeed + leaf * 10;
-            
-            // Height layers spread across 0.3-1.8m
-            const height = 0.3 + seededRandom(leafSeed) * 1.5;
-            
-            // Random pitch/roll/yaw: ±30-60 degrees (angled, not vertical)
-            const pitchRange = (30 + seededRandom(leafSeed + 1) * 30) * Math.PI / 180;
-            const rollRange = (30 + seededRandom(leafSeed + 2) * 30) * Math.PI / 180;
-            const yawRange = seededRandom(leafSeed + 3) * Math.PI * 2;
-            
-            const pitch = (seededRandom(leafSeed + 4) > 0.5 ? 1 : -1) * pitchRange;
-            const roll = (seededRandom(leafSeed + 5) > 0.5 ? 1 : -1) * rollRange;
-            
-            // Smaller leaves to stay contained even when rotated
-            const width = 0.15 + seededRandom(leafSeed + 6) * 0.15;
-            const leafHeight = 0.25 + seededRandom(leafSeed + 7) * 0.2;
-            
-            // Minimal position scatter
-            const offsetX = (seededRandom(leafSeed + 8) - 0.5) * 0.1;
-            const offsetZ = (seededRandom(leafSeed + 9) - 0.5) * 0.1;
-            const offsetY = height;
-            
-            dummy.position.set(baseX + offsetX, offsetY, baseZ + offsetZ);
-            dummy.rotation.set(pitch, yawRange, roll);
-            dummy.scale.set(width, leafHeight, 1);
-            dummy.updateMatrix();
-            
-            transforms.push(dummy.matrix.clone());
-          }
-        }
-      });
+        // Random position within safe bounds
+        const t1 = seededRandom(leafSeed);
+        const t2 = seededRandom(leafSeed + 1);
+        const offsetX = minX + t1 * (maxX - minX);
+        const offsetZ = minZ + t2 * (maxZ - minZ);
+        
+        // Height spread across 0.2-1.6m
+        const height = 0.2 + seededRandom(leafSeed + 2) * 1.4;
+        
+        // Random angles
+        const pitchRange = (25 + seededRandom(leafSeed + 3) * 35) * Math.PI / 180;
+        const rollRange = (25 + seededRandom(leafSeed + 4) * 35) * Math.PI / 180;
+        const yaw = seededRandom(leafSeed + 5) * Math.PI * 2;
+        const pitch = (seededRandom(leafSeed + 6) > 0.5 ? 1 : -1) * pitchRange;
+        const roll = (seededRandom(leafSeed + 7) > 0.5 ? 1 : -1) * rollRange;
+        
+        // Small leaves that won't extend past bounds
+        const width = 0.12 + seededRandom(leafSeed + 8) * 0.13;
+        const leafHeight = 0.2 + seededRandom(leafSeed + 9) * 0.18;
+        
+        dummy.position.set(centerX + offsetX, height, centerZ + offsetZ);
+        dummy.rotation.set(pitch, yaw, roll);
+        dummy.scale.set(width, leafHeight, 1);
+        dummy.updateMatrix();
+        
+        transforms.push(dummy.matrix.clone());
+      }
     });
     
     return transforms;
