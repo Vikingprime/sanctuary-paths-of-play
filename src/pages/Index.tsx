@@ -75,6 +75,11 @@ const Index = () => {
         maze={selectedMaze}
         animalType={selectedAnimal}
         debugMode={save.settings.debugMode}
+        isMuted={save.settings.musicVolume === 0}
+        onMuteChange={(muted) => updateSettings({ 
+          musicVolume: muted ? 0 : 0.7,
+          sfxVolume: muted ? 0 : 1.0 
+        })}
         onComplete={handleGameComplete}
         onQuit={handleBackToHome}
       />
