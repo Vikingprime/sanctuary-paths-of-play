@@ -661,20 +661,20 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
 const SimpleCornStalk = ({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) => {
   const { scene } = useGLTF('/models/Corn.glb');
   
-  // Clone the scene and hide everything except the stalk
+  // Clone the scene and log mesh names to find what to hide
   const stalkOnly = useMemo(() => {
     const clone = scene.clone(true);
+    
+    // Log all mesh names once to identify parts
+    const meshNames: string[] = [];
     clone.traverse((child: any) => {
       if (child.isMesh) {
-        const name = child.name.toLowerCase();
-        // Keep only parts that look like stalks, hide leaves and corn
-        const isLeaf = name.includes('leaf') || name.includes('leaves');
-        const isCorn = name.includes('corn') || name.includes('cob') || name.includes('ear');
-        if (isLeaf || isCorn) {
-          child.visible = false;
-        }
+        meshNames.push(child.name);
       }
     });
+    console.log('Corn.glb mesh names:', meshNames);
+    
+    // For now, show everything - we'll filter once we know the names
     return clone;
   }, [scene]);
 
