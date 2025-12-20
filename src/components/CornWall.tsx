@@ -131,6 +131,11 @@ const BOUNDARY_STALKS_PER_ROW = 2;
 const BOUNDARY_SPACING = 0.45;
 const BOUNDARY_DEPTH = 1.0;
 
+// Leaf curtain settings
+const LEAF_CURTAIN_LAYERS = 2;
+const LEAF_CURTAIN_OFFSET = 0.15; // 10-20cm behind corn row
+const LEAF_CURTAIN_PLANES_PER_CELL = 6; // planes per layer per cell
+
 interface MeshData {
   geometry: BufferGeometry;
   material: Material | Material[];
@@ -140,6 +145,11 @@ interface WallTransformData {
   matrix: Matrix4;
   centerX: number;
   centerZ: number;
+}
+
+interface LeafCurtainTransform {
+  matrix: Matrix4;
+  uvOffset: { x: number; y: number };
 }
 
 // Generate transforms for edge stalks only (single row facing the path)
@@ -316,6 +326,7 @@ export const InstancedWalls = ({
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
   const billboardGroupRef = useRef<Group>(null);
+  const leafCurtainGroupRef = useRef<Group>(null);
   const createdRef = useRef(false);
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
   const { scene, camera } = useThree();
@@ -614,7 +625,7 @@ export const InstancedWalls = ({
   }, [gltfScene, cornTex]);
   
   // Generate transforms for all corn types + billboard transforms
-  const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {
+  const { edgeTransforms, cheapTransforms, allBillboardTransforms, leafCurtainTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
@@ -640,10 +651,72 @@ export const InstancedWalls = ({
       billboardTransforms.push({ matrix: bbDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ });
     });
     
+    // Generate leaf curtain transforms - 2 layers of planes behind corn rows
+    const leafCurtainTransforms: Matrix4[] = [];
+    const curtainDummy = new Object3D();
+    
+    // Get all unique wall cell positions
+    const allWallCells = new Set<string>();
+    edgePositions.forEach(p => allWallCells.add(`${p.x},${p.z}`));
+    noShadowPositions.forEach(p => allWallCells.add(`${p.x},${p.z}`));
+    boundaryPositions.forEach(p => allWallCells.add(`${p.x},${p.z}`));
+    
+    const uniqueCells: { x: number; z: number }[] = [];
+    allWallCells.forEach(key => {
+      const [x, z] = key.split(',').map(Number);
+      uniqueCells.push({ x, z });
+    });
+    
+    // For each cell, create curtain planes
+    uniqueCells.forEach((cell, cellIdx) => {
+      const centerX = cell.x + 0.5;
+      const centerZ = cell.z + 0.5;
+      const cellSeed = cell.x * 1000 + cell.z;
+      
+      // Create planes for each layer
+      for (let layer = 0; layer < LEAF_CURTAIN_LAYERS; layer++) {
+        const layerOffset = LEAF_CURTAIN_OFFSET + layer * 0.08; // 10-18cm behind
+        
+        for (let p = 0; p < LEAF_CURTAIN_PLANES_PER_CELL; p++) {
+          const planeSeed = cellSeed + layer * 100 + p;
+          
+          // Randomize dimensions: width 0.3-0.8m, height 1.2-2.2m
+          const width = 0.3 + seededRandom(planeSeed) * 0.5;
+          const height = 1.2 + seededRandom(planeSeed + 1) * 1.0;
+          
+          // Randomize yaw: ±25 degrees (in radians)
+          const yaw = (seededRandom(planeSeed + 2) - 0.5) * (Math.PI / 180 * 50);
+          
+          // Position jitter: ±0.15m
+          const jitterX = (seededRandom(planeSeed + 3) - 0.5) * 0.3;
+          const jitterZ = (seededRandom(planeSeed + 4) - 0.5) * 0.3;
+          
+          // Distribute planes around the cell perimeter
+          const angle = (p / LEAF_CURTAIN_PLANES_PER_CELL) * Math.PI * 2;
+          const radius = 0.35 + layerOffset;
+          
+          const posX = centerX + Math.cos(angle) * radius + jitterX;
+          const posZ = centerZ + Math.sin(angle) * radius + jitterZ;
+          const posY = height / 2 + 0.1; // Slightly above ground
+          
+          // Face outward from cell center, plus random yaw
+          const faceAngle = angle + Math.PI + yaw;
+          
+          curtainDummy.position.set(posX, posY, posZ);
+          curtainDummy.rotation.set(0, faceAngle, 0);
+          curtainDummy.scale.set(width, height, 1);
+          curtainDummy.updateMatrix();
+          
+          leafCurtainTransforms.push(curtainDummy.matrix.clone());
+        }
+      }
+    });
+    
     return { 
       edgeTransforms: edge, 
       cheapTransforms: cheap3D,
-      allBillboardTransforms: billboardTransforms
+      allBillboardTransforms: billboardTransforms,
+      leafCurtainTransforms
     };
   }, [edgePositions, noShadowPositions, boundaryPositions]);
   
@@ -653,10 +726,46 @@ export const InstancedWalls = ({
     const edgeGroup = edgeGroupRef.current;
     const cheapGroup = cheapGroupRef.current;
     const billboardGroup = billboardGroupRef.current;
-    if (!edgeGroup || !cheapGroup || !billboardGroup || meshDataList.length === 0 || createdRef.current) return;
+    const leafCurtainGroup = leafCurtainGroupRef.current;
+    if (!edgeGroup || !cheapGroup || !billboardGroup || !leafCurtainGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
     const allMeshes: ThreeInstancedMesh[] = [];
+    
+    // LEAF CURTAIN: Alpha-cutout planes behind corn to fill gaps
+    if (leafCurtainTransforms.length > 0) {
+      const curtainGeometry = new PlaneGeometry(1, 1);
+      
+      // Create darkened material with alpha cutout (30-50% darker)
+      const curtainMaterial = new MeshBasicMaterial({
+        map: cornTex,
+        alphaTest: 0.5, // Cutout threshold 0.45-0.6
+        transparent: false, // No translucent blending
+        depthWrite: true,
+        side: FrontSide,
+        color: new Color(0.55, 0.55, 0.55), // Darken ~40%
+      });
+      
+      const curtainMesh = new ThreeInstancedMesh(
+        curtainGeometry,
+        curtainMaterial,
+        leafCurtainTransforms.length
+      );
+      
+      leafCurtainTransforms.forEach((matrix, i) => {
+        curtainMesh.setMatrixAt(i, matrix);
+      });
+      
+      curtainMesh.instanceMatrix.needsUpdate = true;
+      curtainMesh.castShadow = false;
+      curtainMesh.receiveShadow = false;
+      curtainMesh.frustumCulled = false;
+      
+      leafCurtainGroup.add(curtainMesh);
+      allMeshes.push(curtainMesh);
+      
+      console.log('[CornWall] Leaf curtain created with', leafCurtainTransforms.length, 'planes');
+    }
     
     // EDGE CORN (adjacent to paths): Full GLTF materials
     const edgeMeshes: ThreeInstancedMesh[] = [];
@@ -737,12 +846,13 @@ export const InstancedWalls = ({
       edgeTransformsRef.current = [];
       createdRef.current = false;
     };
-  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms]);
+  }, [meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial, edgeTransforms, cheapTransforms, allBillboardTransforms, leafCurtainTransforms, cornTex]);
 
   if (edgeTransforms.length === 0 && cheapTransforms.length === 0) return null;
 
   return (
     <>
+      <group ref={leafCurtainGroupRef} />
       <group ref={edgeGroupRef} />
       <group ref={cheapGroupRef} />
       <group ref={billboardGroupRef} />
