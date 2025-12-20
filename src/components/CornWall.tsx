@@ -625,8 +625,8 @@ export const InstancedWalls = ({
       const centerZ = wallPos.z + 0.5;
       
       wallPos.edges.forEach((edge, edgeIdx) => {
-        // Generate 6-10 leaf clusters per edge (more dense)
-        const leafClusters = 6 + Math.floor(seededRandom(baseSeed + edgeIdx * 100) * 5);
+        // Generate 12-18 leaf clusters per edge (very dense)
+        const leafClusters = 12 + Math.floor(seededRandom(baseSeed + edgeIdx * 100) * 7);
         
         for (let cluster = 0; cluster < leafClusters; cluster++) {
           const clusterSeed = baseSeed + edgeIdx * 1000 + cluster * 100;
@@ -649,8 +649,8 @@ export const InstancedWalls = ({
             case 'bottom': baseZ -= 0.2 + behindOffset; baseX += lateralOffset; break;
           }
           
-          // Generate 4-8 leaf planes per cluster (more leaves)
-          const leavesInCluster = 4 + Math.floor(seededRandom(clusterSeed + 3) * 5);
+          // Generate 6-12 leaf planes per cluster (more leaves)
+          const leavesInCluster = 6 + Math.floor(seededRandom(clusterSeed + 3) * 7);
           
           for (let leaf = 0; leaf < leavesInCluster; leaf++) {
             const leafSeed = clusterSeed + leaf * 10;
