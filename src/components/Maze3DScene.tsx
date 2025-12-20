@@ -859,10 +859,10 @@ const OverShoulderCameraController = ({
   // Camera settings - over-the-shoulder view balanced for all animals
   const CAMERA_DISTANCE_START = 0.4;
   const CAMERA_DISTANCE_NORMAL = 2.0;
-  const CAMERA_HEIGHT_START = 1.2;
-  const CAMERA_HEIGHT_NORMAL = 2.4;
+  const CAMERA_HEIGHT_START = 1.8;
+  const CAMERA_HEIGHT_NORMAL = 3.2;
   const LOOK_AHEAD = 1.3;
-  const LOOK_HEIGHT = 0.5;
+  const LOOK_HEIGHT = 0.2;
   const POSITION_SMOOTHING = 0.15;
   const ROTATION_SMOOTHING = 0.12;
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
