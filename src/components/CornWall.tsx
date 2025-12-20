@@ -216,9 +216,10 @@ const generateWallTransforms = (
     const centerX = wallPos.x + 0.5;
     const centerZ = wallPos.z + 0.5;
     
-    // Use smaller spacing for depth stalks and offset them toward back of cell
-    const depthSpacing = STALK_SPACING * 0.6; // Tighter spacing for center stalks
-    const backOffset = 0.15; // Push depth stalks slightly back from center
+    // Use smaller spacing for depth stalks and offset them well behind edge stalks
+    const depthSpacing = STALK_SPACING * 0.4; // Much tighter spacing - keep depth stalks clustered
+    const backOffset = 0.0; // Center depth stalks in cell (edge stalks are at ±0.45)
+    const depthScale = 0.25; // Reduce spread to keep stalks in center, away from edges
     
     for (let row = 0; row < ROWS; row++) {
       // Odd rows get an extra stalk for staggered coverage
@@ -228,11 +229,12 @@ const generateWallTransforms = (
       
       for (let col = 0; col < stalksInRow; col++) {
         const stalkSeed = baseSeed + row * 100 + col;
-        const offsetX = (col - (stalksInRow - 1) / 2) * depthSpacing + rowOffset;
-        const offsetZ = (row - (ROWS - 1) / 2) * depthSpacing + backOffset;
+        // Keep depth stalks in a small central area
+        const offsetX = (col - (stalksInRow - 1) / 2) * depthSpacing * depthScale + rowOffset * depthScale;
+        const offsetZ = (row - (ROWS - 1) / 2) * depthSpacing * depthScale + backOffset;
         // Increased jitter for more natural randomness
-        const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.15;
-        const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.15;
+        const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.1;
+        const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.1;
         const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
         
         const baseScale = 100;
