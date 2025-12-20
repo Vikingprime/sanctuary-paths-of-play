@@ -861,6 +861,25 @@ const OverShoulderCameraController = ({
   
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
+    
+    // Initialize on first frame BEFORE any calculations
+    if (!initialized.current) {
+      smoothRotation.current = playerRotation;
+      const rot = playerRotation;
+      // Set camera position immediately without interpolation
+      currentPosition.current.set(
+        playerX - Math.sin(rot) * CAMERA_DISTANCE,
+        CAMERA_HEIGHT,
+        playerZ + Math.cos(rot) * CAMERA_DISTANCE
+      );
+      currentLookAt.current.set(
+        playerX + Math.sin(rot) * LOOK_AHEAD,
+        LOOK_HEIGHT,
+        playerZ - Math.cos(rot) * LOOK_AHEAD
+      );
+      initialized.current = true;
+    }
+    
     // Smoothly interpolate rotation using shortest path
     let rotDiff = playerRotation - smoothRotation.current;
     // Handle wrap-around (shortest path)
@@ -885,14 +904,6 @@ const OverShoulderCameraController = ({
       LOOK_HEIGHT,
       playerZ - Math.cos(rot) * LOOK_AHEAD
     );
-    
-    // Initialize on first frame
-    if (!initialized.current) {
-      smoothRotation.current = playerRotation;
-      currentPosition.current.copy(targetPos.current);
-      currentLookAt.current.copy(targetLookAt.current);
-      initialized.current = true;
-    }
     
     // Smooth position interpolation
     currentPosition.current.lerp(targetPos.current, POSITION_SMOOTHING);
