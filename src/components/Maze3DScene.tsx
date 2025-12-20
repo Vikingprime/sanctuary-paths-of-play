@@ -751,8 +751,13 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
         <primitive object={model} scale={0.55} />
       </group>
       
-      {/* Test stalk next to the goal */}
+      {/* Test stalks around the goal */}
       <SimpleCornStalk position={[0.8, 0, 0]} scale={1.0} />
+      <SimpleCornStalk position={[-0.8, 0, 0]} scale={0.9} />
+      <SimpleCornStalk position={[0, 0, 0.8]} scale={1.1} />
+      <SimpleCornStalk position={[0, 0, -0.8]} scale={0.95} />
+      <SimpleCornStalk position={[0.6, 0, 0.6]} scale={1.0} />
+      <SimpleCornStalk position={[-0.6, 0, -0.6]} scale={0.85} />
       
       {/* Invisible collision trigger for end goal */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} visible={false}>
