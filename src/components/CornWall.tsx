@@ -472,6 +472,7 @@ export const InstancedWalls = ({
   const { meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
     const stalkMeshes: MeshData[] = []; // Only stalk/leaf meshes (no corn cobs)
+    const cornCobMeshes: MeshData[] = []; // Only corn cob meshes
     let sampledColor: Color | null = null;
     
     gltfScene.traverse((child) => {
@@ -504,8 +505,10 @@ export const InstancedWalls = ({
         
         meshes.push(meshData);
         
-        // Only add non-corn-cob meshes to stalk collection
-        if (!isCornCob) {
+        // Separate stalk and corn cob meshes
+        if (isCornCob) {
+          cornCobMeshes.push(meshData);
+        } else {
           stalkMeshes.push(meshData);
         }
       }
@@ -610,7 +613,6 @@ export const InstancedWalls = ({
     
     // Only use ONE stalk mesh + ONE corn cob for edge corn (reduces from 2+ stalks to 1)
     const singleStalkMesh = stalkMeshes.length > 0 ? [stalkMeshes[0]] : [];
-    const cornCobMeshes = meshes.filter((_, idx) => !stalkMeshes.includes(meshes[idx]));
     const firstCornCob = cornCobMeshes.length > 0 ? [cornCobMeshes[0]] : [];
     const limitedMeshList = [...singleStalkMesh, ...firstCornCob];
     
