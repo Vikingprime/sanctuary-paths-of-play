@@ -608,8 +608,14 @@ export const InstancedWalls = ({
       depthWrite: true,
     });
     
+    // Only use ONE stalk mesh + ONE corn cob for edge corn (reduces from 2+ stalks to 1)
+    const singleStalkMesh = stalkMeshes.length > 0 ? [stalkMeshes[0]] : [];
+    const cornCobMeshes = meshes.filter((_, idx) => !stalkMeshes.includes(meshes[idx]));
+    const firstCornCob = cornCobMeshes.length > 0 ? [cornCobMeshes[0]] : [];
+    const limitedMeshList = [...singleStalkMesh, ...firstCornCob];
+    
     return { 
-      meshDataList: meshes, 
+      meshDataList: limitedMeshList.length > 0 ? limitedMeshList : meshes.slice(0, 1), 
       cheapStalkGeometry: firstStalkGeo,
       cheapMaterial: cheapMat,
       billboardGeometry: lodCornGeo,
