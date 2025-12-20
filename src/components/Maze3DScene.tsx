@@ -569,7 +569,7 @@ const MazeWalls = ({ maze, playerStateRef, optimizationSettings, onCullStats }: 
     
     // Build edge positions (only the stalks on edges facing paths)
     const edges: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[] = [];
-    const depthOnly: { x: number; z: number }[] = [];
+    const depthOnly: { x: number; z: number; avoidEdges?: ('left' | 'right' | 'top' | 'bottom')[] }[] = [];
     const boundary: { x: number; z: number; offsetX: number; offsetZ: number }[] = [];
     
     maze.grid.forEach((row, y) => {
@@ -595,10 +595,10 @@ const MazeWalls = ({ maze, playerStateRef, optimizationSettings, onCullStats }: 
           } else if (cellEdges) {
             // Interior wall with path-facing edges
             edges.push({ x, z: y, edges: cellEdges });
-            // Also add to depth-only for center fill stalks
-            depthOnly.push({ x, z: y });
+            // Also add to depth-only with edges to avoid
+            depthOnly.push({ x, z: y, avoidEdges: cellEdges });
           } else {
-            // Depth-only wall - not adjacent to any path
+            // Depth-only wall - not adjacent to any path, no edges to avoid
             depthOnly.push({ x, z: y });
           }
         }

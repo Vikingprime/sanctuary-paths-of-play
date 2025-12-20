@@ -112,7 +112,7 @@ export interface CullStats {
 // Instanced walls using InstancedMesh
 interface InstancedWallsProps {
   edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[];  // Edge stalks only
-  noShadowPositions?: { x: number; z: number }[];     // Full cell walls (no shadows)
+  noShadowPositions?: { x: number; z: number; avoidEdges?: ('left' | 'right' | 'top' | 'bottom')[] }[];     // Full cell walls with edges to avoid
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
   size?: [number, number, number];
   playerPositionRef?: React.MutableRefObject<{ x: number; y: number }>;
@@ -203,42 +203,42 @@ const generateEdgeTransforms = (
   return transforms;
 };
 
-// Generate transforms for a set of wall positions (full 3x3 grid)
+// Generate transforms for a set of wall positions, avoiding specific edges
 const generateWallTransforms = (
-  positions: { x: number; z: number }[],
+  positions: { x: number; z: number; avoidEdges?: ('left' | 'right' | 'top' | 'bottom')[] }[],
   seedOffset: number = 0
 ): WallTransformData[] => {
   const transforms: WallTransformData[] = [];
   const dummy = new Object3D();
+  const edgeZone = 0.35; // Distance from center where edge stalks are (don't place depth stalks here)
   
   positions.forEach((wallPos) => {
     const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset;
     const centerX = wallPos.x + 0.5;
     const centerZ = wallPos.z + 0.5;
-    
-    // Depth stalks fill the CENTER of the cell only (edges have edge stalks at ±0.45)
-    // Keep depth stalks within ±0.2 of center to avoid overlapping with edge stalks
-    const maxSpread = 0.2; // Maximum distance from cell center
+    const avoidEdges = wallPos.avoidEdges || [];
     
     for (let row = 0; row < ROWS; row++) {
-      // Odd rows get an extra stalk for staggered coverage
       const stalksInRow = STALKS_PER_ROW + (row % 2);
-      // Offset odd rows by half spacing to stagger gaps
-      const rowOffset = (row % 2) * 0.08;
+      const rowOffset = (row % 2) * (STALK_SPACING / 2);
       
       for (let col = 0; col < stalksInRow; col++) {
         const stalkSeed = baseSeed + row * 100 + col;
-        // Spread stalks within center zone only
-        const rawOffsetX = (col - (stalksInRow - 1) / 2) * 0.15 + rowOffset;
-        const rawOffsetZ = (row - (ROWS - 1) / 2) * 0.15;
-        // Clamp to center zone
-        const offsetX = Math.max(-maxSpread, Math.min(maxSpread, rawOffsetX));
-        const offsetZ = Math.max(-maxSpread, Math.min(maxSpread, rawOffsetZ));
-        // Natural randomness (small to stay in center)
-        const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.08;
-        const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.08;
-        const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
+        let offsetX = (col - (stalksInRow - 1) / 2) * STALK_SPACING + rowOffset;
+        let offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
+        const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.1;
+        const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.1;
         
+        // Check if this stalk would be too close to an edge that has edge stalks
+        let tooCloseToEdge = false;
+        if (avoidEdges.includes('left') && offsetX + jitterX < -edgeZone + 0.1) tooCloseToEdge = true;
+        if (avoidEdges.includes('right') && offsetX + jitterX > edgeZone - 0.1) tooCloseToEdge = true;
+        if (avoidEdges.includes('top') && offsetZ + jitterZ < -edgeZone + 0.1) tooCloseToEdge = true;
+        if (avoidEdges.includes('bottom') && offsetZ + jitterZ > edgeZone - 0.1) tooCloseToEdge = true;
+        
+        if (tooCloseToEdge) continue; // Skip this stalk
+        
+        const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
         const baseScale = 100;
         const heightMultiplier = 1.8;
         const widthMultiplier = 0.7;
