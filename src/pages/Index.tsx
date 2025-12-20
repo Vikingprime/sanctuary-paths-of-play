@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useSave } from '@/hooks/useSave';
+import { Volume2, VolumeX } from 'lucide-react';
 
 type GameScreen = 'home' | 'levels' | 'playing';
 
@@ -129,6 +130,26 @@ const Index = () => {
               >
                 Start Adventure 🌾
               </Button>
+              
+              {/* Sound Toggle */}
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                {save.settings.musicVolume > 0 ? (
+                  <Volume2 className="h-4 w-4" />
+                ) : (
+                  <VolumeX className="h-4 w-4" />
+                )}
+                <Switch
+                  id="sound-toggle"
+                  checked={save.settings.musicVolume > 0}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    musicVolume: checked ? 0.7 : 0,
+                    sfxVolume: checked ? 1.0 : 0 
+                  })}
+                />
+                <Label htmlFor="sound-toggle" className="cursor-pointer">
+                  Sound
+                </Label>
+              </div>
               
               {/* Debug Mode Toggle */}
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
