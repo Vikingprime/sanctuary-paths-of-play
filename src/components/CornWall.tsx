@@ -397,8 +397,8 @@ export const InstancedWalls = ({
     let cheapCount = 0;
     
     // Helper to check if corn is in viewable arc (front 270 degrees)
-    // Only apply back-culling to corn >3m away - nearby corn always visible
-    const NEAR_DISTANCE_SQ = 3 * 3; // 3m squared - no back-culling within this
+    // Only apply back-culling to corn >8m away - nearby corn always visible
+    const NEAR_DISTANCE_SQ = 8 * 8; // 8m squared - no back-culling within this
     const isInViewArc = (cornX: number, cornZ: number, distSq: number): boolean => {
       // Always show corn within 3m regardless of angle
       if (distSq < NEAR_DISTANCE_SQ) return true;
