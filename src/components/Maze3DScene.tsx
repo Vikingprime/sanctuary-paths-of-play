@@ -852,10 +852,9 @@ const OverShoulderCameraController = ({
   const targetLookAt = useRef(new Vector3());
   
   // Track if player has moved and camera distance
-  const lastPlayerPos = useRef<{ x: number; z: number } | null>(null);
+  const initialPlayerPos = useRef<{ x: number; z: number } | null>(null);
   const hasPlayerMoved = useRef(false);
   const currentDistance = useRef(0.4); // Start very close
-  const framesSinceInit = useRef(0);
   
   // Camera settings - over-the-shoulder view balanced for all animals
   const CAMERA_DISTANCE_START = 0.4;
@@ -867,30 +866,24 @@ const OverShoulderCameraController = ({
   const POSITION_SMOOTHING = 0.15;
   const ROTATION_SMOOTHING = 0.12;
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
-  const FRAMES_BEFORE_MOVEMENT_CHECK = 30; // Wait ~0.5s before checking for movement
+  const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
   
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
-    // Initialize lastPlayerPos on first frame
-    if (lastPlayerPos.current === null) {
-      lastPlayerPos.current = { x: playerX, z: playerZ };
+    // Store initial position on first frame (after initialization)
+    if (initialized.current && initialPlayerPos.current === null) {
+      initialPlayerPos.current = { x: playerX, z: playerZ };
     }
     
-    // Count frames since initialization
-    if (initialized.current) {
-      framesSinceInit.current++;
-    }
-    
-    // Only check for movement after a delay to avoid initialization drift
-    if (!hasPlayerMoved.current && framesSinceInit.current > FRAMES_BEFORE_MOVEMENT_CHECK) {
-      const dx = playerX - lastPlayerPos.current.x;
-      const dz = playerZ - lastPlayerPos.current.z;
-      // Only trigger on significant movement (player pressed a key)
-      if (Math.abs(dx) > 0.1 || Math.abs(dz) > 0.1) {
+    // Check if player has moved from their initial spawn position
+    if (!hasPlayerMoved.current && initialPlayerPos.current !== null) {
+      const dx = playerX - initialPlayerPos.current.x;
+      const dz = playerZ - initialPlayerPos.current.z;
+      const distFromSpawn = Math.sqrt(dx * dx + dz * dz);
+      if (distFromSpawn > MOVEMENT_THRESHOLD) {
         hasPlayerMoved.current = true;
       }
-      lastPlayerPos.current = { x: playerX, z: playerZ };
     }
     
     // Smoothly zoom camera out after player moves
@@ -905,7 +898,7 @@ const OverShoulderCameraController = ({
     // Initialize on first frame BEFORE any calculations
     if (!initialized.current) {
       smoothRotation.current = playerRotation;
-      lastPlayerPos.current = { x: playerX, z: playerZ };
+      initialPlayerPos.current = { x: playerX, z: playerZ };
       const rot = playerRotation;
       // Set camera position immediately without interpolation (start close)
       currentPosition.current.set(
