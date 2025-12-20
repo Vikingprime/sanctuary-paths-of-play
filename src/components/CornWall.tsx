@@ -215,16 +215,19 @@ const generateWallTransforms = (
     const centerX = wallPos.x + 0.5;
     const centerZ = wallPos.z + 0.5;
     
+    // Use smaller spacing for depth stalks to avoid overlapping with edge stalks
+    const depthSpacing = STALK_SPACING * 0.6; // Tighter spacing for center stalks
+    
     for (let row = 0; row < ROWS; row++) {
       // Odd rows get an extra stalk for staggered coverage
       const stalksInRow = STALKS_PER_ROW + (row % 2);
       // Offset odd rows by half spacing to stagger gaps
-      const rowOffset = (row % 2) * (STALK_SPACING / 2);
+      const rowOffset = (row % 2) * (depthSpacing / 2);
       
       for (let col = 0; col < stalksInRow; col++) {
         const stalkSeed = baseSeed + row * 100 + col;
-        const offsetX = (col - (stalksInRow - 1) / 2) * STALK_SPACING + rowOffset;
-        const offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
+        const offsetX = (col - (stalksInRow - 1) / 2) * depthSpacing + rowOffset;
+        const offsetZ = (row - (ROWS - 1) / 2) * depthSpacing;
         const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.05;
         const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.05;
         const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
