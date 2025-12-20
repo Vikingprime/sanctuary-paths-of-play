@@ -641,11 +641,13 @@ export const InstancedWalls = ({
           let baseX = centerX;
           let baseZ = centerZ;
           
+          // Position BEHIND the corn (deeper into the wall, away from the path)
+          // Edge faces the path, so we go opposite direction
           switch (edge) {
-            case 'left':   baseX -= 0.3 + behindOffset; baseZ += lateralOffset; break;
-            case 'right':  baseX += 0.3 + behindOffset; baseZ += lateralOffset; break;
-            case 'top':    baseZ -= 0.3 + behindOffset; baseX += lateralOffset; break;
-            case 'bottom': baseZ += 0.3 + behindOffset; baseX += lateralOffset; break;
+            case 'left':   baseX += 0.3 + behindOffset; baseZ += lateralOffset; break;  // Path is left, go right (into wall)
+            case 'right':  baseX -= 0.3 + behindOffset; baseZ += lateralOffset; break;  // Path is right, go left (into wall)
+            case 'top':    baseZ += 0.3 + behindOffset; baseX += lateralOffset; break;  // Path is top, go down (into wall)
+            case 'bottom': baseZ -= 0.3 + behindOffset; baseX += lateralOffset; break;  // Path is bottom, go up (into wall)
           }
           
           // Generate 2-4 leaf planes per cluster
