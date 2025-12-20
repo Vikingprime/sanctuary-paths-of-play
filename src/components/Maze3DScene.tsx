@@ -657,39 +657,19 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-// Simple low-poly corn stalk using the Corn.glb model (stalk only, no leaves/corn)
+// Simple low-poly corn stalk (geometric cylinder, not GLTF)
 const SimpleCornStalk = ({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) => {
-  const { scene } = useGLTF('/models/Corn.glb');
-  
-  // Clone the scene and log mesh names to find what to hide
-  const stalkOnly = useMemo(() => {
-    const clone = scene.clone(true);
-    
-    // Log all mesh names once to identify parts
-    const meshNames: string[] = [];
-    clone.traverse((child: any) => {
-      if (child.isMesh) {
-        meshNames.push(child.name);
-      }
-    });
-    console.log('Corn.glb mesh names:', meshNames);
-    
-    // For now, show everything - we'll filter once we know the names
-    return clone;
-  }, [scene]);
-
-  // Apply the same transforms as the full corn model
-  const baseScale = 100 * scale;
-  const heightMultiplier = 1.8;
-  const widthMultiplier = 0.7;
+  const stalkHeight = 2.2 * scale;
+  const bottomRadius = 0.035 * scale;
+  const topRadius = 0.015 * scale;
   
   return (
     <group position={position}>
-      <primitive 
-        object={stalkOnly} 
-        scale={[baseScale * widthMultiplier, baseScale * widthMultiplier, baseScale * heightMultiplier]}
-        rotation={[-Math.PI / 2, 0, 0]}
-      />
+      {/* Main stalk - tapered cylinder */}
+      <mesh position={[0, stalkHeight / 2, 0]}>
+        <cylinderGeometry args={[topRadius, bottomRadius, stalkHeight, 5, 1]} />
+        <meshLambertMaterial color="#5d7a3d" />
+      </mesh>
     </group>
   );
 };
@@ -751,15 +731,10 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
         <primitive object={model} scale={0.55} />
       </group>
       
-      {/* Test stalks around the goal - 20 stalks in a grid */}
-      {Array.from({ length: 20 }).map((_, i) => {
-        const angle = (i / 20) * Math.PI * 2;
-        const radius = 0.6 + (i % 3) * 0.4;
-        const x = Math.cos(angle) * radius;
-        const z = Math.sin(angle) * radius;
-        const scale = 0.8 + Math.random() * 0.4;
-        return <SimpleCornStalk key={`test-stalk-${i}`} position={[x, 0, z]} scale={scale} />;
-      })}
+      {/* Test stalks around the goal - simple cylinders */}
+      <SimpleCornStalk position={[0.7, 0, 0]} scale={1.0} />
+      <SimpleCornStalk position={[-0.7, 0, 0.1]} scale={0.9} />
+      <SimpleCornStalk position={[0.1, 0, 0.7]} scale={1.1} />
       
       {/* Invisible collision trigger for end goal */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} visible={false}>
