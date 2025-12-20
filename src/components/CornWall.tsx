@@ -160,10 +160,10 @@ const generateEdgeTransforms = (
       for (let col = 0; col < STALKS_PER_ROW; col++) {
         const stalkSeed = baseSeed + edgeIdx * 1000 + col;
         
-        // Position based on which edge
+        // Position based on which edge - push stalks to actual cell edge
         let offsetX = 0;
         let offsetZ = 0;
-        const edgeOffset = (ROWS - 1) / 2 * STALK_SPACING; // Position at the edge of the cell
+        const edgeOffset = 0.35; // Fixed offset to position at cell edge (not center)
         const colOffset = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING;
         
         switch (edge) {
@@ -614,14 +614,11 @@ export const InstancedWalls = ({
       depthWrite: true,
     });
     
-    // Use only 1 mesh from the model to avoid overlayed stalks
-    const limitedMeshList = meshes.slice(0, 1);
-    
+    // Use all meshes from the model (stalk + leaves + corn cobs)
     console.log(`[Corn] Total: ${meshes.length} meshes, stalks detected: ${stalkMeshes.length}, cobs detected: ${cornCobMeshes.length}`);
-    console.log(`[Corn] Using first ${limitedMeshList.length} mesh for edge corn`);
     
     return { 
-      meshDataList: limitedMeshList.length > 0 ? limitedMeshList : meshes, 
+      meshDataList: meshes, 
       cheapStalkGeometry: firstStalkGeo,
       cheapMaterial: cheapMat,
       billboardGeometry: lodCornGeo,
