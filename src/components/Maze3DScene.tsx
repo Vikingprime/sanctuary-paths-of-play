@@ -854,19 +854,20 @@ const OverShoulderCameraController = ({
   // Track if player has moved and camera distance
   const initialPlayerPos = useRef<{ x: number; z: number } | null>(null);
   const hasPlayerMoved = useRef(false);
-  const currentDistance = useRef(0.4); // Start very close
+  const currentDistance = useRef(1.0); // Start close but visible
   
   // Camera settings - over-the-shoulder view balanced for all animals
-  const CAMERA_DISTANCE_START = 0.4;
+  const CAMERA_DISTANCE_START = 1.0;  // Close enough to see animal
   const CAMERA_DISTANCE_NORMAL = 2.0;
-  const CAMERA_HEIGHT_START = 1.2;
+  const CAMERA_HEIGHT_START = 1.6;    // Higher to look down at animal
   const CAMERA_HEIGHT_NORMAL = 2.4;
-  const LOOK_AHEAD = 1.3;
-  const LOOK_HEIGHT = 0.5;
+  const LOOK_AHEAD_START = 0.8;       // Look closer ahead initially
+  const LOOK_AHEAD_NORMAL = 1.3;
+  const LOOK_HEIGHT = 0.3;            // Lower look target to see animal
   const POSITION_SMOOTHING = 0.15;
   const ROTATION_SMOOTHING = 0.12;
-  const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
-  const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
+  const DISTANCE_ZOOM_SPEED = 0.025;  // How fast camera pulls back
+  const MOVEMENT_THRESHOLD = 0.3;     // How far player must move from spawn to trigger zoom
   
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
@@ -891,9 +892,10 @@ const OverShoulderCameraController = ({
       currentDistance.current += (CAMERA_DISTANCE_NORMAL - currentDistance.current) * DISTANCE_ZOOM_SPEED;
     }
     
-    // Calculate current height based on distance progress
+    // Calculate current height and look-ahead based on distance progress
     const distanceProgress = (currentDistance.current - CAMERA_DISTANCE_START) / (CAMERA_DISTANCE_NORMAL - CAMERA_DISTANCE_START);
     const currentHeight = CAMERA_HEIGHT_START + distanceProgress * (CAMERA_HEIGHT_NORMAL - CAMERA_HEIGHT_START);
+    const currentLookAhead = LOOK_AHEAD_START + distanceProgress * (LOOK_AHEAD_NORMAL - LOOK_AHEAD_START);
     
     // Initialize on first frame BEFORE any calculations
     if (!initialized.current) {
@@ -907,9 +909,9 @@ const OverShoulderCameraController = ({
         playerZ + Math.cos(rot) * CAMERA_DISTANCE_START
       );
       currentLookAt.current.set(
-        playerX + Math.sin(rot) * LOOK_AHEAD,
+        playerX + Math.sin(rot) * LOOK_AHEAD_START,
         LOOK_HEIGHT,
-        playerZ - Math.cos(rot) * LOOK_AHEAD
+        playerZ - Math.cos(rot) * LOOK_AHEAD_START
       );
       initialized.current = true;
     }
@@ -934,9 +936,9 @@ const OverShoulderCameraController = ({
     
     // Calculate look target ahead of player (reuse vector to avoid GC)
     targetLookAt.current.set(
-      playerX + Math.sin(rot) * LOOK_AHEAD,
+      playerX + Math.sin(rot) * currentLookAhead,
       LOOK_HEIGHT,
-      playerZ - Math.cos(rot) * LOOK_AHEAD
+      playerZ - Math.cos(rot) * currentLookAhead
     );
     
     // Smooth position interpolation
