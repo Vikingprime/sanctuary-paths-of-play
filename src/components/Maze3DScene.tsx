@@ -751,13 +751,15 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
         <primitive object={model} scale={0.55} />
       </group>
       
-      {/* Test stalks around the goal */}
-      <SimpleCornStalk position={[0.8, 0, 0]} scale={1.0} />
-      <SimpleCornStalk position={[-0.8, 0, 0]} scale={0.9} />
-      <SimpleCornStalk position={[0, 0, 0.8]} scale={1.1} />
-      <SimpleCornStalk position={[0, 0, -0.8]} scale={0.95} />
-      <SimpleCornStalk position={[0.6, 0, 0.6]} scale={1.0} />
-      <SimpleCornStalk position={[-0.6, 0, -0.6]} scale={0.85} />
+      {/* Test stalks around the goal - 20 stalks in a grid */}
+      {Array.from({ length: 20 }).map((_, i) => {
+        const angle = (i / 20) * Math.PI * 2;
+        const radius = 0.6 + (i % 3) * 0.4;
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+        const scale = 0.8 + Math.random() * 0.4;
+        return <SimpleCornStalk key={`test-stalk-${i}`} position={[x, 0, z]} scale={scale} />;
+      })}
       
       {/* Invisible collision trigger for end goal */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} visible={false}>
