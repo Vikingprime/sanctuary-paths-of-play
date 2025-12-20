@@ -120,9 +120,9 @@ interface InstancedWallsProps {
   onCullStats?: (stats: CullStats) => void;
 }
 
-// Density settings - staggered rows to close gaps
-const ROWS = 3;
-const STALKS_PER_ROW = 1; // Base count, odd rows get +1
+// Density settings - single stalk per position for cleaner look
+const ROWS = 1;
+const STALKS_PER_ROW = 1; // Single stalk per position
 const STALK_SPACING = 0.4; // Spacing between stalks
 
 // Boundary walls - reduced for performance
