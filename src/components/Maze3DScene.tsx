@@ -854,22 +854,21 @@ const OverShoulderCameraController = ({
   // Track if player has moved and camera distance
   const initialPlayerPos = useRef<{ x: number; z: number } | null>(null);
   const hasPlayerMoved = useRef(false);
-  const currentDistance = useRef(0.3); // Start very close over shoulder
+  const currentDistance = useRef(0.0); // Start directly overhead
   
-  // Camera settings - true over-the-shoulder view
-  const CAMERA_DISTANCE_START = 0.3;   // Very close behind
+  // Camera settings - overhead start, then transition to follow cam
+  const CAMERA_DISTANCE_START = 0.0;   // Directly above player
   const CAMERA_DISTANCE_NORMAL = 2.0;
-  const CAMERA_HEIGHT_START = 0.8;     // Just above shoulder height
+  const CAMERA_HEIGHT_START = 3.5;     // High overhead view
   const CAMERA_HEIGHT_NORMAL = 2.4;
-  const SHOULDER_OFFSET_START = 0.35;  // Offset to the right shoulder
-  const SHOULDER_OFFSET_NORMAL = 0.0;  // No offset when zoomed out
-  const LOOK_AHEAD_START = 0.6;        // Look close ahead
+  const LOOK_AHEAD_START = 0.0;        // Look at player (no ahead offset)
   const LOOK_AHEAD_NORMAL = 1.3;
-  const LOOK_HEIGHT = 0.3;             // Look at ground level ahead
-  const POSITION_SMOOTHING = 0.15;
+  const LOOK_HEIGHT_START = 0.0;       // Look at ground where player is
+  const LOOK_HEIGHT_NORMAL = 0.3;
+  const POSITION_SMOOTHING = 0.12;
   const ROTATION_SMOOTHING = 0.12;
-  const DISTANCE_ZOOM_SPEED = 0.025;   // How fast camera pulls back
-  const MOVEMENT_THRESHOLD = 0.3;      // How far player must move from spawn to trigger zoom
+  const DISTANCE_ZOOM_SPEED = 0.03;    // How fast camera transitions
+  const MOVEMENT_THRESHOLD = 0.3;      // How far player must move from spawn to trigger transition
   
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
@@ -889,35 +888,31 @@ const OverShoulderCameraController = ({
       }
     }
     
-    // Smoothly zoom camera out after player moves
+    // Smoothly transition camera after player moves
     if (hasPlayerMoved.current && currentDistance.current < CAMERA_DISTANCE_NORMAL) {
       currentDistance.current += (CAMERA_DISTANCE_NORMAL - currentDistance.current) * DISTANCE_ZOOM_SPEED;
     }
     
-    // Calculate current height, look-ahead, and shoulder offset based on distance progress
-    const distanceProgress = Math.min(1, (currentDistance.current - CAMERA_DISTANCE_START) / (CAMERA_DISTANCE_NORMAL - CAMERA_DISTANCE_START));
+    // Calculate all interpolated values based on transition progress
+    const distanceProgress = Math.min(1, currentDistance.current / CAMERA_DISTANCE_NORMAL);
     const currentHeight = CAMERA_HEIGHT_START + distanceProgress * (CAMERA_HEIGHT_NORMAL - CAMERA_HEIGHT_START);
     const currentLookAhead = LOOK_AHEAD_START + distanceProgress * (LOOK_AHEAD_NORMAL - LOOK_AHEAD_START);
-    const currentShoulderOffset = SHOULDER_OFFSET_START + distanceProgress * (SHOULDER_OFFSET_NORMAL - SHOULDER_OFFSET_START);
+    const currentLookHeight = LOOK_HEIGHT_START + distanceProgress * (LOOK_HEIGHT_NORMAL - LOOK_HEIGHT_START);
     
     // Initialize on first frame BEFORE any calculations
     if (!initialized.current) {
       smoothRotation.current = playerRotation;
       initialPlayerPos.current = { x: playerX, z: playerZ };
-      const rot = playerRotation;
-      // Calculate right vector for shoulder offset (perpendicular to forward)
-      const rightX = Math.cos(rot);
-      const rightZ = Math.sin(rot);
-      // Set camera position immediately without interpolation (start at shoulder)
+      // Set camera position immediately - overhead view
       currentPosition.current.set(
-        playerX - Math.sin(rot) * CAMERA_DISTANCE_START + rightX * SHOULDER_OFFSET_START,
+        playerX,
         CAMERA_HEIGHT_START,
-        playerZ + Math.cos(rot) * CAMERA_DISTANCE_START + rightZ * SHOULDER_OFFSET_START
+        playerZ
       );
       currentLookAt.current.set(
-        playerX + Math.sin(rot) * LOOK_AHEAD_START,
-        LOOK_HEIGHT,
-        playerZ - Math.cos(rot) * LOOK_AHEAD_START
+        playerX,
+        LOOK_HEIGHT_START,
+        playerZ
       );
       initialized.current = true;
     }
@@ -932,21 +927,18 @@ const OverShoulderCameraController = ({
     smoothRotation.current = ((smoothRotation.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     
     const rot = smoothRotation.current;
-    // Calculate right vector for shoulder offset
-    const rightX = Math.cos(rot);
-    const rightZ = Math.sin(rot);
     
-    // Calculate camera position behind and to the right of player
+    // Calculate camera position - transitions from overhead to behind player
     targetPos.current.set(
-      playerX - Math.sin(rot) * currentDistance.current + rightX * currentShoulderOffset,
+      playerX - Math.sin(rot) * currentDistance.current,
       currentHeight,
-      playerZ + Math.cos(rot) * currentDistance.current + rightZ * currentShoulderOffset
+      playerZ + Math.cos(rot) * currentDistance.current
     );
     
-    // Calculate look target ahead of player (reuse vector to avoid GC)
+    // Calculate look target - transitions from player to ahead of player
     targetLookAt.current.set(
       playerX + Math.sin(rot) * currentLookAhead,
-      LOOK_HEIGHT,
+      currentLookHeight,
       playerZ - Math.cos(rot) * currentLookAhead
     );
     
