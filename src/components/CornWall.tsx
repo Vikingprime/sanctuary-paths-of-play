@@ -625,73 +625,35 @@ export const InstancedWalls = ({
       const centerZ = wallPos.z + 0.5;
       
       wallPos.edges.forEach((edge, edgeIdx) => {
-        // Generate 12-18 leaf clusters per edge (very dense)
-        const leafClusters = 12 + Math.floor(seededRandom(baseSeed + edgeIdx * 100) * 7);
+        // Generate 4-6 leaf clusters per edge (lower density)
+        const leafClusters = 4 + Math.floor(seededRandom(baseSeed + edgeIdx * 100) * 3);
         
         for (let cluster = 0; cluster < leafClusters; cluster++) {
           const clusterSeed = baseSeed + edgeIdx * 1000 + cluster * 100;
           
-          // Skip some clusters to create gaps (5% chance of gap - almost none)
-          if (seededRandom(clusterSeed + 50) < 0.05) continue;
-          
-          // Two depth layers: front (15-30cm) and back (35-55cm)
-          const depthLayer = seededRandom(clusterSeed + 99) > 0.5 ? 0 : 1;
-          const behindOffset = depthLayer === 0 
-            ? 0.15 + seededRandom(clusterSeed + 1) * 0.15  // Front layer
-            : 0.35 + seededRandom(clusterSeed + 1) * 0.2;  // Back layer
-          
-          // Constrain lateral spread based on adjacent edges
-          // If there are edges on sides, limit spread to avoid those sides
-          const hasLeftEdge = wallPos.edges.includes('left');
-          const hasRightEdge = wallPos.edges.includes('right');
-          const hasTopEdge = wallPos.edges.includes('top');
-          const hasBottomEdge = wallPos.edges.includes('bottom');
-          
-          let lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 0.6;
-          
-          // For horizontal edges (left/right), lateral is along Z
-          // For vertical edges (top/bottom), lateral is along X
-          // Constrain lateral to avoid going toward other path-facing edges
-          if (edge === 'left' || edge === 'right') {
-            // Lateral is Z direction
-            if (hasTopEdge && lateralOffset < 0) lateralOffset = Math.abs(lateralOffset) * 0.3;
-            if (hasBottomEdge && lateralOffset > 0) lateralOffset = -Math.abs(lateralOffset) * 0.3;
-          } else {
-            // Lateral is X direction
-            if (hasLeftEdge && lateralOffset < 0) lateralOffset = Math.abs(lateralOffset) * 0.3;
-            if (hasRightEdge && lateralOffset > 0) lateralOffset = -Math.abs(lateralOffset) * 0.3;
-          }
+          // Position 40-70cm behind the corn row (significantly deeper)
+          const behindOffset = 0.4 + seededRandom(clusterSeed + 1) * 0.3;
+          const lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 0.4; // Tighter lateral spread
           
           let baseX = centerX;
           let baseZ = centerZ;
           
-          // Position just behind the front corn row
+          // Position well behind the front corn row
           switch (edge) {
-            case 'left':   baseX += 0.15 + behindOffset; baseZ += lateralOffset; break;
-            case 'right':  baseX -= 0.15 + behindOffset; baseZ += lateralOffset; break;
-            case 'top':    baseZ += 0.15 + behindOffset; baseX += lateralOffset; break;
-            case 'bottom': baseZ -= 0.15 + behindOffset; baseX += lateralOffset; break;
+            case 'left':   baseX += behindOffset; baseZ += lateralOffset; break;
+            case 'right':  baseX -= behindOffset; baseZ += lateralOffset; break;
+            case 'top':    baseZ += behindOffset; baseX += lateralOffset; break;
+            case 'bottom': baseZ -= behindOffset; baseX += lateralOffset; break;
           }
           
-          // Generate 6-12 leaf planes per cluster (more leaves)
-          const leavesInCluster = 6 + Math.floor(seededRandom(clusterSeed + 3) * 7);
+          // Generate 3-5 leaf planes per cluster (fewer but larger)
+          const leavesInCluster = 3 + Math.floor(seededRandom(clusterSeed + 3) * 3);
           
           for (let leaf = 0; leaf < leavesInCluster; leaf++) {
             const leafSeed = clusterSeed + leaf * 10;
             
-            // Height layers: low (0.2-0.6), mid (0.5-1.2), high (1.0-1.8)
-            const heightLayer = seededRandom(leafSeed) * 3;
-            let height: number;
-            if (heightLayer < 1) {
-              // Low layer
-              height = 0.2 + seededRandom(leafSeed + 20) * 0.4;
-            } else if (heightLayer < 2) {
-              // Mid layer  
-              height = 0.5 + seededRandom(leafSeed + 20) * 0.7;
-            } else {
-              // High layer
-              height = 1.0 + seededRandom(leafSeed + 20) * 0.8;
-            }
+            // Height layers spread across 0.3-1.8m
+            const height = 0.3 + seededRandom(leafSeed) * 1.5;
             
             // Random pitch/roll/yaw: ±30-60 degrees (angled, not vertical)
             const pitchRange = (30 + seededRandom(leafSeed + 1) * 30) * Math.PI / 180;
@@ -701,14 +663,14 @@ export const InstancedWalls = ({
             const pitch = (seededRandom(leafSeed + 4) > 0.5 ? 1 : -1) * pitchRange;
             const roll = (seededRandom(leafSeed + 5) > 0.5 ? 1 : -1) * rollRange;
             
-            // Larger leaves for better coverage
-            const width = 0.18 + seededRandom(leafSeed + 6) * 0.22;
-            const leafHeight = 0.35 + seededRandom(leafSeed + 7) * 0.25;
+            // Larger leaves for better coverage with fewer instances
+            const width = 0.3 + seededRandom(leafSeed + 6) * 0.35;
+            const leafHeight = 0.5 + seededRandom(leafSeed + 7) * 0.4;
             
-            // Tighter position scatter to keep within wall
-            const offsetX = (seededRandom(leafSeed + 8) - 0.5) * 0.12;
-            const offsetZ = (seededRandom(leafSeed + 9) - 0.5) * 0.12;
-            const offsetY = height + seededRandom(leafSeed + 10) * 0.15;
+            // Minimal position scatter
+            const offsetX = (seededRandom(leafSeed + 8) - 0.5) * 0.1;
+            const offsetZ = (seededRandom(leafSeed + 9) - 0.5) * 0.1;
+            const offsetY = height;
             
             dummy.position.set(baseX + offsetX, offsetY, baseZ + offsetZ);
             dummy.rotation.set(pitch, yawRange, roll);
