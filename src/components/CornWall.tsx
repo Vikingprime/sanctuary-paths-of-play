@@ -631,22 +631,25 @@ export const InstancedWalls = ({
         for (let cluster = 0; cluster < leafClusters; cluster++) {
           const clusterSeed = baseSeed + edgeIdx * 1000 + cluster * 100;
           
-          // Skip some clusters to create gaps (10% chance of gap)
-          if (seededRandom(clusterSeed + 50) < 0.1) continue;
+          // Skip some clusters to create gaps (5% chance of gap - almost none)
+          if (seededRandom(clusterSeed + 50) < 0.05) continue;
           
-          // Position 15-35cm behind the corn row (visible through gaps but behind front stalks)
-          const behindOffset = 0.15 + seededRandom(clusterSeed + 1) * 0.2;
-          const lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 0.7; // Wider spread to fill gaps
+          // Two depth layers: front (15-30cm) and back (35-55cm)
+          const depthLayer = seededRandom(clusterSeed + 99) > 0.5 ? 0 : 1;
+          const behindOffset = depthLayer === 0 
+            ? 0.15 + seededRandom(clusterSeed + 1) * 0.15  // Front layer
+            : 0.35 + seededRandom(clusterSeed + 1) * 0.2;  // Back layer
+          const lateralOffset = (seededRandom(clusterSeed + 2) - 0.5) * 0.8; // Wide spread
           
           let baseX = centerX;
           let baseZ = centerZ;
           
           // Position just behind the front corn row
           switch (edge) {
-            case 'left':   baseX += 0.2 + behindOffset; baseZ += lateralOffset; break;
-            case 'right':  baseX -= 0.2 + behindOffset; baseZ += lateralOffset; break;
-            case 'top':    baseZ += 0.2 + behindOffset; baseX += lateralOffset; break;
-            case 'bottom': baseZ -= 0.2 + behindOffset; baseX += lateralOffset; break;
+            case 'left':   baseX += 0.15 + behindOffset; baseZ += lateralOffset; break;
+            case 'right':  baseX -= 0.15 + behindOffset; baseZ += lateralOffset; break;
+            case 'top':    baseZ += 0.15 + behindOffset; baseX += lateralOffset; break;
+            case 'bottom': baseZ -= 0.15 + behindOffset; baseX += lateralOffset; break;
           }
           
           // Generate 6-12 leaf planes per cluster (more leaves)
@@ -677,9 +680,9 @@ export const InstancedWalls = ({
             const pitch = (seededRandom(leafSeed + 4) > 0.5 ? 1 : -1) * pitchRange;
             const roll = (seededRandom(leafSeed + 5) > 0.5 ? 1 : -1) * rollRange;
             
-            // Smaller leaves to stay contained
-            const width = 0.1 + seededRandom(leafSeed + 6) * 0.12;
-            const leafHeight = 0.2 + seededRandom(leafSeed + 7) * 0.15;
+            // Larger leaves for better coverage
+            const width = 0.18 + seededRandom(leafSeed + 6) * 0.22;
+            const leafHeight = 0.35 + seededRandom(leafSeed + 7) * 0.25;
             
             // Tighter position scatter to keep within wall
             const offsetX = (seededRandom(leafSeed + 8) - 0.5) * 0.12;
