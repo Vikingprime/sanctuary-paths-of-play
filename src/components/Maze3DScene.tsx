@@ -851,26 +851,54 @@ const OverShoulderCameraController = ({
   const targetPos = useRef(new Vector3());
   const targetLookAt = useRef(new Vector3());
   
+  // Track if player has moved and camera distance
+  const lastPlayerPos = useRef({ x: 0, z: 0 });
+  const hasPlayerMoved = useRef(false);
+  const currentDistance = useRef(0.4); // Start very close
+  
   // Camera settings - over-the-shoulder view balanced for all animals
-  const CAMERA_DISTANCE = 2.0;
-  const CAMERA_HEIGHT = 2.4;
+  const CAMERA_DISTANCE_START = 0.4;
+  const CAMERA_DISTANCE_NORMAL = 2.0;
+  const CAMERA_HEIGHT_START = 1.2;
+  const CAMERA_HEIGHT_NORMAL = 2.4;
   const LOOK_AHEAD = 1.3;
   const LOOK_HEIGHT = 0.5;
   const POSITION_SMOOTHING = 0.15;
   const ROTATION_SMOOTHING = 0.12;
+  const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
   
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
+    // Check if player has moved
+    if (!hasPlayerMoved.current) {
+      const dx = playerX - lastPlayerPos.current.x;
+      const dz = playerZ - lastPlayerPos.current.z;
+      if (Math.abs(dx) > 0.05 || Math.abs(dz) > 0.05) {
+        hasPlayerMoved.current = true;
+      }
+    }
+    lastPlayerPos.current = { x: playerX, z: playerZ };
+    
+    // Smoothly zoom camera out after player moves
+    if (hasPlayerMoved.current && currentDistance.current < CAMERA_DISTANCE_NORMAL) {
+      currentDistance.current += (CAMERA_DISTANCE_NORMAL - currentDistance.current) * DISTANCE_ZOOM_SPEED;
+    }
+    
+    // Calculate current height based on distance progress
+    const distanceProgress = (currentDistance.current - CAMERA_DISTANCE_START) / (CAMERA_DISTANCE_NORMAL - CAMERA_DISTANCE_START);
+    const currentHeight = CAMERA_HEIGHT_START + distanceProgress * (CAMERA_HEIGHT_NORMAL - CAMERA_HEIGHT_START);
+    
     // Initialize on first frame BEFORE any calculations
     if (!initialized.current) {
       smoothRotation.current = playerRotation;
+      lastPlayerPos.current = { x: playerX, z: playerZ };
       const rot = playerRotation;
-      // Set camera position immediately without interpolation
+      // Set camera position immediately without interpolation (start close)
       currentPosition.current.set(
-        playerX - Math.sin(rot) * CAMERA_DISTANCE,
-        CAMERA_HEIGHT,
-        playerZ + Math.cos(rot) * CAMERA_DISTANCE
+        playerX - Math.sin(rot) * CAMERA_DISTANCE_START,
+        CAMERA_HEIGHT_START,
+        playerZ + Math.cos(rot) * CAMERA_DISTANCE_START
       );
       currentLookAt.current.set(
         playerX + Math.sin(rot) * LOOK_AHEAD,
@@ -893,9 +921,9 @@ const OverShoulderCameraController = ({
     
     // Calculate camera position behind player (reuse vector to avoid GC)
     targetPos.current.set(
-      playerX - Math.sin(rot) * CAMERA_DISTANCE,
-      CAMERA_HEIGHT,
-      playerZ + Math.cos(rot) * CAMERA_DISTANCE
+      playerX - Math.sin(rot) * currentDistance.current,
+      currentHeight,
+      playerZ + Math.cos(rot) * currentDistance.current
     );
     
     // Calculate look target ahead of player (reuse vector to avoid GC)
