@@ -123,7 +123,7 @@ interface InstancedWallsProps {
 // Density settings - staggered rows to close gaps
 const ROWS = 3;
 const STALKS_PER_ROW = 2; // Base count, odd rows get +1
-const STALK_SPACING = 0.4; // Spacing between stalks
+const STALK_SPACING = 0.5; // Increased spacing between stalks to reduce overlap
 
 // Boundary walls - reduced for performance
 const BOUNDARY_ROWS = 2;
