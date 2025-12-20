@@ -593,8 +593,10 @@ const MazeWalls = ({ maze, playerStateRef, optimizationSettings, onCullStats }: 
               edges.push({ x, z: y, edges: cellEdges });
             }
           } else if (cellEdges) {
-            // Interior wall with path-facing edges - ONLY edge stalks, no depth stalks
+            // Interior wall with path-facing edges
             edges.push({ x, z: y, edges: cellEdges });
+            // Also add to depth-only for center fill stalks
+            depthOnly.push({ x, z: y });
           } else {
             // Depth-only wall - not adjacent to any path
             depthOnly.push({ x, z: y });

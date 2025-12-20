@@ -216,22 +216,27 @@ const generateWallTransforms = (
     const centerX = wallPos.x + 0.5;
     const centerZ = wallPos.z + 0.5;
     
-    // Normal spacing for depth stalks (only used on interior walls without path edges)
-    const depthSpacing = STALK_SPACING * 0.8;
+    // Depth stalks fill the CENTER of the cell only (edges have edge stalks at ±0.45)
+    // Keep depth stalks within ±0.2 of center to avoid overlapping with edge stalks
+    const maxSpread = 0.2; // Maximum distance from cell center
     
     for (let row = 0; row < ROWS; row++) {
       // Odd rows get an extra stalk for staggered coverage
       const stalksInRow = STALKS_PER_ROW + (row % 2);
       // Offset odd rows by half spacing to stagger gaps
-      const rowOffset = (row % 2) * (depthSpacing / 2);
+      const rowOffset = (row % 2) * 0.08;
       
       for (let col = 0; col < stalksInRow; col++) {
         const stalkSeed = baseSeed + row * 100 + col;
-        const offsetX = (col - (stalksInRow - 1) / 2) * depthSpacing + rowOffset;
-        const offsetZ = (row - (ROWS - 1) / 2) * depthSpacing;
-        // Natural randomness
-        const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.1;
-        const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.1;
+        // Spread stalks within center zone only
+        const rawOffsetX = (col - (stalksInRow - 1) / 2) * 0.15 + rowOffset;
+        const rawOffsetZ = (row - (ROWS - 1) / 2) * 0.15;
+        // Clamp to center zone
+        const offsetX = Math.max(-maxSpread, Math.min(maxSpread, rawOffsetX));
+        const offsetZ = Math.max(-maxSpread, Math.min(maxSpread, rawOffsetZ));
+        // Natural randomness (small to stay in center)
+        const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.08;
+        const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.08;
         const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
         
         const baseScale = 100;
