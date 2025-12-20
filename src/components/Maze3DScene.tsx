@@ -903,16 +903,19 @@ const OverShoulderCameraController = ({
     if (!initialized.current) {
       smoothRotation.current = playerRotation;
       initialPlayerPos.current = { x: playerX, z: playerZ };
-      // Set camera position immediately - overhead view
+      const rot = playerRotation;
+      // Set camera position immediately - overhead view, slightly behind player
+      // so they can see ahead of themselves
       currentPosition.current.set(
-        playerX,
+        playerX - Math.sin(rot) * 0.5,  // Slightly behind
         CAMERA_HEIGHT_START,
-        playerZ
+        playerZ + Math.cos(rot) * 0.5
       );
+      // Look slightly ahead of player
       currentLookAt.current.set(
-        playerX,
+        playerX + Math.sin(rot) * 0.5,
         LOOK_HEIGHT_START,
-        playerZ
+        playerZ - Math.cos(rot) * 0.5
       );
       initialized.current = true;
     }
