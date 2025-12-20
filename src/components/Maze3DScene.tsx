@@ -657,19 +657,39 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-// Simple low-poly corn stalk (just the stem, no leaves/corn)
+// Simple low-poly corn stalk using the Corn.glb model (stalk only, no leaves/corn)
 const SimpleCornStalk = ({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) => {
-  const stalkHeight = 2.5 * scale;
-  const bottomRadius = 0.04 * scale;
-  const topRadius = 0.02 * scale;
+  const { scene } = useGLTF('/models/Corn.glb');
+  
+  // Clone the scene and hide everything except the stalk
+  const stalkOnly = useMemo(() => {
+    const clone = scene.clone(true);
+    clone.traverse((child: any) => {
+      if (child.isMesh) {
+        const name = child.name.toLowerCase();
+        // Keep only parts that look like stalks, hide leaves and corn
+        const isLeaf = name.includes('leaf') || name.includes('leaves');
+        const isCorn = name.includes('corn') || name.includes('cob') || name.includes('ear');
+        if (isLeaf || isCorn) {
+          child.visible = false;
+        }
+      }
+    });
+    return clone;
+  }, [scene]);
+
+  // Apply the same transforms as the full corn model
+  const baseScale = 100 * scale;
+  const heightMultiplier = 1.8;
+  const widthMultiplier = 0.7;
   
   return (
     <group position={position}>
-      {/* Main stalk - tapered cylinder */}
-      <mesh position={[0, stalkHeight / 2, 0]}>
-        <cylinderGeometry args={[topRadius, bottomRadius, stalkHeight, 6, 1]} />
-        <meshLambertMaterial color="#7a9c4f" />
-      </mesh>
+      <primitive 
+        object={stalkOnly} 
+        scale={[baseScale * widthMultiplier, baseScale * widthMultiplier, baseScale * heightMultiplier]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      />
     </group>
   );
 };
