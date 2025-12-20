@@ -852,9 +852,10 @@ const OverShoulderCameraController = ({
   const targetLookAt = useRef(new Vector3());
   
   // Track if player has moved and camera distance
-  const lastPlayerPos = useRef({ x: 0, z: 0 });
+  const lastPlayerPos = useRef<{ x: number; z: number } | null>(null);
   const hasPlayerMoved = useRef(false);
   const currentDistance = useRef(0.4); // Start very close
+  const framesSinceInit = useRef(0);
   
   // Camera settings - over-the-shoulder view balanced for all animals
   const CAMERA_DISTANCE_START = 0.4;
@@ -866,21 +867,29 @@ const OverShoulderCameraController = ({
   const POSITION_SMOOTHING = 0.15;
   const ROTATION_SMOOTHING = 0.12;
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
+  const FRAMES_BEFORE_MOVEMENT_CHECK = 30; // Wait ~0.5s before checking for movement
   
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
-    // Check if player has moved significantly (intentional movement)
-    if (!hasPlayerMoved.current) {
+    // Initialize lastPlayerPos on first frame
+    if (lastPlayerPos.current === null) {
+      lastPlayerPos.current = { x: playerX, z: playerZ };
+    }
+    
+    // Count frames since initialization
+    if (initialized.current) {
+      framesSinceInit.current++;
+    }
+    
+    // Only check for movement after a delay to avoid initialization drift
+    if (!hasPlayerMoved.current && framesSinceInit.current > FRAMES_BEFORE_MOVEMENT_CHECK) {
       const dx = playerX - lastPlayerPos.current.x;
       const dz = playerZ - lastPlayerPos.current.z;
       // Only trigger on significant movement (player pressed a key)
-      if (Math.abs(dx) > 0.15 || Math.abs(dz) > 0.15) {
+      if (Math.abs(dx) > 0.1 || Math.abs(dz) > 0.1) {
         hasPlayerMoved.current = true;
       }
-    }
-    // Only update last position after initial frame
-    if (initialized.current) {
       lastPlayerPos.current = { x: playerX, z: playerZ };
     }
     
