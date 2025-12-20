@@ -40,13 +40,19 @@ export function useSave() {
   }, [refresh]);
 
   const updateSettings = useCallback(
-    async (settings: Partial<SaveData['settings']>) => {
+    async (newSettings: Partial<SaveData['settings']>) => {
+      // Optimistically update local state for immediate UI feedback
+      setSave(prev => ({
+        ...prev,
+        settings: { ...prev.settings, ...newSettings }
+      }));
+      
+      // Then persist to storage
       const current = await SaveManager.load();
-      current.settings = { ...current.settings, ...settings };
+      current.settings = { ...current.settings, ...newSettings };
       await SaveManager.save(current);
-      await refresh();
     },
-    [refresh]
+    []
   );
 
   return {
