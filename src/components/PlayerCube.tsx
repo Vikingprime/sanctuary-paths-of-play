@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Clone } from '@react-three/drei';
-import { AnimationMixer, LoopRepeat } from 'three';
+import { AnimationMixer, LoopRepeat, LoopOnce } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
 
@@ -23,6 +23,7 @@ interface PlayerCubeProps {
 useGLTF.preload('/models/Pig.glb');
 useGLTF.preload('/models/Cow.glb');
 useGLTF.preload('/models/Hen_walk.glb');
+useGLTF.preload('/models/Hen_idle.glb');
 
 const animalColors: Record<AnimalType, string | string[]> = {
   pig: '#FFB6C1', // Pink (fallback)
@@ -38,7 +39,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
   // Load models
   const { scene: pigScene } = useGLTF('/models/Pig.glb');
   const { scene: cowScene, animations: cowAnimations } = useGLTF('/models/Cow.glb');
-  const { scene: henWalkScene, animations: henAnimations } = useGLTF('/models/Hen_walk.glb');
+  const { scene: henWalkScene, animations: henWalkAnimations } = useGLTF('/models/Hen_walk.glb');
+  const { animations: henIdleAnimations } = useGLTF('/models/Hen_idle.glb');
   
   const clonedPigScene = useMemo(() => {
     const clone = pigScene.clone();
@@ -74,13 +76,20 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
     return clone;
   }, [cowScene]);
   
-// Set up animation mixers
+  // Set up animation mixers and actions
   const cowMixerRef = useRef<AnimationMixer | null>(null);
   const gallopActionRef = useRef<any>(null);
+  const cowIdle1ActionRef = useRef<any>(null);
+  const cowIdle2ActionRef = useRef<any>(null);
+  const cowIdleCountRef = useRef(0);
+  
   const henMixerRef = useRef<AnimationMixer | null>(null);
   const henWalkActionRef = useRef<any>(null);
+  const henIdle1ActionRef = useRef<any>(null);
+  const henIdle2ActionRef = useRef<any>(null);
+  const henIdleCountRef = useRef(0);
   
-useEffect(() => {
+  useEffect(() => {
     // Play chicken sound when bird spawns
     if (animalType === 'bird') {
       playChickenSound();
@@ -101,19 +110,73 @@ useEffect(() => {
         gallopActionRef.current = cowMixerRef.current.clipAction(gallopAnim);
         gallopActionRef.current.setLoop(LoopRepeat, Infinity);
       }
+      
+      // Find idle animations
+      const idle1Anim = cowAnimations.find(a => a.name.toLowerCase() === 'idle1' || a.name.toLowerCase() === 'idle_1');
+      const idle2Anim = cowAnimations.find(a => a.name.toLowerCase() === 'idle2' || a.name.toLowerCase() === 'idle_2');
+      const genericIdle = cowAnimations.find(a => a.name.toLowerCase().includes('idle'));
+      
+      if (idle1Anim) {
+        cowIdle1ActionRef.current = cowMixerRef.current.clipAction(idle1Anim);
+        cowIdle1ActionRef.current.setLoop(LoopRepeat, Infinity);
+      } else if (genericIdle) {
+        cowIdle1ActionRef.current = cowMixerRef.current.clipAction(genericIdle);
+        cowIdle1ActionRef.current.setLoop(LoopRepeat, Infinity);
+      }
+      
+      if (idle2Anim) {
+        cowIdle2ActionRef.current = cowMixerRef.current.clipAction(idle2Anim);
+        cowIdle2ActionRef.current.setLoop(LoopOnce, 1);
+        cowIdle2ActionRef.current.clampWhenFinished = true;
+      }
+      
+      // Start with idle animation
+      if (cowIdle1ActionRef.current) {
+        cowIdle1ActionRef.current.play();
+      }
     }
     
-    // Set up hen walk animation
-    if (animalType === 'bird' && henAnimations.length > 0 && clonedHenScene) {
+    // Set up hen animations
+    if (animalType === 'bird' && clonedHenScene) {
       henMixerRef.current = new AnimationMixer(clonedHenScene);
       
-      const walkAnim = henAnimations.find(a => 
-        a.name.toLowerCase().includes('walk')
-      ) || henAnimations[0];
+      // Walk animation
+      if (henWalkAnimations.length > 0) {
+        const walkAnim = henWalkAnimations.find(a => 
+          a.name.toLowerCase().includes('walk')
+        ) || henWalkAnimations[0];
+        
+        if (walkAnim) {
+          henWalkActionRef.current = henMixerRef.current.clipAction(walkAnim);
+          henWalkActionRef.current.setLoop(LoopRepeat, Infinity);
+        }
+      }
       
-      if (walkAnim) {
-        henWalkActionRef.current = henMixerRef.current.clipAction(walkAnim);
-        henWalkActionRef.current.setLoop(LoopRepeat, Infinity);
+      // Idle animations from Hen_idle.glb
+      if (henIdleAnimations.length > 0) {
+        const idle1Anim = henIdleAnimations.find(a => 
+          a.name.toLowerCase() === 'idle1' || a.name.toLowerCase() === 'idle_1'
+        ) || henIdleAnimations[0];
+        
+        const idle2Anim = henIdleAnimations.find(a => 
+          a.name.toLowerCase() === 'idle2' || a.name.toLowerCase() === 'idle_2'
+        ) || (henIdleAnimations.length > 1 ? henIdleAnimations[1] : null);
+        
+        if (idle1Anim) {
+          henIdle1ActionRef.current = henMixerRef.current.clipAction(idle1Anim);
+          henIdle1ActionRef.current.setLoop(LoopRepeat, Infinity);
+        }
+        
+        if (idle2Anim) {
+          henIdle2ActionRef.current = henMixerRef.current.clipAction(idle2Anim);
+          henIdle2ActionRef.current.setLoop(LoopOnce, 1);
+          henIdle2ActionRef.current.clampWhenFinished = true;
+        }
+      }
+      
+      // Start with idle animation
+      if (henIdle1ActionRef.current) {
+        henIdle1ActionRef.current.play();
       }
     }
     
@@ -125,12 +188,12 @@ useEffect(() => {
         henMixerRef.current.stopAllAction();
       }
     };
-  }, [animalType, cowAnimations, clonedCowScene, henAnimations, clonedHenScene]);
+  }, [animalType, cowAnimations, clonedCowScene, henWalkAnimations, henIdleAnimations, clonedHenScene]);
   
   // Track previous moving state to detect changes
   const wasMovingRef = useRef(false);
 
-// Animation frame update - animations + movement state
+  // Animation frame update - animations + movement state
   useFrame((state, delta) => {
     // Update cow animation mixer
     if (cowMixerRef.current && animalType === 'cow') {
@@ -144,32 +207,95 @@ useEffect(() => {
     
     const isMoving = isMovingRef?.current ?? false;
     
-    // Check movement state from ref each frame (for cow)
-    if (gallopActionRef.current && animalType === 'cow') {
-      // Only trigger animation change when state changes
+    // Cow animation handling
+    if (animalType === 'cow') {
       if (isMoving !== wasMovingRef.current) {
         if (isMoving) {
-          gallopActionRef.current.enabled = true;
-          gallopActionRef.current.setEffectiveTimeScale(1);
-          gallopActionRef.current.setEffectiveWeight(1);
-          gallopActionRef.current.fadeIn(0.2).play();
+          // Fade out idle animations
+          if (cowIdle1ActionRef.current) cowIdle1ActionRef.current.fadeOut(0.2);
+          if (cowIdle2ActionRef.current) cowIdle2ActionRef.current.fadeOut(0.2);
+          
+          // Fade in gallop
+          if (gallopActionRef.current) {
+            gallopActionRef.current.enabled = true;
+            gallopActionRef.current.setEffectiveTimeScale(1);
+            gallopActionRef.current.setEffectiveWeight(1);
+            gallopActionRef.current.fadeIn(0.2).play();
+          }
         } else {
-          gallopActionRef.current.fadeOut(0.3);
+          // Fade out gallop
+          if (gallopActionRef.current) gallopActionRef.current.fadeOut(0.3);
+          
+          // Increment idle count and choose animation
+          cowIdleCountRef.current++;
+          const useIdle2 = cowIdleCountRef.current % 3 === 0 && cowIdle2ActionRef.current;
+          
+          if (useIdle2 && cowIdle2ActionRef.current) {
+            cowIdle2ActionRef.current.reset();
+            cowIdle2ActionRef.current.setEffectiveWeight(1);
+            cowIdle2ActionRef.current.fadeIn(0.3).play();
+            
+            // When idle2 finishes, switch back to idle1
+            const onFinished = () => {
+              if (cowIdle1ActionRef.current && !isMovingRef?.current) {
+                cowIdle1ActionRef.current.reset();
+                cowIdle1ActionRef.current.fadeIn(0.2).play();
+              }
+              cowMixerRef.current?.removeEventListener('finished', onFinished);
+            };
+            cowMixerRef.current?.addEventListener('finished', onFinished);
+          } else if (cowIdle1ActionRef.current) {
+            cowIdle1ActionRef.current.reset();
+            cowIdle1ActionRef.current.setEffectiveWeight(1);
+            cowIdle1ActionRef.current.fadeIn(0.3).play();
+          }
         }
         wasMovingRef.current = isMoving;
       }
     }
     
-    // Check movement state for hen walk animation
-    if (henWalkActionRef.current && animalType === 'bird') {
+    // Hen animation handling
+    if (animalType === 'bird') {
       if (isMoving !== wasMovingRef.current) {
         if (isMoving) {
-          henWalkActionRef.current.enabled = true;
-          henWalkActionRef.current.setEffectiveTimeScale(2.5); // Faster to match movement
-          henWalkActionRef.current.setEffectiveWeight(1);
-          henWalkActionRef.current.fadeIn(0.2).play();
+          // Fade out idle animations
+          if (henIdle1ActionRef.current) henIdle1ActionRef.current.fadeOut(0.2);
+          if (henIdle2ActionRef.current) henIdle2ActionRef.current.fadeOut(0.2);
+          
+          // Fade in walk
+          if (henWalkActionRef.current) {
+            henWalkActionRef.current.enabled = true;
+            henWalkActionRef.current.setEffectiveTimeScale(2.5);
+            henWalkActionRef.current.setEffectiveWeight(1);
+            henWalkActionRef.current.fadeIn(0.2).play();
+          }
         } else {
-          henWalkActionRef.current.fadeOut(0.3);
+          // Fade out walk
+          if (henWalkActionRef.current) henWalkActionRef.current.fadeOut(0.3);
+          
+          // Increment idle count and choose animation
+          henIdleCountRef.current++;
+          const useIdle2 = henIdleCountRef.current % 3 === 0 && henIdle2ActionRef.current;
+          
+          if (useIdle2 && henIdle2ActionRef.current) {
+            henIdle2ActionRef.current.reset();
+            henIdle2ActionRef.current.setEffectiveWeight(1);
+            henIdle2ActionRef.current.fadeIn(0.3).play();
+            
+            // When idle2 finishes, switch back to idle1
+            const onFinished = () => {
+              if (henIdle1ActionRef.current && !isMovingRef?.current) {
+                henIdle1ActionRef.current.reset();
+                henIdle1ActionRef.current.fadeIn(0.2).play();
+              }
+              henMixerRef.current?.removeEventListener('finished', onFinished);
+            };
+            henMixerRef.current?.addEventListener('finished', onFinished);
+          } else if (henIdle1ActionRef.current) {
+            henIdle1ActionRef.current.reset();
+            henIdle1ActionRef.current.setEffectiveWeight(1);
+            henIdle1ActionRef.current.fadeIn(0.3).play();
+          }
         }
         wasMovingRef.current = isMoving;
       }
