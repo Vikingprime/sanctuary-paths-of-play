@@ -165,7 +165,7 @@ useEffect(() => {
       if (isMoving !== wasMovingRef.current) {
         if (isMoving) {
           henWalkActionRef.current.enabled = true;
-          henWalkActionRef.current.setEffectiveTimeScale(1);
+          henWalkActionRef.current.setEffectiveTimeScale(2.5); // Faster to match movement
           henWalkActionRef.current.setEffectiveWeight(1);
           henWalkActionRef.current.fadeIn(0.2).play();
         } else {
