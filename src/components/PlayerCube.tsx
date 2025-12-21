@@ -22,7 +22,6 @@ interface PlayerCubeProps {
 // Preload models
 useGLTF.preload('/models/Pig.glb');
 useGLTF.preload('/models/Cow.glb');
-useGLTF.preload('/models/Hen.glb');
 useGLTF.preload('/models/Hen_walk.glb');
 
 const animalColors: Record<AnimalType, string | string[]> = {
@@ -36,11 +35,10 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
   
-// Load models
+  // Load models
   const { scene: pigScene } = useGLTF('/models/Pig.glb');
   const { scene: cowScene, animations: cowAnimations } = useGLTF('/models/Cow.glb');
-  const { scene: henScene } = useGLTF('/models/Hen.glb');
-  const { animations: henAnimations } = useGLTF('/models/Hen_walk.glb');
+  const { scene: henWalkScene, animations: henAnimations } = useGLTF('/models/Hen_walk.glb');
   
   const clonedPigScene = useMemo(() => {
     const clone = pigScene.clone();
@@ -53,8 +51,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
     return clone;
   }, [pigScene]);
   
-const clonedHenScene = useMemo(() => {
-    const clone = SkeletonUtils.clone(henScene);
+  const clonedHenScene = useMemo(() => {
+    const clone = SkeletonUtils.clone(henWalkScene);
     clone.traverse((child: any) => {
       if (child.isMesh) {
         child.castShadow = true;
@@ -62,7 +60,7 @@ const clonedHenScene = useMemo(() => {
       }
     });
     return clone;
-  }, [henScene]);
+  }, [henWalkScene]);
   
   // Use SkeletonUtils.clone for skinned meshes (cow has bones/skeleton)
   const clonedCowScene = useMemo(() => {
