@@ -89,7 +89,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header totalMeals={save.player.totalMealsUnlocked} score={save.player.totalScore} />
+      <Header totalMeals={save.player.totalMealsUnlocked} stars={save.player.currency} />
 
       <main className="container max-w-4xl mx-auto px-4 py-8">
         {screen === 'home' && (
