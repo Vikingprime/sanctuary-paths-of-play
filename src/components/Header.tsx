@@ -30,7 +30,7 @@ export const Header = ({ totalMeals, stars }: HeaderProps) => {
         <div className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-full">
           <span>⭐</span>
           <span className="font-display font-semibold text-foreground">
-            {stars.toLocaleString()}
+            {(stars ?? 0).toLocaleString()}
           </span>
         </div>
       </div>
