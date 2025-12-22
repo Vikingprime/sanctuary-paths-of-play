@@ -3,7 +3,7 @@ import { Maze, MedalType } from '@/types/game';
 import { SaveData } from '@/types/save';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Lock, Star } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { mazes as allMazes } from '@/data/mazes';
 
 interface LevelSelectProps {
@@ -112,10 +112,6 @@ export const LevelSelect = ({
         <p className="text-muted-foreground">
           Navigate through the cornfield and find the exit!
         </p>
-        <div className="flex items-center justify-center gap-2 mt-2 text-primary">
-          <Star className="w-5 h-5 fill-current" />
-          <span className="font-semibold">{save.player.currency ?? 0} stars</span>
-        </div>
       </div>
 
       <div className="grid gap-4 max-w-md mx-auto">
