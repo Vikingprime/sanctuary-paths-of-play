@@ -84,12 +84,22 @@ class SaveManagerClass {
     await this.save(save);
   }
 
+  // Get currency reward based on medal
+  getCurrencyReward(medal: MedalType): number {
+    switch (medal) {
+      case 'gold': return 50;
+      case 'silver': return 30;
+      case 'bronze': return 10;
+      default: return 5; // Completion reward
+    }
+  }
+
   async completeLevel(
     mazeId: number,
     time: number,
     powerUps: string[],
     maze: Maze
-  ): Promise<MedalType> {
+  ): Promise<{ medal: MedalType; currencyEarned: number }> {
     const save = await this.load();
     const existing = save.levels[mazeId];
     
@@ -101,6 +111,10 @@ class SaveManagerClass {
     const existingMedalRank = medalRank[existing?.medal || null] || 0;
     const newMedalRank = medalRank[medal || null] || 0;
     const bestMedal = newMedalRank > existingMedalRank ? medal : (existing?.medal || null);
+
+    // Calculate currency reward
+    const currencyEarned = this.getCurrencyReward(medal);
+    save.player.currency += currencyEarned;
 
     save.levels[mazeId] = {
       completed: true,
@@ -115,7 +129,7 @@ class SaveManagerClass {
     };
 
     await this.save(save);
-    return medal;
+    return { medal, currencyEarned };
   }
 
   async isLevelCompleted(mazeId: number): Promise<boolean> {

@@ -47,8 +47,8 @@ const Index = () => {
   const handleGameComplete = async (score: number, timeUsed: number) => {
     // Save level completion
     if (selectedMaze) {
-      const medal = await completeLevel(selectedMaze.id, timeUsed, selectedMaze);
-      console.log('Medal earned:', medal);
+      const { medal, currencyEarned } = await completeLevel(selectedMaze.id, timeUsed, selectedMaze);
+      console.log('Medal earned:', medal, 'Currency earned:', currencyEarned);
     }
     
     // Update score
