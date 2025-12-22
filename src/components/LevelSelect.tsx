@@ -3,7 +3,7 @@ import { Maze, MedalType } from '@/types/game';
 import { SaveData } from '@/types/save';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Lock, Coins } from 'lucide-react';
+import { Lock, Star } from 'lucide-react';
 import { mazes as allMazes } from '@/data/mazes';
 
 interface LevelSelectProps {
@@ -81,7 +81,7 @@ export const LevelSelect = ({
 
   const getUnlockRequirements = (maze: Maze): string => {
     if (maze.currencyCost) {
-      return `Requires ${maze.currencyCost} coins`;
+      return `Requires ${maze.currencyCost} ⭐`;
     }
     if (maze.unlockConditions && maze.unlockConditions.length > 0) {
       return maze.unlockConditions
@@ -113,8 +113,8 @@ export const LevelSelect = ({
           Navigate through the cornfield and find the exit!
         </p>
         <div className="flex items-center justify-center gap-2 mt-2 text-primary">
-          <Coins className="w-5 h-5" />
-          <span className="font-semibold">{save.player.currency} coins</span>
+          <Star className="w-5 h-5 fill-current" />
+          <span className="font-semibold">{save.player.currency ?? 0} stars</span>
         </div>
       </div>
 
