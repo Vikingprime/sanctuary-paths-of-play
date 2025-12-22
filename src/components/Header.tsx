@@ -2,10 +2,10 @@ import { Button } from '@/components/ui/button';
 
 interface HeaderProps {
   totalMeals: number;
-  score: number;
+  stars: number;
 }
 
-export const Header = ({ totalMeals, score }: HeaderProps) => {
+export const Header = ({ totalMeals, stars }: HeaderProps) => {
   return (
     <header className="w-full py-4 px-6 flex items-center justify-between bg-card/80 backdrop-blur-sm border-b border-border">
       <div className="flex items-center gap-3">
@@ -30,7 +30,7 @@ export const Header = ({ totalMeals, score }: HeaderProps) => {
         <div className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-full">
           <span>⭐</span>
           <span className="font-display font-semibold text-foreground">
-            {score.toLocaleString()}
+            {stars.toLocaleString()}
           </span>
         </div>
       </div>
