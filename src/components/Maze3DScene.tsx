@@ -778,7 +778,7 @@ const RefBasedPlayer = ({
       
       // Calculate movement with clamped delta (smooth per-frame updates)
       const prev = playerStateRef.current;
-      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks);
+      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType);
       playerStateRef.current = newState;
       
       // Only check interactions when entering a new cell

@@ -199,11 +199,17 @@ export function calculateMovement(
   input: MovementInput,
   deltaTime: number,
   speedBoostActive: boolean,
-  rocks: RockPosition[] = []
+  rocks: RockPosition[] = [],
+  animalType?: AnimalType
 ): PlayerState {
   const moveSpeed = speedBoostActive
     ? GameConfig.BOOSTED_MOVE_SPEED
     : GameConfig.BASE_MOVE_SPEED;
+
+  // Use animal-specific rotation speed
+  const rotationSpeed = animalType === 'bird' 
+    ? GameConfig.ROTATION_SPEED_BIRD 
+    : GameConfig.ROTATION_SPEED;
 
   // Calculate rotation - use intensity for proportional control (mobile)
   // or full speed for keyboard input
@@ -215,10 +221,10 @@ export function calculateMovement(
   const rotationMultiplier = baseMultiplier * intensity;
   
   if (input.rotateLeft) {
-    newRotation -= GameConfig.ROTATION_SPEED * rotationMultiplier * deltaTime;
+    newRotation -= rotationSpeed * rotationMultiplier * deltaTime;
   }
   if (input.rotateRight) {
-    newRotation += GameConfig.ROTATION_SPEED * rotationMultiplier * deltaTime;
+    newRotation += rotationSpeed * rotationMultiplier * deltaTime;
   }
   // Normalize rotation to prevent accumulation of large values
   newRotation = ((newRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
