@@ -473,7 +473,7 @@ export const InstancedWalls = ({
       cheapVisible: cheapCount,
       cheapTotal: cheapTransformsRef.current.length,
     };
-    console.log('[CullStats]', stats);
+    // console.log('[CullStats]', stats); // Disabled for cleaner console
     onCullStats?.(stats);
   });
   
