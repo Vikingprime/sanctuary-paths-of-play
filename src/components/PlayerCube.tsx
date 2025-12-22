@@ -111,30 +111,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
         gallopActionRef.current.setLoop(LoopRepeat, Infinity);
       }
       
-      // Find idle animations (exclude "hit" animations)
-      const isValidIdle = (name: string) => {
-        const lower = name.toLowerCase();
-        return lower.includes('idle') && !lower.includes('hit');
-      };
-      
-      const idle1Anim = cowAnimations.find(a => {
-        const lower = a.name.toLowerCase();
-        return (lower === 'idle1' || lower === 'idle_1' || lower === 'idle') && !lower.includes('hit');
-      });
-      const idle2Anim = cowAnimations.find(a => {
-        const lower = a.name.toLowerCase();
-        return (lower === 'idle2' || lower === 'idle_2') && !lower.includes('hit');
-      });
-      const genericIdle = cowAnimations.find(a => isValidIdle(a.name));
-      
-      // Log available animations for debugging
-      console.log('Cow animations:', cowAnimations.map(a => a.name));
+      // Find specific idle animations: 'Idle' and 'Idle_2' only
+      const idle1Anim = cowAnimations.find(a => a.name === 'Idle');
+      const idle2Anim = cowAnimations.find(a => a.name === 'Idle_2');
       
       if (idle1Anim) {
         cowIdle1ActionRef.current = cowMixerRef.current.clipAction(idle1Anim);
-        cowIdle1ActionRef.current.setLoop(LoopRepeat, Infinity);
-      } else if (genericIdle) {
-        cowIdle1ActionRef.current = cowMixerRef.current.clipAction(genericIdle);
         cowIdle1ActionRef.current.setLoop(LoopRepeat, Infinity);
       }
       
