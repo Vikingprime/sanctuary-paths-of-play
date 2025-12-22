@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { SaveManager } from '@/services/SaveManager';
 import { SaveData, DEFAULT_SAVE } from '@/types/save';
+import { Maze, MedalType } from '@/types/game';
 
 export function useSave() {
   const [save, setSave] = useState<SaveData>(DEFAULT_SAVE);
@@ -19,9 +20,10 @@ export function useSave() {
   }, []);
 
   const completeLevel = useCallback(
-    async (mazeId: number, time: number, powerUps: string[] = []) => {
-      await SaveManager.completeLevel(mazeId, time, powerUps);
+    async (mazeId: number, time: number, maze: Maze, powerUps: string[] = []): Promise<MedalType> => {
+      const medal = await SaveManager.completeLevel(mazeId, time, powerUps, maze);
       await refresh();
+      return medal;
     },
     [refresh]
   );
@@ -38,6 +40,30 @@ export function useSave() {
     await SaveManager.unlockMeal();
     await refresh();
   }, [refresh]);
+
+  const addCurrency = useCallback(
+    async (amount: number) => {
+      await SaveManager.addCurrency(amount);
+      await refresh();
+    },
+    [refresh]
+  );
+
+  const isMazeUnlocked = useCallback(
+    async (maze: Maze): Promise<boolean> => {
+      return SaveManager.isMazeUnlocked(maze, save.settings.debugMode);
+    },
+    [save.settings.debugMode]
+  );
+
+  const unlockMazeWithCurrency = useCallback(
+    async (maze: Maze): Promise<boolean> => {
+      const success = await SaveManager.unlockMazeWithCurrency(maze);
+      if (success) await refresh();
+      return success;
+    },
+    [refresh]
+  );
 
   const updateSettings = useCallback(
     async (newSettings: Partial<SaveData['settings']>) => {
@@ -62,6 +88,9 @@ export function useSave() {
     completeLevel,
     addScore,
     unlockMeal,
+    addCurrency,
+    isMazeUnlocked,
+    unlockMazeWithCurrency,
     updateSettings,
     reset: SaveManager.reset.bind(SaveManager),
   };
