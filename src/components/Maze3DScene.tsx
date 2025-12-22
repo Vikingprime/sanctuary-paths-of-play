@@ -857,7 +857,7 @@ const OverShoulderCameraController = ({
   const currentDistance = useRef(0.4); // Start very close
   
   // Camera settings - over-the-shoulder view balanced for all animals
-  const CAMERA_DISTANCE_START = 1.2;
+  const CAMERA_DISTANCE_START = 1.5;
   const CAMERA_DISTANCE_NORMAL = 2.0;
   const CAMERA_HEIGHT_START = 1.8;
   const CAMERA_HEIGHT_NORMAL = 2.4;
