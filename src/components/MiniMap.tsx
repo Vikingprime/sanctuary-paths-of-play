@@ -6,9 +6,10 @@ interface MiniMapProps {
   playerPos: { x: number; y: number };
   isVisible: boolean;
   onClose: () => void;
+  timeLeft?: number | null;
 }
 
-export const MiniMap = ({ maze, playerPos, isVisible, onClose }: MiniMapProps) => {
+export const MiniMap = ({ maze, playerPos, isVisible, onClose, timeLeft }: MiniMapProps) => {
   if (!isVisible) return null;
 
   const cellSize = Math.min(20, Math.floor(280 / maze.grid[0].length));
@@ -21,7 +22,10 @@ export const MiniMap = ({ maze, playerPos, isVisible, onClose }: MiniMapProps) =
             📍 Map Station
           </h3>
           <p className="text-sm text-muted-foreground">
-            You found a map! Study it quickly!
+            {timeLeft !== null && timeLeft !== undefined 
+              ? `Study it quickly! ${timeLeft}s remaining`
+              : 'You found a map! Study it quickly!'
+            }
           </p>
         </div>
 
