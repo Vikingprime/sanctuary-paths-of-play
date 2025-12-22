@@ -330,7 +330,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
   return (
     <group position={position}>
       <group ref={innerGroupRef}>
-        <primitive object={clonedHenScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.25, 0]} />
+        <primitive object={clonedHenScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.32, 0]} />
       </group>
     </group>
   );
