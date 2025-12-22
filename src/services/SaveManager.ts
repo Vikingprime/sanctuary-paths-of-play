@@ -136,7 +136,7 @@ class SaveManagerClass {
     
     // Check if it's a currency-locked maze
     if (maze.currencyCost) {
-      return save.unlockedMazes.includes(maze.id);
+      return (save.unlockedMazes || []).includes(maze.id);
     }
     
     // Check unlock conditions
