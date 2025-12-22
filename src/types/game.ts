@@ -26,6 +26,19 @@ export interface MazeCell {
   brand?: string;
 }
 
+export type MedalType = 'bronze' | 'silver' | 'gold' | null;
+
+export interface MedalTimes {
+  gold: number;    // seconds - only achievable on first completion
+  silver: number;  // seconds
+  bronze: number;  // seconds
+}
+
+export interface UnlockCondition {
+  mazeId: number;
+  requiredMedal: 'bronze' | 'silver'; // gold never required
+}
+
 export interface Maze {
   id: number;
   name: string;
@@ -33,6 +46,9 @@ export interface Maze {
   grid: MazeCell[][];
   timeLimit: number;
   previewTime: number;
+  medalTimes: MedalTimes;
+  unlockConditions?: UnlockCondition[]; // undefined = always unlocked
+  currencyCost?: number; // optional currency cost to unlock special mazes
 }
 
 export interface GameState {

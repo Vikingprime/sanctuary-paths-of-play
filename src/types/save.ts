@@ -1,3 +1,5 @@
+import { MedalType } from './game';
+
 // Save schema v1 - Unity must use same structure
 export interface SaveDataV1 {
   version: 1;
@@ -9,6 +11,7 @@ export interface SaveDataV1 {
     totalMealsUnlocked: number;
     unlockedAnimals: string[]; // Animal IDs
     currentAnimal: string | null;
+    currency: number; // for unlocking special mazes
   };
   
   // Level progress - keyed by maze ID for fast lookup
@@ -16,13 +19,17 @@ export interface SaveDataV1 {
     [mazeId: number]: {
       completed: boolean;
       bestTime: number | null; // seconds
-      stars: number; // 0-3
+      medal: MedalType; // best medal earned
+      firstCompletion: boolean; // tracks if gold is still achievable
       powerUpsCollected: string[];
     };
   };
   
   // Achievements/unlocks for future expansion
   achievements: string[];
+  
+  // Unlocked special mazes (paid with currency)
+  unlockedMazes: number[];
   
   // Settings
   settings: {
@@ -44,9 +51,11 @@ export const DEFAULT_SAVE: SaveData = {
     totalMealsUnlocked: 0,
     unlockedAnimals: ['pig', 'cow', 'bird'],
     currentAnimal: null,
+    currency: 0,
   },
   levels: {},
   achievements: [],
+  unlockedMazes: [],
   settings: {
     musicVolume: 0.7,
     sfxVolume: 1.0,

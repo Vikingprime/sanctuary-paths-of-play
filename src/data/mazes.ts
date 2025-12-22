@@ -24,6 +24,12 @@ export const mazes: Maze[] = [
     difficulty: 'easy',
     timeLimit: 30,
     previewTime: 5,
+    medalTimes: {
+      gold: 15,
+      silver: 20,
+      bronze: 25,
+    },
+    // No unlock conditions - always available
     grid: createGrid([
       '################',
       '################',
@@ -49,6 +55,14 @@ export const mazes: Maze[] = [
     difficulty: 'medium',
     timeLimit: 45,
     previewTime: 6,
+    medalTimes: {
+      gold: 25,
+      silver: 32,
+      bronze: 40,
+    },
+    unlockConditions: [
+      { mazeId: 1, requiredMedal: 'bronze' },
+    ],
     grid: createGrid([
       '##################',
       '##################',
@@ -73,6 +87,14 @@ export const mazes: Maze[] = [
     difficulty: 'hard',
     timeLimit: 90,
     previewTime: 8,
+    medalTimes: {
+      gold: 50,
+      silver: 65,
+      bronze: 80,
+    },
+    unlockConditions: [
+      { mazeId: 2, requiredMedal: 'silver' },
+    ],
     grid: createGrid([
       '##############################',
       '##############################',
@@ -120,6 +142,12 @@ export const mazes: Maze[] = [
     difficulty: 'easy',
     timeLimit: 60,
     previewTime: 5,
+    medalTimes: {
+      gold: 30,
+      silver: 40,
+      bronze: 50,
+    },
+    currencyCost: 100, // Special maze - costs currency to unlock
     grid: createGrid([
       '################',
       '##############P#',

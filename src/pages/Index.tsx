@@ -16,7 +16,7 @@ import { Volume2, VolumeX } from 'lucide-react';
 type GameScreen = 'home' | 'levels' | 'playing';
 
 const Index = () => {
-  const { save, loading, completeLevel, addScore, unlockMeal, updateSettings } = useSave();
+  const { save, loading, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
   const [screen, setScreen] = useState<GameScreen>('home');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
@@ -47,7 +47,8 @@ const Index = () => {
   const handleGameComplete = async (score: number, timeUsed: number) => {
     // Save level completion
     if (selectedMaze) {
-      await completeLevel(selectedMaze.id, timeUsed);
+      const medal = await completeLevel(selectedMaze.id, timeUsed, selectedMaze);
+      console.log('Medal earned:', medal);
     }
     
     // Update score
@@ -222,6 +223,9 @@ const Index = () => {
             mazes={mazes}
             onSelect={handleLevelSelect}
             onBack={handleBackToHome}
+            save={save}
+            isMazeUnlocked={isMazeUnlocked}
+            unlockMazeWithCurrency={unlockMazeWithCurrency}
           />
         )}
       </main>

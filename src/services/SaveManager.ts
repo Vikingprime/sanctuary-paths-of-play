@@ -1,5 +1,6 @@
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { SaveData, DEFAULT_SAVE, SaveDataV1 } from '@/types/save';
+import { MedalType, Maze } from '@/types/game';
 
 // File path - Unity reads this same file from Documents directory
 const SAVE_FILENAME = 'sanctuary_run_save.json';
@@ -68,6 +69,14 @@ class SaveManagerClass {
     return data as SaveDataV1;
   }
 
+  // Calculate medal based on time and maze settings
+  calculateMedal(time: number, maze: Maze, isFirstCompletion: boolean): MedalType {
+    if (isFirstCompletion && time <= maze.medalTimes.gold) return 'gold';
+    if (time <= maze.medalTimes.silver) return 'silver';
+    if (time <= maze.medalTimes.bronze) return 'bronze';
+    return null;
+  }
+
   // Convenience methods
   async updatePlayer(updates: Partial<SaveData['player']>): Promise<void> {
     const save = await this.load();
@@ -78,33 +87,96 @@ class SaveManagerClass {
   async completeLevel(
     mazeId: number,
     time: number,
-    powerUps: string[]
-  ): Promise<void> {
+    powerUps: string[],
+    maze: Maze
+  ): Promise<MedalType> {
     const save = await this.load();
     const existing = save.levels[mazeId];
     
-    // Calculate stars based on time (customize thresholds per level later)
-    const stars = time < 30 ? 3 : time < 60 ? 2 : 1;
+    const isFirstCompletion = !existing?.completed;
+    const medal = this.calculateMedal(time, maze, isFirstCompletion);
+    
+    // Determine best medal (gold > silver > bronze > null)
+    const medalRank = { gold: 3, silver: 2, bronze: 1, null: 0 };
+    const existingMedalRank = medalRank[existing?.medal || null] || 0;
+    const newMedalRank = medalRank[medal || null] || 0;
+    const bestMedal = newMedalRank > existingMedalRank ? medal : (existing?.medal || null);
 
     save.levels[mazeId] = {
       completed: true,
       bestTime: existing?.bestTime 
         ? Math.min(existing.bestTime, time) 
         : time,
-      stars: existing?.stars 
-        ? Math.max(existing.stars, stars) 
-        : stars,
+      medal: bestMedal,
+      firstCompletion: false, // Mark that first completion is used
       powerUpsCollected: [
         ...new Set([...(existing?.powerUpsCollected || []), ...powerUps]),
       ],
     };
 
     await this.save(save);
+    return medal;
   }
 
   async isLevelCompleted(mazeId: number): Promise<boolean> {
     const save = await this.load();
     return save.levels[mazeId]?.completed ?? false;
+  }
+
+  async getLevelMedal(mazeId: number): Promise<MedalType> {
+    const save = await this.load();
+    return save.levels[mazeId]?.medal ?? null;
+  }
+
+  // Check if a maze is unlocked based on conditions
+  async isMazeUnlocked(maze: Maze, debugMode: boolean = false): Promise<boolean> {
+    if (debugMode) return true;
+    
+    const save = await this.load();
+    
+    // Check if it's a currency-locked maze
+    if (maze.currencyCost) {
+      return save.unlockedMazes.includes(maze.id);
+    }
+    
+    // Check unlock conditions
+    if (!maze.unlockConditions || maze.unlockConditions.length === 0) {
+      return true; // No conditions = always unlocked
+    }
+    
+    const medalRank = { gold: 3, silver: 2, bronze: 1 };
+    
+    for (const condition of maze.unlockConditions) {
+      const levelData = save.levels[condition.mazeId];
+      if (!levelData?.completed) return false;
+      
+      const requiredRank = medalRank[condition.requiredMedal];
+      const earnedRank = medalRank[levelData.medal as keyof typeof medalRank] || 0;
+      
+      if (earnedRank < requiredRank) return false;
+    }
+    
+    return true;
+  }
+
+  // Unlock a special maze with currency
+  async unlockMazeWithCurrency(maze: Maze): Promise<boolean> {
+    if (!maze.currencyCost) return true;
+    
+    const save = await this.load();
+    
+    if (save.player.currency < maze.currencyCost) return false;
+    
+    save.player.currency -= maze.currencyCost;
+    save.unlockedMazes.push(maze.id);
+    await this.save(save);
+    return true;
+  }
+
+  async addCurrency(amount: number): Promise<void> {
+    const save = await this.load();
+    save.player.currency += amount;
+    await this.save(save);
   }
 
   async addScore(points: number): Promise<void> {
@@ -118,7 +190,6 @@ class SaveManagerClass {
     save.player.totalMealsUnlocked += 1;
     await this.save(save);
   }
-
   async reset(): Promise<void> {
     this.cache = { ...DEFAULT_SAVE };
     await this.save(this.cache);
