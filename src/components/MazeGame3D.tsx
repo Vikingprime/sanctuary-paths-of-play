@@ -79,6 +79,20 @@ export const MazeGame3D = ({
   const rotationIntensityRef = useRef(0);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
 
+  // Find all station positions in the maze
+  const stationPositions = useRef<Array<{ x: number; y: number }>>([]);
+  useEffect(() => {
+    const positions: Array<{ x: number; y: number }> = [];
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell.isStation) {
+          positions.push({ x: x + 0.5, y: y + 0.5 }); // Center of cell
+        }
+      });
+    });
+    stationPositions.current = positions;
+  }, [maze]);
+
   // Background music
   useEffect(() => {
     const music = new Audio('/sounds/background-music.mp3');
@@ -158,9 +172,7 @@ export const MazeGame3D = ({
         setTimeout(() => setSpeedBoostActive(false), GameConfig.SPEED_BOOST_DURATION * 1000);
       }
 
-      if (result.triggerStation) {
-        setMapStationAvailable(true);
-      }
+      // Station triggering is now handled by proximity check, not cell interaction
 
       if (result.reachedEnd) {
         setHasWon(true);
@@ -218,6 +230,36 @@ export const MazeGame3D = ({
 
     return () => clearInterval(timer);
   }, [mapViewTimeLeft]);
+
+  // Proximity check for map stations (runs continuously)
+  useEffect(() => {
+    if (isPreviewing || gameOver || showMiniMap || showMapOptions || mapCountdown !== null) return;
+    
+    const checkProximity = () => {
+      const playerX = playerStateRef.current.x;
+      const playerY = playerStateRef.current.y;
+      const STATION_RADIUS = 1.0; // 1 meter radius
+      
+      let nearStation = false;
+      for (const station of stationPositions.current) {
+        const dx = playerX - station.x;
+        const dy = playerY - station.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= STATION_RADIUS) {
+          nearStation = true;
+          break;
+        }
+      }
+      
+      setMapStationAvailable(nearStation);
+    };
+    
+    // Check every 100ms for smooth response
+    const interval = setInterval(checkProximity, 100);
+    checkProximity(); // Initial check
+    
+    return () => clearInterval(interval);
+  }, [isPreviewing, gameOver, showMiniMap, showMapOptions, mapCountdown]);
 
   // Keyboard controls
   useEffect(() => {
