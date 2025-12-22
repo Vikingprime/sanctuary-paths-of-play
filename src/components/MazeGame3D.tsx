@@ -58,6 +58,10 @@ export const MazeGame3D = ({
   const [isPreviewing, setIsPreviewing] = useState(!debugMode);
   const [sceneReady, setSceneReady] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
+  const [mapStationAvailable, setMapStationAvailable] = useState(false);
+  const [showMapOptions, setShowMapOptions] = useState(false);
+  const [mapCountdown, setMapCountdown] = useState<number | null>(null);
+  const [mapViewTimeLeft, setMapViewTimeLeft] = useState<number | null>(null);
   const [gameOver, setGameOver] = useState(false);
   const [hasWon, setHasWon] = useState(false);
   const [abilityUsed, setAbilityUsed] = useState(false);
@@ -155,7 +159,7 @@ export const MazeGame3D = ({
       }
 
       if (result.triggerStation) {
-        setShowMiniMap(true);
+        setMapStationAvailable(true);
       }
 
       if (result.reachedEnd) {
@@ -175,6 +179,45 @@ export const MazeGame3D = ({
   useEffect(() => {
     keysPressed.current.clear();
   }, [isPreviewing, showMiniMap]);
+
+  // Map countdown timer (before viewing map)
+  useEffect(() => {
+    if (mapCountdown === null || mapCountdown <= 0) return;
+    
+    const timer = setInterval(() => {
+      setMapCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timer);
+          // Start showing the map for 10 seconds
+          setShowMiniMap(true);
+          setMapViewTimeLeft(10);
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [mapCountdown]);
+
+  // Map view timer (auto-close after 10 seconds)
+  useEffect(() => {
+    if (mapViewTimeLeft === null || mapViewTimeLeft <= 0) return;
+    
+    const timer = setInterval(() => {
+      setMapViewTimeLeft((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timer);
+          setShowMiniMap(false);
+          setMapStationAvailable(false);
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [mapViewTimeLeft]);
 
   // Keyboard controls
   useEffect(() => {
@@ -237,9 +280,20 @@ export const MazeGame3D = ({
       }
 
       if (result.showMap) {
-        setShowMiniMap(true);
+        setMapStationAvailable(true);
       }
     }
+  };
+
+  // Handle map station button click
+  const handleMapStationClick = () => {
+    setShowMapOptions(true);
+  };
+
+  // Handle countdown option selection
+  const handleStartCountdown = () => {
+    setShowMapOptions(false);
+    setMapCountdown(10);
   };
 
   const animal = animals.find((a) => a.id === animalType)!;
@@ -297,7 +351,7 @@ export const MazeGame3D = ({
         rotationIntensityRef={rotationIntensityRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
-        isPaused={showMiniMap || isPreviewing}
+        isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null}
         onSceneReady={() => setSceneReady(true)}
         lowPixelRatio={lowPixelRatio}
         onRendererInfo={setRendererInfo}
@@ -356,12 +410,78 @@ export const MazeGame3D = ({
       {/* Mobile Controls */}
       <MobileControls onMoveStart={handleMobileStart} onMoveEnd={handleMobileEnd} rotationIntensityRef={rotationIntensityRef} />
 
+      {/* Map Station Button - appears when station is available but not viewing */}
+      {mapStationAvailable && !showMiniMap && !showMapOptions && mapCountdown === null && (
+        <button
+          onClick={handleMapStationClick}
+          className="fixed right-4 top-1/2 -translate-y-1/2 z-40 bg-primary text-primary-foreground px-4 py-3 rounded-l-xl shadow-lg animate-pulse hover:animate-none hover:bg-primary/90 transition-colors font-display font-semibold flex items-center gap-2"
+        >
+          <span className="text-xl">🗺️</span>
+          <span className="hidden sm:inline">View Map</span>
+        </button>
+      )}
+
+      {/* Map Options Modal */}
+      {showMapOptions && (
+        <div className="fixed inset-0 z-50 bg-foreground/80 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-card rounded-2xl p-6 shadow-warm-lg max-w-sm w-full">
+            <div className="text-center mb-6">
+              <h3 className="font-display text-2xl font-bold text-foreground mb-2">
+                🗺️ Map Station
+              </h3>
+              <p className="text-muted-foreground">
+                Choose how to unlock the map
+              </p>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={handleStartCountdown}
+                className="w-full bg-primary text-primary-foreground py-3 px-4 rounded-xl font-display font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+              >
+                <span>⏱️</span>
+                <span>10s Countdown</span>
+              </button>
+              <button
+                onClick={handleStartCountdown}
+                className="w-full bg-secondary text-secondary-foreground py-3 px-4 rounded-xl font-display font-semibold hover:bg-secondary/90 transition-colors flex items-center justify-center gap-2"
+              >
+                <span>📺</span>
+                <span>Watch 10s Ad</span>
+              </button>
+              <button
+                onClick={() => setShowMapOptions(false)}
+                className="w-full text-muted-foreground py-2 hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Map Countdown Overlay */}
+      {mapCountdown !== null && (
+        <div className="fixed inset-0 z-50 bg-foreground/80 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-card rounded-2xl p-8 shadow-warm-lg text-center">
+            <p className="text-muted-foreground mb-2">Map unlocking in...</p>
+            <div className="text-7xl font-display font-bold text-primary animate-pulse">
+              {mapCountdown}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mini Map Overlay */}
       <MiniMap
         maze={maze}
         playerPos={{ x: Math.floor(playerStateRef.current.x), y: Math.floor(playerStateRef.current.y) }}
         isVisible={showMiniMap}
-        onClose={() => setShowMiniMap(false)}
+        onClose={() => {
+          setShowMiniMap(false);
+          setMapStationAvailable(false);
+          setMapViewTimeLeft(null);
+        }}
+        timeLeft={mapViewTimeLeft}
       />
     </div>
   );
