@@ -64,8 +64,13 @@ class SaveManagerClass {
 
   // Migrate old save versions to current
   private migrate(data: SaveData): SaveData {
-    // Currently on v1, add migration logic here for future versions
-    // Example: if (data.version === 1) { return migrateV1toV2(data); }
+    // Ensure all required fields exist (for old saves missing new fields)
+    if (data.player.currency === undefined) {
+      data.player.currency = 0;
+    }
+    if (!data.unlockedMazes) {
+      data.unlockedMazes = [];
+    }
     return data as SaveDataV1;
   }
 
