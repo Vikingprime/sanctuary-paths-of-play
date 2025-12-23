@@ -21,11 +21,13 @@ export function useSave() {
 
   const completeLevel = useCallback(
     async (mazeId: number, time: number, maze: Maze, powerUps: string[] = []): Promise<{ medal: MedalType; currencyEarned: number }> => {
-      const result = await SaveManager.completeLevel(mazeId, time, powerUps, maze);
-      await refresh();
+      const result = await SaveManager.completeLevel(mazeId, time, powerUps, maze, save.settings.debugMode);
+      if (!save.settings.debugMode) {
+        await refresh();
+      }
       return result;
     },
-    [refresh]
+    [refresh, save.settings.debugMode]
   );
 
   const addScore = useCallback(

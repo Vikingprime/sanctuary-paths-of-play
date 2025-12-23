@@ -103,7 +103,8 @@ class SaveManagerClass {
     mazeId: number,
     time: number,
     powerUps: string[],
-    maze: Maze
+    maze: Maze,
+    debugMode: boolean = false
   ): Promise<{ medal: MedalType; currencyEarned: number }> {
     const save = await this.load();
     const existing = save.levels[mazeId];
@@ -120,6 +121,12 @@ class SaveManagerClass {
     // Calculate currency reward
     const currencyEarned = this.getCurrencyReward(medal);
     save.player.currency += currencyEarned;
+
+    // In debug mode, don't save times or medals (but still track completion for testing)
+    if (debugMode) {
+      // Don't modify save data in debug mode
+      return { medal, currencyEarned: 0 };
+    }
 
     // Only consider existing best time if it's a valid positive number
     const existingBestTime = existing?.bestTime != null && existing.bestTime > 0 
