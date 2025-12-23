@@ -839,6 +839,7 @@ const RefBasedPlayer = ({
         position={[0, 0, 0]}
         rotation={0}
         isMovingRef={isMovingRef}
+        enableSound={!isPaused}
       />
     </group>
   );
@@ -981,7 +982,10 @@ const OverShoulderCameraController = ({
 useGLTF.preload('/models/Farmer.glb');
 
 // Dialogue speaker (Farmer) - appears at dialogue position during cutscene
-const DialogueSpeaker = ({ position }: { position: { x: number; z: number } }) => {
+const DialogueSpeaker = ({ position, playerStateRef }: { 
+  position: { x: number; z: number };
+  playerStateRef: MutableRefObject<PlayerState>;
+}) => {
   const { scene: farmerScene } = useGLTF('/models/Farmer.glb');
   const groupRef = useRef<Group>(null);
   
@@ -996,10 +1000,27 @@ const DialogueSpeaker = ({ position }: { position: { x: number; z: number } }) =
     return clone;
   }, [farmerScene]);
   
-  // Position farmer at cell center, facing the general direction player came from
+  // Make farmer face the player
+  useFrame(() => {
+    if (!groupRef.current) return;
+    
+    const farmerX = position.x + 0.5;
+    const farmerZ = position.z + 0.5;
+    const playerX = playerStateRef.current.x;
+    const playerZ = playerStateRef.current.y;
+    
+    // Calculate angle to face player
+    const dx = playerX - farmerX;
+    const dz = playerZ - farmerZ;
+    const angle = Math.atan2(dx, dz);
+    
+    groupRef.current.rotation.y = angle;
+  });
+  
+  // Position farmer at cell center
   return (
     <group ref={groupRef} position={[position.x + 0.5, 0, position.z + 0.5]}>
-      <primitive object={clonedFarmer} scale={0.5} rotation={[0, Math.PI, 0]} />
+      <primitive object={clonedFarmer} scale={0.5} />
     </group>
   );
 };
@@ -1020,15 +1041,13 @@ const CutsceneCameraController = ({
   const targetPos = useRef(new Vector3());
   const targetLookAt = useRef(new Vector3());
   
-  const CAMERA_HEIGHT = 1.4; // Eye level
-  const CAMERA_DISTANCE = 1.2; // Distance behind player
-  const LOOK_HEIGHT = 1.2; // Look at farmer's face
-  const SMOOTHING = 0.1; // Smooth transition
+  const CAMERA_HEIGHT = 1.8; // Slightly above eye level for better view
+  const LOOK_HEIGHT = 1.0; // Look at farmer's body/face
+  const SMOOTHING = 0.12; // Smooth transition
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
     const playerZ = playerStateRef.current.y;
-    const playerRot = playerStateRef.current.rotation;
     const speakerX = dialogueTarget.speakerX + 0.5; // Center of cell
     const speakerZ = dialogueTarget.speakerZ + 0.5;
     
@@ -1039,12 +1058,12 @@ const CutsceneCameraController = ({
     const dirX = dist > 0.01 ? dx / dist : 0;
     const dirZ = dist > 0.01 ? dz / dist : -1;
     
-    // Camera position: slightly behind and above player, looking toward speaker
-    // This gives the player's POV of looking at the farmer
+    // Camera position: at player position but slightly elevated and forward toward farmer
+    // This places the camera where the player is looking toward the farmer
     targetPos.current.set(
-      playerX - dirX * CAMERA_DISTANCE,
+      playerX + dirX * 0.3, // Slightly forward toward farmer
       CAMERA_HEIGHT,
-      playerZ - dirZ * CAMERA_DISTANCE
+      playerZ + dirZ * 0.3
     );
     
     // Look at the speaker (farmer)
@@ -1265,7 +1284,7 @@ return (
             dialogueTarget={dialogueTarget}
           />
           {/* Show the farmer at dialogue position during cutscene */}
-          <DialogueSpeaker position={{ x: dialogueTarget.speakerX, z: dialogueTarget.speakerZ }} />
+          <DialogueSpeaker position={{ x: dialogueTarget.speakerX, z: dialogueTarget.speakerZ }} playerStateRef={playerStateRef} />
         </>
       ) : (
         <OverShoulderCameraController 
