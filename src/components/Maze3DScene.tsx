@@ -1044,25 +1044,35 @@ const CutsceneCameraController = ({
   const initialized = useRef(false);
   
   useFrame(() => {
-    // Player position in 3D space (maze Y → Three.js Z)
+    // Get actual player mesh position from playerStateRef
+    // Player mesh uses: position.x = playerStateRef.current.x, position.z = playerStateRef.current.y
     const playerX = playerStateRef.current.x;
-    const playerZ = playerStateRef.current.y;
+    const playerMazeY = playerStateRef.current.y;
     
-    // Farmer position (cell center) - speakerZ is already maze Y
-    const farmerX = dialogueTarget.speakerX + 0.5;
-    const farmerZ = dialogueTarget.speakerZ + 0.5;
+    // Farmer is placed at: [position.x + 0.5, 0, position.z + 0.5]
+    // where position.x = dialogueTarget.speakerX, position.z = dialogueTarget.speakerZ
+    const farmerMeshX = dialogueTarget.speakerX + 0.5;
+    const farmerMeshZ = dialogueTarget.speakerZ + 0.5;
     
-    // DEBUG: Fixed camera pointing at 0 degrees (positive X direction)
-    // Camera at player position, looking 10 units in +X direction
-    camera.position.set(playerX, CAMERA_HEIGHT, playerZ);
+    // The player is at (playerX, _, playerMazeY) in Three.js coords
+    // The farmer is at (farmerMeshX, _, farmerMeshZ) in Three.js coords
+    // 
+    // Debug showed: player (12.0, 14.3), farmer (10.5, 13.5)
+    // But looking at +X showed the farmer!
+    // 
+    // This can only mean the actual render positions are different.
+    // Let's verify by logging and looking at the farmer mesh directly.
+    
+    camera.position.set(playerX, CAMERA_HEIGHT, playerMazeY);
     camera.up.set(0, 1, 0);
-    camera.lookAt(playerX + 10, LOOK_HEIGHT, playerZ); // Look at +X
+    camera.lookAt(farmerMeshX, LOOK_HEIGHT, farmerMeshZ);
     
     if (!initialized.current) {
       initialized.current = true;
-      console.log('DEBUG - Camera at:', playerX.toFixed(1), playerZ.toFixed(1), 
-        '| Looking at: +X direction',
-        '| Farmer is at:', farmerX.toFixed(1), farmerZ.toFixed(1));
+      // Log the exact Three.js world coords
+      console.log('CAMERA POS:', camera.position.x.toFixed(1), camera.position.y.toFixed(1), camera.position.z.toFixed(1));
+      console.log('LOOK AT:', farmerMeshX.toFixed(1), LOOK_HEIGHT, farmerMeshZ.toFixed(1));
+      console.log('Direction vector:', (farmerMeshX - playerX).toFixed(2), (farmerMeshZ - playerMazeY).toFixed(2));
     }
   });
   
