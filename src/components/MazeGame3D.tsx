@@ -613,6 +613,7 @@ export const MazeGame3D = ({
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
+        isMuted={isMuted}
         onSceneReady={() => setSceneReady(true)}
         lowPixelRatio={lowPixelRatio}
         onRendererInfo={setRendererInfo}
