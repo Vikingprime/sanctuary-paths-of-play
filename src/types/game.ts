@@ -44,7 +44,8 @@ export interface DialogueTrigger {
   speaker: string;
   speakerEmoji: string;
   message: string;
-  position: { x: number; y: number }; // Cell coordinates - dialogue triggers when player enters this cell
+  position: { x: number; y: number }; // Where the speaker stands (for camera/model positioning)
+  triggersOnEnd?: boolean; // If true, this dialogue triggers when player reaches ANY end cell
 }
 
 export interface Maze {

@@ -795,6 +795,9 @@ const RefBasedPlayer = ({
         lastCellRef.current = { x: currentCellX, y: currentCellY };
         onCellInteraction(newState.x, newState.y);
       }
+    } else {
+      // When paused (including dialogue), freeze movement
+      isMovingRef.current = false;
     }
     
     // Initialize smooth position on first frame
@@ -974,7 +977,34 @@ const OverShoulderCameraController = ({
   return null;
 };
 
-// Cutscene camera controller - zooms in on speaker while showing player
+// Preload farmer model
+useGLTF.preload('/models/Farmer.glb');
+
+// Dialogue speaker (Farmer) - appears at dialogue position during cutscene
+const DialogueSpeaker = ({ position }: { position: { x: number; z: number } }) => {
+  const { scene: farmerScene } = useGLTF('/models/Farmer.glb');
+  const groupRef = useRef<Group>(null);
+  
+  const clonedFarmer = useMemo(() => {
+    const clone = farmerScene.clone();
+    clone.traverse((child: any) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [farmerScene]);
+  
+  // Position farmer at cell center, facing the general direction player came from
+  return (
+    <group ref={groupRef} position={[position.x + 0.5, 0, position.z + 0.5]}>
+      <primitive object={clonedFarmer} scale={0.5} rotation={[0, Math.PI, 0]} />
+    </group>
+  );
+};
+
+// Cutscene camera controller - zooms in on speaker from player's perspective
 const CutsceneCameraController = ({ 
   playerStateRef,
   dialogueTarget,
@@ -990,20 +1020,17 @@ const CutsceneCameraController = ({
   const targetPos = useRef(new Vector3());
   const targetLookAt = useRef(new Vector3());
   
-  const CAMERA_HEIGHT = 2.0;
-  const CAMERA_OFFSET = 2.5; // Distance from the midpoint
-  const LOOK_HEIGHT = 1.0;
-  const SMOOTHING = 0.08; // Slower smoothing for cinematic feel
+  const CAMERA_HEIGHT = 1.4; // Eye level
+  const CAMERA_DISTANCE = 1.2; // Distance behind player
+  const LOOK_HEIGHT = 1.2; // Look at farmer's face
+  const SMOOTHING = 0.1; // Smooth transition
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
     const playerZ = playerStateRef.current.y;
+    const playerRot = playerStateRef.current.rotation;
     const speakerX = dialogueTarget.speakerX + 0.5; // Center of cell
     const speakerZ = dialogueTarget.speakerZ + 0.5;
-    
-    // Calculate midpoint between player and speaker
-    const midX = (playerX + speakerX) / 2;
-    const midZ = (playerZ + speakerZ) / 2;
     
     // Calculate direction from player to speaker
     const dx = speakerX - playerX;
@@ -1012,23 +1039,19 @@ const CutsceneCameraController = ({
     const dirX = dist > 0.01 ? dx / dist : 0;
     const dirZ = dist > 0.01 ? dz / dist : -1;
     
-    // Camera position: perpendicular to the line between player and speaker
-    // This gives a side view of both characters
-    const perpX = -dirZ;
-    const perpZ = dirX;
-    
-    // Target camera position - offset to the side and slightly toward speaker
+    // Camera position: slightly behind and above player, looking toward speaker
+    // This gives the player's POV of looking at the farmer
     targetPos.current.set(
-      midX + perpX * CAMERA_OFFSET + dirX * 0.5,
+      playerX - dirX * CAMERA_DISTANCE,
       CAMERA_HEIGHT,
-      midZ + perpZ * CAMERA_OFFSET + dirZ * 0.5
+      playerZ - dirZ * CAMERA_DISTANCE
     );
     
-    // Look at a point slightly closer to the speaker (focus on speaker)
+    // Look at the speaker (farmer)
     targetLookAt.current.set(
-      midX + dirX * 0.3,
+      speakerX,
       LOOK_HEIGHT,
-      midZ + dirZ * 0.3
+      speakerZ
     );
     
     // Initialize on first frame
@@ -1236,10 +1259,14 @@ return (
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
       {dialogueTarget ? (
-        <CutsceneCameraController 
-          playerStateRef={playerStateRef}
-          dialogueTarget={dialogueTarget}
-        />
+        <>
+          <CutsceneCameraController 
+            playerStateRef={playerStateRef}
+            dialogueTarget={dialogueTarget}
+          />
+          {/* Show the farmer at dialogue position during cutscene */}
+          <DialogueSpeaker position={{ x: dialogueTarget.speakerX, z: dialogueTarget.speakerZ }} />
+        </>
       ) : (
         <OverShoulderCameraController 
           playerStateRef={playerStateRef}
