@@ -10,15 +10,23 @@ import { toast } from 'sonner';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
+interface DialogueMessage {
+  speaker: string;
+  speakerEmoji: string;
+  message: string;
+}
+
 interface DialogueConfig {
   id: string;
   speaker: string;
   speakerEmoji: string;
   message: string;
+  messages?: DialogueMessage[]; // Additional messages in sequence
   cells: { x: number; y: number }[];
   characterModel?: string;
   characterAnimation?: string;
   requires?: string[];
+  triggersOnEnd?: boolean; // Trigger on end tile before level complete
 }
 
 interface MazeConfig {
@@ -238,16 +246,22 @@ const MazeEditor: React.FC = () => {
     
     const dialogueSchema = dialogues.length > 0 ? `
   dialogues: [
-${dialogues.map(d => `    {
+${dialogues.map(d => {
+  const messagesStr = d.messages && d.messages.length > 0 
+    ? `\n      messages: [\n${d.messages.map(m => `        { speaker: '${m.speaker}', speakerEmoji: '${m.speakerEmoji}', message: '${m.message.replace(/'/g, "\\'")}' }`).join(',\n')}\n      ],`
+    : '';
+  return `    {
       id: '${d.id}',
       speaker: '${d.speaker}',
       speakerEmoji: '${d.speakerEmoji}',
-      message: '${d.message.replace(/'/g, "\\'")}',
+      message: '${d.message.replace(/'/g, "\\'")}',${messagesStr}
       cells: [${d.cells.map(c => `{ x: ${c.x}, y: ${c.y} }`).join(', ')}],
       ${d.characterModel ? `characterModel: '${d.characterModel}',` : ''}
       ${d.characterAnimation ? `characterAnimation: '${d.characterAnimation}',` : ''}
+      ${d.triggersOnEnd ? `triggersOnEnd: true,` : ''}
       ${d.requires && d.requires.length > 0 ? `requires: [${d.requires.map(r => `'${r}'`).join(', ')}],` : ''}
-    }`).join(',\n')}
+    }`;
+}).join(',\n')}
   ],` : '';
 
     const endConditionsSchema = config.requiredDialogues && config.requiredDialogues.length > 0 
@@ -584,14 +598,94 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                       </div>
 
                       <div>
-                        <Label className="text-xs">Message</Label>
+                        <Label className="text-xs">First Message</Label>
                         <Textarea
                           value={dialogue.message}
                           onChange={e => updateDialogue(dialogue.id, { message: e.target.value })}
-                          className="h-16 text-xs"
+                          className="h-12 text-xs"
                           onClick={e => e.stopPropagation()}
                         />
                       </div>
+
+                      {/* Follow-up messages */}
+                      {dialogue.messages && dialogue.messages.length > 0 && (
+                        <div className="space-y-2 pl-3 border-l-2 border-gray-300">
+                          {dialogue.messages.map((msg, msgIndex) => (
+                            <div key={msgIndex} className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs text-muted-foreground">Message {msgIndex + 2}</Label>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 w-5 p-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newMessages = [...(dialogue.messages || [])];
+                                    newMessages.splice(msgIndex, 1);
+                                    updateDialogue(dialogue.id, { messages: newMessages });
+                                  }}
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1">
+                                <Input
+                                  value={msg.speaker}
+                                  onChange={e => {
+                                    const newMessages = [...(dialogue.messages || [])];
+                                    newMessages[msgIndex] = { ...msg, speaker: e.target.value };
+                                    updateDialogue(dialogue.id, { messages: newMessages });
+                                  }}
+                                  className="h-6 text-xs"
+                                  placeholder="Speaker"
+                                  onClick={e => e.stopPropagation()}
+                                />
+                                <Input
+                                  value={msg.speakerEmoji}
+                                  onChange={e => {
+                                    const newMessages = [...(dialogue.messages || [])];
+                                    newMessages[msgIndex] = { ...msg, speakerEmoji: e.target.value };
+                                    updateDialogue(dialogue.id, { messages: newMessages });
+                                  }}
+                                  className="h-6 text-xs"
+                                  placeholder="Emoji"
+                                  onClick={e => e.stopPropagation()}
+                                />
+                              </div>
+                              <Textarea
+                                value={msg.message}
+                                onChange={e => {
+                                  const newMessages = [...(dialogue.messages || [])];
+                                  newMessages[msgIndex] = { ...msg, message: e.target.value };
+                                  updateDialogue(dialogue.id, { messages: newMessages });
+                                }}
+                                className="h-10 text-xs"
+                                placeholder="Message text"
+                                onClick={e => e.stopPropagation()}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full h-7 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newMessage: DialogueMessage = {
+                            speaker: dialogue.speaker,
+                            speakerEmoji: dialogue.speakerEmoji,
+                            message: 'Continue message...'
+                          };
+                          updateDialogue(dialogue.id, { 
+                            messages: [...(dialogue.messages || []), newMessage] 
+                          });
+                        }}
+                      >
+                        <Plus className="w-3 h-3 mr-1" /> Add follow-up message
+                      </Button>
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -675,6 +769,19 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
 
                       <div className="text-xs text-muted-foreground">
                         Cells: {dialogue.cells.length} {selectedDialogueId === dialogue.id && '(click grid to add)'}
+                      </div>
+
+                      {/* Triggers on End checkbox */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={dialogue.triggersOnEnd || false}
+                          onChange={e => {
+                            updateDialogue(dialogue.id, { triggersOnEnd: e.target.checked });
+                          }}
+                          onClick={e => e.stopPropagation()}
+                        />
+                        <Label className="text-xs">Triggers on End tile (before level complete)</Label>
                       </div>
 
                       {/* Toggle required for end */}
