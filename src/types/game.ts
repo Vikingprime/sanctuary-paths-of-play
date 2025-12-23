@@ -39,16 +39,24 @@ export interface UnlockCondition {
   requiredMedal: 'bronze' | 'silver'; // gold never required
 }
 
+export interface DialogueMessage {
+  speaker: string;
+  speakerEmoji: string;
+  message: string;
+}
+
 export interface DialogueTrigger {
   id: string;
   speaker: string;
   speakerEmoji: string;
   message: string;
+  messages?: DialogueMessage[]; // Optional array of sequential messages (after the initial message)
   cells: { x: number; y: number }[]; // All cells that trigger this dialogue
   speakerPosition?: { x: number; y: number }; // Where the speaker model appears (defaults to first cell center)
   requires?: string[]; // IDs of dialogues that must be completed before this one can trigger
   characterModel?: string; // GLB model file name (e.g., 'Farmer.glb')
   characterAnimation?: string; // Animation to play during dialogue (e.g., 'idle', 'wave', 'talk')
+  triggersOnEnd?: boolean; // If true, triggers when player reaches end cell (before level complete)
 }
 
 export interface Maze {
