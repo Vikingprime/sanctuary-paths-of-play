@@ -104,9 +104,9 @@ export function generateRockPositions(maze: Maze): RockPosition[] {
   const ROCK_SIZE_MAX = 0.18;  // Reduced from 0.35
   
   console.log(`[ROCK DEBUG] generateRockPositions called, ROCK_SIZE_MIN=${ROCK_SIZE_MIN}, ROCK_SIZE_MAX=${ROCK_SIZE_MAX}`);
-  const ROCK_EDGE_INSET = 0.35; // How far in from the wall edge
-  const ROCK_SPACING = 0.8; // Minimum distance between rocks
-  const MIN_PLACEMENT_CHANCE = 0.15; // Minimum chance of placing a rock
+  const ROCK_EDGE_INSET = 0.15; // How far in from the wall edge (closer to wall = smaller value)
+  const ROCK_SPACING = 0.6; // Minimum distance between rocks
+  const MIN_PLACEMENT_CHANCE = 0.12; // Chance of placing a rock (lower = fewer rocks)
 
   // Find all non-wall cells (paths) and place rocks near edges
   const mazeWidth = maze.grid[0].length;
@@ -137,12 +137,12 @@ export function generateRockPositions(maze: Maze): RockPosition[] {
         let rockX = x + 0.5;
         let rockZ = y + 0.5;
 
-        // Position near wall edges
-        if (wallAbove) rockZ = y + ROCK_EDGE_INSET + seededRandom(seed + 1) * 0.2;
-        else if (wallBelow) rockZ = y + 1 - ROCK_EDGE_INSET - seededRandom(seed + 2) * 0.2;
+        // Position near wall edges - keep very close to walls
+        if (wallAbove) rockZ = y + ROCK_EDGE_INSET + seededRandom(seed + 1) * 0.1;
+        else if (wallBelow) rockZ = y + 1 - ROCK_EDGE_INSET - seededRandom(seed + 2) * 0.1;
         
-        if (wallLeft) rockX = x + ROCK_EDGE_INSET + seededRandom(seed + 3) * 0.2;
-        else if (wallRight) rockX = x + 1 - ROCK_EDGE_INSET - seededRandom(seed + 4) * 0.2;
+        if (wallLeft) rockX = x + ROCK_EDGE_INSET + seededRandom(seed + 3) * 0.1;
+        else if (wallRight) rockX = x + 1 - ROCK_EDGE_INSET - seededRandom(seed + 4) * 0.1;
 
         // Skip if in center with no adjacent walls
         if (!wallAbove && !wallBelow && !wallLeft && !wallRight) continue;
