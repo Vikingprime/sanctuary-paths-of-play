@@ -1025,7 +1025,7 @@ const DialogueSpeaker = ({ position, playerStateRef }: {
   );
 };
 
-// Cutscene camera controller - positions camera at player position, looking at speaker
+// Cutscene camera controller - keeps camera above player, rotates to look at speaker
 const CutsceneCameraController = ({ 
   playerStateRef,
   dialogueTarget,
@@ -1035,42 +1035,48 @@ const CutsceneCameraController = ({
 }) => {
   const { camera } = useThree();
   
-  const currentPosition = useRef(new Vector3());
-  const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
+  const currentRotation = useRef(0);
   
-  const CAMERA_HEIGHT = 1.4; // Eye level
-  const LOOK_HEIGHT = 1.2; // Look at farmer's upper body
-  const SMOOTHING = 0.1; // Smooth transition
+  const CAMERA_HEIGHT = 2.5; // Above player's head
+  const CAMERA_BACK = 2.0; // Distance behind
+  const LOOK_HEIGHT = 1.0; // Look at farmer's body
+  const SMOOTHING = 0.08;
   
   useFrame(() => {
+    // Player position in 3D space (grid Y = Three.js Z)
     const playerX = playerStateRef.current.x;
-    const playerZ = playerStateRef.current.y; // Grid Y = Three.js Z
+    const playerZ = playerStateRef.current.y;
     
-    // Speaker (farmer) is at cell center - grid Y maps to Three.js Z
-    const speakerX = dialogueTarget.speakerX + 0.5;
-    const speakerZ = dialogueTarget.speakerZ + 0.5;
+    // Farmer position in 3D space (cell center)
+    const farmerX = dialogueTarget.speakerX + 0.5;
+    const farmerZ = dialogueTarget.speakerZ + 0.5;
     
-    // Camera stays at player position (just elevated)
-    const targetPos = new Vector3(playerX, CAMERA_HEIGHT, playerZ);
+    // Calculate angle from player to farmer using atan2
+    // In Three.js: +X is right, +Z is "into screen" (down in 2D grid terms)
+    const dx = farmerX - playerX;
+    const dz = farmerZ - playerZ;
+    const targetAngle = Math.atan2(dx, dz); // angle in XZ plane
     
-    // Look at the speaker (farmer)
-    const targetLookAt = new Vector3(speakerX, LOOK_HEIGHT, speakerZ);
-    
-    // Initialize on first frame
+    // Initialize
     if (!initialized.current) {
-      currentPosition.current.copy(camera.position);
-      currentLookAt.current.copy(targetLookAt);
+      currentRotation.current = targetAngle;
       initialized.current = true;
     }
     
-    // Smooth interpolation
-    currentPosition.current.lerp(targetPos, SMOOTHING);
-    currentLookAt.current.lerp(targetLookAt, SMOOTHING);
+    // Smooth rotation
+    let angleDiff = targetAngle - currentRotation.current;
+    // Normalize angle difference to -PI to PI
+    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+    currentRotation.current += angleDiff * SMOOTHING;
     
-    // Apply to camera
-    camera.position.copy(currentPosition.current);
-    camera.lookAt(currentLookAt.current);
+    // Position camera behind player relative to the look direction
+    const camX = playerX - Math.sin(currentRotation.current) * CAMERA_BACK;
+    const camZ = playerZ - Math.cos(currentRotation.current) * CAMERA_BACK;
+    
+    camera.position.set(camX, CAMERA_HEIGHT, camZ);
+    camera.lookAt(farmerX, LOOK_HEIGHT, farmerZ);
   });
   
   return null;
