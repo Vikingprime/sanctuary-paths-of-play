@@ -23,6 +23,11 @@ export interface PerformanceInfo {
 const ENABLE_3D_ROCKS = true;         // 3D rock meshes scattered in scene
 const ENABLE_3D_GRASS = true;         // 3D grass tuft meshes
 
+interface DialogueTarget {
+  speakerX: number;
+  speakerZ: number;
+}
+
 interface Maze3DSceneProps {
   maze: Maze;
   animalType: AnimalType;
@@ -41,6 +46,7 @@ interface Maze3DSceneProps {
   onCullStats?: (stats: CullStats) => void;
   debugMode?: boolean;
   restartKey?: number; // Increment to force camera reset
+  dialogueTarget?: DialogueTarget | null; // Active dialogue speaker position for cutscene camera
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -968,6 +974,83 @@ const OverShoulderCameraController = ({
   return null;
 };
 
+// Cutscene camera controller - zooms in on speaker while showing player
+const CutsceneCameraController = ({ 
+  playerStateRef,
+  dialogueTarget,
+}: { 
+  playerStateRef: MutableRefObject<PlayerState>;
+  dialogueTarget: DialogueTarget;
+}) => {
+  const { camera } = useThree();
+  
+  const currentPosition = useRef(new Vector3());
+  const currentLookAt = useRef(new Vector3());
+  const initialized = useRef(false);
+  const targetPos = useRef(new Vector3());
+  const targetLookAt = useRef(new Vector3());
+  
+  const CAMERA_HEIGHT = 2.0;
+  const CAMERA_OFFSET = 2.5; // Distance from the midpoint
+  const LOOK_HEIGHT = 1.0;
+  const SMOOTHING = 0.08; // Slower smoothing for cinematic feel
+  
+  useFrame(() => {
+    const playerX = playerStateRef.current.x;
+    const playerZ = playerStateRef.current.y;
+    const speakerX = dialogueTarget.speakerX + 0.5; // Center of cell
+    const speakerZ = dialogueTarget.speakerZ + 0.5;
+    
+    // Calculate midpoint between player and speaker
+    const midX = (playerX + speakerX) / 2;
+    const midZ = (playerZ + speakerZ) / 2;
+    
+    // Calculate direction from player to speaker
+    const dx = speakerX - playerX;
+    const dz = speakerZ - playerZ;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const dirX = dist > 0.01 ? dx / dist : 0;
+    const dirZ = dist > 0.01 ? dz / dist : -1;
+    
+    // Camera position: perpendicular to the line between player and speaker
+    // This gives a side view of both characters
+    const perpX = -dirZ;
+    const perpZ = dirX;
+    
+    // Target camera position - offset to the side and slightly toward speaker
+    targetPos.current.set(
+      midX + perpX * CAMERA_OFFSET + dirX * 0.5,
+      CAMERA_HEIGHT,
+      midZ + perpZ * CAMERA_OFFSET + dirZ * 0.5
+    );
+    
+    // Look at a point slightly closer to the speaker (focus on speaker)
+    targetLookAt.current.set(
+      midX + dirX * 0.3,
+      LOOK_HEIGHT,
+      midZ + dirZ * 0.3
+    );
+    
+    // Initialize on first frame
+    if (!initialized.current) {
+      // Start from current camera position for smooth transition
+      currentPosition.current.copy(camera.position);
+      currentLookAt.current.set(speakerX, LOOK_HEIGHT, speakerZ);
+      initialized.current = true;
+    }
+    
+    // Smooth interpolation
+    currentPosition.current.lerp(targetPos.current, SMOOTHING);
+    currentLookAt.current.lerp(targetLookAt.current, SMOOTHING);
+    
+    // Apply to camera
+    camera.position.copy(currentPosition.current);
+    camera.lookAt(currentLookAt.current);
+  });
+  
+  return null;
+};
+
 // FPS Counter component - uses portal to render outside Canvas
 const FPSDisplay = ({ fps }: { fps: number }) => {
   return (
@@ -1007,7 +1090,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, onSceneReady, cornOptimizationSettings, onCullStats, restartKey }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -1151,11 +1234,18 @@ return (
         rocks={rocks}
       />
       
-      {/* Camera - smooth over-the-shoulder follow */}
-      <OverShoulderCameraController 
-        playerStateRef={playerStateRef}
-        restartKey={restartKey}
-      />
+      {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
+      {dialogueTarget ? (
+        <CutsceneCameraController 
+          playerStateRef={playerStateRef}
+          dialogueTarget={dialogueTarget}
+        />
+      ) : (
+        <OverShoulderCameraController 
+          playerStateRef={playerStateRef}
+          restartKey={restartKey}
+        />
+      )}
     </>
   );
 };
