@@ -1,18 +1,38 @@
 import { Maze, MazeCell } from '@/types/game';
 import { cn } from '@/lib/utils';
-import { useEffect, useState } from 'react';
+import { Volume2, VolumeX } from 'lucide-react';
 
 interface MazePreviewProps {
   maze: Maze;
   timeLeft: number;
   onPreviewEnd: () => void;
+  isMuted?: boolean;
+  onToggleMute?: () => void;
 }
 
-export const MazePreview = ({ maze, timeLeft, onPreviewEnd }: MazePreviewProps) => {
+export const MazePreview = ({ 
+  maze, 
+  timeLeft, 
+  onPreviewEnd,
+  isMuted = false,
+  onToggleMute 
+}: MazePreviewProps) => {
   const cellSize = Math.min(28, Math.floor(400 / maze.grid[0].length));
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center p-4">
+      {/* Mute toggle in top right */}
+      {onToggleMute && (
+        <button
+          onClick={onToggleMute}
+          className="absolute top-4 right-4 bg-card/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg font-display text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+          title={isMuted ? 'Unmute' : 'Mute'}
+        >
+          {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+          <span>{isMuted ? 'Muted' : 'Sound'}</span>
+        </button>
+      )}
+
       <div className="text-center mb-6 animate-fade-in">
         <h2 className="font-display text-3xl font-bold text-foreground mb-2">
           Memorize the Path! 🧠

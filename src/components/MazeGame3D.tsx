@@ -327,6 +327,35 @@ export const MazeGame3D = ({
     }
   };
 
+  // Restart the maze (reset all game state)
+  const handleRestart = useCallback(() => {
+    // Reset player position
+    playerStateRef.current = {
+      x: startPos.x,
+      y: startPos.y,
+      rotation: startRotation,
+    };
+    setPlayerStateForUI(playerStateRef.current);
+    
+    // Reset game state
+    setTimeLeft(debugMode ? 9999 : maze.timeLimit);
+    setPreviewTimeLeft(debugMode ? 0 : maze.previewTime);
+    setIsPreviewing(!debugMode);
+    setGameOver(false);
+    setHasWon(false);
+    setAbilityUsed(false);
+    setCollectedPowerUps(new Set());
+    setSpeedBoostActive(false);
+    setShowMiniMap(false);
+    setMapStationAvailable(false);
+    setShowMapOptions(false);
+    setMapCountdown(null);
+    setMapViewTimeLeft(null);
+    
+    // Clear keys
+    keysPressed.current.clear();
+  }, [startPos, startRotation, debugMode, maze.timeLimit, maze.previewTime]);
+
   // Handle map station button click
   const handleMapStationClick = () => {
     setShowMapOptions(true);
@@ -419,6 +448,8 @@ export const MazeGame3D = ({
             maze={maze}
             timeLeft={previewTimeLeft}
             onPreviewEnd={() => setIsPreviewing(false)}
+            isMuted={isMuted}
+            onToggleMute={handleToggleMute}
           />
         </div>
       )}
@@ -432,7 +463,7 @@ export const MazeGame3D = ({
           abilityUsed={abilityUsed}
           onUseAbility={useAbility}
           onQuit={onQuit}
-          onRestart={() => window.location.reload()}
+          onRestart={handleRestart}
           debugMode={debugMode}
           isMuted={isMuted}
           onToggleMute={handleToggleMute}
