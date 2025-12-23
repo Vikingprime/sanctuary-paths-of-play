@@ -113,7 +113,7 @@ class SaveManagerClass {
 
   // Bonus stars for beating best time
   getBestTimeBonus(): number {
-    return 3;
+    return 1;
   }
 
   // Record that a maze attempt is starting (call when game begins)
