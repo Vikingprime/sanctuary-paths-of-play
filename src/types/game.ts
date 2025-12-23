@@ -39,6 +39,15 @@ export interface UnlockCondition {
   requiredMedal: 'bronze' | 'silver'; // gold never required
 }
 
+export interface DialogueTrigger {
+  id: string;
+  speaker: string;
+  speakerEmoji: string;
+  message: string;
+  position: { x: number; y: number }; // Cell coordinates
+  triggerRadius?: number; // Default 1.0 (meters)
+}
+
 export interface Maze {
   id: number;
   name: string;
@@ -49,6 +58,7 @@ export interface Maze {
   medalTimes: MedalTimes;
   unlockConditions?: UnlockCondition[]; // undefined = always unlocked
   currencyCost?: number; // optional currency cost to unlock special mazes
+  dialogues?: DialogueTrigger[]; // optional dialogue triggers
 }
 
 export interface GameState {

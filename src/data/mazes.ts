@@ -29,6 +29,15 @@ export const mazes: Maze[] = [
       silver: 20,
       bronze: 25,
     },
+    dialogues: [
+      {
+        id: 'farmer_greeting_1',
+        speaker: 'Sanctuary Sam',
+        speakerEmoji: '👨‍🌾',
+        message: "By Golly, I've been looking everywhere for you!",
+        position: { x: 10, y: 12 }, // Near the end
+      },
+    ],
     // No unlock conditions - always available
     grid: createGrid([
       '################',
@@ -63,6 +72,15 @@ export const mazes: Maze[] = [
     unlockConditions: [
       { mazeId: 1, requiredMedal: 'bronze' },
     ],
+    dialogues: [
+      {
+        id: 'farmer_greeting_2',
+        speaker: 'Sanctuary Sam',
+        speakerEmoji: '👨‍🌾',
+        message: "By Golly, I've been looking everywhere for you!",
+        position: { x: 14, y: 11 }, // Near the end
+      },
+    ],
     grid: createGrid([
       '##################',
       '##################',
@@ -94,6 +112,15 @@ export const mazes: Maze[] = [
     },
     unlockConditions: [
       { mazeId: 2, requiredMedal: 'silver' },
+    ],
+    dialogues: [
+      {
+        id: 'farmer_greeting_3',
+        speaker: 'Sanctuary Sam',
+        speakerEmoji: '👨‍🌾',
+        message: "By Golly, I've been looking everywhere for you!",
+        position: { x: 25, y: 32 }, // Near the end
+      },
     ],
     grid: createGrid([
       '##############################',
@@ -148,6 +175,15 @@ export const mazes: Maze[] = [
       bronze: 50,
     },
     currencyCost: 100, // Special maze - costs currency to unlock
+    dialogues: [
+      {
+        id: 'farmer_greeting_4',
+        speaker: 'Sanctuary Sam',
+        speakerEmoji: '👨‍🌾',
+        message: "By Golly, I've been looking everywhere for you!",
+        position: { x: 11, y: 12 }, // Near the end
+      },
+    ],
     grid: createGrid([
       '################',
       '##############P#',

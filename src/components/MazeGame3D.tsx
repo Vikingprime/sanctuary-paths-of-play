@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Maze, AnimalType, MedalType } from '@/types/game';
+import { Maze, AnimalType, MedalType, DialogueTrigger } from '@/types/game';
 import { Maze3DCanvas, PerformanceInfo } from './Maze3DScene';
 import { MazePreview } from './MazePreview';
 import { MiniMap } from './MiniMap';
@@ -93,6 +93,10 @@ export const MazeGame3D = ({
   const isMovingRef = useRef(false);
   const rotationIntensityRef = useRef(0);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Dialogue state
+  const [activeDialogue, setActiveDialogue] = useState<DialogueTrigger | null>(null);
+  const [triggeredDialogues, setTriggeredDialogues] = useState<Set<string>>(new Set());
 
   // Find all station positions in the maze
   const stationPositions = useRef<Array<{ x: number; y: number }>>([]);
@@ -158,9 +162,9 @@ export const MazeGame3D = ({
     return () => clearInterval(timer);
   }, [isPreviewing]);
 
-  // Game timer
+  // Game timer (paused during dialogue)
   useEffect(() => {
-    if (isPreviewing || gameOver) return;
+    if (isPreviewing || gameOver || activeDialogue) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -174,7 +178,7 @@ export const MazeGame3D = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isPreviewing, gameOver]);
+  }, [isPreviewing, gameOver, activeDialogue]);
 
   // Handle cell interactions (React-specific wrapper around pure logic)
   const handleCellInteraction = useCallback(
@@ -277,6 +281,39 @@ export const MazeGame3D = ({
     return () => clearInterval(interval);
   }, [isPreviewing, gameOver, showMiniMap, showMapOptions, mapCountdown]);
 
+  // Dialogue proximity check
+  useEffect(() => {
+    if (isPreviewing || gameOver || activeDialogue || !maze.dialogues) return;
+    
+    const checkDialogueProximity = () => {
+      const playerX = playerStateRef.current.x;
+      const playerY = playerStateRef.current.y;
+      
+      for (const dialogue of maze.dialogues!) {
+        if (triggeredDialogues.has(dialogue.id)) continue;
+        
+        const triggerRadius = dialogue.triggerRadius ?? 1.0;
+        const dialogueX = dialogue.position.x + 0.5; // Center of cell
+        const dialogueY = dialogue.position.y + 0.5;
+        
+        const dx = playerX - dialogueX;
+        const dy = playerY - dialogueY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance <= triggerRadius) {
+          setActiveDialogue(dialogue);
+          setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
+          break;
+        }
+      }
+    };
+    
+    const interval = setInterval(checkDialogueProximity, 100);
+    checkDialogueProximity();
+    
+    return () => clearInterval(interval);
+  }, [isPreviewing, gameOver, activeDialogue, maze.dialogues, triggeredDialogues]);
+
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -367,6 +404,8 @@ export const MazeGame3D = ({
     setShowMapOptions(false);
     setMapCountdown(null);
     setMapViewTimeLeft(null);
+    setActiveDialogue(null);
+    setTriggeredDialogues(new Set());
     
     // Record the restart attempt in persistent storage
     onRestartProp?.();
@@ -499,7 +538,7 @@ export const MazeGame3D = ({
         rotationIntensityRef={rotationIntensityRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
-        isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null}
+        isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
         onSceneReady={() => setSceneReady(true)}
         lowPixelRatio={lowPixelRatio}
         onRendererInfo={setRendererInfo}
@@ -619,6 +658,33 @@ export const MazeGame3D = ({
             <div className="text-7xl font-display font-bold text-primary animate-pulse">
               {mapCountdown}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialogue Overlay */}
+      {activeDialogue && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 pointer-events-none animate-fade-in">
+          <div className="bg-card/95 backdrop-blur-sm rounded-2xl p-6 shadow-warm-lg max-w-lg w-full pointer-events-auto mb-8">
+            <div className="flex items-start gap-4">
+              <div className="text-4xl flex-shrink-0">
+                {activeDialogue.speakerEmoji}
+              </div>
+              <div className="flex-1">
+                <h4 className="font-display font-bold text-foreground mb-2">
+                  {activeDialogue.speaker}
+                </h4>
+                <p className="text-foreground/90 text-lg leading-relaxed">
+                  {activeDialogue.message}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveDialogue(null)}
+              className="mt-4 w-full bg-primary text-primary-foreground py-3 px-4 rounded-xl font-display font-semibold hover:bg-primary/90 transition-colors"
+            >
+              Continue
+            </button>
           </div>
         </div>
       )}
