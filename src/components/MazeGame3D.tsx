@@ -472,6 +472,14 @@ export const MazeGame3D = ({
                 Try Again
               </Button>
             </div>
+            
+            {/* Sound toggle */}
+            <button
+              onClick={handleToggleMute}
+              className="mt-4 text-muted-foreground hover:text-foreground transition-colors text-sm flex items-center gap-2 mx-auto"
+            >
+              {isMuted ? '🔇 Sound Off' : '🔊 Sound On'}
+            </button>
           </div>
         </div>
       </>
