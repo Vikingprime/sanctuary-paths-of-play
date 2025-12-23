@@ -1195,7 +1195,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const items = useMemo(() => {
     const powerUps: { pos: [number, number, number]; key: string }[] = [];
     const stations: [number, number, number][] = [];
-    let goalPos: [number, number, number] = [0, 0, 0];
+    let goalPos: [number, number, number] | null = null;
 
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
@@ -1205,13 +1205,14 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
         if (cell.isStation) {
           stations.push([x + 0.5, 0, y + 0.5]);
         }
-        if (cell.isEnd) {
+        // Use first end cell found (matches camera zoom logic in MazeGame3D)
+        if (cell.isEnd && goalPos === null) {
           goalPos = [x, 0, y];
         }
       });
     });
 
-    return { powerUps, stations, goalPos };
+    return { powerUps, stations, goalPos: goalPos || [0, 0, 0] };
   }, [maze]);
 
   // Filter out collected powerups
