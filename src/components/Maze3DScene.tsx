@@ -39,6 +39,7 @@ interface Maze3DSceneProps {
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
+  isMuted?: boolean;
   onSceneReady?: () => void;
   cornOptimizationSettings?: CornOptimizationSettings;
   lowPixelRatio?: boolean;
@@ -858,6 +859,7 @@ const RefBasedPlayer = ({
   speedBoostActive,
   onCellInteraction,
   isPaused,
+  isMuted,
   rocks,
 }: { 
   animalType: AnimalType;
@@ -869,6 +871,7 @@ const RefBasedPlayer = ({
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
+  isMuted?: boolean;
   rocks: RockPosition[];
 }) => {
   const groupRef = useRef<any>(null);
@@ -957,7 +960,7 @@ const RefBasedPlayer = ({
         position={[0, 0, 0]}
         rotation={0}
         isMovingRef={isMovingRef}
-        enableSound={!isPaused}
+        enableSound={!isPaused && !isMuted}
       />
     </group>
   );
@@ -1179,7 +1182,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -1335,6 +1338,7 @@ return (
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}
+        isMuted={isMuted}
         rocks={rocks}
       />
       
