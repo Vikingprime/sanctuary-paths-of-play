@@ -99,69 +99,67 @@ export function generateRockPositions(maze: Maze): RockPosition[] {
     const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
     return x - Math.floor(x);
   };
-  
+
+  const ROCK_SIZE_MIN = 0.15;
+  const ROCK_SIZE_MAX = 0.35;
+  const ROCK_EDGE_INSET = 0.35; // How far in from the wall edge
+  const ROCK_SPACING = 0.8; // Minimum distance between rocks
+  const MIN_PLACEMENT_CHANCE = 0.15; // Minimum chance of placing a rock
+
+  // Find all non-wall cells (paths) and place rocks near edges
   const mazeWidth = maze.grid[0].length;
   const mazeHeight = maze.grid.length;
-  const MIN_ROCK_DISTANCE = 1.5; // Minimum distance between rocks
-  
-  // Helper to check if a position is too close to existing rocks
-  const isTooClose = (rx: number, rz: number): boolean => {
-    for (const rock of rocks) {
-      const dx = rx - rock.x;
-      const dz = rz - rock.z;
-      if (Math.sqrt(dx * dx + dz * dz) < MIN_ROCK_DISTANCE) {
-        return true;
-      }
-    }
-    return false;
-  };
-  
+
+  // Track placed rock positions to ensure spacing
+  const placedRocks: { x: number; z: number }[] = [];
+
   for (let y = 1; y < mazeHeight - 1; y++) {
     for (let x = 1; x < mazeWidth - 1; x++) {
-      if (maze.grid[y][x].isWall) continue;
-      
+      const cell = maze.grid[y][x];
+      // Only place rocks on path cells
+      if (cell.isWall) continue;
+      // Don't place rocks on special cells
+      if (cell.isStart || cell.isEnd || cell.isPowerUp || cell.isStation) continue;
+
+      // Check which sides have walls
+      const wallAbove = maze.grid[y - 1]?.[x]?.isWall;
+      const wallBelow = maze.grid[y + 1]?.[x]?.isWall;
+      const wallLeft = maze.grid[y][x - 1]?.isWall;
+      const wallRight = maze.grid[y][x + 1]?.isWall;
+
       const seed = x * 1000 + y;
-      if (seededRandom(seed) > 0.88) { // 12% chance
-        // Check which walls are adjacent to position rock near edge
-        const wallLeft = x > 0 && maze.grid[y][x-1].isWall;
-        const wallRight = x < mazeWidth - 1 && maze.grid[y][x+1].isWall;
-        const wallUp = y > 0 && maze.grid[y-1][x].isWall;
-        const wallDown = y < mazeHeight - 1 && maze.grid[y+1][x].isWall;
+      const placeChance = seededRandom(seed);
+
+      // Place rock near wall edge with some randomness
+      if (placeChance < MIN_PLACEMENT_CHANCE) {
+        let rockX = x + 0.5;
+        let rockZ = y + 0.5;
+
+        // Position near wall edges
+        if (wallAbove) rockZ = y + ROCK_EDGE_INSET + seededRandom(seed + 1) * 0.2;
+        else if (wallBelow) rockZ = y + 1 - ROCK_EDGE_INSET - seededRandom(seed + 2) * 0.2;
         
-        // Only place rocks next to walls (at path edges)
-        if (!wallLeft && !wallRight && !wallUp && !wallDown) continue;
-        
-        // Position rock at the very edge of the path, barely overlapping
-        let rx = x + 0.5;
-        let rz = y + 0.5;
-        
-        // Push rocks much closer to walls - barely on the path
-        if (wallLeft) {
-          rx = x + 0.02 + seededRandom(seed + 1) * 0.08; // Very close to left wall
-          rz = y + 0.2 + seededRandom(seed + 2) * 0.6;
-        } else if (wallRight) {
-          rx = x + 0.90 + seededRandom(seed + 1) * 0.08; // Very close to right wall
-          rz = y + 0.2 + seededRandom(seed + 2) * 0.6;
-        } else if (wallUp) {
-          rx = x + 0.2 + seededRandom(seed + 1) * 0.6;
-          rz = y + 0.02 + seededRandom(seed + 2) * 0.08; // Very close to top wall
-        } else if (wallDown) {
-          rx = x + 0.2 + seededRandom(seed + 1) * 0.6;
-          rz = y + 0.90 + seededRandom(seed + 2) * 0.08; // Very close to bottom wall
-        }
-        
-        // Skip if too close to another rock
-        if (isTooClose(rx, rz)) continue;
-        
-        const scale = 0.08 + seededRandom(seed + 3) * 0.10;
-        rocks.push({
-          x: rx,
-          z: rz,
-          radius: scale * 0.3, // Even smaller collision radius for minimal interaction
+        if (wallLeft) rockX = x + ROCK_EDGE_INSET + seededRandom(seed + 3) * 0.2;
+        else if (wallRight) rockX = x + 1 - ROCK_EDGE_INSET - seededRandom(seed + 4) * 0.2;
+
+        // Skip if in center with no adjacent walls
+        if (!wallAbove && !wallBelow && !wallLeft && !wallRight) continue;
+
+        // Check spacing from other rocks
+        const tooClose = placedRocks.some((r) => {
+          const dx = r.x - rockX;
+          const dz = r.z - rockZ;
+          return Math.sqrt(dx * dx + dz * dz) < ROCK_SPACING;
         });
+        if (tooClose) continue;
+
+        const size = ROCK_SIZE_MIN + seededRandom(seed + 5) * (ROCK_SIZE_MAX - ROCK_SIZE_MIN);
+        rocks.push({ x: rockX, z: rockZ, radius: size });
+        placedRocks.push({ x: rockX, z: rockZ });
       }
     }
   }
+
   return rocks;
 }
 
@@ -186,6 +184,39 @@ export function checkRockCollision(
 }
 
 // ============================================
+// CHARACTER COLLISION
+// ============================================
+
+export interface CharacterPosition {
+  x: number;  // Grid x position (character is at x + 0.5)
+  y: number;  // Grid y position (character is at y + 0.5)
+  radius: number;
+}
+
+/**
+ * Check if position collides with any character
+ */
+export function checkCharacterCollision(
+  x: number,
+  y: number,
+  characters: CharacterPosition[],
+  playerRadius: number = GameConfig.PLAYER_RADIUS
+): boolean {
+  for (const char of characters) {
+    // Characters are rendered at grid position + 0.5 (center of cell)
+    const charX = char.x + 0.5;
+    const charZ = char.y + 0.5;
+    const dx = x - charX;
+    const dy = y - charZ;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < playerRadius + char.radius) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ============================================
 // MOVEMENT
 // ============================================
 
@@ -200,7 +231,8 @@ export function calculateMovement(
   deltaTime: number,
   speedBoostActive: boolean,
   rocks: RockPosition[] = [],
-  animalType?: AnimalType
+  animalType?: AnimalType,
+  characters: CharacterPosition[] = []
 ): PlayerState {
   const moveSpeed = speedBoostActive
     ? GameConfig.BOOSTED_MOVE_SPEED
@@ -242,9 +274,11 @@ export function calculateMovement(
     moveY += Math.cos(newRotation) * moveSpeed * deltaTime;
   }
 
-  // Helper to check both wall and rock collision
+  // Helper to check wall, rock, and character collision
   const hasCollision = (x: number, y: number) => 
-    checkCollision(maze, x, y) || checkRockCollision(x, y, rocks);
+    checkCollision(maze, x, y) || 
+    checkRockCollision(x, y, rocks) || 
+    checkCharacterCollision(x, y, characters);
 
   // Try combined movement first
   let newX = currentState.x + moveX;

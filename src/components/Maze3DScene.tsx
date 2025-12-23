@@ -6,7 +6,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
 import { PlayerCube } from './PlayerCube';
-import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition } from '@/game/GameLogic';
+import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale } from '@/game/CharacterConfig';
 
 // Extended performance info type
@@ -857,6 +857,7 @@ const RefBasedPlayer = ({
   isPaused,
   isMuted,
   rocks,
+  characters,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
@@ -869,6 +870,7 @@ const RefBasedPlayer = ({
   isPaused: boolean;
   isMuted?: boolean;
   rocks: RockPosition[];
+  characters: CharacterPosition[];
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef(0);
@@ -902,7 +904,7 @@ const RefBasedPlayer = ({
       
       // Calculate movement with clamped delta (smooth per-frame updates)
       const prev = playerStateRef.current;
-      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType);
+      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
       playerStateRef.current = newState;
       
       // Only check interactions when entering a new cell
@@ -1192,6 +1194,37 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
+  // Generate character positions for collision (placed characters + end farmer)
+  const CHARACTER_COLLISION_RADIUS = 0.4;
+  const characterPositions = useMemo<CharacterPosition[]>(() => {
+    const positions: CharacterPosition[] = [];
+    
+    // Add placed characters from maze.characters
+    maze.characters?.forEach((char) => {
+      positions.push({
+        x: char.position.x,
+        y: char.position.y,
+        radius: CHARACTER_COLLISION_RADIUS,
+      });
+    });
+    
+    // Find first end cell for the end farmer
+    for (let y = 0; y < maze.grid.length; y++) {
+      for (let x = 0; x < maze.grid[y].length; x++) {
+        if (maze.grid[y][x].isEnd) {
+          positions.push({
+            x: x,
+            y: y,
+            radius: CHARACTER_COLLISION_RADIUS,
+          });
+          return positions; // Only add one farmer at first end cell
+        }
+      }
+    }
+    
+    return positions;
+  }, [maze]);
+
   const items = useMemo(() => {
     const powerUps: { pos: [number, number, number]; key: string }[] = [];
     const stations: [number, number, number][] = [];
@@ -1356,6 +1389,7 @@ return (
         isPaused={isPaused}
         isMuted={isMuted}
         rocks={rocks}
+        characters={characterPositions}
       />
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
