@@ -253,8 +253,17 @@ export const MazeGame3D = ({
   );
 
   // Handle end game after dialogue is dismissed
+  const pendingEndGameRef = useRef(false);
+  
   useEffect(() => {
-    if (pendingEndGame && !activeDialogue) {
+    pendingEndGameRef.current = pendingEndGame;
+  }, [pendingEndGame]);
+  
+  // Handle continue button click - trigger end if pending
+  const handleDialogueContinue = useCallback(() => {
+    setActiveDialogue(null);
+    
+    if (pendingEndGameRef.current) {
       setHasWon(true);
       setGameOver(true);
       const timeUsed = maze.timeLimit - timeLeft;
@@ -262,7 +271,7 @@ export const MazeGame3D = ({
       onComplete(timeUsed).then(setCompletionResult);
       setPendingEndGame(false);
     }
-  }, [pendingEndGame, activeDialogue, maze.timeLimit, timeLeft, onComplete]);
+  }, [maze.timeLimit, timeLeft, onComplete]);
 
   // Movement is now handled in Maze3DScene's useFrame for sync with rendering
 
@@ -712,7 +721,7 @@ export const MazeGame3D = ({
               </div>
             </div>
             <Button
-              onClick={() => setActiveDialogue(null)}
+              onClick={handleDialogueContinue}
               className="mt-4 w-full py-3"
             >
               Continue

@@ -36,7 +36,7 @@ export const mazes: Maze[] = [
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
         cells: [{ x: 12, y: 13 }, { x: 13, y: 13 }, { x: 12, y: 14 }, { x: 13, y: 14 }], // All end cells
-        speakerPosition: { x: 12, y: 13 }, // Where farmer stands
+        speakerPosition: { x: 10, y: 13 }, // Where farmer stands - in the path, not in end zone
       },
     ],
     endConditions: {
@@ -83,7 +83,7 @@ export const mazes: Maze[] = [
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
         cells: [{ x: 16, y: 12 }, { x: 17, y: 12 }, { x: 16, y: 13 }, { x: 17, y: 13 }], // All end cells
-        speakerPosition: { x: 16, y: 12 }, // Where farmer stands
+        speakerPosition: { x: 14, y: 11 }, // Where farmer stands - in the path before end
       },
     ],
     endConditions: {
@@ -127,8 +127,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        cells: [{ x: 26, y: 34 }, { x: 27, y: 34 }, { x: 26, y: 35 }, { x: 27, y: 35 }], // All end cells
-        speakerPosition: { x: 26, y: 34 }, // Where farmer stands
+        cells: [{ x: 26, y: 32 }, { x: 27, y: 32 }, { x: 26, y: 33 }, { x: 27, y: 33 }], // All end cells
+        speakerPosition: { x: 24, y: 32 }, // Where farmer stands - in the path before end
       },
     ],
     endConditions: {
@@ -194,7 +194,7 @@ export const mazes: Maze[] = [
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
         cells: [{ x: 11, y: 13 }], // Single end cell
-        speakerPosition: { x: 11, y: 13 }, // Where farmer stands
+        speakerPosition: { x: 9, y: 13 }, // Where farmer stands - in path before end
       },
     ],
     endConditions: {
