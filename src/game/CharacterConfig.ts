@@ -16,7 +16,7 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     scale: 0.55,
   },
   'Animated_Woman.glb': {
-    scale: 0.55, // Same size as Farmer (Sanctuary Sam)
+    scale: 0.28, // Smaller base - model is larger than Farmer
   },
   
   // Animals
