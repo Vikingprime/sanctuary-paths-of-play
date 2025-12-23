@@ -8,6 +8,7 @@ import { MobileControls } from './MobileControls';
 import { Button } from '@/components/ui/button';
 import { Confetti } from '@/components/Confetti';
 import { animals } from '@/data/animals';
+import { formatTime } from '@/lib/utils';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -510,7 +511,7 @@ export const MazeGame3D = ({
                   {/* Time display */}
                   <div className="bg-card rounded-xl p-4 inline-block">
                     <p className="text-2xl font-display font-bold text-foreground">
-                      ⏱️ {finalTime.toFixed(1)}s
+                      ⏱️ {formatTime(finalTime)}s
                     </p>
                     {completionResult?.isBestTime ? (
                       <p className="text-sm text-primary font-semibold mt-1">
@@ -518,7 +519,7 @@ export const MazeGame3D = ({
                       </p>
                     ) : completionResult?.bestTime ? (
                       <p className="text-sm text-muted-foreground mt-1">
-                        Best: {completionResult.bestTime.toFixed(1)}s
+                        Best: {formatTime(completionResult.bestTime)}s
                       </p>
                     ) : null}
                   </div>
