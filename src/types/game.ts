@@ -44,8 +44,7 @@ export interface DialogueTrigger {
   speaker: string;
   speakerEmoji: string;
   message: string;
-  position: { x: number; y: number }; // Cell coordinates
-  triggerRadius?: number; // Default 0.5 (touch only - meters)
+  position: { x: number; y: number }; // Cell coordinates - dialogue triggers when player enters this cell
 }
 
 export interface Maze {

@@ -180,31 +180,18 @@ export const MazeGame3D = ({
     return () => clearInterval(timer);
   }, [isPreviewing, gameOver, activeDialogue]);
 
-  // Check if player is near a dialogue trigger (helper function)
-  const checkDialogueNear = useCallback((x: number, y: number): boolean => {
-    if (!maze.dialogues) {
-      console.log('[Dialogue] No dialogues in maze');
-      return false;
-    }
+  // Check if the player's current cell has a dialogue trigger (cell-based, not radius-based)
+  const checkDialogueAtCell = useCallback((x: number, y: number): boolean => {
+    if (!maze.dialogues) return false;
+    
+    const gridX = Math.floor(x);
+    const gridY = Math.floor(y);
     
     for (const dialogue of maze.dialogues) {
-      if (triggeredDialogues.has(dialogue.id)) {
-        console.log('[Dialogue] Already triggered:', dialogue.id);
-        continue;
-      }
+      if (triggeredDialogues.has(dialogue.id)) continue;
       
-      const triggerRadius = dialogue.triggerRadius ?? 0.5;
-      const dialogueX = dialogue.position.x + 0.5;
-      const dialogueY = dialogue.position.y + 0.5;
-      
-      const dx = x - dialogueX;
-      const dy = y - dialogueY;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      
-      console.log(`[Dialogue] Player at (${x.toFixed(2)}, ${y.toFixed(2)}), dialogue "${dialogue.id}" at (${dialogueX}, ${dialogueY}), distance: ${distance.toFixed(2)}, radius: ${triggerRadius}`);
-      
-      if (distance <= triggerRadius) {
-        console.log('[Dialogue] TRIGGERED!', dialogue.id);
+      // Check if player is in the same cell as the dialogue
+      if (gridX === dialogue.position.x && gridY === dialogue.position.y) {
         setActiveDialogue(dialogue);
         setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
         return true;
@@ -230,7 +217,8 @@ export const MazeGame3D = ({
       // Station triggering is now handled by proximity check, not cell interaction
       
       // Check for dialogue triggers BEFORE end game (dialogue takes priority)
-      const dialogueTriggered = checkDialogueNear(x, y);
+      // Uses cell-based check - if player is in the same cell as a dialogue, trigger it
+      const dialogueTriggered = checkDialogueAtCell(x, y);
       
       if (result.reachedEnd) {
         if (dialogueTriggered) {
@@ -246,7 +234,7 @@ export const MazeGame3D = ({
         onComplete(timeUsed).then(setCompletionResult);
       }
     },
-    [maze, collectedPowerUps, timeLeft, onComplete, checkDialogueNear]
+    [maze, collectedPowerUps, timeLeft, onComplete, checkDialogueAtCell]
   );
 
   // Handle end game after dialogue is dismissed
@@ -337,38 +325,7 @@ export const MazeGame3D = ({
     return () => clearInterval(interval);
   }, [isPreviewing, gameOver, showMiniMap, showMapOptions, mapCountdown]);
 
-  // Dialogue proximity check (runs continuously for smoother trigger)
-  useEffect(() => {
-    if (isPreviewing || gameOver || activeDialogue || !maze.dialogues) return;
-    
-    const checkDialogueProximity = () => {
-      const playerX = playerStateRef.current.x;
-      const playerY = playerStateRef.current.y;
-      
-      for (const dialogue of maze.dialogues!) {
-        if (triggeredDialogues.has(dialogue.id)) continue;
-        
-        const triggerRadius = dialogue.triggerRadius ?? 0.5; // Default to touch-only
-        const dialogueX = dialogue.position.x + 0.5; // Center of cell
-        const dialogueY = dialogue.position.y + 0.5;
-        
-        const dx = playerX - dialogueX;
-        const dy = playerY - dialogueY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance <= triggerRadius) {
-          setActiveDialogue(dialogue);
-          setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
-          break;
-        }
-      }
-    };
-    
-    const interval = setInterval(checkDialogueProximity, 100);
-    checkDialogueProximity();
-    
-    return () => clearInterval(interval);
-  }, [isPreviewing, gameOver, activeDialogue, maze.dialogues, triggeredDialogues]);
+  // Dialogue is now checked via cell-based logic in handleCellInteraction, not proximity
 
   // Keyboard controls
   useEffect(() => {
