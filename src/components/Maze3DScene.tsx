@@ -1285,6 +1285,11 @@ return (
           />
           {/* Show the farmer at dialogue position during cutscene */}
           <DialogueSpeaker position={{ x: dialogueTarget.speakerX, z: dialogueTarget.speakerZ }} playerStateRef={playerStateRef} />
+          {/* DEBUG: Blue cube at EXACT dialogue farmer position */}
+          <mesh position={[dialogueTarget.speakerX + 0.5, 2, dialogueTarget.speakerZ + 0.5]}>
+            <boxGeometry args={[0.5, 0.5, 0.5]} />
+            <meshStandardMaterial color="blue" />
+          </mesh>
         </>
       ) : (
         <OverShoulderCameraController 
