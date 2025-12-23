@@ -100,10 +100,18 @@ const Index = () => {
     );
   }
 
+  // Calculate medal counts from levels
+  const goldMedals = Object.values(save.levels).filter(l => l.medal === 'gold').length;
+  const silverMedals = Object.values(save.levels).filter(l => l.medal === 'silver').length;
+
   return (
     <div className="min-h-screen bg-background">
-      <Header totalMeals={save.player.totalMealsUnlocked} stars={save.player.currency} />
-
+      <Header 
+        totalMeals={save.player.totalMealsUnlocked} 
+        stars={save.player.currency} 
+        goldMedals={goldMedals}
+        silverMedals={silverMedals}
+      />
       <main className="container max-w-4xl mx-auto px-4 py-8">
         {screen === 'home' && (
           <div className="space-y-8">
