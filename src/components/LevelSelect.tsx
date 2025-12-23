@@ -119,7 +119,7 @@ export const LevelSelect = ({
       </div>
 
       {/* Scrollable maze list */}
-      <div className="flex-1 overflow-y-auto pb-20">
+      <div className="flex-1 overflow-y-auto pb-24 mb-16">
         <div className="grid gap-4 max-w-md mx-auto px-4">
           {mazes.map((maze, index) => {
             const isUnlocked = unlockedStatus[maze.id];
