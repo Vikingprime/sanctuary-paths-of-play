@@ -1040,6 +1040,7 @@ const CutsceneCameraController = ({
   const SMOOTHING = 0.1;
   
   const currentPos = useRef(new Vector3());
+  const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
   
   useFrame(() => {
@@ -1053,18 +1054,27 @@ const CutsceneCameraController = ({
     
     // Target camera position: at player, eye level
     const targetPos = new Vector3(playerX, CAMERA_HEIGHT, playerZ);
+    // Target look at: farmer position
+    const targetLookAt = new Vector3(farmerX, LOOK_HEIGHT, farmerZ);
     
     if (!initialized.current) {
-      currentPos.current.copy(camera.position);
+      // Start camera at player position, looking at farmer immediately
+      currentPos.current.copy(targetPos);
+      currentLookAt.current.copy(targetLookAt);
       initialized.current = true;
+      console.log('Cutscene camera - Player:', playerX.toFixed(1), playerZ.toFixed(1), '| Farmer:', farmerX.toFixed(1), farmerZ.toFixed(1));
     }
     
-    // Smooth position
+    // Smooth interpolation
     currentPos.current.lerp(targetPos, SMOOTHING);
+    currentLookAt.current.lerp(targetLookAt, SMOOTHING);
     
-    // Set camera position and look at farmer
+    // Ensure camera up vector is correct
+    camera.up.set(0, 1, 0);
+    
+    // Set camera position and look at the interpolated target
     camera.position.copy(currentPos.current);
-    camera.lookAt(farmerX, LOOK_HEIGHT, farmerZ);
+    camera.lookAt(currentLookAt.current);
   });
   
   return null;
