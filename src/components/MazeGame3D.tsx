@@ -263,15 +263,20 @@ export const MazeGame3D = ({
   const handleDialogueContinue = useCallback(() => {
     setActiveDialogue(null);
     
+    // Check if we should end the game - either already pending OR player is on end cell with conditions now met
     if (pendingEndGameRef.current) {
-      setHasWon(true);
-      setGameOver(true);
-      const timeUsed = maze.timeLimit - timeLeft;
-      setFinalTime(timeUsed);
-      onComplete(timeUsed).then(setCompletionResult);
+      // After this dialogue completes, check if conditions are now met
+      // Note: triggeredDialogues already includes the dialogue that was just shown
+      if (canEndLevel()) {
+        setHasWon(true);
+        setGameOver(true);
+        const timeUsed = maze.timeLimit - timeLeft;
+        setFinalTime(timeUsed);
+        onComplete(timeUsed).then(setCompletionResult);
+      }
       setPendingEndGame(false);
     }
-  }, [maze.timeLimit, timeLeft, onComplete]);
+  }, [maze.timeLimit, timeLeft, onComplete, canEndLevel]);
 
   // Movement is now handled in Maze3DScene's useFrame for sync with rendering
 
