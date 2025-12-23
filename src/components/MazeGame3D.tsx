@@ -100,6 +100,32 @@ export const MazeGame3D = ({
   // Dialogue state
   const [activeDialogue, setActiveDialogue] = useState<DialogueTrigger | null>(null);
   const [triggeredDialogues, setTriggeredDialogues] = useState<Set<string>>(new Set());
+  
+  // Helper to find the speaker position for a dialogue, traversing up the chain if needed
+  const findSpeakerPositionForDialogue = useCallback((dialogue: DialogueTrigger | null): { x: number; y: number } | null => {
+    if (!dialogue || !maze.dialogues) return null;
+    
+    // If this dialogue has a speaker position, use it
+    if (dialogue.speakerPosition) {
+      return dialogue.speakerPosition;
+    }
+    
+    // If this dialogue has cells, use the first cell
+    if (dialogue.cells.length > 0) {
+      return { x: dialogue.cells[0].x, y: dialogue.cells[0].y };
+    }
+    
+    // This is a chained dialogue - find the parent dialogue it requires
+    if (dialogue.requires && dialogue.requires.length > 0) {
+      const parentId = dialogue.requires[0];
+      const parentDialogue = maze.dialogues.find(d => d.id === parentId);
+      if (parentDialogue) {
+        return findSpeakerPositionForDialogue(parentDialogue);
+      }
+    }
+    
+    return null;
+  }, [maze.dialogues]);
 
   // Find all station positions in the maze
   const stationPositions = useRef<Array<{ x: number; y: number }>>([]);
@@ -651,10 +677,13 @@ export const MazeGame3D = ({
         onRendererInfo={setRendererInfo}
         debugMode={debugMode}
         restartKey={restartKey}
-        dialogueTarget={activeDialogue ? { 
-          speakerX: activeDialogue.speakerPosition?.x ?? activeDialogue.cells[0]?.x ?? playerStateRef.current.x, 
-          speakerZ: activeDialogue.speakerPosition?.y ?? activeDialogue.cells[0]?.y ?? playerStateRef.current.y 
-        } : null}
+        dialogueTarget={activeDialogue ? (() => {
+          const pos = findSpeakerPositionForDialogue(activeDialogue);
+          return {
+            speakerX: pos?.x ?? playerStateRef.current.x, 
+            speakerZ: pos?.y ?? playerStateRef.current.y 
+          };
+        })() : null}
         cornOptimizationSettings={{
           shadowRadius: 8,
           cullDistance: 18,
