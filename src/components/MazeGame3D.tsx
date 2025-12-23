@@ -209,8 +209,8 @@ export const MazeGame3D = ({
     return maze.endConditions.requiredDialogues.every(id => triggeredDialogues.has(id));
   }, [maze.endConditions, triggeredDialogues]);
 
-  // Track if player is on an end cell waiting for dialogue to finish
-  const [pendingEndGame, setPendingEndGame] = useState(false);
+  // Track if we should end after dialogue - use ref directly for immediate access
+  const pendingEndGameRef = useRef(false);
 
   // Handle cell interactions (React-specific wrapper around pure logic)
   const handleCellInteraction = useCallback(
@@ -233,9 +233,10 @@ export const MazeGame3D = ({
         setActiveDialogue(dialogue);
         setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
         
-        // If this is also an end cell, mark pending end
+        // If this is also an end cell, mark pending end IMMEDIATELY in ref
         if (result.reachedEnd) {
-          setPendingEndGame(true);
+          console.log('DEBUG: Setting pendingEndGame to true - on end cell with dialogue');
+          pendingEndGameRef.current = true;
         }
         return;
       }
@@ -251,26 +252,21 @@ export const MazeGame3D = ({
     },
     [maze, collectedPowerUps, timeLeft, onComplete, checkDialogueAtCell, canEndLevel]
   );
-
-  // Handle end game after dialogue is dismissed
-  const pendingEndGameRef = useRef(false);
-  
-  useEffect(() => {
-    pendingEndGameRef.current = pendingEndGame;
-  }, [pendingEndGame]);
   
   // Handle continue button click - trigger end if dialogue was on end tile
   const handleDialogueContinue = useCallback(() => {
+    console.log('DEBUG: handleDialogueContinue called, pendingEndGameRef.current =', pendingEndGameRef.current);
     setActiveDialogue(null);
     
     // Simple: if we were on an end tile when dialogue started, end the game now
     if (pendingEndGameRef.current) {
+      console.log('DEBUG: Triggering end game!');
       setHasWon(true);
       setGameOver(true);
       const timeUsed = maze.timeLimit - timeLeft;
       setFinalTime(timeUsed);
       onComplete(timeUsed).then(setCompletionResult);
-      setPendingEndGame(false);
+      pendingEndGameRef.current = false;
     }
   }, [maze.timeLimit, timeLeft, onComplete]);
 
