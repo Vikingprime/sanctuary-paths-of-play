@@ -1107,14 +1107,13 @@ const CutsceneCameraController = ({
 }) => {
   const { camera } = useThree();
   
-  const CAMERA_HEIGHT = 1.4; // Eye level for better framing
-  const LOOK_HEIGHT = 0.6; // Look at speaker's midpoint/chest area
-  const ZOOM_DISTANCE = 2.0; // Distance from speaker
-  const MIN_DISTANCE = 1.5; // Minimum distance to ensure we don't get too close
+  const CAMERA_HEIGHT = 1.3; // Eye level for better framing
+  const LOOK_HEIGHT = 0.7; // Look at speaker's face/chest area
+  const ZOOM_DISTANCE = 2.2; // Distance from speaker for good framing
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
-    const playerZ = playerStateRef.current.y;
+    const playerZ = playerStateRef.current.y; // This is Three.js Z
     
     // Speaker is at dialogueTarget position + 0.5 (center of cell)
     const speakerX = dialogueTarget.speakerX + 0.5;
@@ -1123,17 +1122,26 @@ const CutsceneCameraController = ({
     // Calculate direction from speaker to player
     const dx = playerX - speakerX;
     const dz = playerZ - speakerZ;
-    const dist = Math.max(Math.sqrt(dx * dx + dz * dz), 0.1); // Prevent division by zero
+    const dist = Math.sqrt(dx * dx + dz * dz);
     
-    // Normalize the direction
-    const dirX = dx / dist;
-    const dirZ = dz / dist;
+    // If player is very close to speaker, use a default camera angle
+    // (position camera slightly behind the player's approach direction)
+    let dirX: number, dirZ: number;
+    if (dist < 0.5) {
+      // Use player's facing direction to determine camera position
+      const playerRot = playerStateRef.current.rotation;
+      // Camera should be behind where the player is looking (opposite direction)
+      dirX = -Math.sin(playerRot);
+      dirZ = Math.cos(playerRot);
+    } else {
+      // Normal case: camera positioned on the player's side of the speaker
+      dirX = dx / dist;
+      dirZ = dz / dist;
+    }
     
-    // Position camera behind and slightly to the side of the player, looking at speaker
-    // Camera is positioned ZOOM_DISTANCE away from speaker, in the direction of the player
-    const effectiveDistance = Math.max(ZOOM_DISTANCE, MIN_DISTANCE);
-    const camX = speakerX + dirX * effectiveDistance;
-    const camZ = speakerZ + dirZ * effectiveDistance;
+    // Position camera ZOOM_DISTANCE away from speaker, in direction toward player
+    const camX = speakerX + dirX * ZOOM_DISTANCE;
+    const camZ = speakerZ + dirZ * ZOOM_DISTANCE;
     
     camera.position.set(camX, CAMERA_HEIGHT, camZ);
     camera.up.set(0, 1, 0);
