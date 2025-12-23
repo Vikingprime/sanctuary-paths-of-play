@@ -275,21 +275,27 @@ export function calculateMovement(
 
   // Calculate rotation - use intensity for proportional control (mobile)
   // or full speed for keyboard input
-  let newRotation = currentState.rotation;
   const isMoving = input.forward || input.backward;
   const baseMultiplier = isMoving ? 0.5 : 1.0; // Slower while moving
   // Use intensity if provided (0-1), otherwise full intensity for keyboard
   const intensity = input.rotationIntensity ?? 1.0;
   const rotationMultiplier = baseMultiplier * intensity;
   
+  let desiredRotation = currentState.rotation;
   if (input.rotateLeft) {
-    newRotation -= rotationSpeed * rotationMultiplier * deltaTime;
+    desiredRotation -= rotationSpeed * rotationMultiplier * deltaTime;
   }
   if (input.rotateRight) {
-    newRotation += rotationSpeed * rotationMultiplier * deltaTime;
+    desiredRotation += rotationSpeed * rotationMultiplier * deltaTime;
   }
   // Normalize rotation to prevent accumulation of large values
-  newRotation = ((newRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  desiredRotation = ((desiredRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  
+  // Check if rotation would cause character collision - if so, don't rotate
+  const rotationCausesCollision = checkCharacterCollisionMultiPoint(
+    currentState.x, currentState.y, desiredRotation, characters
+  );
+  const newRotation = rotationCausesCollision ? currentState.rotation : desiredRotation;
 
   // Calculate movement vector based on facing direction
   let moveX = 0;
