@@ -101,7 +101,7 @@ export const GameHUD = ({
               timeLeft <= 10 ? 'text-destructive-foreground' : 'text-foreground'
             )}
           >
-            ⏱️ {timeLeft}s
+            ⏱️ {Math.ceil(timeLeft)}s
           </span>
         </div>
 
