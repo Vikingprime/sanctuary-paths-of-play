@@ -26,7 +26,6 @@ interface DialogueConfig {
   characterModel?: string;
   characterAnimation?: string;
   requires?: string[];
-  triggersOnEnd?: boolean; // Trigger on end tile before level complete
 }
 
 interface MazeConfig {
@@ -258,7 +257,7 @@ ${dialogues.map(d => {
       cells: [${d.cells.map(c => `{ x: ${c.x}, y: ${c.y} }`).join(', ')}],
       ${d.characterModel ? `characterModel: '${d.characterModel}',` : ''}
       ${d.characterAnimation ? `characterAnimation: '${d.characterAnimation}',` : ''}
-      ${d.triggersOnEnd ? `triggersOnEnd: true,` : ''}
+      
       ${d.requires && d.requires.length > 0 ? `requires: [${d.requires.map(r => `'${r}'`).join(', ')}],` : ''}
     }`;
 }).join(',\n')}
@@ -769,19 +768,6 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
 
                       <div className="text-xs text-muted-foreground">
                         Cells: {dialogue.cells.length} {selectedDialogueId === dialogue.id && '(click grid to add)'}
-                      </div>
-
-                      {/* Triggers on End checkbox */}
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={dialogue.triggersOnEnd || false}
-                          onChange={e => {
-                            updateDialogue(dialogue.id, { triggersOnEnd: e.target.checked });
-                          }}
-                          onClick={e => e.stopPropagation()}
-                        />
-                        <Label className="text-xs">Triggers on End tile (before level complete)</Label>
                       </div>
 
                       {/* Toggle required for end */}
