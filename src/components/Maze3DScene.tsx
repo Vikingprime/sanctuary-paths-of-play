@@ -1110,7 +1110,7 @@ const CutsceneCameraController = ({
   
   const CAMERA_HEIGHT = 1.3;
   const LOOK_HEIGHT = 0.7;
-  const ZOOM_DISTANCE = 2.2;
+  const ZOOM_DISTANCE = 2.5;
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
@@ -1120,38 +1120,20 @@ const CutsceneCameraController = ({
     const speakerX = dialogueTarget.speakerX + 0.5;
     const speakerZ = dialogueTarget.speakerZ + 0.5;
     
-    // Calculate direction from speaker to player
-    const dx = playerX - speakerX;
-    const dz = playerZ - speakerZ;
-    const dist = Math.sqrt(dx * dx + dz * dz);
+    // DEBUG: Force camera to look in -Z direction (toward speaker)
+    // Position camera BEHIND the speaker (higher Z), looking toward speaker (lower Z)
+    const camX = speakerX;
+    const camZ = speakerZ + ZOOM_DISTANCE; // Camera behind speaker in +Z
     
-    let dirX: number, dirZ: number;
-    if (dist < 0.5) {
-      const playerRot = playerStateRef.current.rotation;
-      dirX = -Math.sin(playerRot);
-      dirZ = Math.cos(playerRot);
-    } else {
-      dirX = dx / dist;
-      dirZ = dz / dist;
-    }
-    
-    const camX = speakerX + dirX * ZOOM_DISTANCE;
-    const camZ = speakerZ + dirZ * ZOOM_DISTANCE;
-    
-    // DEBUG LOGGING - log once per dialogue activation
+    // DEBUG LOGGING
     if (!loggedRef.current) {
       loggedRef.current = true;
-      const angleRad = Math.atan2(speakerZ - camZ, speakerX - camX);
-      const angleDeg = (angleRad * 180) / Math.PI;
       console.log('=== CUTSCENE CAMERA DEBUG ===');
       console.log('dialogueTarget raw:', { speakerX: dialogueTarget.speakerX, speakerZ: dialogueTarget.speakerZ });
       console.log('Speaker 3D pos (with +0.5):', { x: speakerX, z: speakerZ });
       console.log('Player pos:', { x: playerX, z: playerZ });
-      console.log('Camera pos:', { x: camX, y: CAMERA_HEIGHT, z: camZ });
+      console.log('Camera pos (DEBUG -Z):', { x: camX, y: CAMERA_HEIGHT, z: camZ });
       console.log('Camera lookAt:', { x: speakerX, y: LOOK_HEIGHT, z: speakerZ });
-      console.log('Camera angle to speaker (deg):', angleDeg);
-      console.log('Distance player->speaker:', dist);
-      console.log('Direction vec:', { dirX, dirZ });
     }
     
     camera.position.set(camX, CAMERA_HEIGHT, camZ);
