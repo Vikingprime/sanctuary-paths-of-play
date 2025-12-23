@@ -237,6 +237,9 @@ export const MazeGame3D = ({
       gameStartTimeRef.current = Date.now();
     }
 
+    // In debug mode, don't count down time
+    if (debugMode) return;
+    
     const timer = setInterval(() => {
       const now = Date.now();
       const elapsed = (now - gameStartTimeRef.current! - pausedTimeRef.current) / 1000;
@@ -252,7 +255,7 @@ export const MazeGame3D = ({
     }, 100); // Update every 100ms for precision
 
     return () => clearInterval(timer);
-  }, [isPreviewing, gameOver, activeDialogue, maze.timeLimit]);
+  }, [isPreviewing, gameOver, activeDialogue, maze.timeLimit, debugMode]);
 
   // Check if all required dialogues for a given dialogue are completed
   const areRequirementsMet = useCallback((dialogue: DialogueTrigger): boolean => {
