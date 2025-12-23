@@ -226,8 +226,8 @@ export function checkCharacterCollisionMultiPoint(
   y: number,
   rotation: number,
   characters: CharacterPosition[],
-  headOffset: number = 0.35,  // How far head extends forward
-  tailOffset: number = 0.15   // How far tail extends backward
+  headOffset: number = 0.42,  // How far head/horns extend forward
+  tailOffset: number = 0.35   // How far tail extends backward
 ): boolean {
   // Calculate head position (forward from center based on rotation)
   const headX = x + Math.sin(rotation) * headOffset;
