@@ -46,27 +46,18 @@ const Index = () => {
     setScreen('playing');
   };
 
-  const handleGameComplete = async (score: number, timeUsed: number) => {
+  const handleGameComplete = async (timeUsed: number) => {
     // Save level completion and get result
     let result = { medal: null as MedalType, currencyEarned: 0, isBestTime: false, bestTime: null as number | null };
     
     if (selectedMaze) {
-      const prevBestTime = save.levels[selectedMaze.id]?.bestTime;
-      const { medal, currencyEarned } = await completeLevel(selectedMaze.id, timeUsed, selectedMaze);
-      
-      // Determine if this is the new best time
-      const isBestTime = prevBestTime === null || prevBestTime <= 0 || timeUsed < prevBestTime;
-      const bestTime = isBestTime ? timeUsed : prevBestTime;
-      
-      result = { medal, currencyEarned, isBestTime, bestTime };
-      console.log('Medal earned:', medal, 'Currency earned:', currencyEarned, 'Best time:', isBestTime);
+      const completionResult = await completeLevel(selectedMaze.id, timeUsed, selectedMaze);
+      result = completionResult;
+      console.log('Medal earned:', result.medal, 'Stars earned:', result.currencyEarned, 'Best time:', result.isBestTime);
     }
     
-    // Update score
-    await addScore(score);
-    
-    // Update meal progress
-    const newProgress = mealProgress + Math.floor(score / 50);
+    // Update meal progress based on stars earned
+    const newProgress = mealProgress + result.currencyEarned;
     if (newProgress >= 100) {
       await unlockMeal();
       setMealProgress(newProgress - 100);
