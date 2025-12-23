@@ -27,7 +27,7 @@ interface MazeGame3DProps {
   debugMode?: boolean;
   isMuted?: boolean;
   onMuteChange?: (muted: boolean) => void;
-  onComplete: (score: number, timeUsed: number) => void;
+  onComplete: (score: number, timeUsed: number, hasRestarted: boolean) => void;
   onQuit: () => void;
 }
 
@@ -69,6 +69,7 @@ export const MazeGame3D = ({
   const [speedBoostActive, setSpeedBoostActive] = useState(false);
   const [isMuted, setIsMuted] = useState(initialMuted);
   const [restartKey, setRestartKey] = useState(0); // Increment to force camera reset
+  const [hasRestarted, setHasRestarted] = useState(false); // Track if player restarted (disqualifies gold)
   // Corn optimization settings
   const [shadowOptEnabled, setShadowOptEnabled] = useState(true);
   const [distanceCullEnabled, setDistanceCullEnabled] = useState(true);
@@ -180,7 +181,7 @@ export const MazeGame3D = ({
         setGameOver(true);
         const score = calculateScore(timeLeft);
         const timeUsed = maze.timeLimit - timeLeft;
-        onComplete(score, timeUsed);
+        onComplete(score, timeUsed, hasRestarted);
       }
     },
     [maze, collectedPowerUps, timeLeft, onComplete]
@@ -352,6 +353,9 @@ export const MazeGame3D = ({
     setShowMapOptions(false);
     setMapCountdown(null);
     setMapViewTimeLeft(null);
+    
+    // Mark that player has restarted (disqualifies gold medal)
+    setHasRestarted(true);
     
     // Increment restart key to force camera reset
     setRestartKey(prev => prev + 1);

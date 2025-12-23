@@ -104,13 +104,15 @@ class SaveManagerClass {
     time: number,
     powerUps: string[],
     maze: Maze,
-    debugMode: boolean = false
+    debugMode: boolean = false,
+    hasRestarted: boolean = false
   ): Promise<{ medal: MedalType; currencyEarned: number }> {
     const save = await this.load();
     const existing = save.levels[mazeId];
     
     const isFirstCompletion = !existing?.completed;
-    const medal = this.calculateMedal(time, maze, isFirstCompletion);
+    // Restarting disqualifies gold medal (same as not being first completion)
+    const medal = this.calculateMedal(time, maze, isFirstCompletion && !hasRestarted);
     
     // Determine best medal (gold > silver > bronze > null)
     const medalRank = { gold: 3, silver: 2, bronze: 1, null: 0 };
