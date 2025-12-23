@@ -196,6 +196,7 @@ export const MazeGame3D = ({
       
       // Check if this cell is in the dialogue's trigger cells
       const isInCells = dialogue.cells.some(cell => cell.x === gridX && cell.y === gridY);
+      console.log('DEBUG checkDialogueAtCell:', dialogue.id, 'player at', gridX, gridY, 'dialogue cells:', JSON.stringify(dialogue.cells), 'match:', isInCells);
       if (isInCells) {
         return dialogue;
       }
