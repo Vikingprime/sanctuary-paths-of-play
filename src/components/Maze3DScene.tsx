@@ -734,22 +734,17 @@ const CharacterRenderer = ({
   }, [animations, model, animation]);
   
   useFrame((state, delta) => {
-    if (groupRef.current) {
-      if (isDialogueActive && playerStateRef) {
-        // During dialogue: face the player
-        const charX = position.x + 0.5;
-        const charZ = position.y + 0.5;
-        const playerX = playerStateRef.current.x;
-        const playerZ = playerStateRef.current.y;
-        
-        const dx = playerX - charX;
-        const dz = playerZ - charZ;
-        const angle = Math.atan2(dx, dz);
-        groupRef.current.rotation.y = angle;
-      } else {
-        // Normal gameplay: slow rotation
-        groupRef.current.rotation.y = state.clock.elapsedTime * 0.3;
-      }
+    if (groupRef.current && playerStateRef) {
+      // Always face the player (same as main character logic)
+      const charX = position.x + 0.5;
+      const charZ = position.y + 0.5;
+      const playerX = playerStateRef.current.x;
+      const playerZ = playerStateRef.current.y;
+      
+      const dx = playerX - charX;
+      const dz = playerZ - charZ;
+      const angle = Math.atan2(dx, dz);
+      groupRef.current.rotation.y = angle;
     }
     
     // Update animation mixer
