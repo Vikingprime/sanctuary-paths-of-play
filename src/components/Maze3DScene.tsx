@@ -1010,11 +1010,7 @@ const CutsceneCameraController = ({
     camera.up.set(0, 1, 0);
     camera.lookAt(farmerX, LOOK_HEIGHT, farmerZ);
     
-    if (!initialized.current) {
-      initialized.current = true;
-      console.log('Cutscene: Camera at player:', playerX.toFixed(1), playerZ.toFixed(1));
-      console.log('Cutscene: Looking at goal farmer:', farmerX.toFixed(1), farmerZ.toFixed(1));
-    }
+    initialized.current = true;
   });
   
   return null;
