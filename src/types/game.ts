@@ -56,7 +56,6 @@ export interface DialogueTrigger {
   requires?: string[]; // IDs of dialogues that must be completed before this one can trigger
   characterModel?: string; // GLB model file name (e.g., 'Farmer.glb')
   characterAnimation?: string; // Animation to play during dialogue (e.g., 'idle', 'wave', 'talk')
-  triggersOnEnd?: boolean; // If true, triggers when player reaches end cell (before level complete)
 }
 
 export interface Maze {
