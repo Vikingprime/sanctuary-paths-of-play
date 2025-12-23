@@ -285,8 +285,40 @@ export const MazeGame3D = ({
     [maze, collectedPowerUps, timeLeft, onComplete, checkDialogueAtCell, canEndLevel]
   );
   
-  // Handle continue button click - check if player is on end cell now
+  // Find the next chained dialogue after the current one
+  const findNextChainedDialogue = useCallback((currentDialogueId: string): DialogueTrigger | null => {
+    if (!maze.dialogues) return null;
+    
+    // Find dialogues that:
+    // 1. Require the current dialogue
+    // 2. Have empty cells (meaning they chain from Continue, not location-based)
+    // 3. Haven't been triggered yet
+    for (const dialogue of maze.dialogues) {
+      if (triggeredDialogues.has(dialogue.id)) continue;
+      if (!dialogue.requires?.includes(currentDialogueId)) continue;
+      if (dialogue.cells.length === 0) {
+        return dialogue;
+      }
+    }
+    return null;
+  }, [maze.dialogues, triggeredDialogues]);
+
+  // Handle continue button click - check for chained dialogues first
   const handleDialogueContinue = useCallback(() => {
+    const currentDialogueId = activeDialogue?.id;
+    
+    // Check for chained dialogue first
+    if (currentDialogueId) {
+      const nextDialogue = findNextChainedDialogue(currentDialogueId);
+      if (nextDialogue) {
+        // Show the next dialogue in the chain
+        setActiveDialogue(nextDialogue);
+        setTriggeredDialogues(prev => new Set([...prev, nextDialogue.id]));
+        return;
+      }
+    }
+    
+    // No more chained dialogues - close dialogue
     setActiveDialogue(null);
     
     // After dialogue ends, check if player is currently on an end cell
@@ -294,8 +326,8 @@ export const MazeGame3D = ({
     const playerY = Math.floor(playerStateRef.current.y);
     const currentCell = maze.grid[playerY]?.[playerX];
     
-    // If player is on end cell (or was on one when dialogue started), end the game
-    if (currentCell?.isEnd || pendingEndGameRef.current) {
+    // If player is on end cell (or was on one when dialogue started), and can end level
+    if ((currentCell?.isEnd || pendingEndGameRef.current) && canEndLevel()) {
       setHasWon(true);
       setGameOver(true);
       const timeUsed = maze.timeLimit - timeLeft;
@@ -303,7 +335,7 @@ export const MazeGame3D = ({
       onComplete(timeUsed).then(setCompletionResult);
       pendingEndGameRef.current = false;
     }
-  }, [maze.grid, maze.timeLimit, timeLeft, onComplete]);
+  }, [activeDialogue, maze.grid, maze.timeLimit, timeLeft, onComplete, findNextChainedDialogue, canEndLevel]);
 
   // Movement is now handled in Maze3DScene's useFrame for sync with rendering
 

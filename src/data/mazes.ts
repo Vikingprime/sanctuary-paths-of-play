@@ -232,8 +232,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Stella',
         speakerEmoji: '👩‍🌾',
         message: 'Hello there!',
-        cells: [{ x: 12, y: 2 }, { x: 11, y: 2 }, { x: 12, y: 3 }, { x: 11, y: 3 }], // Near station H
-        speakerPosition: { x: 12, y: 2 }, // Where Stella stands
+        cells: [{ x: 11, y: 2 }, { x: 10, y: 2 }, { x: 11, y: 3 }, { x: 10, y: 3 }], // Near station H
+        speakerPosition: { x: 12, y: 2 }, // Where Stella stands (single location for all her dialogues)
         characterModel: 'Animated_Woman.glb',
         characterAnimation: 'idle',
       },
@@ -242,9 +242,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Stella',
         speakerEmoji: '👩‍🌾',
         message: 'Find Sanctuary Sam!',
-        cells: [{ x: 8, y: 12 }, { x: 8, y: 13 }, { x: 9, y: 12 }, { x: 9, y: 13 }],
-        speakerPosition: { x: 8, y: 11 },
-        characterModel: 'Animated_Woman.glb',
+        cells: [], // No trigger cells - this dialogue chains from the first via Continue
+        // No speakerPosition - same character from dialogue_stella_1
         characterAnimation: 'celebrate',
         requires: ['dialogue_stella_1'],
       }
