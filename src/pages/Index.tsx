@@ -44,11 +44,11 @@ const Index = () => {
     setScreen('playing');
   };
 
-  const handleGameComplete = async (score: number, timeUsed: number) => {
+  const handleGameComplete = async (score: number, timeUsed: number, hasRestarted: boolean) => {
     // Save level completion
     if (selectedMaze) {
-      const { medal, currencyEarned } = await completeLevel(selectedMaze.id, timeUsed, selectedMaze);
-      console.log('Medal earned:', medal, 'Currency earned:', currencyEarned);
+      const { medal, currencyEarned } = await completeLevel(selectedMaze.id, timeUsed, selectedMaze, [], hasRestarted);
+      console.log('Medal earned:', medal, 'Currency earned:', currencyEarned, 'Has restarted:', hasRestarted);
     }
     
     // Update score
