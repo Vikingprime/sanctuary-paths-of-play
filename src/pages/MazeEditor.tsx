@@ -49,6 +49,18 @@ const CELL_COLORS: Record<CellType, string> = {
   'D': 'bg-pink-500 hover:bg-pink-400',
 };
 
+// Different colors for each dialogue so you can distinguish them
+const DIALOGUE_COLORS = [
+  'bg-pink-500',
+  'bg-cyan-500',
+  'bg-orange-500',
+  'bg-lime-500',
+  'bg-violet-500',
+  'bg-rose-500',
+  'bg-teal-500',
+  'bg-amber-500',
+];
+
 const AVAILABLE_MODELS = [
   'Farmer.glb',
   'Animated_Woman.glb',
@@ -287,6 +299,15 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     return dialogues.find(d => d.cells.some(c => c.x === x && c.y === y));
   };
 
+  const getDialogueIndex = (id: string): number => {
+    return dialogues.findIndex(d => d.id === id);
+  };
+
+  const getDialogueColor = (id: string): string => {
+    const index = getDialogueIndex(id);
+    return DIALOGUE_COLORS[index % DIALOGUE_COLORS.length];
+  };
+
   return (
     <div 
       className="min-h-screen bg-gradient-to-b from-amber-100 to-green-200 p-4"
@@ -447,19 +468,27 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                   row.map((cell, x) => {
                     const cellDialogue = getCellDialogue(x, y);
                     const isSelectedDialogueCell = cellDialogue?.id === selectedDialogueId;
+                    const dialogueIndex = cellDialogue ? getDialogueIndex(cellDialogue.id) + 1 : null;
+                    const dialogueColor = cellDialogue ? getDialogueColor(cellDialogue.id) : null;
+                    
+                    // Use dialogue-specific color for D cells
+                    const bgColor = cell === 'D' && dialogueColor 
+                      ? dialogueColor 
+                      : CELL_COLORS[cell];
+                    
                     return (
                       <div
                         key={`${x}-${y}`}
-                        className={`w-5 h-5 border cursor-pointer transition-colors flex items-center justify-center text-[8px] font-bold text-white/80 ${
+                        className={`w-5 h-5 border cursor-pointer transition-colors flex items-center justify-center text-[8px] font-bold text-white ${
                           isSelectedDialogueCell 
-                            ? 'border-2 border-white ring-2 ring-pink-300' 
+                            ? 'border-2 border-white ring-2 ring-yellow-300 z-10' 
                             : 'border-amber-900/20'
-                        } ${CELL_COLORS[cell]}`}
+                        } ${bgColor}`}
                         onMouseDown={() => handleMouseDown(x, y)}
                         onMouseEnter={() => handleMouseEnter(x, y)}
-                        title={cellDialogue ? `Dialogue: ${cellDialogue.speaker}` : undefined}
+                        title={cellDialogue ? `#${dialogueIndex}: ${cellDialogue.speaker} - "${cellDialogue.message.slice(0, 30)}..."` : undefined}
                       >
-                        {cell !== '#' && cell !== ' ' ? cell : ''}
+                        {cell === 'D' && dialogueIndex ? dialogueIndex : (cell !== '#' && cell !== ' ' ? cell : '')}
                       </div>
                     );
                   })
@@ -495,18 +524,26 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     No dialogues yet. Click "Add" to create one.
                   </p>
                 ) : (
-                  dialogues.map(dialogue => (
+                  dialogues.map((dialogue, index) => (
                     <div 
                       key={dialogue.id} 
-                      className={`p-3 rounded-lg border-2 space-y-2 ${
+                      className={`p-3 rounded-lg border-2 space-y-2 cursor-pointer ${
                         selectedDialogueId === dialogue.id 
-                          ? 'border-pink-500 bg-pink-50' 
-                          : 'border-gray-200'
+                          ? 'ring-2 ring-yellow-400 border-gray-400 bg-white' 
+                          : 'border-gray-200 hover:border-gray-300'
                       }`}
-                      onClick={() => setSelectedDialogueId(dialogue.id)}
+                      onClick={() => {
+                        setSelectedDialogueId(dialogue.id);
+                        setSelectedTool('D');
+                      }}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm">{dialogue.speakerEmoji} {dialogue.speaker}</span>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded flex items-center justify-center text-white font-bold text-sm ${getDialogueColor(dialogue.id)}`}>
+                            {index + 1}
+                          </div>
+                          <span className="font-semibold text-sm">{dialogue.speakerEmoji} {dialogue.speaker}</span>
+                        </div>
                         <Button 
                           size="sm" 
                           variant="ghost" 
@@ -514,6 +551,15 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         >
                           <X className="w-4 h-4" />
                         </Button>
+                      </div>
+                      
+                      {/* Cell count indicator */}
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <span className={`w-3 h-3 rounded ${getDialogueColor(dialogue.id)}`}></span>
+                        {dialogue.cells.length} trigger cell{dialogue.cells.length !== 1 ? 's' : ''} placed
+                        {selectedDialogueId === dialogue.id && (
+                          <span className="ml-auto text-amber-600 font-medium">← Click grid to add cells</span>
+                        )}
                       </div>
                       
                       <div className="grid grid-cols-2 gap-2">
