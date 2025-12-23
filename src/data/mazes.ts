@@ -219,6 +219,56 @@ export const mazes: Maze[] = [
       '################',
     ]),
   },
+  {
+    id: 5,
+    name: 'Stella',
+    difficulty: 'easy',
+    timeLimit: 60,
+    previewTime: 5,
+    medalTimes: { gold: 15, silver: 25, bronze: 40 },
+    dialogues: [
+      {
+        id: 'dialogue_stella_1',
+        speaker: 'Sanctuary Stella',
+        speakerEmoji: '👨‍🌾',
+        message: 'Hello there!',
+        cells: [],
+        characterModel: 'Animated_Woman.glb',
+        characterAnimation: 'idle',
+      },
+      {
+        id: 'dialogue_stella_2',
+        speaker: 'Sanctuary Stella',
+        speakerEmoji: '👨‍🌾',
+        message: 'Find Sanctuary Sam!',
+        cells: [{ x: 9, y: 13 }, { x: 8, y: 13 }, { x: 8, y: 12 }, { x: 9, y: 12 }],
+        characterModel: 'Animated_Woman.glb',
+        characterAnimation: 'celebrate',
+        requires: ['dialogue_stella_1'],
+      }
+    ],
+    endConditions: {
+      requiredDialogues: ['dialogue_stella_1', 'dialogue_stella_2'],
+    },
+    grid: createGrid([
+      '################',
+      '################',
+      '##            ##',
+      '##            ##',
+      '########  ##  ##',
+      '##  EE #  #   ##',
+      '##     #  #   ##',
+      '##  ####  #   ##',
+      '##  #     #   ##',
+      '##  #         ##',
+      '##  #         ##',
+      '##  #  #####  ##',
+      '##  #  #      ##',
+      '##     #      ##',
+      '################',
+      '################',
+    ]),
+  },
 ];
 
 export const findStartPosition = (maze: Maze): { x: number; y: number } => {
