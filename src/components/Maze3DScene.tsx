@@ -1052,43 +1052,18 @@ const CutsceneCameraController = ({
     const farmerX = dialogueTarget.speakerX + 0.5;
     const farmerZ = dialogueTarget.speakerZ + 0.5;
     
-    // Direction from player to farmer
-    const dx = farmerX - playerX;
-    const dz = farmerZ - playerZ;
-    
-    // Position camera slightly behind player, looking toward farmer
-    // Move camera back in the opposite direction from the farmer
-    const distToFarmer = Math.sqrt(dx * dx + dz * dz);
-    const dirX = dx / distToFarmer; // Normalized direction to farmer
-    const dirZ = dz / distToFarmer;
-    
-    // Camera offset: behind player (opposite to farmer direction)
-    const CAMERA_BACK = 0.5;
-    const camX = playerX - dirX * CAMERA_BACK;
-    const camZ = playerZ - dirZ * CAMERA_BACK;
-    
-    const targetPos = new Vector3(camX, CAMERA_HEIGHT, camZ);
-    const targetLookAt = new Vector3(farmerX, LOOK_HEIGHT, farmerZ);
+    // DEBUG: Fixed camera pointing at 0 degrees (positive X direction)
+    // Camera at player position, looking 10 units in +X direction
+    camera.position.set(playerX, CAMERA_HEIGHT, playerZ);
+    camera.up.set(0, 1, 0);
+    camera.lookAt(playerX + 10, LOOK_HEIGHT, playerZ); // Look at +X
     
     if (!initialized.current) {
-      currentPos.current.copy(targetPos);
-      currentLookAt.current.copy(targetLookAt);
       initialized.current = true;
-      console.log('Cutscene camera - Player:', playerX.toFixed(1), playerZ.toFixed(1), 
-        '| Farmer:', farmerX.toFixed(1), farmerZ.toFixed(1),
-        '| Dir:', dirX.toFixed(2), dirZ.toFixed(2));
+      console.log('DEBUG - Camera at:', playerX.toFixed(1), playerZ.toFixed(1), 
+        '| Looking at: +X direction',
+        '| Farmer is at:', farmerX.toFixed(1), farmerZ.toFixed(1));
     }
-    
-    // Smooth interpolation
-    currentPos.current.lerp(targetPos, SMOOTHING);
-    currentLookAt.current.lerp(targetLookAt, SMOOTHING);
-    
-    // Ensure camera up vector is correct
-    camera.up.set(0, 1, 0);
-    
-    // Set camera position and look at target
-    camera.position.copy(currentPos.current);
-    camera.lookAt(currentLookAt.current);
   });
   
   return null;
