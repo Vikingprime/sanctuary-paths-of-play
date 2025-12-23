@@ -696,8 +696,8 @@ export const MazeGame3D = ({
 
       {/* Dialogue Overlay */}
       {activeDialogue && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 pointer-events-none animate-fade-in">
-          <div className="bg-card/95 backdrop-blur-sm rounded-2xl p-6 shadow-warm-lg max-w-lg w-full pointer-events-auto mb-8">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 animate-fade-in">
+          <div className="bg-card/95 backdrop-blur-sm rounded-2xl p-6 shadow-warm-lg max-w-lg w-full mb-8">
             <div className="flex items-start gap-4">
               <div className="text-4xl flex-shrink-0">
                 {activeDialogue.speakerEmoji}
@@ -711,12 +711,12 @@ export const MazeGame3D = ({
                 </p>
               </div>
             </div>
-            <button
+            <Button
               onClick={() => setActiveDialogue(null)}
-              className="mt-4 w-full bg-primary text-primary-foreground py-3 px-4 rounded-xl font-display font-semibold hover:bg-primary/90 transition-colors"
+              className="mt-4 w-full py-3"
             >
               Continue
-            </button>
+            </Button>
           </div>
         </div>
       )}

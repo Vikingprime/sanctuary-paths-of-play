@@ -1025,7 +1025,7 @@ const DialogueSpeaker = ({ position, playerStateRef }: {
   );
 };
 
-// Cutscene camera controller - zooms in on speaker from player's perspective
+// Cutscene camera controller - positions camera behind player, looking at speaker
 const CutsceneCameraController = ({ 
   playerStateRef,
   dialogueTarget,
@@ -1038,52 +1038,47 @@ const CutsceneCameraController = ({
   const currentPosition = useRef(new Vector3());
   const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
-  const targetPos = useRef(new Vector3());
-  const targetLookAt = useRef(new Vector3());
   
-  const CAMERA_HEIGHT = 1.8; // Slightly above eye level for better view
-  const LOOK_HEIGHT = 1.0; // Look at farmer's body/face
-  const SMOOTHING = 0.12; // Smooth transition
+  const CAMERA_HEIGHT = 1.5; // Eye level
+  const CAMERA_BEHIND = 1.5; // Distance behind player
+  const LOOK_HEIGHT = 1.2; // Look at farmer's upper body
+  const SMOOTHING = 0.08; // Smooth but responsive transition
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
     const playerZ = playerStateRef.current.y;
-    const speakerX = dialogueTarget.speakerX + 0.5; // Center of cell
+    
+    // Speaker (farmer) is at cell center
+    const speakerX = dialogueTarget.speakerX + 0.5;
     const speakerZ = dialogueTarget.speakerZ + 0.5;
     
-    // Calculate direction from player to speaker
+    // Direction from player to speaker
     const dx = speakerX - playerX;
     const dz = speakerZ - playerZ;
     const dist = Math.sqrt(dx * dx + dz * dz);
     const dirX = dist > 0.01 ? dx / dist : 0;
     const dirZ = dist > 0.01 ? dz / dist : -1;
     
-    // Camera position: at player position but slightly elevated and forward toward farmer
-    // This places the camera where the player is looking toward the farmer
-    targetPos.current.set(
-      playerX + dirX * 0.3, // Slightly forward toward farmer
-      CAMERA_HEIGHT,
-      playerZ + dirZ * 0.3
-    );
+    // Camera goes BEHIND the player, opposite to the speaker direction
+    const camX = playerX - dirX * CAMERA_BEHIND;
+    const camZ = playerZ - dirZ * CAMERA_BEHIND;
+    
+    // Target camera position
+    const targetPos = new Vector3(camX, CAMERA_HEIGHT, camZ);
     
     // Look at the speaker (farmer)
-    targetLookAt.current.set(
-      speakerX,
-      LOOK_HEIGHT,
-      speakerZ
-    );
+    const targetLookAt = new Vector3(speakerX, LOOK_HEIGHT, speakerZ);
     
     // Initialize on first frame
     if (!initialized.current) {
-      // Start from current camera position for smooth transition
       currentPosition.current.copy(camera.position);
-      currentLookAt.current.set(speakerX, LOOK_HEIGHT, speakerZ);
+      currentLookAt.current.copy(targetLookAt);
       initialized.current = true;
     }
     
     // Smooth interpolation
-    currentPosition.current.lerp(targetPos.current, SMOOTHING);
-    currentLookAt.current.lerp(targetLookAt.current, SMOOTHING);
+    currentPosition.current.lerp(targetPos, SMOOTHING);
+    currentLookAt.current.lerp(targetLookAt, SMOOTHING);
     
     // Apply to camera
     camera.position.copy(currentPosition.current);
