@@ -1038,9 +1038,9 @@ const CutsceneCameraController = ({
   const initialized = useRef(false);
   const currentRotation = useRef(0);
   
-  const CAMERA_HEIGHT = 2.5; // Above player's head
-  const CAMERA_BACK = 2.0; // Distance behind
-  const LOOK_HEIGHT = 1.0; // Look at farmer's body
+  const CAMERA_HEIGHT = 1.5; // Eye level, not overhead
+  const CAMERA_BACK = 0.5; // Very close behind player
+  const LOOK_HEIGHT = 1.2; // Look at farmer's upper body
   const SMOOTHING = 0.08;
   
   useFrame(() => {
