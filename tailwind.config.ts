@@ -95,12 +95,31 @@ export default {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-8px)" },
         },
+        "confetti-fall": {
+          "0%": { 
+            transform: "translateY(0) rotate(0deg)",
+            opacity: "1"
+          },
+          "100%": { 
+            transform: "translateY(100vh) rotate(720deg)",
+            opacity: "0"
+          },
+        },
+        "fade-in": {
+          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         wiggle: "wiggle 0.5s ease-in-out infinite",
         hop: "hop 0.6s ease-in-out infinite",
+        "confetti-fall": "confetti-fall 3s ease-out forwards",
+        "fade-in": "fade-in 0.3s ease-out",
+        "fade-in-delay-1": "fade-in 0.3s ease-out 0.1s both",
+        "fade-in-delay-2": "fade-in 0.3s ease-out 0.2s both",
+        "fade-in-delay-3": "fade-in 0.3s ease-out 0.3s both",
       },
       boxShadow: {
         'warm': '0 4px 20px -2px hsl(var(--primary) / 0.2)',

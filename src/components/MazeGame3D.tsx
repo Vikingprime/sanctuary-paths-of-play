@@ -6,6 +6,7 @@ import { MiniMap } from './MiniMap';
 import { GameHUD } from './GameHUD';
 import { MobileControls } from './MobileControls';
 import { Button } from '@/components/ui/button';
+import { Confetti } from '@/components/Confetti';
 import { animals } from '@/data/animals';
 
 // Import pure game logic (Unity-portable)
@@ -402,72 +403,80 @@ export const MazeGame3D = ({
     bronze: '🥉',
   };
 
+  // Check if gold medal was earned
+  const isGoldMedal = completionResult?.medal === 'gold';
+
   // Game over screen
   if (gameOver) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-4">
-        <div className="text-center space-y-6 animate-fade-in">
-          {hasWon ? (
-            <>
-              {/* Show medal if earned */}
-              <div className="text-8xl">
-                {completionResult?.medal ? medalEmoji[completionResult.medal] : '🎉'}
-              </div>
-              <h2 className="font-display text-4xl font-bold text-foreground">
-                {completionResult?.medal 
-                  ? `${completionResult.medal.charAt(0).toUpperCase() + completionResult.medal.slice(1)} Medal!`
-                  : 'You Made It!'}
-              </h2>
-              <div className="space-y-3">
-                {/* Time display */}
-                <div className="bg-card rounded-xl p-4 inline-block">
-                  <p className="text-2xl font-display font-bold text-foreground">
-                    ⏱️ {finalTime.toFixed(1)}s
-                  </p>
-                  {completionResult?.isBestTime ? (
-                    <p className="text-sm text-primary font-semibold mt-1">
-                      🎯 New Best Time!
-                    </p>
-                  ) : completionResult?.bestTime ? (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Best: {completionResult.bestTime.toFixed(1)}s
-                    </p>
-                  ) : null}
+      <>
+        {/* Confetti for gold medal */}
+        <Confetti active={hasWon && isGoldMedal} />
+        
+        <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-4">
+          <div className="text-center space-y-6 animate-fade-in">
+            {hasWon ? (
+              <>
+                {/* Show medal if earned */}
+                <div className={`text-8xl ${isGoldMedal ? 'animate-bounce' : ''}`}>
+                  {completionResult?.medal ? medalEmoji[completionResult.medal] : '🎉'}
                 </div>
-                
-                {/* Score and currency */}
-                <p className="text-lg text-muted-foreground">
-                  Score: <span className="font-bold text-primary">{calculateScore(timeLeft)}</span> points
-                  {completionResult?.currencyEarned ? (
-                    <span className="ml-2">• +{completionResult.currencyEarned} ⭐</span>
-                  ) : null}
-                </p>
+                <h2 className="font-display text-4xl font-bold text-foreground">
+                  {completionResult?.medal 
+                    ? `${completionResult.medal.charAt(0).toUpperCase() + completionResult.medal.slice(1)} Medal!`
+                    : 'You Made It!'}
+                </h2>
+                <div className="space-y-3">
+                  {/* Time display */}
+                  <div className="bg-card rounded-xl p-4 inline-block">
+                    <p className="text-2xl font-display font-bold text-foreground">
+                      ⏱️ {finalTime.toFixed(1)}s
+                    </p>
+                    {completionResult?.isBestTime ? (
+                      <p className="text-sm text-primary font-semibold mt-1">
+                        🎯 New Best Time!
+                      </p>
+                    ) : completionResult?.bestTime ? (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Best: {completionResult.bestTime.toFixed(1)}s
+                      </p>
+                    ) : null}
+                  </div>
+                  
+                  {/* Score and currency */}
+                  <p className="text-lg text-muted-foreground">
+                    Score: <span className="font-bold text-primary">{calculateScore(timeLeft)}</span> points
+                    {completionResult?.currencyEarned ? (
+                      <span className="ml-2">• +{completionResult.currencyEarned} ⭐</span>
+                    ) : null}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {animal.emoji} {animal.name} is proud of you!
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-8xl">😢</div>
+                <h2 className="font-display text-4xl font-bold text-foreground">
+                  Time's Up!
+                </h2>
                 <p className="text-muted-foreground">
-                  {animal.emoji} {animal.name} is proud of you!
+                  Don't give up! The sanctuary animals are counting on you!
                 </p>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-8xl">😢</div>
-              <h2 className="font-display text-4xl font-bold text-foreground">
-                Time's Up!
-              </h2>
-              <p className="text-muted-foreground">
-                Don't give up! The sanctuary animals are counting on you!
-              </p>
-            </>
-          )}
-          <div className="flex gap-4 justify-center flex-wrap">
-            <Button variant="outline" size="lg" onClick={onBackToLevels}>
-              ← Back to Mazes
-            </Button>
-            <Button variant="default" size="lg" onClick={handleRestart}>
-              Try Again
-            </Button>
+              </>
+            )}
+            <div className="flex gap-4 justify-center flex-wrap">
+              <Button variant="outline" size="lg" onClick={onBackToLevels}>
+                ← Back to Mazes
+              </Button>
+              <Button variant="default" size="lg" onClick={handleRestart}>
+                Try Again
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 

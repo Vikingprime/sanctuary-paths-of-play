@@ -180,9 +180,14 @@ export const LevelSelect = ({
                     <span>⏱️ {maze.timeLimit}s</span>
                     <span>👀 {maze.previewTime}s preview</span>
                   </div>
-                  {/* Medal times */}
+                  {/* Medal times - hide gold if no longer achievable */}
                   <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                    <span>🥇 ≤{maze.medalTimes.gold}s</span>
+                    {/* Gold is only possible if: no attempts yet, OR already have gold */}
+                    {(levelData?.medal === 'gold' || !levelData?.attempts || levelData.attempts === 0) ? (
+                      <span>🥇 ≤{maze.medalTimes.gold}s</span>
+                    ) : (
+                      <span className="line-through opacity-50" title="Gold only possible on first try">🥇 ≤{maze.medalTimes.gold}s</span>
+                    )}
                     <span>🥈 ≤{maze.medalTimes.silver}s</span>
                     <span>🥉 ≤{maze.medalTimes.bronze}s</span>
                   </div>
