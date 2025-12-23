@@ -652,8 +652,8 @@ export const MazeGame3D = ({
         debugMode={debugMode}
         restartKey={restartKey}
         dialogueTarget={activeDialogue ? { 
-          speakerX: activeDialogue.speakerPosition?.x ?? activeDialogue.cells[0].x, 
-          speakerZ: activeDialogue.speakerPosition?.y ?? activeDialogue.cells[0].y 
+          speakerX: activeDialogue.speakerPosition?.x ?? activeDialogue.cells[0]?.x ?? playerStateRef.current.x, 
+          speakerZ: activeDialogue.speakerPosition?.y ?? activeDialogue.cells[0]?.y ?? playerStateRef.current.y 
         } : null}
         cornOptimizationSettings={{
           shadowRadius: 8,
