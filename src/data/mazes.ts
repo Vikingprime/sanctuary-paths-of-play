@@ -35,8 +35,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 10, y: 13 }, // On the walkable path right before exit
-        triggerRadius: 0.5, // Touch only
+        position: { x: 11, y: 13 }, // Right next to exit (EE at x:12-13)
+        triggerRadius: 1.0, // 1 meter radius to ensure trigger
       },
     ],
     // No unlock conditions - always available
@@ -79,8 +79,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 13, y: 11 }, // On the walkable path right before exit
-        triggerRadius: 0.5, // Touch only
+        position: { x: 15, y: 11 }, // Right next to exit (EE at x:16-17, y:12-13)
+        triggerRadius: 1.0, // 1 meter radius to ensure trigger
       },
     ],
     grid: createGrid([
@@ -121,8 +121,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 25, y: 33 }, // On the walkable path right before exit
-        triggerRadius: 0.5, // Touch only
+        position: { x: 25, y: 34 }, // Right next to exit (EE at x:26-27, y:34-35)
+        triggerRadius: 1.0, // 1 meter radius to ensure trigger
       },
     ],
     grid: createGrid([
@@ -184,8 +184,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 10, y: 13 }, // On the walkable path right before exit
-        triggerRadius: 0.5, // Touch only
+        position: { x: 10, y: 12 }, // Right next to exit (E at x:11, y:13)
+        triggerRadius: 1.0, // 1 meter radius to ensure trigger
       },
     ],
     grid: createGrid([
