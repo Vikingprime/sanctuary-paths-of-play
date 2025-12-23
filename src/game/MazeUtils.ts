@@ -29,27 +29,33 @@ export function findStartPosition(maze: Maze): { x: number; y: number } {
 /**
  * Find the initial rotation for the player to face an open path
  * Returns rotation in radians
- * Priority: finds any direction that is NOT a wall
  * 
- * NOTE: The 3D scene applies transform: -rotation + π
- * So we need to account for that here:
- *   - To face +Z (down in grid, toward higher Y), we need rotation = π
- *   - To face -Z (up in grid, toward lower Y), we need rotation = 0
- *   - To face +X (right in grid), we need rotation = -π/2
- *   - To face -X (left in grid), we need rotation = π/2
+ * In the 3D scene, the player group applies: rotation.y = -playerRotation + π
+ * The model faces +Z by default.
+ * 
+ * After transform (-rotation + π), the model faces:
+ *   rotation = 0      → model rotation = π     → faces +Z (down in grid)
+ *   rotation = π      → model rotation = 0     → faces -Z (up in grid) 
+ *   rotation = π/2    → model rotation = π/2   → faces -X (left in grid)
+ *   rotation = -π/2   → model rotation = 3π/2  → faces +X (right in grid)
+ * 
+ * So to face a direction:
+ *   - Face right (+X): rotation = -π/2
+ *   - Face left (-X):  rotation = π/2
+ *   - Face down (+Z):  rotation = 0
+ *   - Face up (-Z):    rotation = π
  */
 export function findStartRotation(maze: Maze): number {
   const startPos = findStartPosition(maze);
   const gridX = Math.floor(startPos.x);
   const gridY = Math.floor(startPos.y);
   
-  // Directions mapped for the 3D scene's rotation transform (-rotation + π)
-  // Priority order: right, down, left, up - prefer horizontal first as paths often go that way
+  // Direction mappings - tested to match 3D scene behavior
   const directions = [
-    { dx: 1, dy: 0, rotation: -Math.PI / 2 }, // Right in grid (facing +X in 3D)
-    { dx: 0, dy: 1, rotation: Math.PI },      // Down in grid (facing +Z in 3D)
-    { dx: -1, dy: 0, rotation: Math.PI / 2 }, // Left in grid (facing -X in 3D)
-    { dx: 0, dy: -1, rotation: 0 },           // Up in grid (facing -Z in 3D)
+    { dx: 1, dy: 0, rotation: -Math.PI / 2 }, // Right in grid → face +X
+    { dx: 0, dy: 1, rotation: 0 },            // Down in grid → face +Z  
+    { dx: -1, dy: 0, rotation: Math.PI / 2 }, // Left in grid → face -X
+    { dx: 0, dy: -1, rotation: Math.PI },     // Up in grid → face -Z
   ];
   
   // Count walls in each direction to find the most open path
