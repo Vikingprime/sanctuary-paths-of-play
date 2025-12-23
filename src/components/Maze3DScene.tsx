@@ -664,7 +664,11 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-const GoalMarker = ({ position }: { position: [number, number, number] }) => {
+const GoalMarker = ({ position, playerStateRef, isDialogueActive }: { 
+  position: [number, number, number];
+  playerStateRef?: MutableRefObject<PlayerState>;
+  isDialogueActive?: boolean;
+}) => {
   const groupRef = useRef<Group>(null);
   const { scene, animations } = useGLTF('/models/Farmer.glb');
   const mixerRef = useRef<any>(null);
@@ -706,8 +710,21 @@ const GoalMarker = ({ position }: { position: [number, number, number] }) => {
   
   useFrame((state, delta) => {
     if (groupRef.current) {
-      // Slow rotation only, no floating
-      groupRef.current.rotation.y = state.clock.elapsedTime * 0.5;
+      if (isDialogueActive && playerStateRef) {
+        // During dialogue: face the player
+        const farmerX = position[0] + 0.5;
+        const farmerZ = position[2] + 0.5;
+        const playerX = playerStateRef.current.x;
+        const playerZ = playerStateRef.current.y;
+        
+        const dx = playerX - farmerX;
+        const dz = playerZ - farmerZ;
+        const angle = Math.atan2(dx, dz);
+        groupRef.current.rotation.y = angle;
+      } else {
+        // Normal gameplay: slow rotation
+        groupRef.current.rotation.y = state.clock.elapsedTime * 0.5;
+      }
     }
     // Update animation mixer
     if (mixerRef.current) {
@@ -992,10 +1009,9 @@ const CutsceneCameraController = ({
 }) => {
   const { camera } = useThree();
   
-  const CAMERA_HEIGHT = 1.5; // Eye level
-  const LOOK_HEIGHT = 1.2; // Look at farmer's upper body
-  
-  const initialized = useRef(false);
+  const CAMERA_HEIGHT = 1.3; // Slightly lower for better framing
+  const LOOK_HEIGHT = 0.7; // Look at farmer's midpoint/chest area
+  const ZOOM_DISTANCE = 1.5; // How close to get to the farmer
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
@@ -1005,12 +1021,19 @@ const CutsceneCameraController = ({
     const farmerX = goalPos[0] + 0.5;
     const farmerZ = goalPos[2] + 0.5;
     
-    // Position camera at player, look at farmer
-    camera.position.set(playerX, CAMERA_HEIGHT, playerZ);
+    // Calculate direction from farmer to player
+    const dx = playerX - farmerX;
+    const dz = playerZ - farmerZ;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    
+    // Position camera between player and farmer, closer to farmer
+    // Move camera to ZOOM_DISTANCE away from farmer, along the player-farmer line
+    const camX = farmerX + (dx / dist) * ZOOM_DISTANCE;
+    const camZ = farmerZ + (dz / dist) * ZOOM_DISTANCE;
+    
+    camera.position.set(camX, CAMERA_HEIGHT, camZ);
     camera.up.set(0, 1, 0);
     camera.lookAt(farmerX, LOOK_HEIGHT, farmerZ);
-    
-    initialized.current = true;
   });
   
   return null;
@@ -1184,7 +1207,11 @@ return (
       ))}
       
       {/* Goal */}
-      <GoalMarker position={items.goalPos} />
+      <GoalMarker 
+        position={items.goalPos} 
+        playerStateRef={playerStateRef}
+        isDialogueActive={!!dialogueTarget}
+      />
       
       {/* Player - handles movement + rendering in sync */}
       <RefBasedPlayer 
