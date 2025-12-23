@@ -47,74 +47,61 @@ export function findStartPosition(maze: Maze): { x: number; y: number } {
  */
 export function findStartRotation(maze: Maze): number {
   const startPos = findStartPosition(maze);
-  const gridX = Math.floor(startPos.x);
-  const gridY = Math.floor(startPos.y);
   
-  // Direction mappings - tested to match 3D scene behavior
-  const directions = [
-    { dx: 1, dy: 0, rotation: -Math.PI / 2 }, // Right in grid → face +X
-    { dx: 0, dy: 1, rotation: 0 },            // Down in grid → face +Z  
-    { dx: -1, dy: 0, rotation: Math.PI / 2 }, // Left in grid → face -X
-    { dx: 0, dy: -1, rotation: Math.PI },     // Up in grid → face -Z
-  ];
+  // Player position in world coordinates (center of cell)
+  const playerX = startPos.x;
+  const playerY = startPos.y;
   
-  // Count walls in each direction to find the most open path
-  const directionScores: { dir: typeof directions[0]; score: number }[] = [];
+  // Raycast in 24 directions (every 15 degrees) to find the clearest path
+  // Check distance to nearest wall in each direction
+  const numDirections = 24;
+  const checkDistance = 1.5; // How far to check (1.5 cells away)
+  const stepSize = 0.1; // Check every 0.1 units
   
-  for (const dir of directions) {
-    let score = 0;
-    // Check immediate neighbor
-    const checkX = gridX + dir.dx;
-    const checkY = gridY + dir.dy;
-    const cell = getCell(maze, checkX, checkY);
+  let bestRotation = 0;
+  let bestClearance = -1;
+  
+  for (let i = 0; i < numDirections; i++) {
+    const angle = (i / numDirections) * Math.PI * 2; // 0 to 2π
     
-    if (!cell || cell.isWall) {
-      score = -100; // Wall immediately ahead - very bad
-    } else if (cell.isStart) {
-      score = -10; // Another start cell - not ideal
-    } else {
-      score = 10; // Open path - good
+    // Direction vector for this angle
+    // In 3D scene: +X is right, +Z is down
+    // angle 0 = facing +X (right), angle π/2 = facing +Z (down)
+    const dirX = Math.cos(angle);
+    const dirY = Math.sin(angle);
+    
+    // Find clearance in this direction
+    let clearance = 0;
+    for (let dist = stepSize; dist <= checkDistance; dist += stepSize) {
+      const checkX = playerX + dirX * dist;
+      const checkY = playerY + dirY * dist;
       
-      // Bonus for path continuing further
-      const cell2 = getCell(maze, gridX + dir.dx * 2, gridY + dir.dy * 2);
-      if (cell2 && !cell2.isWall && !cell2.isStart) {
-        score += 5;
+      const gridCheckX = Math.floor(checkX);
+      const gridCheckY = Math.floor(checkY);
+      
+      if (isWall(maze, gridCheckX, gridCheckY)) {
+        break;
       }
-      
-      // Penalty if perpendicular directions are walls (dead end feel)
-      const perpDirs = dir.dx === 0 
-        ? [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }] 
-        : [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
-      
-      for (const perpDir of perpDirs) {
-        const perpCell = getCell(maze, checkX + perpDir.dx, checkY + perpDir.dy);
-        if (perpCell && !perpCell.isWall) {
-          score += 2; // Bonus for having side paths
-        }
-      }
+      clearance = dist;
     }
     
-    directionScores.push({ dir, score });
-  }
-  
-  // Sort by score descending and pick best
-  directionScores.sort((a, b) => b.score - a.score);
-  
-  // Only return if score is positive (valid path)
-  if (directionScores[0].score > 0) {
-    return directionScores[0].dir.rotation;
-  }
-  
-  // Fallback: find any non-wall direction
-  for (const dir of directions) {
-    const checkX = gridX + dir.dx;
-    const checkY = gridY + dir.dy;
-    if (!isWall(maze, checkX, checkY)) {
-      return dir.rotation;
+    if (clearance > bestClearance) {
+      bestClearance = clearance;
+      bestRotation = angle;
     }
   }
   
-  return Math.PI; // Default facing down if all directions are walls
+  // Convert angle to player rotation
+  // In the 3D scene: rotation.y = -playerRotation + π
+  // angle 0 = looking +X → need playerRotation = -π/2
+  // angle π/2 = looking +Z → need playerRotation = 0
+  // angle π = looking -X → need playerRotation = π/2
+  // angle 3π/2 = looking -Z → need playerRotation = π
+  // 
+  // Formula: playerRotation = π/2 - angle
+  const playerRotation = Math.PI / 2 - bestRotation;
+  
+  return playerRotation;
 }
 
 /**
