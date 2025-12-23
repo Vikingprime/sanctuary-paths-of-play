@@ -35,8 +35,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 12, y: 13 }, // Directly ON the end cell (EE at x:12-13, y:13-14)
-        triggerRadius: 0.5, // Touch only
+        position: { x: 12, y: 13 }, // Center of 2x2 end cell block (EE at x:12-13, y:13-14)
+        triggerRadius: 1.5, // Large enough to cover all 4 end cells
       },
     ],
     // No unlock conditions - always available
@@ -79,8 +79,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 16, y: 12 }, // Directly ON the end cell (EE at x:16-17, y:12-13)
-        triggerRadius: 0.5, // Touch only
+        position: { x: 16, y: 12 }, // Center of 2x2 end cell block (EE at x:16-17, y:12-13)
+        triggerRadius: 1.5, // Large enough to cover all 4 end cells
       },
     ],
     grid: createGrid([
@@ -121,8 +121,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 26, y: 34 }, // Directly ON the end cell (EE at x:26-27, y:34-35)
-        triggerRadius: 0.5, // Touch only
+        position: { x: 26, y: 34 }, // Center of 2x2 end cell block (EE at x:26-27, y:34-35)
+        triggerRadius: 1.5, // Large enough to cover all 4 end cells
       },
     ],
     grid: createGrid([
@@ -184,8 +184,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 11, y: 13 }, // Directly ON the end cell (E at x:11, y:13)
-        triggerRadius: 0.5, // Touch only
+        position: { x: 11, y: 13 }, // On the end cell (E at x:11, y:13)
+        triggerRadius: 1.5, // Large enough to catch player from any approach angle
       },
     ],
     grid: createGrid([
