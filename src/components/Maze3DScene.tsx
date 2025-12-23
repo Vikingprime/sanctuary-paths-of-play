@@ -1195,9 +1195,36 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
-  // Character collision removed - characters should NOT block player movement
-  // Dialogue triggers work via proximity detection in the game, not collision
-  const characterPositions: CharacterPosition[] = [];
+  // Generate character positions for collision (placed characters + end farmer)
+  const CHARACTER_COLLISION_RADIUS = 0.35;
+  const characterPositions = useMemo<CharacterPosition[]>(() => {
+    const positions: CharacterPosition[] = [];
+    
+    // Add placed characters from maze.characters
+    maze.characters?.forEach((char) => {
+      positions.push({
+        x: char.position.x,
+        y: char.position.y,
+        radius: CHARACTER_COLLISION_RADIUS,
+      });
+    });
+    
+    // Find first end cell for the end farmer
+    for (let y = 0; y < maze.grid.length; y++) {
+      for (let x = 0; x < maze.grid[y].length; x++) {
+        if (maze.grid[y][x].isEnd) {
+          positions.push({
+            x: x,
+            y: y,
+            radius: CHARACTER_COLLISION_RADIUS,
+          });
+          return positions; // Only add one farmer at first end cell
+        }
+      }
+    }
+    
+    return positions;
+  }, [maze]);
 
   const items = useMemo(() => {
     const powerUps: { pos: [number, number, number]; key: string }[] = [];
