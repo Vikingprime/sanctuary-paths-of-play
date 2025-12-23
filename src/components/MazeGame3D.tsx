@@ -254,36 +254,25 @@ export const MazeGame3D = ({
 
   // Handle end game after dialogue is dismissed
   const pendingEndGameRef = useRef(false);
-  const triggeredDialoguesRef = useRef<Set<string>>(new Set());
   
   useEffect(() => {
     pendingEndGameRef.current = pendingEndGame;
   }, [pendingEndGame]);
   
-  useEffect(() => {
-    triggeredDialoguesRef.current = triggeredDialogues;
-  }, [triggeredDialogues]);
-  
-  // Handle continue button click - trigger end if pending
+  // Handle continue button click - trigger end if dialogue was on end tile
   const handleDialogueContinue = useCallback(() => {
     setActiveDialogue(null);
     
-    // Check if we should end the game - player was on end cell when dialogue started
+    // Simple: if we were on an end tile when dialogue started, end the game now
     if (pendingEndGameRef.current) {
-      // Check if all required dialogues are now completed using the ref (most up-to-date)
-      const allDialoguesComplete = !maze.endConditions?.requiredDialogues || 
-        maze.endConditions.requiredDialogues.every(id => triggeredDialoguesRef.current.has(id));
-      
-      if (allDialoguesComplete) {
-        setHasWon(true);
-        setGameOver(true);
-        const timeUsed = maze.timeLimit - timeLeft;
-        setFinalTime(timeUsed);
-        onComplete(timeUsed).then(setCompletionResult);
-      }
+      setHasWon(true);
+      setGameOver(true);
+      const timeUsed = maze.timeLimit - timeLeft;
+      setFinalTime(timeUsed);
+      onComplete(timeUsed).then(setCompletionResult);
       setPendingEndGame(false);
     }
-  }, [maze.timeLimit, maze.endConditions, timeLeft, onComplete]);
+  }, [maze.timeLimit, timeLeft, onComplete]);
 
   // Movement is now handled in Maze3DScene's useFrame for sync with rendering
 
