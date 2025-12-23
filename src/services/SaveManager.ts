@@ -71,6 +71,18 @@ class SaveManagerClass {
     if (!data.unlockedMazes) {
       data.unlockedMazes = [];
     }
+    // Migrate old firstCompletion field to attempts
+    for (const mazeId in data.levels) {
+      const level = data.levels[mazeId];
+      if ((level as any).firstCompletion !== undefined && level.attempts === undefined) {
+        // If firstCompletion was false, they've completed at least once
+        level.attempts = (level as any).firstCompletion === false ? 1 : 0;
+        delete (level as any).firstCompletion;
+      }
+      if (level.attempts === undefined) {
+        level.attempts = level.completed ? 1 : 0;
+      }
+    }
     return data as SaveDataV1;
   }
 
@@ -99,20 +111,40 @@ class SaveManagerClass {
     }
   }
 
+  // Record that a maze attempt is starting (call when game begins)
+  async startAttempt(mazeId: number, debugMode: boolean = false): Promise<void> {
+    if (debugMode) return; // Don't track attempts in debug mode
+    
+    const save = await this.load();
+    const existing = save.levels[mazeId];
+    
+    save.levels[mazeId] = {
+      completed: existing?.completed ?? false,
+      bestTime: existing?.bestTime ?? null,
+      medal: existing?.medal ?? null,
+      attempts: (existing?.attempts ?? 0) + 1,
+      powerUpsCollected: existing?.powerUpsCollected ?? [],
+    };
+    
+    await this.save(save);
+  }
+
   async completeLevel(
     mazeId: number,
     time: number,
     powerUps: string[],
     maze: Maze,
-    debugMode: boolean = false,
-    hasRestarted: boolean = false
+    debugMode: boolean = false
   ): Promise<{ medal: MedalType; currencyEarned: number }> {
     const save = await this.load();
     const existing = save.levels[mazeId];
     
-    const isFirstCompletion = !existing?.completed;
-    // Restarting disqualifies gold medal (same as not being first completion)
-    const medal = this.calculateMedal(time, maze, isFirstCompletion && !hasRestarted);
+    // Gold is only possible on first attempt AND if they don't already have a gold
+    const attempts = existing?.attempts ?? 1;
+    const hasGold = existing?.medal === 'gold';
+    const goldEligible = attempts === 1 || hasGold;
+    
+    const medal = this.calculateMedal(time, maze, goldEligible);
     
     // Determine best medal (gold > silver > bronze > null)
     const medalRank = { gold: 3, silver: 2, bronze: 1, null: 0 };
@@ -122,13 +154,14 @@ class SaveManagerClass {
 
     // Calculate currency reward
     const currencyEarned = this.getCurrencyReward(medal);
-    save.player.currency += currencyEarned;
-
+    
     // In debug mode, don't save times or medals (but still track completion for testing)
     if (debugMode) {
       // Don't modify save data in debug mode
       return { medal, currencyEarned: 0 };
     }
+    
+    save.player.currency += currencyEarned;
 
     // Only consider existing best time if it's a valid positive number
     const existingBestTime = existing?.bestTime != null && existing.bestTime > 0 
@@ -151,7 +184,7 @@ class SaveManagerClass {
       completed: true,
       bestTime: newBestTime,
       medal: bestMedal,
-      firstCompletion: false, // Mark that first completion is used
+      attempts: existing?.attempts ?? 1,
       powerUpsCollected: [
         ...new Set([...(existing?.powerUpsCollected || []), ...powerUps]),
       ],

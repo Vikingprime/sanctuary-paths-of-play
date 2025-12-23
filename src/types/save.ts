@@ -20,7 +20,7 @@ export interface SaveDataV1 {
       completed: boolean;
       bestTime: number | null; // seconds
       medal: MedalType; // best medal earned
-      firstCompletion: boolean; // tracks if gold is still achievable
+      attempts: number; // total attempts (gold only possible on attempt 1)
       powerUpsCollected: string[];
     };
   };
