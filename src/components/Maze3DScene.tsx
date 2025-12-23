@@ -274,10 +274,15 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     const transforms: { matrix: any; x: number; z: number }[] = [];
     const tempObject = new Object3D();
     
-    rocks.forEach((rock) => {
+    rocks.forEach((rock, i) => {
       const scale = rock.radius * 2;
       const seed = Math.floor(rock.x * 1000 + rock.z);
       const rotation = seededRandom(seed + 4) * Math.PI * 2;
+      
+      // Debug log first few rocks
+      if (i < 3) {
+        console.log(`[ROCK DEBUG] Rock ${i}: radius=${rock.radius.toFixed(3)}, scale=${scale.toFixed(3)}, finalScale=(${(scale * 1.2).toFixed(3)}, ${(scale * 0.6).toFixed(3)}, ${scale.toFixed(3)})`);
+      }
       
       tempObject.position.set(rock.x, scale * 0.3, rock.z);
       tempObject.rotation.set(0, rotation, 0);

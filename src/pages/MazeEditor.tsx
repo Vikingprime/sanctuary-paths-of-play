@@ -402,6 +402,34 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     if (endCells.length === 0) {
       warnings.push('⚠️ No end (goal) position set');
     } else {
+      // Find the first end cell (where farmer is placed)
+      const farmerCell = endCells[0];
+      
+      // Check if farmer is fully surrounded by end cells or wall cells
+      const adjacentCells = [
+        { x: farmerCell.x - 1, y: farmerCell.y },
+        { x: farmerCell.x + 1, y: farmerCell.y },
+        { x: farmerCell.x, y: farmerCell.y - 1 },
+        { x: farmerCell.x, y: farmerCell.y + 1 },
+      ];
+      
+      const unsafeAdjacent = adjacentCells.filter(adj => {
+        // Check bounds
+        if (adj.y < 0 || adj.y >= grid.length || adj.x < 0 || adj.x >= grid[0].length) {
+          return false; // Out of bounds is safe (treated as wall)
+        }
+        const cellType = grid[adj.y][adj.x];
+        // Safe cells are: walls (#), end cells (E), or cells with dialogue triggers
+        const isEndCell = cellType === 'E';
+        const isWall = cellType === '#';
+        const hasDialogueTrigger = dialogues.some(d => d.cells.some(c => c.x === adj.x && c.y === adj.y));
+        return !isEndCell && !isWall && !hasDialogueTrigger;
+      });
+      
+      if (unsafeAdjacent.length > 0) {
+        warnings.push(`⚠️ End Farmer is not fully surrounded by End tiles, Walls, or Dialogue triggers. ${unsafeAdjacent.length} adjacent path cell(s) would require crashing into the farmer.`);
+      }
+      
       // Check if the end farmer has dialogue associated (speakerCharacterId = 'endFarmer')
       const endFarmerDialogue = dialogues.find(d => d.speakerCharacterId === 'endFarmer');
       
