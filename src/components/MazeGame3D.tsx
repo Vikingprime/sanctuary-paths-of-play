@@ -100,10 +100,32 @@ export const MazeGame3D = ({
   // Dialogue state
   const [activeDialogue, setActiveDialogue] = useState<DialogueTrigger | null>(null);
   const [triggeredDialogues, setTriggeredDialogues] = useState<Set<string>>(new Set());
+  const [dialogueMessageIndex, setDialogueMessageIndex] = useState(0); // For multi-message dialogues
   
-  // Helper to find the speaker position for a dialogue, traversing up the chain if needed
+  // Helper to find the speaker position for a dialogue
   const findSpeakerPositionForDialogue = useCallback((dialogue: DialogueTrigger | null): { x: number; y: number } | null => {
     if (!dialogue || !maze.dialogues) return null;
+    
+    // Check for speakerCharacterId first
+    if (dialogue.speakerCharacterId) {
+      // Special case: 'endFarmer' refers to the built-in end farmer
+      if (dialogue.speakerCharacterId === 'endFarmer') {
+        // Find end cell position
+        for (let y = 0; y < maze.grid.length; y++) {
+          for (let x = 0; x < maze.grid[y].length; x++) {
+            if (maze.grid[y][x].isEnd) {
+              return { x, y };
+            }
+          }
+        }
+      }
+      
+      // Look up character in maze.characters array
+      const character = maze.characters?.find(c => c.id === dialogue.speakerCharacterId);
+      if (character) {
+        return { x: character.position.x, y: character.position.y };
+      }
+    }
     
     // If this dialogue has a speaker position, use it
     if (dialogue.speakerPosition) {
@@ -125,7 +147,7 @@ export const MazeGame3D = ({
     }
     
     return null;
-  }, [maze.dialogues]);
+  }, [maze.dialogues, maze.grid, maze.characters]);
 
   // Find all station positions in the maze
   const stationPositions = useRef<Array<{ x: number; y: number }>>([]);
@@ -284,6 +306,7 @@ export const MazeGame3D = ({
       
       if (dialogue) {
         setActiveDialogue(dialogue);
+        setDialogueMessageIndex(0); // Reset to first message
         setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
         
         // If this is also an end cell, mark pending end
@@ -329,23 +352,32 @@ export const MazeGame3D = ({
     return null;
   }, [maze.dialogues, triggeredDialogues]);
 
-  // Handle continue button click - check for chained dialogues first
+  // Handle continue button click - check for multi-message, then chained dialogues
   const handleDialogueContinue = useCallback(() => {
-    const currentDialogueId = activeDialogue?.id;
+    if (!activeDialogue) return;
     
-    // Check for chained dialogue first
-    if (currentDialogueId) {
-      const nextDialogue = findNextChainedDialogue(currentDialogueId);
-      if (nextDialogue) {
-        // Show the next dialogue in the chain
-        setActiveDialogue(nextDialogue);
-        setTriggeredDialogues(prev => new Set([...prev, nextDialogue.id]));
-        return;
-      }
+    // Check if there are more messages in this dialogue's messages array
+    const totalMessages = 1 + (activeDialogue.messages?.length || 0); // First message + additional messages
+    if (dialogueMessageIndex < totalMessages - 1) {
+      // Advance to next message in the same dialogue
+      setDialogueMessageIndex(prev => prev + 1);
+      return;
+    }
+    
+    // All messages in this dialogue shown, check for chained dialogue
+    const currentDialogueId = activeDialogue.id;
+    const nextDialogue = findNextChainedDialogue(currentDialogueId);
+    if (nextDialogue) {
+      // Show the next dialogue in the chain
+      setActiveDialogue(nextDialogue);
+      setTriggeredDialogues(prev => new Set([...prev, nextDialogue.id]));
+      setDialogueMessageIndex(0); // Reset to first message
+      return;
     }
     
     // No more chained dialogues - close dialogue
     setActiveDialogue(null);
+    setDialogueMessageIndex(0);
     
     // After dialogue ends, check if player is currently on an end cell
     const playerX = Math.floor(playerStateRef.current.x);
@@ -361,7 +393,7 @@ export const MazeGame3D = ({
       onComplete(timeUsed).then(setCompletionResult);
       pendingEndGameRef.current = false;
     }
-  }, [activeDialogue, maze.grid, maze.timeLimit, timeLeft, onComplete, findNextChainedDialogue, canEndLevel]);
+  }, [activeDialogue, dialogueMessageIndex, maze.grid, maze.timeLimit, timeLeft, onComplete, findNextChainedDialogue, canEndLevel]);
 
   // Movement is now handled in Maze3DScene's useFrame for sync with rendering
 
@@ -802,32 +834,40 @@ export const MazeGame3D = ({
         </div>
       )}
 
-      {/* Dialogue Overlay - pointer-events-none on container, auto on card */}
-      {activeDialogue && (
-        <div className="fixed inset-0 z-30 flex items-end justify-center p-4 pointer-events-none animate-fade-in">
-          <div className="bg-card/95 backdrop-blur-sm rounded-2xl p-6 shadow-warm-lg max-w-lg w-full mb-8 pointer-events-auto">
-            <div className="flex items-start gap-4">
-              <div className="text-4xl flex-shrink-0">
-                {activeDialogue.speakerEmoji}
+      {/* Dialogue Overlay - supports multi-message dialogues via messages array */}
+      {activeDialogue && (() => {
+        // Determine current speaker/message based on dialogueMessageIndex
+        const isFirstMessage = dialogueMessageIndex === 0;
+        const currentMessage = isFirstMessage 
+          ? { speaker: activeDialogue.speaker, speakerEmoji: activeDialogue.speakerEmoji, message: activeDialogue.message }
+          : activeDialogue.messages?.[dialogueMessageIndex - 1] || { speaker: activeDialogue.speaker, speakerEmoji: activeDialogue.speakerEmoji, message: activeDialogue.message };
+        
+        return (
+          <div className="fixed inset-0 z-30 flex items-end justify-center p-4 pointer-events-none animate-fade-in">
+            <div className="bg-card/95 backdrop-blur-sm rounded-2xl p-6 shadow-warm-lg max-w-lg w-full mb-8 pointer-events-auto">
+              <div className="flex items-start gap-4">
+                <div className="text-4xl flex-shrink-0">
+                  {currentMessage.speakerEmoji}
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-display font-bold text-foreground mb-2">
+                    {currentMessage.speaker}
+                  </h4>
+                  <p className="text-foreground/90 text-lg leading-relaxed">
+                    {currentMessage.message}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1">
-                <h4 className="font-display font-bold text-foreground mb-2">
-                  {activeDialogue.speaker}
-                </h4>
-                <p className="text-foreground/90 text-lg leading-relaxed">
-                  {activeDialogue.message}
-                </p>
-              </div>
+              <Button
+                onClick={handleDialogueContinue}
+                className="mt-4 w-full py-3"
+              >
+                Continue
+              </Button>
             </div>
-            <Button
-              onClick={handleDialogueContinue}
-              className="mt-4 w-full py-3"
-            >
-              Continue
-            </Button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Mini Map Overlay */}
       <MiniMap

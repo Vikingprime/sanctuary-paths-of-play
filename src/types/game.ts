@@ -45,7 +45,14 @@ export interface DialogueMessage {
   message: string;
 }
 
-export type LinkedCharacter = 'endFarmer'; // Extend this for other persistent characters
+export interface MazeCharacter {
+  id: string;
+  name: string;
+  emoji: string;
+  model: string; // GLB file name (e.g., 'Farmer.glb')
+  animation: string;
+  position: { x: number; y: number };
+}
 
 export interface DialogueTrigger {
   id: string;
@@ -56,9 +63,9 @@ export interface DialogueTrigger {
   cells: { x: number; y: number }[]; // All cells that trigger this dialogue
   speakerPosition?: { x: number; y: number }; // Where the speaker model appears (defaults to first cell center)
   requires?: string[]; // IDs of dialogues that must be completed before this one can trigger
-  characterModel?: string; // GLB model file name (e.g., 'Farmer.glb') - ignored if speakerCharacter is set
-  characterAnimation?: string; // Animation to play during dialogue (e.g., 'idle', 'wave', 'talk')
-  speakerCharacter?: LinkedCharacter; // Which persistent character to zoom to during dialogue (uses their model/position)
+  characterModel?: string; // GLB model file name - used if speakerCharacterId not set
+  characterAnimation?: string; // Animation to play during dialogue
+  speakerCharacterId?: string; // ID of placed character OR 'endFarmer' for built-in end farmer
 }
 
 export interface Maze {
@@ -71,6 +78,7 @@ export interface Maze {
   medalTimes: MedalTimes;
   unlockConditions?: UnlockCondition[]; // undefined = always unlocked
   currencyCost?: number; // optional currency cost to unlock special mazes
+  characters?: MazeCharacter[]; // placed characters in the maze
   dialogues?: DialogueTrigger[]; // optional dialogue triggers
   endConditions?: {
     requiredDialogues?: string[]; // Dialogues that must be completed before end cell triggers level complete
