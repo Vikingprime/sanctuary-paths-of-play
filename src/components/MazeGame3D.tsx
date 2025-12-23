@@ -180,22 +180,17 @@ export const MazeGame3D = ({
     return () => clearInterval(timer);
   }, [isPreviewing, gameOver, activeDialogue]);
 
-  // Check if the player's current cell has a dialogue trigger (cell-based, not radius-based)
-  const checkDialogueAtCell = useCallback((x: number, y: number): boolean => {
+  // Check if there's any untriggered dialogue in the maze (used when reaching end cell)
+  const triggerNextDialogue = useCallback((): boolean => {
     if (!maze.dialogues) return false;
-    
-    const gridX = Math.floor(x);
-    const gridY = Math.floor(y);
     
     for (const dialogue of maze.dialogues) {
       if (triggeredDialogues.has(dialogue.id)) continue;
       
-      // Check if player is in the same cell as the dialogue
-      if (gridX === dialogue.position.x && gridY === dialogue.position.y) {
-        setActiveDialogue(dialogue);
-        setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
-        return true;
-      }
+      // Found an untriggered dialogue - trigger it
+      setActiveDialogue(dialogue);
+      setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
+      return true;
     }
     return false;
   }, [maze.dialogues, triggeredDialogues]);
@@ -216,11 +211,10 @@ export const MazeGame3D = ({
 
       // Station triggering is now handled by proximity check, not cell interaction
       
-      // Check for dialogue triggers BEFORE end game (dialogue takes priority)
-      // Uses cell-based check - if player is in the same cell as a dialogue, trigger it
-      const dialogueTriggered = checkDialogueAtCell(x, y);
-      
+      // When reaching end cell, check if there are ANY untriggered dialogues in the maze
+      // Dialogue always triggers before end game, regardless of which end cell player enters
       if (result.reachedEnd) {
+        const dialogueTriggered = triggerNextDialogue();
         if (dialogueTriggered) {
           // Mark that we should end the game after dialogue is dismissed
           setPendingEndGame(true);
@@ -234,7 +228,7 @@ export const MazeGame3D = ({
         onComplete(timeUsed).then(setCompletionResult);
       }
     },
-    [maze, collectedPowerUps, timeLeft, onComplete, checkDialogueAtCell]
+    [maze, collectedPowerUps, timeLeft, onComplete, triggerNextDialogue]
   );
 
   // Handle end game after dialogue is dismissed
