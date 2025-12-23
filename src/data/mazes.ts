@@ -270,6 +270,68 @@ export const mazes: Maze[] = [
       '################',
     ]),
   },
+  {
+    id: 5,
+    name: 'Soda Pop',
+    difficulty: 'easy',
+    timeLimit: 60,
+    previewTime: 5,
+    medalTimes: { gold: 15, silver: 25, bronze: 40 },
+    characters: [
+      {
+        id: 'char_stella',
+        name: 'Sanctuary Stella',
+        emoji: '🧑',
+        model: 'Animated_Woman.glb',
+        animation: 'idle',
+        position: { x: 13, y: 2 },
+      }
+    ],
+    dialogues: [
+      {
+        id: 'stella_greeting',
+        speaker: 'Sanctuary Stella',
+        speakerEmoji: '🧑',
+        message: 'Say hi to Sanctuary Sam for me!',
+        cells: [{ x: 12, y: 2 }, { x: 13, y: 2 }, { x: 13, y: 3 }, { x: 12, y: 3 }],
+        speakerCharacterId: 'char_stella',
+        characterAnimation: 'idle',
+      },
+      {
+        id: 'sam_greeting',
+        speaker: 'Sanctuary Sam',
+        speakerEmoji: '👨‍🌾',
+        message: 'By Golly!',
+        messages: [
+          { speaker: 'Sanctuary Sam', speakerEmoji: '👨‍🌾', message: "I've been looking for you!" }
+        ],
+        cells: [{ x: 12, y: 12 }, { x: 13, y: 12 }, { x: 13, y: 13 }, { x: 12, y: 13 }],
+        speakerCharacterId: 'endFarmer',
+        characterAnimation: 'idle',
+      },
+    ],
+    endConditions: {
+      requiredDialogues: ['sam_greeting'],
+    },
+    grid: createGrid([
+      '################',
+      '################',
+      '##SS          ##',
+      '##SS          ##',
+      '############  ##',
+      '##         #  ##',
+      '##         #  ##',
+      '##         #  ##',
+      '##         #  ##',
+      '##         #  ##',
+      '##         #  ##',
+      '##         #  ##',
+      '##         #EE##',
+      '##         #EE##',
+      '################',
+      '################',
+    ]),
+  },
 ];
 
 export const findStartPosition = (maze: Maze): { x: number; y: number } => {

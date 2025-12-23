@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
 import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { Maze, AnimalType, DialogueTrigger } from '@/types/game';
+import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition } from '@/game/GameLogic';
@@ -853,8 +853,102 @@ const DialogueCharacter = ({
   );
 };
 
+// Placed Character - renders a character from maze.characters array
+const PlacedCharacter = ({ 
+  character, 
+  playerStateRef,
+  isDialogueActive,
+}: { 
+  character: MazeCharacter;
+  playerStateRef?: MutableRefObject<PlayerState>;
+  isDialogueActive: boolean;
+}) => {
+  const groupRef = useRef<Group>(null);
+  const mixerRef = useRef<AnimationMixer | null>(null);
+  
+  const modelPath = `/models/${character.model}`;
+  const { scene, animations } = useGLTF(modelPath);
+  
+  // Get character scale from centralized config
+  const characterScale = getCharacterScale(character.model);
+  
+  // Clone the scene using SkeletonUtils for skinned meshes
+  const model = useMemo(() => {
+    const clone = SkeletonUtils.clone(scene);
+    clone.traverse((child: any) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [scene]);
+  
+  const position: [number, number, number] = [character.position.x, 0, character.position.y];
+  
+  // Set up animation mixer
+  useEffect(() => {
+    if (animations.length > 0 && model) {
+      mixerRef.current = new AnimationMixer(model);
+      
+      // Find matching animation or use first one
+      const targetAnim = character.animation 
+        ? animations.find((a: any) => 
+            a.name.toLowerCase().includes(character.animation.toLowerCase())
+          ) 
+        : null;
+      
+      const animToPlay = targetAnim || animations[0];
+      
+      if (animToPlay) {
+        const action = mixerRef.current.clipAction(animToPlay);
+        action.play();
+      }
+    }
+    
+    return () => {
+      if (mixerRef.current) {
+        mixerRef.current.stopAllAction();
+      }
+    };
+  }, [animations, model, character.animation]);
+  
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      if (isDialogueActive && playerStateRef) {
+        // During dialogue: face the player
+        const charX = position[0] + 0.5;
+        const charZ = position[2] + 0.5;
+        const playerX = playerStateRef.current.x;
+        const playerZ = playerStateRef.current.y;
+        
+        const dx = playerX - charX;
+        const dz = playerZ - charZ;
+        const angle = Math.atan2(dx, dz);
+        groupRef.current.rotation.y = angle;
+      } else {
+        // Normal gameplay: slow idle rotation or face outward
+        groupRef.current.rotation.y = state.clock.elapsedTime * 0.3;
+      }
+    }
+    
+    // Update animation mixer
+    if (mixerRef.current) {
+      mixerRef.current.update(delta);
+    }
+  });
+
+  return (
+    <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
+      <group ref={groupRef}>
+        <primitive object={model} scale={characterScale} />
+      </group>
+    </group>
+  );
+};
+
 // Player wrapper that handles movement + rendering in sync
-const RefBasedPlayer = ({ 
+const RefBasedPlayer = ({
   animalType, 
   playerStateRef, 
   isMovingRef,
@@ -1315,8 +1409,22 @@ return (
         <MapStation key={`station-${i}`} position={pos} />
       ))}
       
-      {/* Dialogue Characters - render characters for dialogues with characterModel and speakerPosition */}
-      {maze.dialogues?.filter(d => d.characterModel && d.speakerPosition).map((dialogue) => (
+      {/* Placed Characters from maze.characters array */}
+      {maze.characters?.map((character) => (
+        <PlacedCharacter
+          key={`placed-char-${character.id}`}
+          character={character}
+          playerStateRef={playerStateRef}
+          isDialogueActive={
+            dialogueTarget !== null && 
+            Math.abs(dialogueTarget.speakerX - character.position.x) < 0.5 &&
+            Math.abs(dialogueTarget.speakerZ - character.position.y) < 0.5
+          }
+        />
+      ))}
+      
+      {/* Dialogue Characters - render characters for dialogues with characterModel and speakerPosition (legacy) */}
+      {maze.dialogues?.filter(d => d.characterModel && d.speakerPosition && !d.speakerCharacterId).map((dialogue) => (
         <DialogueCharacter
           key={`dialogue-char-${dialogue.id}`}
           dialogue={dialogue}
