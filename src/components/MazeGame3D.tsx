@@ -18,7 +18,6 @@ import {
   MovementInput,
   calculateMovement,
   checkCellInteraction,
-  calculateScore,
   executeAbility,
 } from '@/game';
 
@@ -36,7 +35,7 @@ interface MazeGame3DProps {
   debugMode?: boolean;
   isMuted?: boolean;
   onMuteChange?: (muted: boolean) => void;
-  onComplete: (score: number, timeUsed: number) => Promise<CompletionResult>;
+  onComplete: (timeUsed: number) => Promise<CompletionResult>;
   onQuit: () => void;
   onBackToLevels: () => void;
   onRestart?: () => Promise<void>; // Called to record restart attempt
@@ -193,11 +192,10 @@ export const MazeGame3D = ({
       if (result.reachedEnd) {
         setHasWon(true);
         setGameOver(true);
-        const score = calculateScore(timeLeft);
         const timeUsed = maze.timeLimit - timeLeft;
         setFinalTime(timeUsed);
         // Get completion result from parent (includes medal, best time info)
-        onComplete(score, timeUsed).then(setCompletionResult);
+        onComplete(timeUsed).then(setCompletionResult);
       }
     },
     [maze, collectedPowerUps, timeLeft, onComplete]
@@ -443,13 +441,13 @@ export const MazeGame3D = ({
                     ) : null}
                   </div>
                   
-                  {/* Score and currency */}
-                  <p className="text-lg text-muted-foreground">
-                    Score: <span className="font-bold text-primary">{calculateScore(timeLeft)}</span> points
-                    {completionResult?.currencyEarned ? (
-                      <span className="ml-2">• +{completionResult.currencyEarned} ⭐</span>
-                    ) : null}
-                  </p>
+                  {/* Stars earned */}
+                  {completionResult?.currencyEarned ? (
+                    <p className="text-lg font-semibold text-primary">
+                      +{completionResult.currencyEarned} ⭐
+                      {completionResult.isBestTime && <span className="text-sm text-muted-foreground ml-1">(includes best time bonus!)</span>}
+                    </p>
+                  ) : null}
                   <p className="text-muted-foreground">
                     {animal.emoji} {animal.name} is proud of you!
                   </p>

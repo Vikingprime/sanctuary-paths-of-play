@@ -101,14 +101,19 @@ class SaveManagerClass {
     await this.save(save);
   }
 
-  // Get currency reward based on medal
+  // Get currency (stars) reward based on medal
   getCurrencyReward(medal: MedalType): number {
     switch (medal) {
-      case 'gold': return 50;
-      case 'silver': return 30;
-      case 'bronze': return 10;
-      default: return 5; // Completion reward
+      case 'gold': return 15;
+      case 'silver': return 10;
+      case 'bronze': return 5;
+      default: return 2; // Completion reward
     }
+  }
+
+  // Bonus stars for beating best time
+  getBestTimeBonus(): number {
+    return 3;
   }
 
   // Record that a maze attempt is starting (call when game begins)
@@ -135,7 +140,7 @@ class SaveManagerClass {
     powerUps: string[],
     maze: Maze,
     debugMode: boolean = false
-  ): Promise<{ medal: MedalType; currencyEarned: number }> {
+  ): Promise<{ medal: MedalType; currencyEarned: number; isBestTime: boolean; bestTime: number | null }> {
     const save = await this.load();
     const existing = save.levels[mazeId];
     
@@ -153,17 +158,6 @@ class SaveManagerClass {
     const newMedalRank = medalRank[medal || null] || 0;
     const bestMedal = newMedalRank > existingMedalRank ? medal : (existing?.medal || null);
 
-    // Calculate currency reward
-    const currencyEarned = this.getCurrencyReward(medal);
-    
-    // In debug mode, don't save times or medals (but still track completion for testing)
-    if (debugMode) {
-      // Don't modify save data in debug mode
-      return { medal, currencyEarned: 0 };
-    }
-    
-    save.player.currency += currencyEarned;
-
     // Only consider existing best time if it's a valid positive number
     const existingBestTime = existing?.bestTime != null && existing.bestTime > 0 
       ? existing.bestTime 
@@ -171,6 +165,9 @@ class SaveManagerClass {
     
     // Only save if the new time is valid (positive)
     const validNewTime = time > 0 ? time : null;
+    
+    // Check if this is a new best time
+    const isBestTime = validNewTime !== null && (existingBestTime === null || validNewTime < existingBestTime);
     
     let newBestTime: number | null = null;
     if (existingBestTime != null && validNewTime != null) {
@@ -180,6 +177,19 @@ class SaveManagerClass {
     } else if (existingBestTime != null) {
       newBestTime = existingBestTime;
     }
+
+    // Calculate currency reward: medal bonus + best time bonus
+    let currencyEarned = this.getCurrencyReward(medal);
+    if (isBestTime) {
+      currencyEarned += this.getBestTimeBonus();
+    }
+    
+    // In debug mode, don't save times or medals (but still return what would be earned)
+    if (debugMode) {
+      return { medal, currencyEarned: 0, isBestTime, bestTime: newBestTime };
+    }
+    
+    save.player.currency += currencyEarned;
 
     save.levels[mazeId] = {
       completed: true,
@@ -192,7 +202,7 @@ class SaveManagerClass {
     };
 
     await this.save(save);
-    return { medal, currencyEarned };
+    return { medal, currencyEarned, isBestTime, bestTime: newBestTime };
   }
 
   async isLevelCompleted(mazeId: number): Promise<boolean> {
