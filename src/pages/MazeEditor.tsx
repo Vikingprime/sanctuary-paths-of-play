@@ -385,6 +385,82 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     return DIALOGUE_COLORS[index % DIALOGUE_COLORS.length];
   };
 
+  // Validation warnings
+  const getValidationWarnings = useCallback((): string[] => {
+    const warnings: string[] = [];
+    
+    // Find end cells
+    const endCells: { x: number; y: number }[] = [];
+    grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell === 'E') {
+          endCells.push({ x, y });
+        }
+      });
+    });
+    
+    if (endCells.length === 0) {
+      warnings.push('⚠️ No end (goal) position set');
+    } else {
+      // Check if the end farmer has dialogue associated (speakerCharacterId = 'endFarmer')
+      const endFarmerDialogue = dialogues.find(d => d.speakerCharacterId === 'endFarmer');
+      
+      if (!endFarmerDialogue) {
+        // Check if any dialogue triggers overlap with end cells
+        const hasDialogueOnEndCells = endCells.some(ec => 
+          dialogues.some(d => d.cells.some(c => c.x === ec.x && c.y === ec.y))
+        );
+        
+        if (!hasDialogueOnEndCells) {
+          warnings.push('⚠️ End Farmer has no dialogue. Add dialogue and set "Speaker" to "🧑‍🌾 End Farmer" or place dialogue triggers on end cells.');
+        }
+      } else {
+        // Check if endFarmer dialogue has trigger cells that overlap with end cells
+        const endFarmerDialogueCellsOnEnd = endFarmerDialogue.cells.some(c => 
+          endCells.some(ec => ec.x === c.x && ec.y === c.y)
+        );
+        
+        if (!endFarmerDialogueCellsOnEnd && endFarmerDialogue.cells.length > 0) {
+          warnings.push('⚠️ End Farmer dialogue trigger cells should overlap with End tiles');
+        }
+        
+        if (endFarmerDialogue.cells.length === 0) {
+          warnings.push('⚠️ End Farmer dialogue has no trigger cells - place dialogue triggers on/around end cells');
+        }
+      }
+    }
+    
+    // Check placed characters
+    characters.forEach(char => {
+      if (!char.position) {
+        warnings.push(`⚠️ Character "${char.name}" is not placed on the grid`);
+        return;
+      }
+      
+      // Check if character has dialogue associated
+      const charDialogue = dialogues.find(d => d.speakerCharacterId === char.id);
+      
+      if (!charDialogue) {
+        warnings.push(`⚠️ Character "${char.name}" has no dialogue linked`);
+      } else if (charDialogue.cells.length === 0) {
+        warnings.push(`⚠️ Character "${char.name}" dialogue has no trigger cells`);
+      } else {
+        // Check if any trigger cells are near the character
+        const charX = char.position.x;
+        const charY = char.position.y;
+        const hasNearbyTrigger = charDialogue.cells.some(c => 
+          Math.abs(c.x - charX) <= 2 && Math.abs(c.y - charY) <= 2
+        );
+        
+        if (!hasNearbyTrigger) {
+          warnings.push(`⚠️ Character "${char.name}" dialogue triggers are far from character position`);
+        }
+      }
+    });
+    
+    return warnings;
+  }, [grid, dialogues, characters]);
+
   return (
     <div 
       className="min-h-screen bg-gradient-to-b from-amber-100 to-green-200 p-4"
@@ -527,6 +603,20 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                   Dialogues ({dialogues.length})
                 </Button>
               </div>
+
+              {/* Validation Warnings */}
+              {(() => {
+                const warnings = getValidationWarnings();
+                if (warnings.length === 0) return null;
+                return (
+                  <div className="p-2 bg-yellow-100 rounded-lg border border-yellow-400 space-y-1">
+                    <div className="text-xs font-bold text-yellow-800">Validation Issues:</div>
+                    {warnings.map((w, i) => (
+                      <div key={i} className="text-xs text-yellow-700">{w}</div>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* Actions */}
               <div className="space-y-2 pt-4 border-t">
