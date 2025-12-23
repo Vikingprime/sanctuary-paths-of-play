@@ -1025,7 +1025,7 @@ const DialogueSpeaker = ({ position, playerStateRef }: {
   );
 };
 
-// Cutscene camera controller - positions camera behind player, looking at speaker
+// Cutscene camera controller - positions camera at player position, looking at speaker
 const CutsceneCameraController = ({ 
   playerStateRef,
   dialogueTarget,
@@ -1039,32 +1039,20 @@ const CutsceneCameraController = ({
   const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
   
-  const CAMERA_HEIGHT = 1.5; // Eye level
-  const CAMERA_BEHIND = 1.5; // Distance behind player
+  const CAMERA_HEIGHT = 1.4; // Eye level
   const LOOK_HEIGHT = 1.2; // Look at farmer's upper body
-  const SMOOTHING = 0.08; // Smooth but responsive transition
+  const SMOOTHING = 0.1; // Smooth transition
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
-    const playerZ = playerStateRef.current.y;
+    const playerZ = playerStateRef.current.y; // Grid Y = Three.js Z
     
-    // Speaker (farmer) is at cell center
+    // Speaker (farmer) is at cell center - grid Y maps to Three.js Z
     const speakerX = dialogueTarget.speakerX + 0.5;
     const speakerZ = dialogueTarget.speakerZ + 0.5;
     
-    // Direction from player to speaker
-    const dx = speakerX - playerX;
-    const dz = speakerZ - playerZ;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    const dirX = dist > 0.01 ? dx / dist : 0;
-    const dirZ = dist > 0.01 ? dz / dist : -1;
-    
-    // Camera goes BEHIND the player, opposite to the speaker direction
-    const camX = playerX - dirX * CAMERA_BEHIND;
-    const camZ = playerZ - dirZ * CAMERA_BEHIND;
-    
-    // Target camera position
-    const targetPos = new Vector3(camX, CAMERA_HEIGHT, camZ);
+    // Camera stays at player position (just elevated)
+    const targetPos = new Vector3(playerX, CAMERA_HEIGHT, playerZ);
     
     // Look at the speaker (farmer)
     const targetLookAt = new Vector3(speakerX, LOOK_HEIGHT, speakerZ);

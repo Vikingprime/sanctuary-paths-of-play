@@ -69,6 +69,7 @@ export const GameHUD = ({
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
+  const [showQuitDialog, setShowQuitDialog] = useState(false);
 
   return (
     <>
@@ -137,7 +138,7 @@ export const GameHUD = ({
             <span className="hidden sm:inline">Restart</span>
           </button>
           <button
-            onClick={onQuit}
+            onClick={() => setShowQuitDialog(true)}
             className="bg-card/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg font-display text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             ✕ Quit
@@ -295,6 +296,22 @@ export const GameHUD = ({
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={onRestart}>Restart</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* Quit Confirmation Dialog */}
+    <AlertDialog open={showQuitDialog} onOpenChange={setShowQuitDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Quit Level?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to quit? You won't receive a score for this attempt.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onQuit}>Quit</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
