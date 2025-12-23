@@ -229,14 +229,25 @@ export const MazeGame3D = ({
       
       // Check for any dialogue at this cell (not just end-related)
       const dialogue = checkDialogueAtCell(gridX, gridY);
+      console.log('DEBUG handleCellInteraction:', { gridX, gridY, dialogue: dialogue?.id, reachedEnd: result.reachedEnd });
+      
       if (dialogue) {
         setActiveDialogue(dialogue);
         setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
         
         // If this is also an end cell, mark pending end IMMEDIATELY in ref
+        console.log('DEBUG: Dialogue found, checking if end cell. reachedEnd =', result.reachedEnd);
         if (result.reachedEnd) {
           console.log('DEBUG: Setting pendingEndGame to true - on end cell with dialogue');
           pendingEndGameRef.current = true;
+        } else {
+          // Check if the cell is an end cell directly
+          const cell = maze.grid[gridY]?.[gridX];
+          console.log('DEBUG: Cell at', gridX, gridY, 'isEnd =', cell?.isEnd);
+          if (cell?.isEnd) {
+            console.log('DEBUG: Cell IS an end cell, setting pendingEndGame');
+            pendingEndGameRef.current = true;
+          }
         }
         return;
       }
