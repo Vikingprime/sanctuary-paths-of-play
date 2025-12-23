@@ -180,21 +180,34 @@ export const MazeGame3D = ({
     return () => clearInterval(timer);
   }, [isPreviewing, gameOver, activeDialogue]);
 
-  // Trigger a dialogue marked with triggersOnEnd when player reaches any end cell
-  const triggerEndDialogue = useCallback((): boolean => {
-    if (!maze.dialogues) return false;
+  // Check if all required dialogues for a given dialogue are completed
+  const areRequirementsMet = useCallback((dialogue: DialogueTrigger): boolean => {
+    if (!dialogue.requires || dialogue.requires.length === 0) return true;
+    return dialogue.requires.every(reqId => triggeredDialogues.has(reqId));
+  }, [triggeredDialogues]);
+
+  // Check if a dialogue can be triggered at the given cell
+  const checkDialogueAtCell = useCallback((gridX: number, gridY: number): DialogueTrigger | null => {
+    if (!maze.dialogues) return null;
     
     for (const dialogue of maze.dialogues) {
       if (triggeredDialogues.has(dialogue.id)) continue;
-      if (!dialogue.triggersOnEnd) continue; // Only trigger dialogues marked for end
+      if (!areRequirementsMet(dialogue)) continue;
       
-      // Found an untriggered end dialogue - trigger it
-      setActiveDialogue(dialogue);
-      setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
-      return true;
+      // Check if this cell is in the dialogue's trigger cells
+      const isInCells = dialogue.cells.some(cell => cell.x === gridX && cell.y === gridY);
+      if (isInCells) {
+        return dialogue;
+      }
     }
-    return false;
-  }, [maze.dialogues, triggeredDialogues]);
+    return null;
+  }, [maze.dialogues, triggeredDialogues, areRequirementsMet]);
+
+  // Check if all required dialogues for end are completed
+  const canEndLevel = useCallback((): boolean => {
+    if (!maze.endConditions?.requiredDialogues) return true;
+    return maze.endConditions.requiredDialogues.every(id => triggeredDialogues.has(id));
+  }, [maze.endConditions, triggeredDialogues]);
 
   // Track if player is on an end cell waiting for dialogue to finish
   const [pendingEndGame, setPendingEndGame] = useState(false);
@@ -203,6 +216,8 @@ export const MazeGame3D = ({
   const handleCellInteraction = useCallback(
     (x: number, y: number) => {
       const result = checkCellInteraction(maze, x, y, collectedPowerUps);
+      const gridX = Math.floor(x);
+      const gridY = Math.floor(y);
 
       if (result.collectPowerUp && result.powerUpKey) {
         setCollectedPowerUps((prev) => new Set([...prev, result.powerUpKey!]));
@@ -212,16 +227,21 @@ export const MazeGame3D = ({
 
       // Station triggering is now handled by proximity check, not cell interaction
       
-      // When reaching end cell, check for dialogues with triggersOnEnd=true
-      // These dialogues trigger before the level ends
-      if (result.reachedEnd) {
-        const dialogueTriggered = triggerEndDialogue();
-        if (dialogueTriggered) {
-          // Mark that we should end the game after dialogue is dismissed
+      // Check for any dialogue at this cell (not just end-related)
+      const dialogue = checkDialogueAtCell(gridX, gridY);
+      if (dialogue) {
+        setActiveDialogue(dialogue);
+        setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
+        
+        // If this is also an end cell, mark pending end
+        if (result.reachedEnd) {
           setPendingEndGame(true);
-          return;
         }
-        // No end dialogue, end game immediately
+        return;
+      }
+
+      // Check if reached end and all conditions are met
+      if (result.reachedEnd && canEndLevel()) {
         setHasWon(true);
         setGameOver(true);
         const timeUsed = maze.timeLimit - timeLeft;
@@ -229,7 +249,7 @@ export const MazeGame3D = ({
         onComplete(timeUsed).then(setCompletionResult);
       }
     },
-    [maze, collectedPowerUps, timeLeft, onComplete, triggerEndDialogue]
+    [maze, collectedPowerUps, timeLeft, onComplete, checkDialogueAtCell, canEndLevel]
   );
 
   // Handle end game after dialogue is dismissed
@@ -552,7 +572,10 @@ export const MazeGame3D = ({
         onRendererInfo={setRendererInfo}
         debugMode={debugMode}
         restartKey={restartKey}
-        dialogueTarget={activeDialogue ? { speakerX: activeDialogue.position.x, speakerZ: activeDialogue.position.y } : null}
+        dialogueTarget={activeDialogue ? { 
+          speakerX: activeDialogue.speakerPosition?.x ?? activeDialogue.cells[0].x, 
+          speakerZ: activeDialogue.speakerPosition?.y ?? activeDialogue.cells[0].y 
+        } : null}
         cornOptimizationSettings={{
           shadowRadius: 8,
           cullDistance: 18,

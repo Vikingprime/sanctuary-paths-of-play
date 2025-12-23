@@ -35,10 +35,13 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 12, y: 13 }, // Where farmer stands (center of end zone)
-        triggersOnEnd: true, // Triggers when player reaches ANY end cell
+        cells: [{ x: 12, y: 13 }, { x: 13, y: 13 }, { x: 12, y: 14 }, { x: 13, y: 14 }], // All end cells
+        speakerPosition: { x: 12, y: 13 }, // Where farmer stands
       },
     ],
+    endConditions: {
+      requiredDialogues: ['farmer_greeting_1'], // Must complete dialogue before level ends
+    },
     // No unlock conditions - always available
     grid: createGrid([
       '################',
@@ -79,10 +82,13 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 16, y: 12 }, // Where farmer stands (center of end zone)
-        triggersOnEnd: true, // Triggers when player reaches ANY end cell
+        cells: [{ x: 16, y: 12 }, { x: 17, y: 12 }, { x: 16, y: 13 }, { x: 17, y: 13 }], // All end cells
+        speakerPosition: { x: 16, y: 12 }, // Where farmer stands
       },
     ],
+    endConditions: {
+      requiredDialogues: ['farmer_greeting_2'],
+    },
     grid: createGrid([
       '##################',
       '##################',
@@ -121,10 +127,13 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 26, y: 34 }, // Where farmer stands (center of end zone)
-        triggersOnEnd: true, // Triggers when player reaches ANY end cell
+        cells: [{ x: 26, y: 34 }, { x: 27, y: 34 }, { x: 26, y: 35 }, { x: 27, y: 35 }], // All end cells
+        speakerPosition: { x: 26, y: 34 }, // Where farmer stands
       },
     ],
+    endConditions: {
+      requiredDialogues: ['farmer_greeting_3'],
+    },
     grid: createGrid([
       '##############################',
       '##############################',
@@ -184,10 +193,13 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 11, y: 13 }, // Where farmer stands
-        triggersOnEnd: true, // Triggers when player reaches ANY end cell
+        cells: [{ x: 11, y: 13 }], // Single end cell
+        speakerPosition: { x: 11, y: 13 }, // Where farmer stands
       },
     ],
+    endConditions: {
+      requiredDialogues: ['farmer_greeting_4'],
+    },
     grid: createGrid([
       '################',
       '##############P#',

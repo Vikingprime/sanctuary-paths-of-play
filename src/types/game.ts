@@ -44,8 +44,9 @@ export interface DialogueTrigger {
   speaker: string;
   speakerEmoji: string;
   message: string;
-  position: { x: number; y: number }; // Where the speaker stands (for camera/model positioning)
-  triggersOnEnd?: boolean; // If true, this dialogue triggers when player reaches ANY end cell
+  cells: { x: number; y: number }[]; // All cells that trigger this dialogue
+  speakerPosition?: { x: number; y: number }; // Where the speaker model appears (defaults to first cell center)
+  requires?: string[]; // IDs of dialogues that must be completed before this one can trigger
 }
 
 export interface Maze {
@@ -59,6 +60,9 @@ export interface Maze {
   unlockConditions?: UnlockCondition[]; // undefined = always unlocked
   currencyCost?: number; // optional currency cost to unlock special mazes
   dialogues?: DialogueTrigger[]; // optional dialogue triggers
+  endConditions?: {
+    requiredDialogues?: string[]; // Dialogues that must be completed before end cell triggers level complete
+  };
 }
 
 export interface GameState {
