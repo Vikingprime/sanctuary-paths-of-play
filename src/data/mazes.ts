@@ -127,8 +127,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        cells: [{ x: 26, y: 32 }, { x: 27, y: 32 }, { x: 26, y: 33 }, { x: 27, y: 33 }], // All end cells
-        speakerPosition: { x: 24, y: 32 }, // Where farmer stands - in the path before end
+        cells: [{ x: 26, y: 34 }, { x: 27, y: 34 }, { x: 26, y: 35 }, { x: 27, y: 35 }], // All end cells (EE at rows 34-35)
+        speakerPosition: { x: 24, y: 34 }, // Where farmer stands - in the path before end
       },
     ],
     endConditions: {
