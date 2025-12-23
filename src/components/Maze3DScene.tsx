@@ -274,16 +274,11 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     const transforms: { matrix: any; x: number; z: number }[] = [];
     const tempObject = new Object3D();
     
-    rocks.forEach((rock, i) => {
-      // rock.radius is 0.08-0.18, we want visual rocks of ~0.15-0.30 units wide
-      const visualScale = rock.radius * 0.8; // Much smaller visual scale
+    rocks.forEach((rock) => {
+      // rock.radius is 0.04-0.10, we want very small visual rocks
+      const visualScale = rock.radius * 0.6; // Small visual scale
       const seed = Math.floor(rock.x * 1000 + rock.z);
       const rotation = seededRandom(seed + 4) * Math.PI * 2;
-      
-      // Debug log first few rocks
-      if (i < 3) {
-        console.log(`[ROCK DEBUG] Rock ${i}: radius=${rock.radius.toFixed(3)}, visualScale=${visualScale.toFixed(3)}, finalDims=(${(visualScale * 1.2).toFixed(3)}, ${(visualScale * 0.5).toFixed(3)}, ${visualScale.toFixed(3)})`);
-      }
       
       tempObject.position.set(rock.x, visualScale * 0.25, rock.z);
       tempObject.rotation.set(0, rotation, 0);
@@ -1196,7 +1191,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
   // Generate character positions for collision (placed characters + end farmer)
-  const CHARACTER_COLLISION_RADIUS = 0.35;
+  const CHARACTER_COLLISION_RADIUS = 0.5; // Larger radius for better collision
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
     

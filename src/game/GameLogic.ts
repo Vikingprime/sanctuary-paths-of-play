@@ -100,10 +100,8 @@ export function generateRockPositions(maze: Maze): RockPosition[] {
     return x - Math.floor(x);
   };
 
-  const ROCK_SIZE_MIN = 0.05;  // Even smaller rocks
-  const ROCK_SIZE_MAX = 0.12;  // Max size reduced
-  
-  console.log(`[ROCK DEBUG] generateRockPositions called, ROCK_SIZE_MIN=${ROCK_SIZE_MIN}, ROCK_SIZE_MAX=${ROCK_SIZE_MAX}`);
+  const ROCK_SIZE_MIN = 0.04;  // Very small rocks
+  const ROCK_SIZE_MAX = 0.10;  // Max size reduced further
   const ROCK_EDGE_INSET = 0.08; // Very close to wall edge
   const ROCK_SPACING = 0.5; // Minimum distance between rocks
   const MIN_PLACEMENT_CHANCE = 0.10; // Chance of placing a rock
@@ -211,7 +209,8 @@ export function checkCharacterCollision(
     const dx = x - charX;
     const dy = y - charZ;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < playerRadius + char.radius) {
+    const collisionDist = playerRadius + char.radius;
+    if (dist < collisionDist) {
       return true;
     }
   }
