@@ -3,9 +3,11 @@ import { Button } from '@/components/ui/button';
 interface HeaderProps {
   totalMeals: number;
   stars: number;
+  goldMedals: number;
+  silverMedals: number;
 }
 
-export const Header = ({ totalMeals, stars }: HeaderProps) => {
+export const Header = ({ totalMeals, stars, goldMedals, silverMedals }: HeaderProps) => {
   return (
     <header className="w-full py-4 px-6 flex items-center justify-between bg-card/80 backdrop-blur-sm border-b border-border">
       <div className="flex items-center gap-3">
@@ -20,16 +22,28 @@ export const Header = ({ totalMeals, stars }: HeaderProps) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-full">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1.5 rounded-full">
+          <span>🥇</span>
+          <span className="font-display font-semibold text-foreground text-sm">
+            {goldMedals}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1.5 rounded-full">
+          <span>🥈</span>
+          <span className="font-display font-semibold text-foreground text-sm">
+            {silverMedals}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1.5 rounded-full">
           <span>🍽️</span>
-          <span className="font-display font-semibold text-foreground">
+          <span className="font-display font-semibold text-foreground text-sm">
             {totalMeals}
           </span>
         </div>
-        <div className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-full">
+        <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1.5 rounded-full">
           <span>⭐</span>
-          <span className="font-display font-semibold text-foreground">
+          <span className="font-display font-semibold text-foreground text-sm">
             {(stars ?? 0).toLocaleString()}
           </span>
         </div>
