@@ -35,7 +35,7 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 10, y: 12 }, // Near the end
+        position: { x: 10, y: 13 }, // On the walkable path right before exit
         triggerRadius: 0.5, // Touch only
       },
     ],
@@ -79,7 +79,7 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 14, y: 11 }, // Near the end
+        position: { x: 13, y: 11 }, // On the walkable path right before exit
         triggerRadius: 0.5, // Touch only
       },
     ],
@@ -121,7 +121,7 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 25, y: 32 }, // Near the end
+        position: { x: 25, y: 33 }, // On the walkable path right before exit
         triggerRadius: 0.5, // Touch only
       },
     ],
@@ -184,7 +184,7 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        position: { x: 11, y: 12 }, // Near the end
+        position: { x: 10, y: 13 }, // On the walkable path right before exit
         triggerRadius: 0.5, // Touch only
       },
     ],
