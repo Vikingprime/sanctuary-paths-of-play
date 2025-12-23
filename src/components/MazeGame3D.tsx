@@ -180,14 +180,15 @@ export const MazeGame3D = ({
     return () => clearInterval(timer);
   }, [isPreviewing, gameOver, activeDialogue]);
 
-  // Check if there's any untriggered dialogue in the maze (used when reaching end cell)
-  const triggerNextDialogue = useCallback((): boolean => {
+  // Trigger a dialogue marked with triggersOnEnd when player reaches any end cell
+  const triggerEndDialogue = useCallback((): boolean => {
     if (!maze.dialogues) return false;
     
     for (const dialogue of maze.dialogues) {
       if (triggeredDialogues.has(dialogue.id)) continue;
+      if (!dialogue.triggersOnEnd) continue; // Only trigger dialogues marked for end
       
-      // Found an untriggered dialogue - trigger it
+      // Found an untriggered end dialogue - trigger it
       setActiveDialogue(dialogue);
       setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
       return true;
@@ -211,16 +212,16 @@ export const MazeGame3D = ({
 
       // Station triggering is now handled by proximity check, not cell interaction
       
-      // When reaching end cell, check if there are ANY untriggered dialogues in the maze
-      // Dialogue always triggers before end game, regardless of which end cell player enters
+      // When reaching end cell, check for dialogues with triggersOnEnd=true
+      // These dialogues trigger before the level ends
       if (result.reachedEnd) {
-        const dialogueTriggered = triggerNextDialogue();
+        const dialogueTriggered = triggerEndDialogue();
         if (dialogueTriggered) {
           // Mark that we should end the game after dialogue is dismissed
           setPendingEndGame(true);
           return;
         }
-        // No dialogue, end game immediately
+        // No end dialogue, end game immediately
         setHasWon(true);
         setGameOver(true);
         const timeUsed = maze.timeLimit - timeLeft;
@@ -228,7 +229,7 @@ export const MazeGame3D = ({
         onComplete(timeUsed).then(setCompletionResult);
       }
     },
-    [maze, collectedPowerUps, timeLeft, onComplete, triggerNextDialogue]
+    [maze, collectedPowerUps, timeLeft, onComplete, triggerEndDialogue]
   );
 
   // Handle end game after dialogue is dismissed
