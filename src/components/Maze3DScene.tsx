@@ -1103,41 +1103,41 @@ const OverShoulderCameraController = ({
 useGLTF.preload('/models/Farmer.glb');
 
 // (DialogueSpeaker removed - we use the single GoalMarker farmer instead)
-// Cutscene camera controller - look at the goal farmer (GoalMarker)
+// Cutscene camera controller - look at the active dialogue speaker
 const CutsceneCameraController = ({ 
   playerStateRef,
-  goalPos,
+  dialogueTarget,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
-  goalPos: [number, number, number];
+  dialogueTarget: DialogueTarget;
 }) => {
   const { camera } = useThree();
   
   const CAMERA_HEIGHT = 1.3; // Slightly lower for better framing
-  const LOOK_HEIGHT = 0.7; // Look at farmer's midpoint/chest area
-  const ZOOM_DISTANCE = 1.5; // How close to get to the farmer
+  const LOOK_HEIGHT = 0.7; // Look at speaker's midpoint/chest area
+  const ZOOM_DISTANCE = 1.5; // How close to get to the speaker
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
     const playerZ = playerStateRef.current.y;
     
-    // GoalMarker farmer is at goalPos[0] + 0.5, goalPos[2] + 0.5 (see GoalMarker component)
-    const farmerX = goalPos[0] + 0.5;
-    const farmerZ = goalPos[2] + 0.5;
+    // Speaker is at dialogueTarget position + 0.5 (center of cell)
+    const speakerX = dialogueTarget.speakerX + 0.5;
+    const speakerZ = dialogueTarget.speakerZ + 0.5;
     
-    // Calculate direction from farmer to player
-    const dx = playerX - farmerX;
-    const dz = playerZ - farmerZ;
+    // Calculate direction from speaker to player
+    const dx = playerX - speakerX;
+    const dz = playerZ - speakerZ;
     const dist = Math.sqrt(dx * dx + dz * dz);
     
-    // Position camera between player and farmer, closer to farmer
-    // Move camera to ZOOM_DISTANCE away from farmer, along the player-farmer line
-    const camX = farmerX + (dx / dist) * ZOOM_DISTANCE;
-    const camZ = farmerZ + (dz / dist) * ZOOM_DISTANCE;
+    // Position camera between player and speaker, closer to speaker
+    // Move camera to ZOOM_DISTANCE away from speaker, along the player-speaker line
+    const camX = speakerX + (dx / dist) * ZOOM_DISTANCE;
+    const camZ = speakerZ + (dz / dist) * ZOOM_DISTANCE;
     
     camera.position.set(camX, CAMERA_HEIGHT, camZ);
     camera.up.set(0, 1, 0);
-    camera.lookAt(farmerX, LOOK_HEIGHT, farmerZ);
+    camera.lookAt(speakerX, LOOK_HEIGHT, speakerZ);
   });
   
   return null;
@@ -1324,7 +1324,12 @@ return (
       <GoalMarker 
         position={items.goalPos} 
         playerStateRef={playerStateRef}
-        isDialogueActive={!!dialogueTarget}
+        isDialogueActive={
+          // Only activate when dialogue is with the goal marker itself
+          dialogueTarget !== null && 
+          Math.abs(dialogueTarget.speakerX - items.goalPos[0]) < 0.5 &&
+          Math.abs(dialogueTarget.speakerZ - items.goalPos[2]) < 0.5
+        }
       />
       
       {/* Player - handles movement + rendering in sync */}
@@ -1347,7 +1352,7 @@ return (
         <>
           <CutsceneCameraController 
             playerStateRef={playerStateRef}
-            goalPos={items.goalPos}
+            dialogueTarget={dialogueTarget}
           />
         </>
       ) : (
