@@ -194,7 +194,7 @@ export interface CharacterPosition {
 }
 
 /**
- * Check if position collides with any character
+ * Check if position collides with any character (simple circle check)
  */
 export function checkCharacterCollision(
   x: number,
@@ -215,6 +215,35 @@ export function checkCharacterCollision(
     }
   }
   return false;
+}
+
+/**
+ * Check character collision using multiple sample points (head, center, tail)
+ * This accounts for the animal model extending beyond center point
+ */
+export function checkCharacterCollisionMultiPoint(
+  x: number,
+  y: number,
+  rotation: number,
+  characters: CharacterPosition[],
+  headOffset: number = 0.4,  // How far head extends forward
+  tailOffset: number = 0.25  // How far tail extends backward
+): boolean {
+  // Calculate head position (forward from center based on rotation)
+  const headX = x + Math.sin(rotation) * headOffset;
+  const headY = y - Math.cos(rotation) * headOffset;
+  
+  // Calculate tail position (backward from center)
+  const tailX = x - Math.sin(rotation) * tailOffset;
+  const tailY = y + Math.cos(rotation) * tailOffset;
+  
+  // Small radius for point checks
+  const pointRadius = 0.15;
+  
+  // Check all three points
+  return checkCharacterCollision(x, y, characters, pointRadius) ||
+         checkCharacterCollision(headX, headY, characters, pointRadius) ||
+         checkCharacterCollision(tailX, tailY, characters, pointRadius);
 }
 
 // ============================================
@@ -275,22 +304,29 @@ export function calculateMovement(
     moveY += Math.cos(newRotation) * moveSpeed * deltaTime;
   }
 
-  // Helper to check wall, rock, and character collision
-  const hasCollision = (x: number, y: number) => 
+  // Helper to check wall and rock collision (uses center point with radius)
+  const hasWallOrRockCollision = (x: number, y: number) => 
     checkCollision(maze, x, y) || 
-    checkRockCollision(x, y, rocks) || 
-    checkCharacterCollision(x, y, characters);
+    checkRockCollision(x, y, rocks);
+  
+  // Helper for character collision (uses multi-point: head, center, tail)
+  const hasCharacterCollision = (x: number, y: number, rot: number) =>
+    checkCharacterCollisionMultiPoint(x, y, rot, characters);
+  
+  // Combined collision check
+  const hasCollision = (x: number, y: number, rot: number) => 
+    hasWallOrRockCollision(x, y) || hasCharacterCollision(x, y, rot);
 
   // Try combined movement first
   let newX = currentState.x + moveX;
   let newY = currentState.y + moveY;
 
-  if (hasCollision(newX, newY)) {
+  if (hasCollision(newX, newY, newRotation)) {
     // Wall sliding: try X and Y separately
-    if (!hasCollision(currentState.x + moveX, currentState.y)) {
+    if (!hasCollision(currentState.x + moveX, currentState.y, newRotation)) {
       newX = currentState.x + moveX;
       newY = currentState.y;
-    } else if (!hasCollision(currentState.x, currentState.y + moveY)) {
+    } else if (!hasCollision(currentState.x, currentState.y + moveY, newRotation)) {
       newX = currentState.x;
       newY = currentState.y + moveY;
     } else {

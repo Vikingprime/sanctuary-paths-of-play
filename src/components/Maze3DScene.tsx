@@ -1191,7 +1191,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
   // Generate character positions for collision (placed characters + end farmer)
-  const CHARACTER_COLLISION_RADIUS = 0.7; // Large radius to prevent player model from overlapping
+  const CHARACTER_COLLISION_RADIUS = 0.4; // Moderate radius - multi-point collision handles the rest
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
     
