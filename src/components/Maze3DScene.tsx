@@ -981,100 +981,39 @@ const OverShoulderCameraController = ({
 // Preload farmer model
 useGLTF.preload('/models/Farmer.glb');
 
-// Dialogue speaker (Farmer) - appears at dialogue position during cutscene
-const DialogueSpeaker = ({ position, playerStateRef }: { 
-  position: { x: number; z: number };
-  playerStateRef: MutableRefObject<PlayerState>;
-}) => {
-  const { scene: farmerScene } = useGLTF('/models/Farmer.glb');
-  const groupRef = useRef<Group>(null);
-  
-  const clonedFarmer = useMemo(() => {
-    const clone = farmerScene.clone();
-    clone.traverse((child: any) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-      }
-    });
-    return clone;
-  }, [farmerScene]);
-  
-  // Log actual mesh world position and make farmer face the player
-  const logged = useRef(false);
-  const worldPosVec = useRef(new Vector3());
-  useFrame(() => {
-    if (!groupRef.current) return;
-    
-    // Log the ACTUAL world position of the farmer mesh (not local position)
-    if (!logged.current) {
-      groupRef.current.getWorldPosition(worldPosVec.current);
-      console.log('FARMER TRUE WORLD POS:', worldPosVec.current.x.toFixed(1), worldPosVec.current.y.toFixed(1), worldPosVec.current.z.toFixed(1));
-      console.log('FARMER local pos:', groupRef.current.position.x.toFixed(1), groupRef.current.position.y.toFixed(1), groupRef.current.position.z.toFixed(1));
-      logged.current = true;
-    }
-    
-    const farmerX = position.x + 0.5;
-    const farmerZ = position.z + 0.5;
-    const playerX = playerStateRef.current.x;
-    const playerZ = playerStateRef.current.y;
-    
-    // Calculate angle to face player
-    const dx = playerX - farmerX;
-    const dz = playerZ - farmerZ;
-    const angle = Math.atan2(dx, dz);
-    
-    groupRef.current.rotation.y = angle;
-  });
-  
-  // Position farmer at cell center
-  return (
-    <group ref={groupRef} position={[position.x + 0.5, 0, position.z + 0.5]}>
-      <primitive object={clonedFarmer} scale={0.5} />
-    </group>
-  );
-};
-
-// Cutscene camera controller - simple: put camera at player, look at farmer
+// (DialogueSpeaker removed - we use the single GoalMarker farmer instead)
+// Cutscene camera controller - look at the goal farmer (GoalMarker)
 const CutsceneCameraController = ({ 
   playerStateRef,
-  dialogueTarget,
+  goalPos,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
-  dialogueTarget: DialogueTarget;
+  goalPos: [number, number, number];
 }) => {
   const { camera } = useThree();
   
   const CAMERA_HEIGHT = 1.5; // Eye level
   const LOOK_HEIGHT = 1.2; // Look at farmer's upper body
-  const SMOOTHING = 0.1;
   
-  const currentPos = useRef(new Vector3());
-  const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
     const playerZ = playerStateRef.current.y;
     
-    const farmerX = dialogueTarget.speakerX + 0.5;
-    const farmerZ = dialogueTarget.speakerZ + 0.5;
+    // GoalMarker farmer is at goalPos[0] + 0.5, goalPos[2] + 0.5 (see GoalMarker component)
+    const farmerX = goalPos[0] + 0.5;
+    const farmerZ = goalPos[2] + 0.5;
     
-    // The camera X axis is INVERTED relative to world X!
-    // Looking at +X shows objects at -X world position
-    // So to look at farmer (at farmerX), we need to negate the X offset
-    // lookAtX = playerX - (farmerX - playerX) = 2*playerX - farmerX
-    const lookAtX = 2 * playerX - farmerX;
-    
+    // Position camera at player, look at farmer
     camera.position.set(playerX, CAMERA_HEIGHT, playerZ);
     camera.up.set(0, 1, 0);
-    camera.lookAt(lookAtX, LOOK_HEIGHT, farmerZ);
+    camera.lookAt(farmerX, LOOK_HEIGHT, farmerZ);
     
     if (!initialized.current) {
       initialized.current = true;
-      console.log('Camera at:', playerX.toFixed(1), playerZ.toFixed(1));
-      console.log('Farmer at:', farmerX.toFixed(1), farmerZ.toFixed(1));
-      console.log('LookAt (X inverted):', lookAtX.toFixed(1), farmerZ.toFixed(1));
+      console.log('Cutscene: Camera at player:', playerX.toFixed(1), playerZ.toFixed(1));
+      console.log('Cutscene: Looking at goal farmer:', farmerX.toFixed(1), farmerZ.toFixed(1));
     }
   });
   
@@ -1188,17 +1127,6 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 
 return (
     <>
-      {/* DEBUG: Test blocks to verify coordinate system */}
-      {/* Red block at maze (10, 13) - near farmer */}
-      <mesh position={[10 + 0.5, 1, 13 + 0.5]}>
-        <boxGeometry args={[1, 2, 1]} />
-        <meshStandardMaterial color="red" />
-      </mesh>
-      {/* Yellow block at maze (14, 13) - opposite side */}
-      <mesh position={[14 + 0.5, 1, 13 + 0.5]}>
-        <boxGeometry args={[1, 2, 1]} />
-        <meshStandardMaterial color="yellow" />
-      </mesh>
       
       {/* Lighting - 8am morning sunlight */}
       <ambientLight intensity={0.9} color="#FFF8F0" />
@@ -1281,15 +1209,8 @@ return (
         <>
           <CutsceneCameraController 
             playerStateRef={playerStateRef}
-            dialogueTarget={dialogueTarget}
+            goalPos={items.goalPos}
           />
-          {/* Show the farmer at dialogue position during cutscene */}
-          <DialogueSpeaker position={{ x: dialogueTarget.speakerX, z: dialogueTarget.speakerZ }} playerStateRef={playerStateRef} />
-          {/* DEBUG: Blue cube at EXACT dialogue farmer position */}
-          <mesh position={[dialogueTarget.speakerX + 0.5, 2, dialogueTarget.speakerZ + 0.5]}>
-            <boxGeometry args={[0.5, 0.5, 0.5]} />
-            <meshStandardMaterial color="blue" />
-          </mesh>
         </>
       ) : (
         <OverShoulderCameraController 
