@@ -180,6 +180,30 @@ export const MazeGame3D = ({
     return () => clearInterval(timer);
   }, [isPreviewing, gameOver, activeDialogue]);
 
+  // Check if player is near a dialogue trigger (helper function)
+  const checkDialogueNear = useCallback((x: number, y: number): boolean => {
+    if (!maze.dialogues) return false;
+    
+    for (const dialogue of maze.dialogues) {
+      if (triggeredDialogues.has(dialogue.id)) continue;
+      
+      const triggerRadius = dialogue.triggerRadius ?? 0.5;
+      const dialogueX = dialogue.position.x + 0.5;
+      const dialogueY = dialogue.position.y + 0.5;
+      
+      const dx = x - dialogueX;
+      const dy = y - dialogueY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance <= triggerRadius) {
+        setActiveDialogue(dialogue);
+        setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
+        return true;
+      }
+    }
+    return false;
+  }, [maze.dialogues, triggeredDialogues]);
+
   // Handle cell interactions (React-specific wrapper around pure logic)
   const handleCellInteraction = useCallback(
     (x: number, y: number) => {
@@ -192,6 +216,11 @@ export const MazeGame3D = ({
       }
 
       // Station triggering is now handled by proximity check, not cell interaction
+      
+      // Check for dialogue triggers BEFORE end game (dialogue takes priority)
+      if (checkDialogueNear(x, y)) {
+        return; // Dialogue triggered, don't process end game yet
+      }
 
       if (result.reachedEnd) {
         setHasWon(true);
@@ -202,7 +231,7 @@ export const MazeGame3D = ({
         onComplete(timeUsed).then(setCompletionResult);
       }
     },
-    [maze, collectedPowerUps, timeLeft, onComplete]
+    [maze, collectedPowerUps, timeLeft, onComplete, checkDialogueNear]
   );
 
   // Movement is now handled in Maze3DScene's useFrame for sync with rendering
@@ -281,7 +310,7 @@ export const MazeGame3D = ({
     return () => clearInterval(interval);
   }, [isPreviewing, gameOver, showMiniMap, showMapOptions, mapCountdown]);
 
-  // Dialogue proximity check
+  // Dialogue proximity check (runs continuously for smoother trigger)
   useEffect(() => {
     if (isPreviewing || gameOver || activeDialogue || !maze.dialogues) return;
     
@@ -292,7 +321,7 @@ export const MazeGame3D = ({
       for (const dialogue of maze.dialogues!) {
         if (triggeredDialogues.has(dialogue.id)) continue;
         
-        const triggerRadius = dialogue.triggerRadius ?? 1.0;
+        const triggerRadius = dialogue.triggerRadius ?? 0.5; // Default to touch-only
         const dialogueX = dialogue.position.x + 0.5; // Center of cell
         const dialogueY = dialogue.position.y + 0.5;
         
@@ -544,6 +573,7 @@ export const MazeGame3D = ({
         onRendererInfo={setRendererInfo}
         debugMode={debugMode}
         restartKey={restartKey}
+        dialogueTarget={activeDialogue ? { speakerX: activeDialogue.position.x, speakerZ: activeDialogue.position.y } : null}
         cornOptimizationSettings={{
           shadowRadius: 8,
           cullDistance: 18,

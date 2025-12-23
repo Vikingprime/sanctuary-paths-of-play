@@ -36,6 +36,7 @@ export const mazes: Maze[] = [
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
         position: { x: 10, y: 12 }, // Near the end
+        triggerRadius: 0.5, // Touch only
       },
     ],
     // No unlock conditions - always available
@@ -79,6 +80,7 @@ export const mazes: Maze[] = [
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
         position: { x: 14, y: 11 }, // Near the end
+        triggerRadius: 0.5, // Touch only
       },
     ],
     grid: createGrid([
@@ -120,6 +122,7 @@ export const mazes: Maze[] = [
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
         position: { x: 25, y: 32 }, // Near the end
+        triggerRadius: 0.5, // Touch only
       },
     ],
     grid: createGrid([
@@ -182,6 +185,7 @@ export const mazes: Maze[] = [
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
         position: { x: 11, y: 12 }, // Near the end
+        triggerRadius: 0.5, // Touch only
       },
     ],
     grid: createGrid([
