@@ -16,6 +16,8 @@ interface DialogueMessage {
   message: string;
 }
 
+type LinkedCharacter = 'endFarmer';
+
 interface DialogueConfig {
   id: string;
   speaker: string;
@@ -26,6 +28,7 @@ interface DialogueConfig {
   characterModel?: string;
   characterAnimation?: string;
   requires?: string[];
+  linkedCharacter?: LinkedCharacter; // Links to a persistent character
 }
 
 interface MazeConfig {
@@ -254,10 +257,9 @@ ${dialogues.map(d => {
       speaker: '${d.speaker}',
       speakerEmoji: '${d.speakerEmoji}',
       message: '${d.message.replace(/'/g, "\\'")}',${messagesStr}
-      cells: [${d.cells.map(c => `{ x: ${c.x}, y: ${c.y} }`).join(', ')}],
-      ${d.characterModel ? `characterModel: '${d.characterModel}',` : ''}
+      ${d.linkedCharacter ? `linkedCharacter: '${d.linkedCharacter}',` : `cells: [${d.cells.map(c => `{ x: ${c.x}, y: ${c.y} }`).join(', ')}],`}
+      ${!d.linkedCharacter && d.characterModel ? `characterModel: '${d.characterModel}',` : ''}
       ${d.characterAnimation ? `characterAnimation: '${d.characterAnimation}',` : ''}
-      
       ${d.requires && d.requires.length > 0 ? `requires: [${d.requires.map(r => `'${r}'`).join(', ')}],` : ''}
     }`;
 }).join(',\n')}
@@ -686,41 +688,70 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         <Plus className="w-3 h-3 mr-1" /> Add follow-up message
                       </Button>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs">Character Model</Label>
-                          <Select
-                            value={dialogue.characterModel || 'none'}
-                            onValueChange={v => updateDialogue(dialogue.id, { characterModel: v === 'none' ? undefined : v })}
-                          >
-                            <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
-                              <SelectValue placeholder="Select model" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              {AVAILABLE_MODELS.map(model => (
-                                <SelectItem key={model} value={model}>{model.replace('.glb', '')}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-xs">Animation</Label>
-                          <Select
-                            value={dialogue.characterAnimation || ''}
-                            onValueChange={v => updateDialogue(dialogue.id, { characterAnimation: v })}
-                          >
-                            <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
-                              <SelectValue placeholder="Select animation" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {AVAILABLE_ANIMATIONS.map(anim => (
-                                <SelectItem key={anim} value={anim}>{anim}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                      {/* Linked Character - if set, uses that character's position/model */}
+                      <div>
+                        <Label className="text-xs">Linked Character (uses their position)</Label>
+                        <Select
+                          value={dialogue.linkedCharacter || 'none'}
+                          onValueChange={v => updateDialogue(dialogue.id, { 
+                            linkedCharacter: v === 'none' ? undefined : v as LinkedCharacter 
+                          })}
+                        >
+                          <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
+                            <SelectValue placeholder="None (place cells manually)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None (place cells manually)</SelectItem>
+                            <SelectItem value="endFarmer">🧑‍🌾 End Farmer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {dialogue.linkedCharacter === 'endFarmer' && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Triggers when player reaches end tile. Uses the existing farmer model.
+                          </p>
+                        )}
                       </div>
+
+                      {/* Only show model/cells options if NOT linked to a character */}
+                      {!dialogue.linkedCharacter && (
+                        <>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-xs">Character Model</Label>
+                              <Select
+                                value={dialogue.characterModel || 'none'}
+                                onValueChange={v => updateDialogue(dialogue.id, { characterModel: v === 'none' ? undefined : v })}
+                              >
+                                <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
+                                  <SelectValue placeholder="Select model" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  {AVAILABLE_MODELS.map(model => (
+                                    <SelectItem key={model} value={model}>{model.replace('.glb', '')}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label className="text-xs">Animation</Label>
+                              <Select
+                                value={dialogue.characterAnimation || ''}
+                                onValueChange={v => updateDialogue(dialogue.id, { characterAnimation: v })}
+                              >
+                                <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
+                                  <SelectValue placeholder="Select animation" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {AVAILABLE_ANIMATIONS.map(anim => (
+                                    <SelectItem key={anim} value={anim}>{anim}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </>
+                      )}
 
                       <div>
                         <Label className="text-xs">Requires (other dialogue IDs)</Label>
@@ -766,9 +797,11 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         )}
                       </div>
 
-                      <div className="text-xs text-muted-foreground">
-                        Cells: {dialogue.cells.length} {selectedDialogueId === dialogue.id && '(click grid to add)'}
-                      </div>
+                      {!dialogue.linkedCharacter && (
+                        <div className="text-xs text-muted-foreground">
+                          Cells: {dialogue.cells.length} {selectedDialogueId === dialogue.id && '(click grid to add)'}
+                        </div>
+                      )}
 
                       {/* Toggle required for end */}
                       <div className="flex items-center gap-2">
