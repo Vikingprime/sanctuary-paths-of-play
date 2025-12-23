@@ -1068,14 +1068,17 @@ const CutsceneCameraController = ({
     if (!initialized.current) {
       initialized.current = true;
       
-      // Log camera's actual world direction after lookAt
+      // Log camera's actual world position and direction after lookAt
       const dir = new Vector3();
+      const camWorldPos = new Vector3();
       camera.getWorldDirection(dir);
+      camera.getWorldPosition(camWorldPos);
       
-      console.log('CAMERA pos:', camera.position.x.toFixed(1), camera.position.y.toFixed(1), camera.position.z.toFixed(1));
-      console.log('CAMERA lookAt target:', (playerX + 10).toFixed(1), LOOK_HEIGHT, playerZ.toFixed(1));
-      console.log('CAMERA actual direction:', dir.x.toFixed(2), dir.y.toFixed(2), dir.z.toFixed(2));
-      console.log('FARMER mesh at:', farmerX.toFixed(1), farmerZ.toFixed(1));
+      console.log('CAMERA local pos:', camera.position.x.toFixed(1), camera.position.y.toFixed(1), camera.position.z.toFixed(1));
+      console.log('CAMERA WORLD pos:', camWorldPos.x.toFixed(1), camWorldPos.y.toFixed(1), camWorldPos.z.toFixed(1));
+      console.log('CAMERA direction:', dir.x.toFixed(2), dir.y.toFixed(2), dir.z.toFixed(2));
+      console.log('FARMER at:', farmerX.toFixed(1), 'X, camera at:', camWorldPos.x.toFixed(1), 'X');
+      console.log('Farmer is at', farmerX < camWorldPos.x ? 'NEGATIVE' : 'POSITIVE', 'X from camera');
     }
   });
   
