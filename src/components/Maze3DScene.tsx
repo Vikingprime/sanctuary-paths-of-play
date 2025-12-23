@@ -1002,13 +1002,15 @@ const DialogueSpeaker = ({ position, playerStateRef }: {
   
   // Log actual mesh world position and make farmer face the player
   const logged = useRef(false);
+  const worldPosVec = useRef(new Vector3());
   useFrame(() => {
     if (!groupRef.current) return;
     
-    // Log the actual world position of the farmer mesh
+    // Log the ACTUAL world position of the farmer mesh (not local position)
     if (!logged.current) {
-      const worldPos = groupRef.current.position;
-      console.log('FARMER MESH WORLD POS:', worldPos.x.toFixed(1), worldPos.y.toFixed(1), worldPos.z.toFixed(1));
+      groupRef.current.getWorldPosition(worldPosVec.current);
+      console.log('FARMER TRUE WORLD POS:', worldPosVec.current.x.toFixed(1), worldPosVec.current.y.toFixed(1), worldPosVec.current.z.toFixed(1));
+      console.log('FARMER local pos:', groupRef.current.position.x.toFixed(1), groupRef.current.position.y.toFixed(1), groupRef.current.position.z.toFixed(1));
       logged.current = true;
     }
     
