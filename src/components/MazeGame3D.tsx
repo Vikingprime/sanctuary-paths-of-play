@@ -67,6 +67,8 @@ export const MazeGame3D = ({
   // React state only for UI that needs re-renders
   const [playerStateForUI, setPlayerStateForUI] = useState<PlayerState>(playerStateRef.current);
   const [timeLeft, setTimeLeft] = useState(debugMode ? 9999 : maze.timeLimit);
+  const gameStartTimeRef = useRef<number | null>(null);
+  const pausedTimeRef = useRef<number>(0); // Accumulated paused time
   const [previewTimeLeft, setPreviewTimeLeft] = useState(debugMode ? 0 : maze.previewTime);
   const [isPreviewing, setIsPreviewing] = useState(!debugMode);
   const [sceneReady, setSceneReady] = useState(false);
@@ -163,23 +165,46 @@ export const MazeGame3D = ({
     return () => clearInterval(timer);
   }, [isPreviewing]);
 
-  // Game timer (paused during dialogue)
+  // Game timer (paused during dialogue) - precise timing with 100ms updates
+  const dialoguePauseStartRef = useRef<number | null>(null);
+  
   useEffect(() => {
-    if (isPreviewing || gameOver || activeDialogue) return;
+    if (isPreviewing || gameOver) return;
+    
+    // Track when dialogue starts to pause timer
+    if (activeDialogue && dialoguePauseStartRef.current === null) {
+      dialoguePauseStartRef.current = Date.now();
+    }
+    
+    // When dialogue ends, add the paused duration
+    if (!activeDialogue && dialoguePauseStartRef.current !== null) {
+      pausedTimeRef.current += Date.now() - dialoguePauseStartRef.current;
+      dialoguePauseStartRef.current = null;
+    }
+    
+    if (activeDialogue) return; // Don't run timer during dialogue
+    
+    // Initialize start time on first run
+    if (gameStartTimeRef.current === null) {
+      gameStartTimeRef.current = Date.now();
+    }
 
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          setGameOver(true);
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      const now = Date.now();
+      const elapsed = (now - gameStartTimeRef.current! - pausedTimeRef.current) / 1000;
+      const remaining = maze.timeLimit - elapsed;
+      
+      if (remaining <= 0) {
+        setGameOver(true);
+        setTimeLeft(0);
+        clearInterval(timer);
+      } else {
+        setTimeLeft(remaining);
+      }
+    }, 100); // Update every 100ms for precision
 
     return () => clearInterval(timer);
-  }, [isPreviewing, gameOver, activeDialogue]);
+  }, [isPreviewing, gameOver, activeDialogue, maze.timeLimit]);
 
   // Check if all required dialogues for a given dialogue are completed
   const areRequirementsMet = useCallback((dialogue: DialogueTrigger): boolean => {
@@ -450,6 +475,11 @@ export const MazeGame3D = ({
     setMapViewTimeLeft(null);
     setActiveDialogue(null);
     setTriggeredDialogues(new Set());
+    
+    // Reset timing refs
+    gameStartTimeRef.current = null;
+    pausedTimeRef.current = 0;
+    dialoguePauseStartRef.current = null;
     
     // Record the restart attempt in persistent storage
     onRestartProp?.();
