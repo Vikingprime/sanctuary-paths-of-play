@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AnimalType, Maze } from '@/types/game';
+import { AnimalType, Maze, MedalType } from '@/types/game';
 import { animals } from '@/data/animals';
 import { mazes } from '@/data/mazes';
 import { AnimalCard } from '@/components/AnimalCard';
@@ -47,10 +47,19 @@ const Index = () => {
   };
 
   const handleGameComplete = async (score: number, timeUsed: number) => {
-    // Save level completion
+    // Save level completion and get result
+    let result = { medal: null as MedalType, currencyEarned: 0, isBestTime: false, bestTime: null as number | null };
+    
     if (selectedMaze) {
+      const prevBestTime = save.levels[selectedMaze.id]?.bestTime;
       const { medal, currencyEarned } = await completeLevel(selectedMaze.id, timeUsed, selectedMaze);
-      console.log('Medal earned:', medal, 'Currency earned:', currencyEarned);
+      
+      // Determine if this is the new best time
+      const isBestTime = prevBestTime === null || prevBestTime <= 0 || timeUsed < prevBestTime;
+      const bestTime = isBestTime ? timeUsed : prevBestTime;
+      
+      result = { medal, currencyEarned, isBestTime, bestTime };
+      console.log('Medal earned:', medal, 'Currency earned:', currencyEarned, 'Best time:', isBestTime);
     }
     
     // Update score
@@ -64,6 +73,13 @@ const Index = () => {
     } else {
       setMealProgress(newProgress);
     }
+    
+    return result;
+  };
+
+  const handleBackToLevels = () => {
+    setScreen('levels');
+    setSelectedMaze(null);
   };
 
   const handleBackToHome = () => {
@@ -85,6 +101,7 @@ const Index = () => {
         })}
         onComplete={handleGameComplete}
         onQuit={handleBackToHome}
+        onBackToLevels={handleBackToLevels}
         onRestart={async () => {
           await startAttempt(selectedMaze.id);
         }}
