@@ -842,7 +842,7 @@ const DialogueCharacter = ({
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={model} scale={0.5} />
+        <primitive object={model} scale={0.35} />
       </group>
     </group>
   );
