@@ -7,6 +7,7 @@ import { Maze, AnimalType, DialogueTrigger } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition } from '@/game/GameLogic';
+import { getCharacterScale } from '@/game/CharacterConfig';
 
 // Extended performance info type
 export interface PerformanceInfo {
@@ -761,8 +762,12 @@ const DialogueCharacter = ({
   const mixerRef = useRef<AnimationMixer | null>(null);
   
   // Load the model dynamically based on characterModel
-  const modelPath = `/models/${dialogue.characterModel}`;
+  const modelFile = dialogue.characterModel || 'Farmer.glb';
+  const modelPath = `/models/${modelFile}`;
   const { scene, animations } = useGLTF(modelPath);
+  
+  // Get character scale from centralized config
+  const characterScale = getCharacterScale(modelFile);
   
   // Clone the scene using SkeletonUtils for skinned meshes
   const model = useMemo(() => {
@@ -842,7 +847,7 @@ const DialogueCharacter = ({
   return (
     <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={model} scale={0.35} />
+        <primitive object={model} scale={characterScale} />
       </group>
     </group>
   );

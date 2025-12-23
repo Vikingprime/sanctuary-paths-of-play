@@ -1,0 +1,54 @@
+/**
+ * Character Model Configuration
+ * 
+ * Centralized configuration for character model sizes and settings.
+ * Use this to ensure consistent character sizing across the game.
+ */
+
+export interface CharacterModelConfig {
+  scale: number;
+  yOffset?: number; // Optional vertical offset
+}
+
+export const CharacterConfig: Record<string, CharacterModelConfig> = {
+  // Main characters
+  'Farmer.glb': {
+    scale: 0.55,
+  },
+  'Animated_Woman.glb': {
+    scale: 0.55, // Same size as Farmer (Sanctuary Sam)
+  },
+  
+  // Animals
+  'Cow.glb': {
+    scale: 0.4,
+  },
+  'Pig.glb': {
+    scale: 0.35,
+  },
+  'Hen.glb': {
+    scale: 0.25,
+  },
+  'Hen_idle.glb': {
+    scale: 0.25,
+  },
+  'Hen_walk.glb': {
+    scale: 0.25,
+  },
+} as const;
+
+/**
+ * Get the scale for a character model.
+ * Falls back to 0.5 if model not found in config.
+ */
+export function getCharacterScale(modelFile: string): number {
+  return CharacterConfig[modelFile]?.scale ?? 0.5;
+}
+
+/**
+ * Get the Y offset for a character model.
+ * Falls back to 0 if not specified.
+ */
+export function getCharacterYOffset(modelFile: string): number {
+  return CharacterConfig[modelFile]?.yOffset ?? 0;
+}
