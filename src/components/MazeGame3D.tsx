@@ -68,6 +68,7 @@ export const MazeGame3D = ({
   const [collectedPowerUps, setCollectedPowerUps] = useState<Set<string>>(new Set());
   const [speedBoostActive, setSpeedBoostActive] = useState(false);
   const [isMuted, setIsMuted] = useState(initialMuted);
+  const [restartKey, setRestartKey] = useState(0); // Increment to force camera reset
   // Corn optimization settings
   const [shadowOptEnabled, setShadowOptEnabled] = useState(true);
   const [distanceCullEnabled, setDistanceCullEnabled] = useState(true);
@@ -352,6 +353,9 @@ export const MazeGame3D = ({
     setMapCountdown(null);
     setMapViewTimeLeft(null);
     
+    // Increment restart key to force camera reset
+    setRestartKey(prev => prev + 1);
+    
     // Clear keys
     keysPressed.current.clear();
   }, [startPos, startRotation, debugMode, maze.timeLimit, maze.previewTime]);
@@ -427,6 +431,7 @@ export const MazeGame3D = ({
         lowPixelRatio={lowPixelRatio}
         onRendererInfo={setRendererInfo}
         debugMode={debugMode}
+        restartKey={restartKey}
         cornOptimizationSettings={{
           shadowRadius: 8,
           cullDistance: 18,

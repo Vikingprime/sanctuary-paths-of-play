@@ -40,6 +40,7 @@ interface Maze3DSceneProps {
   onRendererInfo?: (info: PerformanceInfo) => void;
   onCullStats?: (stats: CullStats) => void;
   debugMode?: boolean;
+  restartKey?: number; // Increment to force camera reset
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -837,8 +838,10 @@ const RefBasedPlayer = ({
 // Simple over-the-shoulder camera with smooth follow - reads from ref each frame
 const OverShoulderCameraController = ({ 
   playerStateRef,
+  restartKey,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
+  restartKey?: number;
 }) => {
   const { camera } = useThree();
   
@@ -855,6 +858,18 @@ const OverShoulderCameraController = ({
   const initialPlayerPos = useRef<{ x: number; z: number } | null>(null);
   const hasPlayerMoved = useRef(false);
   const currentDistance = useRef(0.4); // Start very close
+  const lastRestartKey = useRef(restartKey);
+  
+  // Reset camera state when restartKey changes
+  useEffect(() => {
+    if (restartKey !== lastRestartKey.current) {
+      lastRestartKey.current = restartKey;
+      initialized.current = false;
+      hasPlayerMoved.current = false;
+      initialPlayerPos.current = null;
+      currentDistance.current = 0.4;
+    }
+  }, [restartKey]);
   
   // Camera settings - over-the-shoulder view balanced for all animals
   const CAMERA_DISTANCE_START = 0.4;
@@ -992,7 +1007,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, onSceneReady, cornOptimizationSettings, onCullStats }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, onSceneReady, cornOptimizationSettings, onCullStats, restartKey }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -1139,6 +1154,7 @@ return (
       {/* Camera - smooth over-the-shoulder follow */}
       <OverShoulderCameraController 
         playerStateRef={playerStateRef}
+        restartKey={restartKey}
       />
     </>
   );
