@@ -1,8 +1,19 @@
+import { useState } from 'react';
 import { AnimalType } from '@/types/game';
 import { animals } from '@/data/animals';
 import { cn } from '@/lib/utils';
 import { PerformanceInfo } from './Maze3DScene';
-import { Volume2, VolumeX } from 'lucide-react';
+import { Volume2, VolumeX, RotateCcw } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface GameHUDProps {
   animalType: AnimalType;
@@ -11,6 +22,7 @@ interface GameHUDProps {
   abilityUsed: boolean;
   onUseAbility: () => void;
   onQuit: () => void;
+  onRestart: () => void;
   debugMode?: boolean;
   // Sound control
   isMuted?: boolean;
@@ -39,6 +51,7 @@ export const GameHUD = ({
   abilityUsed,
   onUseAbility,
   onQuit,
+  onRestart,
   debugMode = false,
   isMuted = false,
   onToggleMute,
@@ -55,8 +68,10 @@ export const GameHUD = ({
   performanceInfo,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
+  const [showRestartDialog, setShowRestartDialog] = useState(false);
 
   return (
+    <>
     <div className="absolute inset-x-0 top-0 z-40 p-4">
       <div className="flex items-start justify-between max-w-4xl mx-auto">
         {/* Left: Animal & Level Info */}
@@ -114,6 +129,13 @@ export const GameHUD = ({
               <span className="hidden sm:inline">{isMuted ? 'Muted' : 'Sound'}</span>
             </button>
           )}
+          <button
+            onClick={() => setShowRestartDialog(true)}
+            className="bg-card/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg font-display text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span className="hidden sm:inline">Restart</span>
+          </button>
           <button
             onClick={onQuit}
             className="bg-card/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg font-display text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -260,5 +282,22 @@ export const GameHUD = ({
         </div>
       </div>
     </div>
+
+    {/* Restart Confirmation Dialog */}
+    <AlertDialog open={showRestartDialog} onOpenChange={setShowRestartDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Restart Level?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to restart? Your current progress will be lost.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onRestart}>Restart</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 };
