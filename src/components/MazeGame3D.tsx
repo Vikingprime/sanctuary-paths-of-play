@@ -703,10 +703,10 @@ export const MazeGame3D = ({
         </div>
       )}
 
-      {/* Dialogue Overlay */}
+      {/* Dialogue Overlay - pointer-events-none on container, auto on card */}
       {activeDialogue && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 animate-fade-in">
-          <div className="bg-card/95 backdrop-blur-sm rounded-2xl p-6 shadow-warm-lg max-w-lg w-full mb-8">
+        <div className="fixed inset-0 z-30 flex items-end justify-center p-4 pointer-events-none animate-fade-in">
+          <div className="bg-card/95 backdrop-blur-sm rounded-2xl p-6 shadow-warm-lg max-w-lg w-full mb-8 pointer-events-auto">
             <div className="flex items-start gap-4">
               <div className="text-4xl flex-shrink-0">
                 {activeDialogue.speakerEmoji}
