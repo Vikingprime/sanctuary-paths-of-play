@@ -204,6 +204,9 @@ export const MazeGame3D = ({
     return false;
   }, [maze.dialogues, triggeredDialogues]);
 
+  // Track if player is on an end cell waiting for dialogue to finish
+  const [pendingEndGame, setPendingEndGame] = useState(false);
+
   // Handle cell interactions (React-specific wrapper around pure logic)
   const handleCellInteraction = useCallback(
     (x: number, y: number) => {
@@ -218,21 +221,36 @@ export const MazeGame3D = ({
       // Station triggering is now handled by proximity check, not cell interaction
       
       // Check for dialogue triggers BEFORE end game (dialogue takes priority)
-      if (checkDialogueNear(x, y)) {
-        return; // Dialogue triggered, don't process end game yet
-      }
-
+      const dialogueTriggered = checkDialogueNear(x, y);
+      
       if (result.reachedEnd) {
+        if (dialogueTriggered) {
+          // Mark that we should end the game after dialogue is dismissed
+          setPendingEndGame(true);
+          return;
+        }
+        // No dialogue, end game immediately
         setHasWon(true);
         setGameOver(true);
         const timeUsed = maze.timeLimit - timeLeft;
         setFinalTime(timeUsed);
-        // Get completion result from parent (includes medal, best time info)
         onComplete(timeUsed).then(setCompletionResult);
       }
     },
     [maze, collectedPowerUps, timeLeft, onComplete, checkDialogueNear]
   );
+
+  // Handle end game after dialogue is dismissed
+  useEffect(() => {
+    if (pendingEndGame && !activeDialogue) {
+      setHasWon(true);
+      setGameOver(true);
+      const timeUsed = maze.timeLimit - timeLeft;
+      setFinalTime(timeUsed);
+      onComplete(timeUsed).then(setCompletionResult);
+      setPendingEndGame(false);
+    }
+  }, [pendingEndGame, activeDialogue, maze.timeLimit, timeLeft, onComplete]);
 
   // Movement is now handled in Maze3DScene's useFrame for sync with rendering
 
