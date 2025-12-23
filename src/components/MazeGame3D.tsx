@@ -182,10 +182,16 @@ export const MazeGame3D = ({
 
   // Check if player is near a dialogue trigger (helper function)
   const checkDialogueNear = useCallback((x: number, y: number): boolean => {
-    if (!maze.dialogues) return false;
+    if (!maze.dialogues) {
+      console.log('[Dialogue] No dialogues in maze');
+      return false;
+    }
     
     for (const dialogue of maze.dialogues) {
-      if (triggeredDialogues.has(dialogue.id)) continue;
+      if (triggeredDialogues.has(dialogue.id)) {
+        console.log('[Dialogue] Already triggered:', dialogue.id);
+        continue;
+      }
       
       const triggerRadius = dialogue.triggerRadius ?? 0.5;
       const dialogueX = dialogue.position.x + 0.5;
@@ -195,7 +201,10 @@ export const MazeGame3D = ({
       const dy = y - dialogueY;
       const distance = Math.sqrt(dx * dx + dy * dy);
       
+      console.log(`[Dialogue] Player at (${x.toFixed(2)}, ${y.toFixed(2)}), dialogue "${dialogue.id}" at (${dialogueX}, ${dialogueY}), distance: ${distance.toFixed(2)}, radius: ${triggerRadius}`);
+      
       if (distance <= triggerRadius) {
+        console.log('[Dialogue] TRIGGERED!', dialogue.id);
         setActiveDialogue(dialogue);
         setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
         return true;
