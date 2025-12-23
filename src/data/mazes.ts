@@ -36,7 +36,7 @@ export const mazes: Maze[] = [
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
         cells: [{ x: 12, y: 13 }, { x: 13, y: 13 }, { x: 12, y: 14 }, { x: 13, y: 14 }], // All end cells
-        speakerPosition: { x: 10, y: 13 }, // Where farmer stands - in the path, not in end zone
+        speakerCharacterId: 'endFarmer', // Camera should look at the end farmer
       },
     ],
     endConditions: {
