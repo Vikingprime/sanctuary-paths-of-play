@@ -264,13 +264,19 @@ export const MazeGame3D = ({
     [maze, collectedPowerUps, timeLeft, onComplete, checkDialogueAtCell, canEndLevel]
   );
   
-  // Handle continue button click - trigger end if dialogue was on end tile
+  // Handle continue button click - check if player is on end cell now
   const handleDialogueContinue = useCallback(() => {
-    console.log('DEBUG: handleDialogueContinue called, pendingEndGameRef.current =', pendingEndGameRef.current);
     setActiveDialogue(null);
     
-    // Simple: if we were on an end tile when dialogue started, end the game now
-    if (pendingEndGameRef.current) {
+    // After dialogue ends, check if player is currently on an end cell
+    const playerX = Math.floor(playerStateRef.current.x);
+    const playerY = Math.floor(playerStateRef.current.y);
+    const currentCell = maze.grid[playerY]?.[playerX];
+    
+    console.log('DEBUG: handleDialogueContinue - player at', playerX, playerY, 'isEnd =', currentCell?.isEnd);
+    
+    // If player is on end cell (or was on one when dialogue started), end the game
+    if (currentCell?.isEnd || pendingEndGameRef.current) {
       console.log('DEBUG: Triggering end game!');
       setHasWon(true);
       setGameOver(true);
@@ -279,7 +285,7 @@ export const MazeGame3D = ({
       onComplete(timeUsed).then(setCompletionResult);
       pendingEndGameRef.current = false;
     }
-  }, [maze.timeLimit, timeLeft, onComplete]);
+  }, [maze.grid, maze.timeLimit, timeLeft, onComplete]);
 
   // Movement is now handled in Maze3DScene's useFrame for sync with rendering
 
