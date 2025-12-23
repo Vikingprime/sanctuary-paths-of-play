@@ -140,9 +140,10 @@ class SaveManagerClass {
     const existing = save.levels[mazeId];
     
     // Gold is only possible on first attempt AND if they don't already have a gold
+    // In debug mode, all medals are always possible
     const attempts = existing?.attempts ?? 1;
     const hasGold = existing?.medal === 'gold';
-    const goldEligible = attempts === 1 || hasGold;
+    const goldEligible = debugMode || attempts === 1 || hasGold;
     
     const medal = this.calculateMedal(time, maze, goldEligible);
     
