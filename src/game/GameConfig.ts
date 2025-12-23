@@ -11,7 +11,7 @@ export const GameConfig = {
   BOOSTED_MOVE_SPEED: 4.5,   // speed when power-up active
   ROTATION_SPEED: 2.2,       // radians per second (default)
   ROTATION_SPEED_BIRD: 3.5,  // faster rotation for small chicken
-  PLAYER_RADIUS: 0.25,       // collision radius
+  PLAYER_RADIUS: 0.45,       // collision radius (accounts for animal model extending forward)
 
   // Power-ups
   SPEED_BOOST_DURATION: 5.0, // seconds
