@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Maze, AnimalType } from '@/types/game';
+import { Maze, AnimalType, MedalType } from '@/types/game';
 import { Maze3DCanvas, PerformanceInfo } from './Maze3DScene';
 import { MazePreview } from './MazePreview';
 import { MiniMap } from './MiniMap';
@@ -21,14 +21,23 @@ import {
   executeAbility,
 } from '@/game';
 
+// Completion result returned from parent after saving
+interface CompletionResult {
+  medal: MedalType;
+  currencyEarned: number;
+  isBestTime: boolean;
+  bestTime: number | null;
+}
+
 interface MazeGame3DProps {
   maze: Maze;
   animalType: AnimalType;
   debugMode?: boolean;
   isMuted?: boolean;
   onMuteChange?: (muted: boolean) => void;
-  onComplete: (score: number, timeUsed: number) => void;
+  onComplete: (score: number, timeUsed: number) => Promise<CompletionResult>;
   onQuit: () => void;
+  onBackToLevels: () => void;
   onRestart?: () => Promise<void>; // Called to record restart attempt
 }
 
@@ -40,6 +49,7 @@ export const MazeGame3D = ({
   onMuteChange,
   onComplete,
   onQuit,
+  onBackToLevels,
   onRestart: onRestartProp,
 }: MazeGame3DProps) => {
   // Initialize from pure game logic
@@ -71,6 +81,8 @@ export const MazeGame3D = ({
   const [speedBoostActive, setSpeedBoostActive] = useState(false);
   const [isMuted, setIsMuted] = useState(initialMuted);
   const [restartKey, setRestartKey] = useState(0); // Increment to force camera reset
+  const [completionResult, setCompletionResult] = useState<CompletionResult | null>(null);
+  const [finalTime, setFinalTime] = useState(0); // Time used to complete
   // Corn optimization settings
   const [shadowOptEnabled, setShadowOptEnabled] = useState(true);
   const [distanceCullEnabled, setDistanceCullEnabled] = useState(true);
@@ -182,7 +194,9 @@ export const MazeGame3D = ({
         setGameOver(true);
         const score = calculateScore(timeLeft);
         const timeUsed = maze.timeLimit - timeLeft;
-        onComplete(score, timeUsed);
+        setFinalTime(timeUsed);
+        // Get completion result from parent (includes medal, best time info)
+        onComplete(score, timeUsed).then(setCompletionResult);
       }
     },
     [maze, collectedPowerUps, timeLeft, onComplete]
@@ -381,35 +395,74 @@ export const MazeGame3D = ({
   // Show preview overlay on top of the 3D scene (which renders in background)
   const showPreviewOverlay = isPreviewing && sceneReady;
 
+  // Medal emoji mapping
+  const medalEmoji: Record<string, string> = {
+    gold: '🥇',
+    silver: '🥈', 
+    bronze: '🥉',
+  };
+
   // Game over screen
   if (gameOver) {
     return (
       <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-4">
         <div className="text-center space-y-6 animate-fade-in">
-          <div className="text-8xl">{hasWon ? '🎉' : '😢'}</div>
-          <h2 className="font-display text-4xl font-bold text-foreground">
-            {hasWon ? 'You Made It!' : "Time's Up!"}
-          </h2>
-          {hasWon && (
-            <div className="space-y-2">
-              <p className="text-xl text-muted-foreground">
-                Score: <span className="font-bold text-primary">{calculateScore(timeLeft)}</span> points
-              </p>
+          {hasWon ? (
+            <>
+              {/* Show medal if earned */}
+              <div className="text-8xl">
+                {completionResult?.medal ? medalEmoji[completionResult.medal] : '🎉'}
+              </div>
+              <h2 className="font-display text-4xl font-bold text-foreground">
+                {completionResult?.medal 
+                  ? `${completionResult.medal.charAt(0).toUpperCase() + completionResult.medal.slice(1)} Medal!`
+                  : 'You Made It!'}
+              </h2>
+              <div className="space-y-3">
+                {/* Time display */}
+                <div className="bg-card rounded-xl p-4 inline-block">
+                  <p className="text-2xl font-display font-bold text-foreground">
+                    ⏱️ {finalTime.toFixed(1)}s
+                  </p>
+                  {completionResult?.isBestTime ? (
+                    <p className="text-sm text-primary font-semibold mt-1">
+                      🎯 New Best Time!
+                    </p>
+                  ) : completionResult?.bestTime ? (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Best: {completionResult.bestTime.toFixed(1)}s
+                    </p>
+                  ) : null}
+                </div>
+                
+                {/* Score and currency */}
+                <p className="text-lg text-muted-foreground">
+                  Score: <span className="font-bold text-primary">{calculateScore(timeLeft)}</span> points
+                  {completionResult?.currencyEarned ? (
+                    <span className="ml-2">• +{completionResult.currencyEarned} ⭐</span>
+                  ) : null}
+                </p>
+                <p className="text-muted-foreground">
+                  {animal.emoji} {animal.name} is proud of you!
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-8xl">😢</div>
+              <h2 className="font-display text-4xl font-bold text-foreground">
+                Time's Up!
+              </h2>
               <p className="text-muted-foreground">
-                {animal.emoji} {animal.name} is proud of you!
+                Don't give up! The sanctuary animals are counting on you!
               </p>
-            </div>
+            </>
           )}
-          {!hasWon && (
-            <p className="text-muted-foreground">
-              Don't give up! The sanctuary animals are counting on you!
-            </p>
-          )}
-          <div className="flex gap-4 justify-center">
-            <Button variant="outline" size="lg" onClick={onQuit}>
-              Back to Home
+          <div className="flex gap-4 justify-center flex-wrap">
+            <Button variant="outline" size="lg" onClick={onBackToLevels}>
+              ← Back to Mazes
             </Button>
-            <Button variant="default" size="lg" onClick={() => window.location.reload()}>
+            <Button variant="default" size="lg" onClick={handleRestart}>
               Try Again
             </Button>
           </div>
