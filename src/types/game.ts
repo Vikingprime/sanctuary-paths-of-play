@@ -53,12 +53,12 @@ export interface DialogueTrigger {
   speakerEmoji: string;
   message: string;
   messages?: DialogueMessage[]; // Optional array of sequential messages (after the initial message)
-  cells: { x: number; y: number }[]; // All cells that trigger this dialogue (ignored if linkedCharacter is set)
+  cells: { x: number; y: number }[]; // All cells that trigger this dialogue
   speakerPosition?: { x: number; y: number }; // Where the speaker model appears (defaults to first cell center)
   requires?: string[]; // IDs of dialogues that must be completed before this one can trigger
-  characterModel?: string; // GLB model file name (e.g., 'Farmer.glb') - ignored if linkedCharacter is set
+  characterModel?: string; // GLB model file name (e.g., 'Farmer.glb') - ignored if speakerCharacter is set
   characterAnimation?: string; // Animation to play during dialogue (e.g., 'idle', 'wave', 'talk')
-  linkedCharacter?: LinkedCharacter; // Links this dialogue to a persistent character (uses their position/model)
+  speakerCharacter?: LinkedCharacter; // Which persistent character to zoom to during dialogue (uses their model/position)
 }
 
 export interface Maze {

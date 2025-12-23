@@ -28,7 +28,7 @@ interface DialogueConfig {
   characterModel?: string;
   characterAnimation?: string;
   requires?: string[];
-  linkedCharacter?: LinkedCharacter; // Links to a persistent character
+  speakerCharacter?: LinkedCharacter; // Which persistent character to zoom to
 }
 
 interface MazeConfig {
@@ -152,7 +152,8 @@ const MazeEditor: React.FC = () => {
         return newGrid;
       });
     } else if (selectedTool === 'D') {
-      // For dialogue cells, add to selected dialogue's cells if one is selected
+      // For dialogue cells, add to selected dialogue's cells WITHOUT changing the grid cell type
+      // This allows dialogue triggers to overlay any cell type (including End cells)
       if (selectedDialogueId) {
         setDialogues(prev => prev.map(d => {
           if (d.id === selectedDialogueId) {
@@ -165,11 +166,7 @@ const MazeEditor: React.FC = () => {
           }
           return d;
         }));
-        setGrid(prev => {
-          const newGrid = prev.map(row => [...row]);
-          newGrid[y][x] = newGrid[y][x] === 'D' ? ' ' : 'D';
-          return newGrid;
-        });
+        // DON'T change the grid - dialogue is just an overlay
       } else {
         toast.error('Select or create a dialogue first!');
       }
@@ -219,19 +216,7 @@ const MazeEditor: React.FC = () => {
   };
 
   const removeDialogue = (id: string) => {
-    // Remove dialogue cells from grid
-    const dialogueToRemove = dialogues.find(d => d.id === id);
-    if (dialogueToRemove) {
-      setGrid(prev => {
-        const newGrid = prev.map(row => [...row]);
-        dialogueToRemove.cells.forEach(({ x, y }) => {
-          if (newGrid[y]?.[x] === 'D') {
-            newGrid[y][x] = ' ';
-          }
-        });
-        return newGrid;
-      });
-    }
+    // Dialogues are now just metadata - no grid changes needed
     setDialogues(prev => prev.filter(d => d.id !== id));
     if (selectedDialogueId === id) {
       setSelectedDialogueId(null);
@@ -257,8 +242,9 @@ ${dialogues.map(d => {
       speaker: '${d.speaker}',
       speakerEmoji: '${d.speakerEmoji}',
       message: '${d.message.replace(/'/g, "\\'")}',${messagesStr}
-      ${d.linkedCharacter ? `linkedCharacter: '${d.linkedCharacter}',` : `cells: [${d.cells.map(c => `{ x: ${c.x}, y: ${c.y} }`).join(', ')}],`}
-      ${!d.linkedCharacter && d.characterModel ? `characterModel: '${d.characterModel}',` : ''}
+      cells: [${d.cells.map(c => `{ x: ${c.x}, y: ${c.y} }`).join(', ')}],
+      ${d.speakerCharacter ? `speakerCharacter: '${d.speakerCharacter}',` : ''}
+      ${!d.speakerCharacter && d.characterModel ? `characterModel: '${d.characterModel}',` : ''}
       ${d.characterAnimation ? `characterAnimation: '${d.characterAnimation}',` : ''}
       ${d.requires && d.requires.length > 0 ? `requires: [${d.requires.map(r => `'${r}'`).join(', ')}],` : ''}
     }`;
@@ -486,15 +472,13 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     const dialogueIndex = cellDialogue ? getDialogueIndex(cellDialogue.id) + 1 : null;
                     const dialogueColor = cellDialogue ? getDialogueColor(cellDialogue.id) : null;
                     
-                    // Use dialogue-specific color for D cells
-                    const bgColor = cell === 'D' && dialogueColor 
-                      ? dialogueColor 
-                      : CELL_COLORS[cell];
+                    // Always use the base cell color - dialogue is an overlay
+                    const bgColor = CELL_COLORS[cell];
                     
                     return (
                       <div
                         key={`${x}-${y}`}
-                        className={`w-5 h-5 border cursor-pointer transition-colors flex items-center justify-center text-[8px] font-bold text-white ${
+                        className={`w-5 h-5 border cursor-pointer transition-colors flex items-center justify-center text-[8px] font-bold relative ${
                           isSelectedDialogueCell 
                             ? 'border-2 border-white ring-2 ring-yellow-300 z-10' 
                             : 'border-amber-900/20'
@@ -503,7 +487,15 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         onMouseEnter={() => handleMouseEnter(x, y)}
                         title={cellDialogue ? `#${dialogueIndex}: ${cellDialogue.speaker} - "${cellDialogue.message.slice(0, 30)}..."` : undefined}
                       >
-                        {cell === 'D' && dialogueIndex ? dialogueIndex : (cell !== '#' && cell !== ' ' ? cell : '')}
+                        {/* Show cell type label */}
+                        <span className="text-white">{cell !== '#' && cell !== ' ' ? cell : ''}</span>
+                        
+                        {/* Dialogue overlay badge */}
+                        {dialogueIndex && dialogueColor && (
+                          <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${dialogueColor} flex items-center justify-center text-[6px] text-white font-bold border border-white`}>
+                            {dialogueIndex}
+                          </div>
+                        )}
                       </div>
                     );
                   })
@@ -688,69 +680,67 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         <Plus className="w-3 h-3 mr-1" /> Add follow-up message
                       </Button>
 
-                      {/* Linked Character - if set, uses that character's position/model */}
+                      {/* Speaker Character - which persistent character to zoom to */}
                       <div>
-                        <Label className="text-xs">Linked Character (uses their position)</Label>
+                        <Label className="text-xs">Speaker (zoom to this character)</Label>
                         <Select
-                          value={dialogue.linkedCharacter || 'none'}
+                          value={dialogue.speakerCharacter || 'none'}
                           onValueChange={v => updateDialogue(dialogue.id, { 
-                            linkedCharacter: v === 'none' ? undefined : v as LinkedCharacter 
+                            speakerCharacter: v === 'none' ? undefined : v as LinkedCharacter 
                           })}
                         >
                           <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
-                            <SelectValue placeholder="None (place cells manually)" />
+                            <SelectValue placeholder="None (spawn new character)" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none">None (place cells manually)</SelectItem>
+                            <SelectItem value="none">None (spawn new character)</SelectItem>
                             <SelectItem value="endFarmer">🧑‍🌾 End Farmer</SelectItem>
                           </SelectContent>
                         </Select>
-                        {dialogue.linkedCharacter === 'endFarmer' && (
+                        {dialogue.speakerCharacter === 'endFarmer' && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            Triggers when player reaches end tile. Uses the existing farmer model.
+                            Camera will zoom to the existing End Farmer during dialogue.
                           </p>
                         )}
                       </div>
 
-                      {/* Only show model/cells options if NOT linked to a character */}
-                      {!dialogue.linkedCharacter && (
-                        <>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <Label className="text-xs">Character Model</Label>
-                              <Select
-                                value={dialogue.characterModel || 'none'}
-                                onValueChange={v => updateDialogue(dialogue.id, { characterModel: v === 'none' ? undefined : v })}
-                              >
-                                <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
-                                  <SelectValue placeholder="Select model" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">None</SelectItem>
-                                  {AVAILABLE_MODELS.map(model => (
-                                    <SelectItem key={model} value={model}>{model.replace('.glb', '')}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label className="text-xs">Animation</Label>
-                              <Select
-                                value={dialogue.characterAnimation || ''}
-                                onValueChange={v => updateDialogue(dialogue.id, { characterAnimation: v })}
-                              >
-                                <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
-                                  <SelectValue placeholder="Select animation" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {AVAILABLE_ANIMATIONS.map(anim => (
-                                    <SelectItem key={anim} value={anim}>{anim}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
+                      {/* Only show model options if NOT using a persistent speaker */}
+                      {!dialogue.speakerCharacter && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs">Character Model</Label>
+                            <Select
+                              value={dialogue.characterModel || 'none'}
+                              onValueChange={v => updateDialogue(dialogue.id, { characterModel: v === 'none' ? undefined : v })}
+                            >
+                              <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
+                                <SelectValue placeholder="Select model" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                {AVAILABLE_MODELS.map(model => (
+                                  <SelectItem key={model} value={model}>{model.replace('.glb', '')}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
-                        </>
+                          <div>
+                            <Label className="text-xs">Animation</Label>
+                            <Select
+                              value={dialogue.characterAnimation || ''}
+                              onValueChange={v => updateDialogue(dialogue.id, { characterAnimation: v })}
+                            >
+                              <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
+                                <SelectValue placeholder="Select animation" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {AVAILABLE_ANIMATIONS.map(anim => (
+                                  <SelectItem key={anim} value={anim}>{anim}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
                       )}
 
                       <div>
@@ -797,11 +787,9 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         )}
                       </div>
 
-                      {!dialogue.linkedCharacter && (
-                        <div className="text-xs text-muted-foreground">
-                          Cells: {dialogue.cells.length} {selectedDialogueId === dialogue.id && '(click grid to add)'}
-                        </div>
-                      )}
+                      <div className="text-xs text-muted-foreground">
+                        Cells: {dialogue.cells.length} {selectedDialogueId === dialogue.id && '(click grid to add)'}
+                      </div>
 
                       {/* Toggle required for end */}
                       <div className="flex items-center gap-2">
