@@ -44,34 +44,62 @@ export function findStartRotation(maze: Maze): number {
   const gridY = Math.floor(startPos.y);
   
   // Directions mapped for the 3D scene's rotation transform (-rotation + π)
+  // Priority order: right, down, left, up - prefer horizontal first as paths often go that way
   const directions = [
-    { dx: 0, dy: 1, rotation: Math.PI },      // Down in grid (facing +Z in 3D)
     { dx: 1, dy: 0, rotation: -Math.PI / 2 }, // Right in grid (facing +X in 3D)
+    { dx: 0, dy: 1, rotation: Math.PI },      // Down in grid (facing +Z in 3D)
     { dx: -1, dy: 0, rotation: Math.PI / 2 }, // Left in grid (facing -X in 3D)
     { dx: 0, dy: -1, rotation: 0 },           // Up in grid (facing -Z in 3D)
   ];
   
-  // First priority: find immediate neighbor that is NOT a wall and is NOT a start cell
+  // Count walls in each direction to find the most open path
+  const directionScores: { dir: typeof directions[0]; score: number }[] = [];
+  
   for (const dir of directions) {
+    let score = 0;
+    // Check immediate neighbor
     const checkX = gridX + dir.dx;
     const checkY = gridY + dir.dy;
     const cell = getCell(maze, checkX, checkY);
-    if (cell && !cell.isWall && !cell.isStart) {
-      return dir.rotation;
+    
+    if (!cell || cell.isWall) {
+      score = -100; // Wall immediately ahead - very bad
+    } else if (cell.isStart) {
+      score = -10; // Another start cell - not ideal
+    } else {
+      score = 10; // Open path - good
+      
+      // Bonus for path continuing further
+      const cell2 = getCell(maze, gridX + dir.dx * 2, gridY + dir.dy * 2);
+      if (cell2 && !cell2.isWall && !cell2.isStart) {
+        score += 5;
+      }
+      
+      // Penalty if perpendicular directions are walls (dead end feel)
+      const perpDirs = dir.dx === 0 
+        ? [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }] 
+        : [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
+      
+      for (const perpDir of perpDirs) {
+        const perpCell = getCell(maze, checkX + perpDir.dx, checkY + perpDir.dy);
+        if (perpCell && !perpCell.isWall) {
+          score += 2; // Bonus for having side paths
+        }
+      }
     }
+    
+    directionScores.push({ dir, score });
   }
   
-  // Second priority: check 2 cells away (for larger start areas)
-  for (const dir of directions) {
-    const checkX = gridX + dir.dx * 2;
-    const checkY = gridY + dir.dy * 2;
-    const cell = getCell(maze, checkX, checkY);
-    if (cell && !cell.isWall && !cell.isStart) {
-      return dir.rotation;
-    }
+  // Sort by score descending and pick best
+  directionScores.sort((a, b) => b.score - a.score);
+  
+  // Only return if score is positive (valid path)
+  if (directionScores[0].score > 0) {
+    return directionScores[0].dir.rotation;
   }
   
-  // Third priority: any non-wall neighbor (including start cells as last resort)
+  // Fallback: find any non-wall direction
   for (const dir of directions) {
     const checkX = gridX + dir.dx;
     const checkY = gridY + dir.dy;
