@@ -1107,9 +1107,10 @@ const CutsceneCameraController = ({
 }) => {
   const { camera } = useThree();
   
-  const CAMERA_HEIGHT = 1.3; // Slightly lower for better framing
-  const LOOK_HEIGHT = 0.7; // Look at speaker's midpoint/chest area
-  const ZOOM_DISTANCE = 1.5; // How close to get to the speaker
+  const CAMERA_HEIGHT = 1.4; // Eye level for better framing
+  const LOOK_HEIGHT = 0.6; // Look at speaker's midpoint/chest area
+  const ZOOM_DISTANCE = 2.0; // Distance from speaker
+  const MIN_DISTANCE = 1.5; // Minimum distance to ensure we don't get too close
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
@@ -1122,12 +1123,17 @@ const CutsceneCameraController = ({
     // Calculate direction from speaker to player
     const dx = playerX - speakerX;
     const dz = playerZ - speakerZ;
-    const dist = Math.sqrt(dx * dx + dz * dz);
+    const dist = Math.max(Math.sqrt(dx * dx + dz * dz), 0.1); // Prevent division by zero
     
-    // Position camera between player and speaker, closer to speaker
-    // Move camera to ZOOM_DISTANCE away from speaker, along the player-speaker line
-    const camX = speakerX + (dx / dist) * ZOOM_DISTANCE;
-    const camZ = speakerZ + (dz / dist) * ZOOM_DISTANCE;
+    // Normalize the direction
+    const dirX = dx / dist;
+    const dirZ = dz / dist;
+    
+    // Position camera behind and slightly to the side of the player, looking at speaker
+    // Camera is positioned ZOOM_DISTANCE away from speaker, in the direction of the player
+    const effectiveDistance = Math.max(ZOOM_DISTANCE, MIN_DISTANCE);
+    const camX = speakerX + dirX * effectiveDistance;
+    const camZ = speakerZ + dirZ * effectiveDistance;
     
     camera.position.set(camX, CAMERA_HEIGHT, camZ);
     camera.up.set(0, 1, 0);
