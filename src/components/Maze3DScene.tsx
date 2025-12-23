@@ -1044,35 +1044,38 @@ const CutsceneCameraController = ({
   const initialized = useRef(false);
   
   useFrame(() => {
-    // Get actual player mesh position from playerStateRef
-    // Player mesh uses: position.x = playerStateRef.current.x, position.z = playerStateRef.current.y
+    // Player state coords: x maps to Three.js X, y maps to Three.js Z
     const playerX = playerStateRef.current.x;
-    const playerMazeY = playerStateRef.current.y;
+    const playerZ = playerStateRef.current.y;
     
-    // Farmer is placed at: [position.x + 0.5, 0, position.z + 0.5]
-    // where position.x = dialogueTarget.speakerX, position.z = dialogueTarget.speakerZ
-    const farmerMeshX = dialogueTarget.speakerX + 0.5;
-    const farmerMeshZ = dialogueTarget.speakerZ + 0.5;
+    // Farmer mesh position (same as DialogueSpeaker uses)
+    const farmerX = dialogueTarget.speakerX + 0.5;
+    const farmerZ = dialogueTarget.speakerZ + 0.5;
     
-    // The player is at (playerX, _, playerMazeY) in Three.js coords
-    // The farmer is at (farmerMeshX, _, farmerMeshZ) in Three.js coords
+    // The over-shoulder camera uses this pattern for looking forward:
+    //   lookAt: playerX + Math.sin(rot), playerZ - Math.cos(rot)
+    // Note the MINUS on Z - this game uses an inverted Z convention
     // 
-    // Debug showed: player (12.0, 14.3), farmer (10.5, 13.5)
-    // But looking at +X showed the farmer!
-    // 
-    // This can only mean the actual render positions are different.
-    // Let's verify by logging and looking at the farmer mesh directly.
+    // For cutscene: we want to look FROM player TO farmer
+    // Direction in maze coords: (farmerX - playerX, farmerZ - playerZ)
+    // But due to the inverted Z, we need to negate the Z offset
     
-    camera.position.set(playerX, CAMERA_HEIGHT, playerMazeY);
+    // Position camera at player
+    camera.position.set(playerX, CAMERA_HEIGHT, playerZ);
     camera.up.set(0, 1, 0);
-    camera.lookAt(farmerMeshX, LOOK_HEIGHT, farmerMeshZ);
+    
+    // Look at: same X direction, but INVERT the Z direction
+    // If farmer is at lower Z in maze coords, camera should look at HIGHER Z in Three.js
+    const lookAtX = playerX + (farmerX - playerX);  // Same as farmerX
+    const lookAtZ = playerZ - (farmerZ - playerZ);  // Inverted!
+    
+    camera.lookAt(lookAtX, LOOK_HEIGHT, lookAtZ);
     
     if (!initialized.current) {
       initialized.current = true;
-      // Log the exact Three.js world coords
-      console.log('CAMERA POS:', camera.position.x.toFixed(1), camera.position.y.toFixed(1), camera.position.z.toFixed(1));
-      console.log('LOOK AT:', farmerMeshX.toFixed(1), LOOK_HEIGHT, farmerMeshZ.toFixed(1));
-      console.log('Direction vector:', (farmerMeshX - playerX).toFixed(2), (farmerMeshZ - playerMazeY).toFixed(2));
+      console.log('Camera at:', playerX.toFixed(1), playerZ.toFixed(1));
+      console.log('Farmer at:', farmerX.toFixed(1), farmerZ.toFixed(1));
+      console.log('Looking at:', lookAtX.toFixed(1), lookAtZ.toFixed(1));
     }
   });
   
