@@ -1060,25 +1060,21 @@ const CutsceneCameraController = ({
     const farmerX = dialogueTarget.speakerX + 0.5;
     const farmerZ = dialogueTarget.speakerZ + 0.5;
     
-    // DEBUG: Point camera at +X direction
+    // The camera X axis is INVERTED relative to world X!
+    // Looking at +X shows objects at -X world position
+    // So to look at farmer (at farmerX), we need to negate the X offset
+    // lookAtX = playerX - (farmerX - playerX) = 2*playerX - farmerX
+    const lookAtX = 2 * playerX - farmerX;
+    
     camera.position.set(playerX, CAMERA_HEIGHT, playerZ);
     camera.up.set(0, 1, 0);
-    camera.lookAt(playerX + 10, LOOK_HEIGHT, playerZ);
+    camera.lookAt(lookAtX, LOOK_HEIGHT, farmerZ);
     
     if (!initialized.current) {
       initialized.current = true;
-      
-      // Log camera's actual world position and direction after lookAt
-      const dir = new Vector3();
-      const camWorldPos = new Vector3();
-      camera.getWorldDirection(dir);
-      camera.getWorldPosition(camWorldPos);
-      
-      console.log('CAMERA local pos:', camera.position.x.toFixed(1), camera.position.y.toFixed(1), camera.position.z.toFixed(1));
-      console.log('CAMERA WORLD pos:', camWorldPos.x.toFixed(1), camWorldPos.y.toFixed(1), camWorldPos.z.toFixed(1));
-      console.log('CAMERA direction:', dir.x.toFixed(2), dir.y.toFixed(2), dir.z.toFixed(2));
-      console.log('FARMER at:', farmerX.toFixed(1), 'X, camera at:', camWorldPos.x.toFixed(1), 'X');
-      console.log('Farmer is at', farmerX < camWorldPos.x ? 'NEGATIVE' : 'POSITIVE', 'X from camera');
+      console.log('Camera at:', playerX.toFixed(1), playerZ.toFixed(1));
+      console.log('Farmer at:', farmerX.toFixed(1), farmerZ.toFixed(1));
+      console.log('LookAt (X inverted):', lookAtX.toFixed(1), farmerZ.toFixed(1));
     }
   });
   
