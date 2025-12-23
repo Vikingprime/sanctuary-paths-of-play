@@ -261,7 +261,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
           // Fade in walk
           if (henWalkActionRef.current) {
             henWalkActionRef.current.enabled = true;
-            henWalkActionRef.current.setEffectiveTimeScale(3.5);
+            henWalkActionRef.current.setEffectiveTimeScale(5.0);
             henWalkActionRef.current.setEffectiveWeight(1);
             henWalkActionRef.current.fadeIn(0.2).play();
           }
