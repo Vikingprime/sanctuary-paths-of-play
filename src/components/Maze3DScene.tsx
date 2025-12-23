@@ -1053,10 +1053,9 @@ const CutsceneCameraController = ({
     const farmerZ = dialogueTarget.speakerZ + 0.5;
     
     // Calculate angle from player to farmer using atan2
-    // In Three.js: +X is right, +Z is "into screen" (down in 2D grid terms)
     const dx = farmerX - playerX;
     const dz = farmerZ - playerZ;
-    const targetAngle = Math.atan2(dx, dz); // angle in XZ plane
+    const targetAngle = Math.atan2(dx, dz) + Math.PI; // Add PI to look AT farmer, not away
     
     // Initialize
     if (!initialized.current) {
