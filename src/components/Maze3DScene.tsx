@@ -1025,7 +1025,7 @@ const DialogueSpeaker = ({ position, playerStateRef }: {
   );
 };
 
-// Cutscene camera controller - keeps camera above player, rotates to look at speaker
+// Cutscene camera controller - simple: put camera at player, look at farmer
 const CutsceneCameraController = ({ 
   playerStateRef,
   dialogueTarget,
@@ -1035,46 +1035,35 @@ const CutsceneCameraController = ({
 }) => {
   const { camera } = useThree();
   
-  const initialized = useRef(false);
-  const currentRotation = useRef(0);
-  
-  const CAMERA_HEIGHT = 1.5; // Eye level, not overhead
-  const CAMERA_BACK = 0.5; // Very close behind player
+  const CAMERA_HEIGHT = 1.5; // Eye level
   const LOOK_HEIGHT = 1.2; // Look at farmer's upper body
-  const SMOOTHING = 0.08;
+  const SMOOTHING = 0.1;
+  
+  const currentPos = useRef(new Vector3());
+  const initialized = useRef(false);
   
   useFrame(() => {
-    // Player position in 3D space (grid Y = Three.js Z)
+    // Player position in 3D space
     const playerX = playerStateRef.current.x;
     const playerZ = playerStateRef.current.y;
     
-    // Farmer position in 3D space (cell center)
+    // Farmer position (cell center)
     const farmerX = dialogueTarget.speakerX + 0.5;
     const farmerZ = dialogueTarget.speakerZ + 0.5;
     
-    // Calculate angle from player to farmer using atan2
-    const dx = farmerX - playerX;
-    const dz = farmerZ - playerZ;
-    const targetAngle = Math.atan2(dx, dz) + Math.PI; // Add PI to look AT farmer, not away
+    // Target camera position: at player, eye level
+    const targetPos = new Vector3(playerX, CAMERA_HEIGHT, playerZ);
     
-    // Initialize
     if (!initialized.current) {
-      currentRotation.current = targetAngle;
+      currentPos.current.copy(camera.position);
       initialized.current = true;
     }
     
-    // Smooth rotation
-    let angleDiff = targetAngle - currentRotation.current;
-    // Normalize angle difference to -PI to PI
-    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-    currentRotation.current += angleDiff * SMOOTHING;
+    // Smooth position
+    currentPos.current.lerp(targetPos, SMOOTHING);
     
-    // Position camera behind player relative to the look direction
-    const camX = playerX - Math.sin(currentRotation.current) * CAMERA_BACK;
-    const camZ = playerZ - Math.cos(currentRotation.current) * CAMERA_BACK;
-    
-    camera.position.set(camX, CAMERA_HEIGHT, camZ);
+    // Set camera position and look at farmer
+    camera.position.copy(currentPos.current);
     camera.lookAt(farmerX, LOOK_HEIGHT, farmerZ);
   });
   
