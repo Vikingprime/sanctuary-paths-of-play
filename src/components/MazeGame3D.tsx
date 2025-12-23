@@ -196,7 +196,6 @@ export const MazeGame3D = ({
       
       // Check if this cell is in the dialogue's trigger cells
       const isInCells = dialogue.cells.some(cell => cell.x === gridX && cell.y === gridY);
-      console.log('DEBUG checkDialogueAtCell:', dialogue.id, 'player at', gridX, gridY, 'dialogue cells:', JSON.stringify(dialogue.cells), 'match:', isInCells);
       if (isInCells) {
         return dialogue;
       }
@@ -228,25 +227,20 @@ export const MazeGame3D = ({
 
       // Station triggering is now handled by proximity check, not cell interaction
       
-      // Check for any dialogue at this cell (not just end-related)
+      // Check for any dialogue at this cell
       const dialogue = checkDialogueAtCell(gridX, gridY);
-      console.log('DEBUG handleCellInteraction:', { gridX, gridY, dialogue: dialogue?.id, reachedEnd: result.reachedEnd });
       
       if (dialogue) {
         setActiveDialogue(dialogue);
         setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
         
-        // If this is also an end cell, mark pending end IMMEDIATELY in ref
-        console.log('DEBUG: Dialogue found, checking if end cell. reachedEnd =', result.reachedEnd);
+        // If this is also an end cell, mark pending end
         if (result.reachedEnd) {
-          console.log('DEBUG: Setting pendingEndGame to true - on end cell with dialogue');
           pendingEndGameRef.current = true;
         } else {
           // Check if the cell is an end cell directly
           const cell = maze.grid[gridY]?.[gridX];
-          console.log('DEBUG: Cell at', gridX, gridY, 'isEnd =', cell?.isEnd);
           if (cell?.isEnd) {
-            console.log('DEBUG: Cell IS an end cell, setting pendingEndGame');
             pendingEndGameRef.current = true;
           }
         }
@@ -274,11 +268,8 @@ export const MazeGame3D = ({
     const playerY = Math.floor(playerStateRef.current.y);
     const currentCell = maze.grid[playerY]?.[playerX];
     
-    console.log('DEBUG: handleDialogueContinue - player at', playerX, playerY, 'isEnd =', currentCell?.isEnd);
-    
     // If player is on end cell (or was on one when dialogue started), end the game
     if (currentCell?.isEnd || pendingEndGameRef.current) {
-      console.log('DEBUG: Triggering end game!');
       setHasWon(true);
       setGameOver(true);
       const timeUsed = maze.timeLimit - timeLeft;
