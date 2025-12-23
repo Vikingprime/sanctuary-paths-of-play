@@ -100,8 +100,10 @@ export function generateRockPositions(maze: Maze): RockPosition[] {
     return x - Math.floor(x);
   };
 
-  const ROCK_SIZE_MIN = 0.15;
-  const ROCK_SIZE_MAX = 0.35;
+  const ROCK_SIZE_MIN = 0.08;  // Reduced from 0.15
+  const ROCK_SIZE_MAX = 0.18;  // Reduced from 0.35
+  
+  console.log(`[ROCK DEBUG] generateRockPositions called, ROCK_SIZE_MIN=${ROCK_SIZE_MIN}, ROCK_SIZE_MAX=${ROCK_SIZE_MAX}`);
   const ROCK_EDGE_INSET = 0.35; // How far in from the wall edge
   const ROCK_SPACING = 0.8; // Minimum distance between rocks
   const MIN_PLACEMENT_CHANCE = 0.15; // Minimum chance of placing a rock
