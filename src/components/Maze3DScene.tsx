@@ -275,18 +275,19 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     const tempObject = new Object3D();
     
     rocks.forEach((rock, i) => {
-      const scale = rock.radius * 2;
+      // rock.radius is 0.08-0.18, we want visual rocks of ~0.15-0.30 units wide
+      const visualScale = rock.radius * 0.8; // Much smaller visual scale
       const seed = Math.floor(rock.x * 1000 + rock.z);
       const rotation = seededRandom(seed + 4) * Math.PI * 2;
       
       // Debug log first few rocks
       if (i < 3) {
-        console.log(`[ROCK DEBUG] Rock ${i}: radius=${rock.radius.toFixed(3)}, scale=${scale.toFixed(3)}, finalScale=(${(scale * 1.2).toFixed(3)}, ${(scale * 0.6).toFixed(3)}, ${scale.toFixed(3)})`);
+        console.log(`[ROCK DEBUG] Rock ${i}: radius=${rock.radius.toFixed(3)}, visualScale=${visualScale.toFixed(3)}, finalDims=(${(visualScale * 1.2).toFixed(3)}, ${(visualScale * 0.5).toFixed(3)}, ${visualScale.toFixed(3)})`);
       }
       
-      tempObject.position.set(rock.x, scale * 0.3, rock.z);
+      tempObject.position.set(rock.x, visualScale * 0.25, rock.z);
       tempObject.rotation.set(0, rotation, 0);
-      tempObject.scale.set(scale * 1.2, scale * 0.6, scale);
+      tempObject.scale.set(visualScale * 1.2, visualScale * 0.5, visualScale);
       tempObject.updateMatrix();
       transforms.push({ matrix: tempObject.matrix.clone(), x: rock.x, z: rock.z });
     });
@@ -1194,36 +1195,9 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
-  // Generate character positions for collision (placed characters + end farmer)
-  const CHARACTER_COLLISION_RADIUS = 0.4;
-  const characterPositions = useMemo<CharacterPosition[]>(() => {
-    const positions: CharacterPosition[] = [];
-    
-    // Add placed characters from maze.characters
-    maze.characters?.forEach((char) => {
-      positions.push({
-        x: char.position.x,
-        y: char.position.y,
-        radius: CHARACTER_COLLISION_RADIUS,
-      });
-    });
-    
-    // Find first end cell for the end farmer
-    for (let y = 0; y < maze.grid.length; y++) {
-      for (let x = 0; x < maze.grid[y].length; x++) {
-        if (maze.grid[y][x].isEnd) {
-          positions.push({
-            x: x,
-            y: y,
-            radius: CHARACTER_COLLISION_RADIUS,
-          });
-          return positions; // Only add one farmer at first end cell
-        }
-      }
-    }
-    
-    return positions;
-  }, [maze]);
+  // Character collision removed - characters should NOT block player movement
+  // Dialogue triggers work via proximity detection in the game, not collision
+  const characterPositions: CharacterPosition[] = [];
 
   const items = useMemo(() => {
     const powerUps: { pos: [number, number, number]; key: string }[] = [];
