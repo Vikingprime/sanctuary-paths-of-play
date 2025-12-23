@@ -1106,14 +1106,15 @@ const CutsceneCameraController = ({
   dialogueTarget: DialogueTarget;
 }) => {
   const { camera } = useThree();
+  const loggedRef = useRef(false);
   
-  const CAMERA_HEIGHT = 1.3; // Eye level for better framing
-  const LOOK_HEIGHT = 0.7; // Look at speaker's face/chest area
-  const ZOOM_DISTANCE = 2.2; // Distance from speaker for good framing
+  const CAMERA_HEIGHT = 1.3;
+  const LOOK_HEIGHT = 0.7;
+  const ZOOM_DISTANCE = 2.2;
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
-    const playerZ = playerStateRef.current.y; // This is Three.js Z
+    const playerZ = playerStateRef.current.y;
     
     // Speaker is at dialogueTarget position + 0.5 (center of cell)
     const speakerX = dialogueTarget.speakerX + 0.5;
@@ -1124,24 +1125,34 @@ const CutsceneCameraController = ({
     const dz = playerZ - speakerZ;
     const dist = Math.sqrt(dx * dx + dz * dz);
     
-    // If player is very close to speaker, use a default camera angle
-    // (position camera slightly behind the player's approach direction)
     let dirX: number, dirZ: number;
     if (dist < 0.5) {
-      // Use player's facing direction to determine camera position
       const playerRot = playerStateRef.current.rotation;
-      // Camera should be behind where the player is looking (opposite direction)
       dirX = -Math.sin(playerRot);
       dirZ = Math.cos(playerRot);
     } else {
-      // Normal case: camera positioned on the player's side of the speaker
       dirX = dx / dist;
       dirZ = dz / dist;
     }
     
-    // Position camera ZOOM_DISTANCE away from speaker, in direction toward player
     const camX = speakerX + dirX * ZOOM_DISTANCE;
     const camZ = speakerZ + dirZ * ZOOM_DISTANCE;
+    
+    // DEBUG LOGGING - log once per dialogue activation
+    if (!loggedRef.current) {
+      loggedRef.current = true;
+      const angleRad = Math.atan2(speakerZ - camZ, speakerX - camX);
+      const angleDeg = (angleRad * 180) / Math.PI;
+      console.log('=== CUTSCENE CAMERA DEBUG ===');
+      console.log('dialogueTarget raw:', { speakerX: dialogueTarget.speakerX, speakerZ: dialogueTarget.speakerZ });
+      console.log('Speaker 3D pos (with +0.5):', { x: speakerX, z: speakerZ });
+      console.log('Player pos:', { x: playerX, z: playerZ });
+      console.log('Camera pos:', { x: camX, y: CAMERA_HEIGHT, z: camZ });
+      console.log('Camera lookAt:', { x: speakerX, y: LOOK_HEIGHT, z: speakerZ });
+      console.log('Camera angle to speaker (deg):', angleDeg);
+      console.log('Distance player->speaker:', dist);
+      console.log('Direction vec:', { dirX, dirZ });
+    }
     
     camera.position.set(camX, CAMERA_HEIGHT, camZ);
     camera.up.set(0, 1, 0);
