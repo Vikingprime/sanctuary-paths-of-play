@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Maze, MedalType } from '@/types/game';
 import { SaveData } from '@/types/save';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { cn, formatTime } from '@/lib/utils';
 import { Lock } from 'lucide-react';
 import { mazes as allMazes } from '@/data/mazes';
 
@@ -194,7 +194,7 @@ export const LevelSelect = ({
                   {/* Best time if completed */}
                   {levelData?.bestTime && (
                     <div className="mt-1 text-xs text-primary">
-                      Best: {levelData.bestTime.toFixed(1)}s
+                      Best: {formatTime(levelData.bestTime)}s
                     </div>
                   )}
                 </div>
