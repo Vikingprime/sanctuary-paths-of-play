@@ -17,6 +17,7 @@ interface PlayerCubeProps {
   position: [number, number, number];
   rotation?: number; // Y-axis rotation in radians
   isMovingRef?: MutableRefObject<boolean>; // Ref for real-time movement state
+  enableSound?: boolean; // Whether to play spawn sounds (false during preview)
 }
 
 // Preload models
@@ -31,10 +32,11 @@ const animalColors: Record<AnimalType, string | string[]> = {
   bird: '#FFD700', // Yellow/Gold
 };
 
-export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: PlayerCubeProps) => {
+export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, enableSound = true }: PlayerCubeProps) => {
   const innerGroupRef = useRef<any>(null);
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
+  const hasPlayedSoundRef = useRef(false); // Track if chicken sound has played
   
   // Load models
   const { scene: pigScene } = useGLTF('/models/Pig.glb');
@@ -89,12 +91,15 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef }: 
   const henIdle2ActionRef = useRef<any>(null);
   const henIdleCountRef = useRef(0);
   
+  // Play chicken sound when game starts (enableSound becomes true)
   useEffect(() => {
-    // Play chicken sound when bird spawns
-    if (animalType === 'bird') {
+    if (animalType === 'bird' && enableSound && !hasPlayedSoundRef.current) {
       playChickenSound();
+      hasPlayedSoundRef.current = true;
     }
-    
+  }, [animalType, enableSound]);
+
+  useEffect(() => {
     if (animalType === 'cow' && cowAnimations.length > 0 && clonedCowScene) {
       // Create mixer for the cloned scene
       cowMixerRef.current = new AnimationMixer(clonedCowScene);
