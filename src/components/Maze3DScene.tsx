@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
 import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { Maze, AnimalType } from '@/types/game';
+import { Maze, AnimalType, DialogueTrigger } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition } from '@/game/GameLogic';
@@ -746,6 +746,107 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive }: {
   );
 };
 
+// Dialogue Character - renders a GLB model at the speaker position
+const DialogueCharacter = ({ 
+  dialogue, 
+  playerStateRef,
+  isActiveDialogue,
+}: { 
+  dialogue: DialogueTrigger;
+  playerStateRef?: MutableRefObject<PlayerState>;
+  isActiveDialogue: boolean;
+}) => {
+  const groupRef = useRef<Group>(null);
+  const mixerRef = useRef<AnimationMixer | null>(null);
+  
+  // Load the model dynamically based on characterModel
+  const modelPath = `/models/${dialogue.characterModel}`;
+  const { scene, animations } = useGLTF(modelPath);
+  
+  // Clone the scene using SkeletonUtils for skinned meshes
+  const model = useMemo(() => {
+    const clone = SkeletonUtils.clone(scene);
+    clone.traverse((child: any) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [scene]);
+  
+  // Get position from speakerPosition or first cell
+  const position: [number, number, number] = useMemo(() => {
+    if (dialogue.speakerPosition) {
+      return [dialogue.speakerPosition.x, 0, dialogue.speakerPosition.y];
+    }
+    if (dialogue.cells.length > 0) {
+      return [dialogue.cells[0].x, 0, dialogue.cells[0].y];
+    }
+    return [0, 0, 0];
+  }, [dialogue]);
+  
+  // Set up animation mixer
+  useEffect(() => {
+    if (animations.length > 0 && model) {
+      mixerRef.current = new AnimationMixer(model);
+      
+      // Find matching animation or use first one
+      const targetAnim = dialogue.characterAnimation 
+        ? animations.find((a: any) => 
+            a.name.toLowerCase().includes(dialogue.characterAnimation!.toLowerCase())
+          ) 
+        : null;
+      
+      const animToPlay = targetAnim || animations[0];
+      
+      if (animToPlay) {
+        const action = mixerRef.current.clipAction(animToPlay);
+        action.play();
+      }
+    }
+    
+    return () => {
+      if (mixerRef.current) {
+        mixerRef.current.stopAllAction();
+      }
+    };
+  }, [animations, model, dialogue.characterAnimation]);
+  
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      if (isActiveDialogue && playerStateRef) {
+        // During dialogue: face the player
+        const charX = position[0] + 0.5;
+        const charZ = position[2] + 0.5;
+        const playerX = playerStateRef.current.x;
+        const playerZ = playerStateRef.current.y;
+        
+        const dx = playerX - charX;
+        const dz = playerZ - charZ;
+        const angle = Math.atan2(dx, dz);
+        groupRef.current.rotation.y = angle;
+      } else {
+        // Normal gameplay: slow rotation or face trigger cells
+        groupRef.current.rotation.y = state.clock.elapsedTime * 0.3;
+      }
+    }
+    
+    // Update animation mixer
+    if (mixerRef.current) {
+      mixerRef.current.update(delta);
+    }
+  });
+
+  return (
+    <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
+      <group ref={groupRef}>
+        <primitive object={model} scale={0.5} />
+      </group>
+    </group>
+  );
+};
+
 // Player wrapper that handles movement + rendering in sync
 const RefBasedPlayer = ({ 
   animalType, 
@@ -1204,6 +1305,16 @@ return (
       {/* Map Stations */}
       {items.stations.map((pos, i) => (
         <MapStation key={`station-${i}`} position={pos} />
+      ))}
+      
+      {/* Dialogue Characters - render characters for dialogues with characterModel and speakerPosition */}
+      {maze.dialogues?.filter(d => d.characterModel && d.speakerPosition).map((dialogue) => (
+        <DialogueCharacter
+          key={`dialogue-char-${dialogue.id}`}
+          dialogue={dialogue}
+          playerStateRef={playerStateRef}
+          isActiveDialogue={dialogueTarget !== null && dialogueTarget !== undefined}
+        />
       ))}
       
       {/* Goal */}

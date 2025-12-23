@@ -230,18 +230,20 @@ export const mazes: Maze[] = [
       {
         id: 'dialogue_stella_1',
         speaker: 'Sanctuary Stella',
-        speakerEmoji: '👨‍🌾',
+        speakerEmoji: '👩‍🌾',
         message: 'Hello there!',
-        cells: [],
+        cells: [{ x: 12, y: 2 }, { x: 11, y: 2 }, { x: 12, y: 3 }, { x: 11, y: 3 }], // Near station H
+        speakerPosition: { x: 12, y: 2 }, // Where Stella stands
         characterModel: 'Animated_Woman.glb',
         characterAnimation: 'idle',
       },
       {
         id: 'dialogue_stella_2',
         speaker: 'Sanctuary Stella',
-        speakerEmoji: '👨‍🌾',
+        speakerEmoji: '👩‍🌾',
         message: 'Find Sanctuary Sam!',
         cells: [{ x: 8, y: 12 }, { x: 8, y: 13 }, { x: 9, y: 12 }, { x: 9, y: 13 }],
+        speakerPosition: { x: 8, y: 11 },
         characterModel: 'Animated_Woman.glb',
         characterAnimation: 'celebrate',
         requires: ['dialogue_stella_1'],
@@ -253,8 +255,8 @@ export const mazes: Maze[] = [
     grid: createGrid([
       '################',
       '################',
-      '##SS      H   ##',
-      '##SS          ##',
+      '##S       H   ##',
+      '##            ##',
       '########  #   ##',
       '##     #  #   ##',
       '##  EE #  #   ##',
