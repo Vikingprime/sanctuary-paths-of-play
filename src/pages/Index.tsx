@@ -16,7 +16,7 @@ import { Volume2, VolumeX } from 'lucide-react';
 type GameScreen = 'home' | 'levels' | 'playing';
 
 const Index = () => {
-  const { save, loading, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
+  const { save, loading, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
   const [screen, setScreen] = useState<GameScreen>('home');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
@@ -39,16 +39,18 @@ const Index = () => {
     }
   };
 
-  const handleLevelSelect = (maze: Maze) => {
+  const handleLevelSelect = async (maze: Maze) => {
     setSelectedMaze(maze);
+    // Record the attempt when starting a maze
+    await startAttempt(maze.id);
     setScreen('playing');
   };
 
-  const handleGameComplete = async (score: number, timeUsed: number, hasRestarted: boolean) => {
+  const handleGameComplete = async (score: number, timeUsed: number) => {
     // Save level completion
     if (selectedMaze) {
-      const { medal, currencyEarned } = await completeLevel(selectedMaze.id, timeUsed, selectedMaze, [], hasRestarted);
-      console.log('Medal earned:', medal, 'Currency earned:', currencyEarned, 'Has restarted:', hasRestarted);
+      const { medal, currencyEarned } = await completeLevel(selectedMaze.id, timeUsed, selectedMaze);
+      console.log('Medal earned:', medal, 'Currency earned:', currencyEarned);
     }
     
     // Update score
@@ -83,6 +85,9 @@ const Index = () => {
         })}
         onComplete={handleGameComplete}
         onQuit={handleBackToHome}
+        onRestart={async () => {
+          await startAttempt(selectedMaze.id);
+        }}
       />
     );
   }

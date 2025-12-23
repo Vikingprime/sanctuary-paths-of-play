@@ -19,9 +19,17 @@ export function useSave() {
     setSave(data);
   }, []);
 
+  const startAttempt = useCallback(
+    async (mazeId: number) => {
+      await SaveManager.startAttempt(mazeId, save.settings.debugMode);
+      await refresh();
+    },
+    [refresh, save.settings.debugMode]
+  );
+
   const completeLevel = useCallback(
-    async (mazeId: number, time: number, maze: Maze, powerUps: string[] = [], hasRestarted: boolean = false): Promise<{ medal: MedalType; currencyEarned: number }> => {
-      const result = await SaveManager.completeLevel(mazeId, time, powerUps, maze, save.settings.debugMode, hasRestarted);
+    async (mazeId: number, time: number, maze: Maze, powerUps: string[] = []): Promise<{ medal: MedalType; currencyEarned: number }> => {
+      const result = await SaveManager.completeLevel(mazeId, time, powerUps, maze, save.settings.debugMode);
       if (!save.settings.debugMode) {
         await refresh();
       }
@@ -87,6 +95,7 @@ export function useSave() {
     save,
     loading,
     refresh,
+    startAttempt,
     completeLevel,
     addScore,
     unlockMeal,

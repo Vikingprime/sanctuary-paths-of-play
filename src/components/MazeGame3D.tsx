@@ -27,8 +27,9 @@ interface MazeGame3DProps {
   debugMode?: boolean;
   isMuted?: boolean;
   onMuteChange?: (muted: boolean) => void;
-  onComplete: (score: number, timeUsed: number, hasRestarted: boolean) => void;
+  onComplete: (score: number, timeUsed: number) => void;
   onQuit: () => void;
+  onRestart?: () => Promise<void>; // Called to record restart attempt
 }
 
 export const MazeGame3D = ({
@@ -39,6 +40,7 @@ export const MazeGame3D = ({
   onMuteChange,
   onComplete,
   onQuit,
+  onRestart: onRestartProp,
 }: MazeGame3DProps) => {
   // Initialize from pure game logic
   const startPos = findStartPosition(maze);
@@ -69,7 +71,6 @@ export const MazeGame3D = ({
   const [speedBoostActive, setSpeedBoostActive] = useState(false);
   const [isMuted, setIsMuted] = useState(initialMuted);
   const [restartKey, setRestartKey] = useState(0); // Increment to force camera reset
-  const [hasRestarted, setHasRestarted] = useState(false); // Track if player restarted (disqualifies gold)
   // Corn optimization settings
   const [shadowOptEnabled, setShadowOptEnabled] = useState(true);
   const [distanceCullEnabled, setDistanceCullEnabled] = useState(true);
@@ -181,7 +182,7 @@ export const MazeGame3D = ({
         setGameOver(true);
         const score = calculateScore(timeLeft);
         const timeUsed = maze.timeLimit - timeLeft;
-        onComplete(score, timeUsed, hasRestarted);
+        onComplete(score, timeUsed);
       }
     },
     [maze, collectedPowerUps, timeLeft, onComplete]
@@ -354,15 +355,15 @@ export const MazeGame3D = ({
     setMapCountdown(null);
     setMapViewTimeLeft(null);
     
-    // Mark that player has restarted (disqualifies gold medal)
-    setHasRestarted(true);
+    // Record the restart attempt in persistent storage
+    onRestartProp?.();
     
     // Increment restart key to force camera reset
     setRestartKey(prev => prev + 1);
     
     // Clear keys
     keysPressed.current.clear();
-  }, [startPos, startRotation, debugMode, maze.timeLimit, maze.previewTime]);
+  }, [startPos, startRotation, debugMode, maze.timeLimit, maze.previewTime, onRestartProp]);
 
   // Handle map station button click
   const handleMapStationClick = () => {
