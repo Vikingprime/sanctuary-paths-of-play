@@ -1189,13 +1189,13 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 return (
     <>
       {/* DEBUG: Test blocks to verify coordinate system */}
-      {/* Red block at maze (10, 0) */}
-      <mesh position={[10 + 0.5, 1, 0 + 0.5]}>
+      {/* Red block at maze (10, 13) - near farmer */}
+      <mesh position={[10 + 0.5, 1, 13 + 0.5]}>
         <boxGeometry args={[1, 2, 1]} />
         <meshStandardMaterial color="red" />
       </mesh>
-      {/* Yellow block at maze (5, 0) */}
-      <mesh position={[5 + 0.5, 1, 0 + 0.5]}>
+      {/* Yellow block at maze (14, 13) - opposite side */}
+      <mesh position={[14 + 0.5, 1, 13 + 0.5]}>
         <boxGeometry args={[1, 2, 1]} />
         <meshStandardMaterial color="yellow" />
       </mesh>
