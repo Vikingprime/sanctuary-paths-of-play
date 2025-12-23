@@ -551,14 +551,14 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         <div>
                           <Label className="text-xs">Character Model</Label>
                           <Select
-                            value={dialogue.characterModel || ''}
-                            onValueChange={v => updateDialogue(dialogue.id, { characterModel: v })}
+                            value={dialogue.characterModel || 'none'}
+                            onValueChange={v => updateDialogue(dialogue.id, { characterModel: v === 'none' ? undefined : v })}
                           >
                             <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
                               <SelectValue placeholder="Select model" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">None</SelectItem>
+                              <SelectItem value="none">None</SelectItem>
                               {AVAILABLE_MODELS.map(model => (
                                 <SelectItem key={model} value={model}>{model.replace('.glb', '')}</SelectItem>
                               ))}
