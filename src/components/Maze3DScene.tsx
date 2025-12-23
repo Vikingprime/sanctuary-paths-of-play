@@ -1000,9 +1000,17 @@ const DialogueSpeaker = ({ position, playerStateRef }: {
     return clone;
   }, [farmerScene]);
   
-  // Make farmer face the player
+  // Log actual mesh world position and make farmer face the player
+  const logged = useRef(false);
   useFrame(() => {
     if (!groupRef.current) return;
+    
+    // Log the actual world position of the farmer mesh
+    if (!logged.current) {
+      const worldPos = groupRef.current.position;
+      console.log('FARMER MESH WORLD POS:', worldPos.x.toFixed(1), worldPos.y.toFixed(1), worldPos.z.toFixed(1));
+      logged.current = true;
+    }
     
     const farmerX = position.x + 0.5;
     const farmerZ = position.z + 0.5;
@@ -1044,38 +1052,22 @@ const CutsceneCameraController = ({
   const initialized = useRef(false);
   
   useFrame(() => {
-    // Player state coords: x maps to Three.js X, y maps to Three.js Z
     const playerX = playerStateRef.current.x;
     const playerZ = playerStateRef.current.y;
     
-    // Farmer mesh position (same as DialogueSpeaker uses)
     const farmerX = dialogueTarget.speakerX + 0.5;
     const farmerZ = dialogueTarget.speakerZ + 0.5;
     
-    // The over-shoulder camera uses this pattern for looking forward:
-    //   lookAt: playerX + Math.sin(rot), playerZ - Math.cos(rot)
-    // Note the MINUS on Z - this game uses an inverted Z convention
-    // 
-    // For cutscene: we want to look FROM player TO farmer
-    // Direction in maze coords: (farmerX - playerX, farmerZ - playerZ)
-    // But due to the inverted Z, we need to negate the Z offset
-    
-    // Position camera at player
+    // DEBUG: Point camera at +X direction
     camera.position.set(playerX, CAMERA_HEIGHT, playerZ);
     camera.up.set(0, 1, 0);
-    
-    // Look at: same X direction, but INVERT the Z direction
-    // If farmer is at lower Z in maze coords, camera should look at HIGHER Z in Three.js
-    const lookAtX = playerX + (farmerX - playerX);  // Same as farmerX
-    const lookAtZ = playerZ - (farmerZ - playerZ);  // Inverted!
-    
-    camera.lookAt(lookAtX, LOOK_HEIGHT, lookAtZ);
+    camera.lookAt(playerX + 10, LOOK_HEIGHT, playerZ);
     
     if (!initialized.current) {
       initialized.current = true;
-      console.log('Camera at:', playerX.toFixed(1), playerZ.toFixed(1));
-      console.log('Farmer at:', farmerX.toFixed(1), farmerZ.toFixed(1));
-      console.log('Looking at:', lookAtX.toFixed(1), lookAtZ.toFixed(1));
+      console.log('CAMERA at:', playerX.toFixed(1), playerZ.toFixed(1));
+      console.log('FARMER expected at:', farmerX.toFixed(1), farmerZ.toFixed(1));
+      console.log('Camera looking at: +X direction');
     }
   });
   
