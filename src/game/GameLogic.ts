@@ -226,8 +226,8 @@ export function checkCharacterCollisionMultiPoint(
   y: number,
   rotation: number,
   characters: CharacterPosition[],
-  headOffset: number = 0.7,  // How far head extends forward (cow head is far forward)
-  tailOffset: number = 0.3   // How far tail extends backward
+  headOffset: number = 0.35,  // How far head extends forward
+  tailOffset: number = 0.15   // How far tail extends backward
 ): boolean {
   // Calculate head position (forward from center based on rotation)
   const headX = x + Math.sin(rotation) * headOffset;
@@ -237,8 +237,8 @@ export function checkCharacterCollisionMultiPoint(
   const tailX = x - Math.sin(rotation) * tailOffset;
   const tailY = y + Math.cos(rotation) * tailOffset;
   
-  // Radius for point checks - generous to prevent overlap
-  const pointRadius = 0.25;
+  // Radius for point checks - smaller for tighter collision
+  const pointRadius = 0.12;
   
   // Check all three points
   return checkCharacterCollision(x, y, characters, pointRadius) ||
