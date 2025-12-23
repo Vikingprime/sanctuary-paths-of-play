@@ -741,8 +741,8 @@ export const MazeGame3D = ({
       {/* Mobile Controls */}
       <MobileControls onMoveStart={handleMobileStart} onMoveEnd={handleMobileEnd} rotationIntensityRef={rotationIntensityRef} />
 
-      {/* Map Station Button - appears when station is available but not viewing */}
-      {mapStationAvailable && !showMiniMap && !showMapOptions && mapCountdown === null && (
+      {/* Map Station Button - appears when station is available but not viewing or in dialogue */}
+      {mapStationAvailable && !showMiniMap && !showMapOptions && mapCountdown === null && !activeDialogue && (
         <button
           onClick={handleMapStationClick}
           className="fixed right-4 top-1/2 -translate-y-1/2 z-40 bg-primary text-primary-foreground px-4 py-3 rounded-l-xl shadow-lg animate-pulse hover:animate-none hover:bg-primary/90 transition-colors font-display font-semibold flex items-center gap-2"
