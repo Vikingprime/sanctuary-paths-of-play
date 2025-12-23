@@ -666,103 +666,28 @@ const MapStation = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-const GoalMarker = ({ position, playerStateRef, isDialogueActive }: { 
-  position: [number, number, number];
+// Unified character renderer - works for end farmer, placed characters, and legacy dialogue characters
+// Single source of truth for character rendering, facing logic, and animation
+interface CharacterRendererProps {
+  modelFile: string;
+  position: { x: number; y: number };
+  animation?: string;
   playerStateRef?: MutableRefObject<PlayerState>;
-  isDialogueActive?: boolean;
-}) => {
-  const groupRef = useRef<Group>(null);
-  const { scene, animations } = useGLTF('/models/Farmer.glb');
-  const mixerRef = useRef<any>(null);
-  
-  // Use SkeletonUtils.clone for skinned/animated meshes
-  const model = useMemo(() => {
-    const clone = SkeletonUtils.clone(scene);
-    clone.traverse((child: any) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-      }
-    });
-    return clone;
-  }, [scene]);
-  
-  // Set up animation mixer for wave animation
-  useEffect(() => {
-    if (animations.length > 0 && model) {
-      mixerRef.current = new AnimationMixer(model);
-      
-      // Try to find a wave animation, otherwise use the first one
-      const waveAnim = animations.find((a: any) => 
-        a.name.toLowerCase().includes('wave')
-      ) || animations[0];
-      
-      if (waveAnim) {
-        const action = mixerRef.current.clipAction(waveAnim);
-        action.play();
-      }
-    }
-    
-    return () => {
-      if (mixerRef.current) {
-        mixerRef.current.stopAllAction();
-      }
-    };
-  }, [animations, model]);
-  
-  useFrame((state, delta) => {
-    if (groupRef.current) {
-      if (isDialogueActive && playerStateRef) {
-        // During dialogue: face the player
-        const farmerX = position[0] + 0.5;
-        const farmerZ = position[2] + 0.5;
-        const playerX = playerStateRef.current.x;
-        const playerZ = playerStateRef.current.y;
-        
-        const dx = playerX - farmerX;
-        const dz = playerZ - farmerZ;
-        const angle = Math.atan2(dx, dz);
-        groupRef.current.rotation.y = angle;
-      } else {
-        // Normal gameplay: slow rotation
-        groupRef.current.rotation.y = state.clock.elapsedTime * 0.5;
-      }
-    }
-    // Update animation mixer
-    if (mixerRef.current) {
-      mixerRef.current.update(delta);
-    }
-  });
+  isDialogueActive: boolean;
+  isGoalMarker?: boolean; // If true, renders invisible collision trigger
+}
 
-  return (
-    <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
-      <group ref={groupRef}>
-        <primitive object={model} scale={0.55} />
-      </group>
-      {/* Invisible collision trigger for end goal */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} visible={false}>
-        <circleGeometry args={[0.8, 16]} />
-        <meshStandardMaterial color="#22c55e" transparent opacity={0} />
-      </mesh>
-    </group>
-  );
-};
-
-// Dialogue Character - renders a GLB model at the speaker position
-const DialogueCharacter = ({ 
-  dialogue, 
+const CharacterRenderer = ({
+  modelFile,
+  position,
+  animation,
   playerStateRef,
-  isActiveDialogue,
-}: { 
-  dialogue: DialogueTrigger;
-  playerStateRef?: MutableRefObject<PlayerState>;
-  isActiveDialogue: boolean;
-}) => {
+  isDialogueActive,
+  isGoalMarker = false,
+}: CharacterRendererProps) => {
   const groupRef = useRef<Group>(null);
   const mixerRef = useRef<AnimationMixer | null>(null);
   
-  // Load the model dynamically based on characterModel
-  const modelFile = dialogue.characterModel || 'Farmer.glb';
   const modelPath = `/models/${modelFile}`;
   const { scene, animations } = useGLTF(modelPath);
   
@@ -781,26 +706,15 @@ const DialogueCharacter = ({
     return clone;
   }, [scene]);
   
-  // Get position from speakerPosition or first cell
-  const position: [number, number, number] = useMemo(() => {
-    if (dialogue.speakerPosition) {
-      return [dialogue.speakerPosition.x, 0, dialogue.speakerPosition.y];
-    }
-    if (dialogue.cells.length > 0) {
-      return [dialogue.cells[0].x, 0, dialogue.cells[0].y];
-    }
-    return [0, 0, 0];
-  }, [dialogue]);
-  
   // Set up animation mixer
   useEffect(() => {
     if (animations.length > 0 && model) {
       mixerRef.current = new AnimationMixer(model);
       
       // Find matching animation or use first one
-      const targetAnim = dialogue.characterAnimation 
+      const targetAnim = animation 
         ? animations.find((a: any) => 
-            a.name.toLowerCase().includes(dialogue.characterAnimation!.toLowerCase())
+            a.name.toLowerCase().includes(animation.toLowerCase())
           ) 
         : null;
       
@@ -817,14 +731,14 @@ const DialogueCharacter = ({
         mixerRef.current.stopAllAction();
       }
     };
-  }, [animations, model, dialogue.characterAnimation]);
+  }, [animations, model, animation]);
   
   useFrame((state, delta) => {
     if (groupRef.current) {
-      if (isActiveDialogue && playerStateRef) {
+      if (isDialogueActive && playerStateRef) {
         // During dialogue: face the player
-        const charX = position[0] + 0.5;
-        const charZ = position[2] + 0.5;
+        const charX = position.x + 0.5;
+        const charZ = position.y + 0.5;
         const playerX = playerStateRef.current.x;
         const playerZ = playerStateRef.current.y;
         
@@ -833,7 +747,7 @@ const DialogueCharacter = ({
         const angle = Math.atan2(dx, dz);
         groupRef.current.rotation.y = angle;
       } else {
-        // Normal gameplay: slow rotation or face trigger cells
+        // Normal gameplay: slow rotation
         groupRef.current.rotation.y = state.clock.elapsedTime * 0.3;
       }
     }
@@ -845,15 +759,40 @@ const DialogueCharacter = ({
   });
 
   return (
-    <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
+    <group position={[position.x + 0.5, 0, position.y + 0.5]}>
       <group ref={groupRef}>
         <primitive object={model} scale={characterScale} />
       </group>
+      {/* Invisible collision trigger for goal marker */}
+      {isGoalMarker && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} visible={false}>
+          <circleGeometry args={[0.8, 16]} />
+          <meshStandardMaterial color="#22c55e" transparent opacity={0} />
+        </mesh>
+      )}
     </group>
   );
 };
 
-// Placed Character - renders a character from maze.characters array
+// GoalMarker - wraps CharacterRenderer for the end farmer
+const GoalMarker = ({ position, playerStateRef, isDialogueActive }: { 
+  position: [number, number, number];
+  playerStateRef?: MutableRefObject<PlayerState>;
+  isDialogueActive?: boolean;
+}) => {
+  return (
+    <CharacterRenderer
+      modelFile="Farmer.glb"
+      position={{ x: position[0], y: position[2] }}
+      animation="wave"
+      playerStateRef={playerStateRef}
+      isDialogueActive={isDialogueActive || false}
+      isGoalMarker={true}
+    />
+  );
+};
+
+// PlacedCharacter - wraps CharacterRenderer for maze.characters array
 const PlacedCharacter = ({ 
   character, 
   playerStateRef,
@@ -863,87 +802,45 @@ const PlacedCharacter = ({
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive: boolean;
 }) => {
-  const groupRef = useRef<Group>(null);
-  const mixerRef = useRef<AnimationMixer | null>(null);
-  
-  const modelPath = `/models/${character.model}`;
-  const { scene, animations } = useGLTF(modelPath);
-  
-  // Get character scale from centralized config
-  const characterScale = getCharacterScale(character.model);
-  
-  // Clone the scene using SkeletonUtils for skinned meshes
-  const model = useMemo(() => {
-    const clone = SkeletonUtils.clone(scene);
-    clone.traverse((child: any) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-      }
-    });
-    return clone;
-  }, [scene]);
-  
-  const position: [number, number, number] = [character.position.x, 0, character.position.y];
-  
-  // Set up animation mixer
-  useEffect(() => {
-    if (animations.length > 0 && model) {
-      mixerRef.current = new AnimationMixer(model);
-      
-      // Find matching animation or use first one
-      const targetAnim = character.animation 
-        ? animations.find((a: any) => 
-            a.name.toLowerCase().includes(character.animation.toLowerCase())
-          ) 
-        : null;
-      
-      const animToPlay = targetAnim || animations[0];
-      
-      if (animToPlay) {
-        const action = mixerRef.current.clipAction(animToPlay);
-        action.play();
-      }
-    }
-    
-    return () => {
-      if (mixerRef.current) {
-        mixerRef.current.stopAllAction();
-      }
-    };
-  }, [animations, model, character.animation]);
-  
-  useFrame((state, delta) => {
-    if (groupRef.current) {
-      if (isDialogueActive && playerStateRef) {
-        // During dialogue: face the player
-        const charX = position[0] + 0.5;
-        const charZ = position[2] + 0.5;
-        const playerX = playerStateRef.current.x;
-        const playerZ = playerStateRef.current.y;
-        
-        const dx = playerX - charX;
-        const dz = playerZ - charZ;
-        const angle = Math.atan2(dx, dz);
-        groupRef.current.rotation.y = angle;
-      } else {
-        // Normal gameplay: slow idle rotation or face outward
-        groupRef.current.rotation.y = state.clock.elapsedTime * 0.3;
-      }
-    }
-    
-    // Update animation mixer
-    if (mixerRef.current) {
-      mixerRef.current.update(delta);
-    }
-  });
-
   return (
-    <group position={[position[0] + 0.5, position[1], position[2] + 0.5]}>
-      <group ref={groupRef}>
-        <primitive object={model} scale={characterScale} />
-      </group>
-    </group>
+    <CharacterRenderer
+      modelFile={character.model}
+      position={character.position}
+      animation={character.animation}
+      playerStateRef={playerStateRef}
+      isDialogueActive={isDialogueActive}
+    />
+  );
+};
+
+// DialogueCharacter - wraps CharacterRenderer for legacy dialogues with characterModel/speakerPosition
+const DialogueCharacter = ({ 
+  dialogue, 
+  playerStateRef,
+  isActiveDialogue,
+}: { 
+  dialogue: DialogueTrigger;
+  playerStateRef?: MutableRefObject<PlayerState>;
+  isActiveDialogue: boolean;
+}) => {
+  const position = useMemo(() => {
+    if (dialogue.speakerPosition) {
+      return { x: dialogue.speakerPosition.x, y: dialogue.speakerPosition.y };
+    }
+    if (dialogue.cells.length > 0) {
+      return { x: dialogue.cells[0].x, y: dialogue.cells[0].y };
+    }
+    return { x: 0, y: 0 };
+  }, [dialogue]);
+  
+  return (
+    <CharacterRenderer
+      modelFile={dialogue.characterModel || 'Farmer.glb'}
+      position={position}
+      animation={dialogue.characterAnimation}
+      playerStateRef={playerStateRef}
+      isDialogueActive={isActiveDialogue}
+    />
   );
 };
 
