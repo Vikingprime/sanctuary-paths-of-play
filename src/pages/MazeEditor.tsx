@@ -4,16 +4,29 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Copy, Download, Trash2, Grid3X3 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Copy, Download, Trash2, Grid3X3, Plus, MessageSquare, X } from 'lucide-react';
 import { toast } from 'sonner';
 
-type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H';
+type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
+
+interface DialogueConfig {
+  id: string;
+  speaker: string;
+  speakerEmoji: string;
+  message: string;
+  cells: { x: number; y: number }[];
+  characterModel?: string;
+  characterAnimation?: string;
+  requires?: string[];
+}
 
 interface MazeConfig {
   name: string;
   difficulty: 'easy' | 'medium' | 'hard';
   timeLimit: number;
   previewTime: number;
+  requiredDialogues?: string[];
 }
 
 const CELL_LABELS: Record<CellType, string> = {
@@ -23,6 +36,7 @@ const CELL_LABELS: Record<CellType, string> = {
   'E': 'End',
   'P': 'Power-Up',
   'H': 'Station',
+  'D': 'Dialogue',
 };
 
 const CELL_COLORS: Record<CellType, string> = {
@@ -32,7 +46,27 @@ const CELL_COLORS: Record<CellType, string> = {
   'E': 'bg-red-500 hover:bg-red-400',
   'P': 'bg-yellow-400 hover:bg-yellow-300',
   'H': 'bg-purple-500 hover:bg-purple-400',
+  'D': 'bg-pink-500 hover:bg-pink-400',
 };
+
+const AVAILABLE_MODELS = [
+  'Farmer.glb',
+  'Animated_Woman.glb',
+  'Cow.glb',
+  'Pig.glb',
+  'Hen.glb',
+  'Hen_idle.glb',
+  'Hen_walk.glb',
+];
+
+const AVAILABLE_ANIMATIONS = [
+  'idle',
+  'walk',
+  'talk',
+  'wave',
+  'point',
+  'celebrate',
+];
 
 const MazeEditor: React.FC = () => {
   const [width, setWidth] = useState(16);
@@ -44,11 +78,14 @@ const MazeEditor: React.FC = () => {
     difficulty: 'easy',
     timeLimit: 60,
     previewTime: 5,
+    requiredDialogues: [],
   });
   const [isDragging, setIsDragging] = useState(false);
+  const [dialogues, setDialogues] = useState<DialogueConfig[]>([]);
+  const [selectedDialogueId, setSelectedDialogueId] = useState<string | null>(null);
+  const [showDialoguePanel, setShowDialoguePanel] = useState(false);
 
   function createEmptyGrid(w: number, h: number): CellType[][] {
-    // Create grid with walls on borders
     return Array.from({ length: h }, (_, y) =>
       Array.from({ length: w }, (_, x) => {
         if (x === 0 || x === w - 1 || y === 0 || y === h - 1) return '#';
@@ -59,23 +96,21 @@ const MazeEditor: React.FC = () => {
   }
 
   const resizeGrid = useCallback(() => {
-    // Ensure even dimensions for 2x2 block system
     const evenWidth = width % 2 === 0 ? width : width + 1;
     const evenHeight = height % 2 === 0 ? height : height + 1;
     setGrid(createEmptyGrid(evenWidth, evenHeight));
     if (width !== evenWidth) setWidth(evenWidth);
     if (height !== evenHeight) setHeight(evenHeight);
+    setDialogues([]);
   }, [width, height]);
 
   const paintCell = useCallback((x: number, y: number) => {
-    // For S and E, paint 2x2 blocks starting at even coordinates
     if (selectedTool === 'S' || selectedTool === 'E') {
       const startX = x % 2 === 0 ? x : x - 1;
       const startY = y % 2 === 0 ? y : y - 1;
       
       setGrid(prev => {
         const newGrid = prev.map(row => [...row]);
-        // Clear any existing S or E blocks first
         for (let py = 0; py < newGrid.length; py++) {
           for (let px = 0; px < newGrid[py].length; px++) {
             if (newGrid[py][px] === selectedTool) {
@@ -83,7 +118,6 @@ const MazeEditor: React.FC = () => {
             }
           }
         }
-        // Paint 2x2 block
         for (let dy = 0; dy < 2; dy++) {
           for (let dx = 0; dx < 2; dx++) {
             const nx = startX + dx;
@@ -95,6 +129,28 @@ const MazeEditor: React.FC = () => {
         }
         return newGrid;
       });
+    } else if (selectedTool === 'D') {
+      // For dialogue cells, add to selected dialogue's cells if one is selected
+      if (selectedDialogueId) {
+        setDialogues(prev => prev.map(d => {
+          if (d.id === selectedDialogueId) {
+            const cellExists = d.cells.some(c => c.x === x && c.y === y);
+            if (cellExists) {
+              return { ...d, cells: d.cells.filter(c => !(c.x === x && c.y === y)) };
+            } else {
+              return { ...d, cells: [...d.cells, { x, y }] };
+            }
+          }
+          return d;
+        }));
+        setGrid(prev => {
+          const newGrid = prev.map(row => [...row]);
+          newGrid[y][x] = newGrid[y][x] === 'D' ? ' ' : 'D';
+          return newGrid;
+        });
+      } else {
+        toast.error('Select or create a dialogue first!');
+      }
     } else {
       setGrid(prev => {
         const newGrid = prev.map(row => [...row]);
@@ -102,7 +158,7 @@ const MazeEditor: React.FC = () => {
         return newGrid;
       });
     }
-  }, [selectedTool]);
+  }, [selectedTool, selectedDialogueId]);
 
   const handleMouseDown = (x: number, y: number) => {
     setIsDragging(true);
@@ -119,22 +175,90 @@ const MazeEditor: React.FC = () => {
     setIsDragging(false);
   };
 
+  const addDialogue = () => {
+    const newId = `dialogue_${Date.now()}`;
+    const newDialogue: DialogueConfig = {
+      id: newId,
+      speaker: 'Farmer',
+      speakerEmoji: '👨‍🌾',
+      message: 'Hello there!',
+      cells: [],
+      characterModel: 'Farmer.glb',
+      characterAnimation: 'idle',
+    };
+    setDialogues(prev => [...prev, newDialogue]);
+    setSelectedDialogueId(newId);
+    setShowDialoguePanel(true);
+    toast.success('Dialogue created! Now click cells on the grid to add trigger zones.');
+  };
+
+  const updateDialogue = (id: string, updates: Partial<DialogueConfig>) => {
+    setDialogues(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+  };
+
+  const removeDialogue = (id: string) => {
+    // Remove dialogue cells from grid
+    const dialogueToRemove = dialogues.find(d => d.id === id);
+    if (dialogueToRemove) {
+      setGrid(prev => {
+        const newGrid = prev.map(row => [...row]);
+        dialogueToRemove.cells.forEach(({ x, y }) => {
+          if (newGrid[y]?.[x] === 'D') {
+            newGrid[y][x] = ' ';
+          }
+        });
+        return newGrid;
+      });
+    }
+    setDialogues(prev => prev.filter(d => d.id !== id));
+    if (selectedDialogueId === id) {
+      setSelectedDialogueId(null);
+    }
+    // Remove from required dialogues
+    setConfig(c => ({
+      ...c,
+      requiredDialogues: c.requiredDialogues?.filter(did => did !== id) || []
+    }));
+  };
+
   const generateSchema = useCallback(() => {
-    const gridStrings = grid.map(row => row.join(''));
+    const gridStrings = grid.map(row => row.join('').replace(/D/g, ' ')); // Replace D with space in output
     
+    const dialogueSchema = dialogues.length > 0 ? `
+  dialogues: [
+${dialogues.map(d => `    {
+      id: '${d.id}',
+      speaker: '${d.speaker}',
+      speakerEmoji: '${d.speakerEmoji}',
+      message: '${d.message.replace(/'/g, "\\'")}',
+      cells: [${d.cells.map(c => `{ x: ${c.x}, y: ${c.y} }`).join(', ')}],
+      ${d.characterModel ? `characterModel: '${d.characterModel}',` : ''}
+      ${d.characterAnimation ? `characterAnimation: '${d.characterAnimation}',` : ''}
+      ${d.requires && d.requires.length > 0 ? `requires: [${d.requires.map(r => `'${r}'`).join(', ')}],` : ''}
+    }`).join(',\n')}
+  ],` : '';
+
+    const endConditionsSchema = config.requiredDialogues && config.requiredDialogues.length > 0 
+      ? `
+  endConditions: {
+    requiredDialogues: [${config.requiredDialogues.map(d => `'${d}'`).join(', ')}],
+  },` 
+      : '';
+
     const schema = `{
   id: ${Date.now()},
   name: '${config.name}',
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
   previewTime: ${config.previewTime},
+  medalTimes: { gold: 15, silver: 25, bronze: 40 },${dialogueSchema}${endConditionsSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
   ]),
 },`;
     
     return schema;
-  }, [grid, config]);
+  }, [grid, config, dialogues]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateSchema());
@@ -154,7 +278,13 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
 
   const clearGrid = () => {
     setGrid(createEmptyGrid(width, height));
+    setDialogues([]);
+    setSelectedDialogueId(null);
     toast.info('Grid cleared');
+  };
+
+  const getCellDialogue = (x: number, y: number): DialogueConfig | undefined => {
+    return dialogues.find(d => d.cells.some(c => c.x === x && c.y === y));
   };
 
   return (
@@ -184,7 +314,10 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                       key={cell}
                       variant={selectedTool === cell ? 'default' : 'outline'}
                       size="sm"
-                      onClick={() => setSelectedTool(cell)}
+                      onClick={() => {
+                        setSelectedTool(cell);
+                        if (cell === 'D') setShowDialoguePanel(true);
+                      }}
                       className={`text-xs ${selectedTool === cell ? '' : CELL_COLORS[cell]}`}
                     >
                       {CELL_LABELS[cell]}
@@ -268,6 +401,18 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                 </div>
               </div>
 
+              {/* Dialogues Toggle */}
+              <div className="pt-2 border-t">
+                <Button 
+                  onClick={() => setShowDialoguePanel(!showDialoguePanel)} 
+                  variant="outline" 
+                  className="w-full"
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Dialogues ({dialogues.length})
+                </Button>
+              </div>
+
               {/* Actions */}
               <div className="space-y-2 pt-4 border-t">
                 <Button onClick={copyToClipboard} className="w-full" variant="default">
@@ -287,7 +432,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
           </Card>
 
           {/* Grid Editor */}
-          <Card className="lg:col-span-3 overflow-auto">
+          <Card className="lg:col-span-2 overflow-auto">
             <CardHeader>
               <CardTitle className="text-lg">Grid ({width}x{height})</CardTitle>
             </CardHeader>
@@ -299,16 +444,25 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                 }}
               >
                 {grid.map((row, y) =>
-                  row.map((cell, x) => (
-                    <div
-                      key={`${x}-${y}`}
-                      className={`w-5 h-5 border border-amber-900/20 cursor-pointer transition-colors ${CELL_COLORS[cell]} flex items-center justify-center text-[8px] font-bold text-white/80`}
-                      onMouseDown={() => handleMouseDown(x, y)}
-                      onMouseEnter={() => handleMouseEnter(x, y)}
-                    >
-                      {cell !== '#' && cell !== ' ' ? cell : ''}
-                    </div>
-                  ))
+                  row.map((cell, x) => {
+                    const cellDialogue = getCellDialogue(x, y);
+                    const isSelectedDialogueCell = cellDialogue?.id === selectedDialogueId;
+                    return (
+                      <div
+                        key={`${x}-${y}`}
+                        className={`w-5 h-5 border cursor-pointer transition-colors flex items-center justify-center text-[8px] font-bold text-white/80 ${
+                          isSelectedDialogueCell 
+                            ? 'border-2 border-white ring-2 ring-pink-300' 
+                            : 'border-amber-900/20'
+                        } ${CELL_COLORS[cell]}`}
+                        onMouseDown={() => handleMouseDown(x, y)}
+                        onMouseEnter={() => handleMouseEnter(x, y)}
+                        title={cellDialogue ? `Dialogue: ${cellDialogue.speaker}` : undefined}
+                      >
+                        {cell !== '#' && cell !== ' ' ? cell : ''}
+                      </div>
+                    );
+                  })
                 )}
               </div>
 
@@ -323,6 +477,188 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
               </div>
             </CardContent>
           </Card>
+
+          {/* Dialogue Panel */}
+          {showDialoguePanel && (
+            <Card className="lg:col-span-1">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <span>Dialogues</span>
+                  <Button size="sm" onClick={addDialogue}>
+                    <Plus className="w-4 h-4 mr-1" /> Add
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 max-h-[600px] overflow-y-auto">
+                {dialogues.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No dialogues yet. Click "Add" to create one.
+                  </p>
+                ) : (
+                  dialogues.map(dialogue => (
+                    <div 
+                      key={dialogue.id} 
+                      className={`p-3 rounded-lg border-2 space-y-2 ${
+                        selectedDialogueId === dialogue.id 
+                          ? 'border-pink-500 bg-pink-50' 
+                          : 'border-gray-200'
+                      }`}
+                      onClick={() => setSelectedDialogueId(dialogue.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm">{dialogue.speakerEmoji} {dialogue.speaker}</span>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={(e) => { e.stopPropagation(); removeDialogue(dialogue.id); }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Speaker</Label>
+                          <Input
+                            value={dialogue.speaker}
+                            onChange={e => updateDialogue(dialogue.id, { speaker: e.target.value })}
+                            className="h-8 text-xs"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Emoji</Label>
+                          <Input
+                            value={dialogue.speakerEmoji}
+                            onChange={e => updateDialogue(dialogue.id, { speakerEmoji: e.target.value })}
+                            className="h-8 text-xs"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs">Message</Label>
+                        <Textarea
+                          value={dialogue.message}
+                          onChange={e => updateDialogue(dialogue.id, { message: e.target.value })}
+                          className="h-16 text-xs"
+                          onClick={e => e.stopPropagation()}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Character Model</Label>
+                          <Select
+                            value={dialogue.characterModel || ''}
+                            onValueChange={v => updateDialogue(dialogue.id, { characterModel: v })}
+                          >
+                            <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
+                              <SelectValue placeholder="Select model" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">None</SelectItem>
+                              {AVAILABLE_MODELS.map(model => (
+                                <SelectItem key={model} value={model}>{model.replace('.glb', '')}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Animation</Label>
+                          <Select
+                            value={dialogue.characterAnimation || ''}
+                            onValueChange={v => updateDialogue(dialogue.id, { characterAnimation: v })}
+                          >
+                            <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
+                              <SelectValue placeholder="Select animation" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {AVAILABLE_ANIMATIONS.map(anim => (
+                                <SelectItem key={anim} value={anim}>{anim}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs">Requires (other dialogue IDs)</Label>
+                        <Select
+                          value=""
+                          onValueChange={v => {
+                            if (v && !dialogue.requires?.includes(v)) {
+                              updateDialogue(dialogue.id, { 
+                                requires: [...(dialogue.requires || []), v] 
+                              });
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
+                            <SelectValue placeholder="Add requirement..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {dialogues.filter(d => d.id !== dialogue.id).map(d => (
+                              <SelectItem key={d.id} value={d.id}>{d.speaker}: {d.message.slice(0, 20)}...</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {dialogue.requires && dialogue.requires.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {dialogue.requires.map(req => (
+                              <span 
+                                key={req} 
+                                className="text-xs bg-gray-200 px-2 py-0.5 rounded flex items-center gap-1"
+                              >
+                                {dialogues.find(d => d.id === req)?.speaker || req}
+                                <X 
+                                  className="w-3 h-3 cursor-pointer" 
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    updateDialogue(dialogue.id, { 
+                                      requires: dialogue.requires?.filter(r => r !== req) 
+                                    });
+                                  }}
+                                />
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-muted-foreground">
+                        Cells: {dialogue.cells.length} {selectedDialogueId === dialogue.id && '(click grid to add)'}
+                      </div>
+
+                      {/* Toggle required for end */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={config.requiredDialogues?.includes(dialogue.id) || false}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setConfig(c => ({
+                                ...c,
+                                requiredDialogues: [...(c.requiredDialogues || []), dialogue.id]
+                              }));
+                            } else {
+                              setConfig(c => ({
+                                ...c,
+                                requiredDialogues: c.requiredDialogues?.filter(d => d !== dialogue.id)
+                              }));
+                            }
+                          }}
+                          onClick={e => e.stopPropagation()}
+                        />
+                        <Label className="text-xs">Required to complete maze</Label>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Schema Preview */}
