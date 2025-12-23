@@ -1065,9 +1065,15 @@ const CutsceneCameraController = ({
     
     if (!initialized.current) {
       initialized.current = true;
-      console.log('CAMERA at:', playerX.toFixed(1), playerZ.toFixed(1));
-      console.log('FARMER expected at:', farmerX.toFixed(1), farmerZ.toFixed(1));
-      console.log('Camera looking at: +X direction');
+      
+      // Log camera's actual world direction after lookAt
+      const dir = new Vector3();
+      camera.getWorldDirection(dir);
+      
+      console.log('CAMERA pos:', camera.position.x.toFixed(1), camera.position.y.toFixed(1), camera.position.z.toFixed(1));
+      console.log('CAMERA lookAt target:', (playerX + 10).toFixed(1), LOOK_HEIGHT, playerZ.toFixed(1));
+      console.log('CAMERA actual direction:', dir.x.toFixed(2), dir.y.toFixed(2), dir.z.toFixed(2));
+      console.log('FARMER mesh at:', farmerX.toFixed(1), farmerZ.toFixed(1));
     }
   });
   
