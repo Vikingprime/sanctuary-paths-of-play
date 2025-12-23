@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, forwardRef } from 'react';
 
 interface ConfettiPiece {
   id: number;
@@ -12,7 +12,7 @@ interface ConfettiPiece {
 
 const COLORS = ['#FFD700', '#FFA500', '#FFEC8B', '#FFE135', '#F0E68C', '#DAA520'];
 
-export const Confetti = ({ active }: { active: boolean }) => {
+export const Confetti = forwardRef<HTMLDivElement, { active: boolean }>(({ active }, ref) => {
   const [pieces, setPieces] = useState<ConfettiPiece[]>([]);
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export const Confetti = ({ active }: { active: boolean }) => {
   if (!active) return null;
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-[60] overflow-hidden">
+    <div ref={ref} className="fixed inset-0 pointer-events-none z-[60] overflow-hidden">
       {pieces.map((piece) => (
         <div
           key={piece.id}
@@ -58,4 +58,6 @@ export const Confetti = ({ active }: { active: boolean }) => {
       ))}
     </div>
   );
-};
+});
+
+Confetti.displayName = 'Confetti';
