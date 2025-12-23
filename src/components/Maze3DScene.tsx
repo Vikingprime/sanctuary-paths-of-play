@@ -1044,25 +1044,39 @@ const CutsceneCameraController = ({
   const initialized = useRef(false);
   
   useFrame(() => {
-    // Player position in 3D space
+    // Player position in 3D space (maze Y → Three.js Z)
     const playerX = playerStateRef.current.x;
     const playerZ = playerStateRef.current.y;
     
-    // Farmer position (cell center)
+    // Farmer position (cell center) - speakerZ is already maze Y
     const farmerX = dialogueTarget.speakerX + 0.5;
     const farmerZ = dialogueTarget.speakerZ + 0.5;
     
-    // Target camera position: at player, eye level
-    const targetPos = new Vector3(playerX, CAMERA_HEIGHT, playerZ);
-    // Target look at: farmer position
+    // Direction from player to farmer
+    const dx = farmerX - playerX;
+    const dz = farmerZ - playerZ;
+    
+    // Position camera slightly behind player, looking toward farmer
+    // Move camera back in the opposite direction from the farmer
+    const distToFarmer = Math.sqrt(dx * dx + dz * dz);
+    const dirX = dx / distToFarmer; // Normalized direction to farmer
+    const dirZ = dz / distToFarmer;
+    
+    // Camera offset: behind player (opposite to farmer direction)
+    const CAMERA_BACK = 0.5;
+    const camX = playerX - dirX * CAMERA_BACK;
+    const camZ = playerZ - dirZ * CAMERA_BACK;
+    
+    const targetPos = new Vector3(camX, CAMERA_HEIGHT, camZ);
     const targetLookAt = new Vector3(farmerX, LOOK_HEIGHT, farmerZ);
     
     if (!initialized.current) {
-      // Start camera at player position, looking at farmer immediately
       currentPos.current.copy(targetPos);
       currentLookAt.current.copy(targetLookAt);
       initialized.current = true;
-      console.log('Cutscene camera - Player:', playerX.toFixed(1), playerZ.toFixed(1), '| Farmer:', farmerX.toFixed(1), farmerZ.toFixed(1));
+      console.log('Cutscene camera - Player:', playerX.toFixed(1), playerZ.toFixed(1), 
+        '| Farmer:', farmerX.toFixed(1), farmerZ.toFixed(1),
+        '| Dir:', dirX.toFixed(2), dirZ.toFixed(2));
     }
     
     // Smooth interpolation
@@ -1072,7 +1086,7 @@ const CutsceneCameraController = ({
     // Ensure camera up vector is correct
     camera.up.set(0, 1, 0);
     
-    // Set camera position and look at the interpolated target
+    // Set camera position and look at target
     camera.position.copy(currentPos.current);
     camera.lookAt(currentLookAt.current);
   });
