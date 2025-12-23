@@ -121,11 +121,26 @@ class SaveManagerClass {
     const currencyEarned = this.getCurrencyReward(medal);
     save.player.currency += currencyEarned;
 
+    // Only consider existing best time if it's a valid positive number
+    const existingBestTime = existing?.bestTime != null && existing.bestTime > 0 
+      ? existing.bestTime 
+      : null;
+    
+    // Only save if the new time is valid (positive)
+    const validNewTime = time > 0 ? time : null;
+    
+    let newBestTime: number | null = null;
+    if (existingBestTime != null && validNewTime != null) {
+      newBestTime = Math.min(existingBestTime, validNewTime);
+    } else if (validNewTime != null) {
+      newBestTime = validNewTime;
+    } else if (existingBestTime != null) {
+      newBestTime = existingBestTime;
+    }
+
     save.levels[mazeId] = {
       completed: true,
-      bestTime: existing?.bestTime 
-        ? Math.min(existing.bestTime, time) 
-        : time,
+      bestTime: newBestTime,
       medal: bestMedal,
       firstCompletion: false, // Mark that first completion is used
       powerUpsCollected: [
