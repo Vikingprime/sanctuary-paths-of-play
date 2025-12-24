@@ -313,11 +313,11 @@ function getCapsuleEndpoints(
 // ============================================
 
 // Solver constants
-const SKIN_WIDTH = 0.01;           // Small gap to prevent touching
-const ROTATION_STEP = 0.035;       // ~2 degrees per step for rotation sweep
-const SWEEP_STEPS = 8;             // Binary search steps for swept collision
-const MAX_DEPENETRATION = 0.02;    // Maximum push per frame
-const OVERLAP_EPSILON = 0.005;     // Overlap threshold
+const SKIN_WIDTH = 0.02;           // Gap to prevent touching (increased)
+const ROTATION_STEP = 0.02;        // ~1.15 degrees per step for rotation sweep (smaller)
+const SWEEP_STEPS = 12;            // Binary search steps for swept collision (more)
+const MAX_DEPENETRATION = 0.03;    // Maximum push per frame
+const OVERLAP_EPSILON = 0.001;     // Overlap threshold (reduced for stricter detection)
 
 // Persistent state for unstuck
 let stuckTimer = 0;
@@ -340,12 +340,19 @@ function checkCapsuleOverlap(
 ): { overlapping: boolean; mtv?: { x: number; y: number; depth: number } } {
   const endpoints = getCapsuleEndpoints(x, y, rotation, capsule);
   
-  // Sample points along capsule
-  const samplePoints = [
-    { ...endpoints.start, radius: capsule.radius },
-    { x: (endpoints.start.x + endpoints.end.x) / 2, y: (endpoints.start.y + endpoints.end.y) / 2, radius: capsule.radius },
-    { ...endpoints.end, radius: capsule.radius }
-  ];
+  // Sample MORE points along capsule for better coverage
+  const samplePoints: Array<{ x: number; y: number; radius: number }> = [];
+  
+  // Add samples along the capsule body (5 points for better coverage)
+  const numBodySamples = 5;
+  for (let i = 0; i < numBodySamples; i++) {
+    const t = i / (numBodySamples - 1);
+    samplePoints.push({
+      x: endpoints.start.x + (endpoints.end.x - endpoints.start.x) * t,
+      y: endpoints.start.y + (endpoints.end.y - endpoints.start.y) * t,
+      radius: capsule.radius
+    });
+  }
   
   // Add head sphere if present
   if (endpoints.head && capsule.headRadius) {
@@ -556,6 +563,9 @@ function sweepRotation(
   characters: CharacterPosition[],
   animalType?: AnimalType
 ): number {
+  // First check if CURRENT rotation is already overlapping
+  const currentOverlap = checkCapsuleOverlap(x, y, currentRotation, capsule, maze, rocks, characters, animalType);
+  
   // Normalize rotation difference
   let rotDiff = targetRotation - currentRotation;
   while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
@@ -578,7 +588,15 @@ function sweepRotation(
     const overlap = checkCapsuleOverlap(x, y, testRotation, capsule, maze, rocks, characters, animalType);
     
     if (overlap.overlapping) {
-      // This step causes overlap - stop at previous safe rotation
+      // If we started overlapping, only allow rotation if it REDUCES overlap
+      if (currentOverlap.overlapping && overlap.mtv && currentOverlap.mtv) {
+        if (overlap.mtv.depth < currentOverlap.mtv.depth) {
+          // This rotation is better than current - allow it
+          safeRotation = testRotation;
+          continue;
+        }
+      }
+      // This step causes new overlap or makes it worse - stop
       break;
     }
     
@@ -794,22 +812,42 @@ export function calculateMovement(
   // STEP 4: POST-STEP VALIDATION
   // If still overlapping, revert to previous safe transform
   // ========================================
-  const finalOverlap = checkCapsuleOverlap(newX, newY, newRotation, capsule, maze, rocks, characters, animalType);
+  let finalOverlap = checkCapsuleOverlap(newX, newY, newRotation, capsule, maze, rocks, characters, animalType);
+  
+  // Try multiple depenetration passes if needed
+  for (let pass = 0; pass < 3 && finalOverlap.overlapping; pass++) {
+    const resolved = resolveOverlap(newX, newY, newRotation, capsule, maze, rocks, characters, animalType);
+    newX = resolved.x;
+    newY = resolved.y;
+    finalOverlap = checkCapsuleOverlap(newX, newY, newRotation, capsule, maze, rocks, characters, animalType);
+  }
   
   if (finalOverlap.overlapping) {
-    // Try one more depenetration push
-    const finalResolved = resolveOverlap(newX, newY, newRotation, capsule, maze, rocks, characters, animalType);
-    newX = finalResolved.x;
-    newY = finalResolved.y;
+    // Still overlapping after multiple passes - HARD REVERT
+    // First try current state (what we started with this frame)
+    const currentStateOverlap = checkCapsuleOverlap(
+      currentState.x, currentState.y, currentState.rotation, 
+      capsule, maze, rocks, characters, animalType
+    );
     
-    // Check again
-    const stillOverlapping = checkCapsuleOverlap(newX, newY, newRotation, capsule, maze, rocks, characters, animalType);
-    
-    if (stillOverlapping.overlapping) {
-      // Revert to last known safe transform
-      newX = lastSafeTransform.x || currentState.x;
-      newY = lastSafeTransform.y || currentState.y;
-      newRotation = lastSafeTransform.rotation || currentState.rotation;
+    if (!currentStateOverlap.overlapping) {
+      // Current state is safe - revert to it completely
+      newX = currentState.x;
+      newY = currentState.y;
+      newRotation = currentState.rotation;
+    } else if (lastSafeTransform.x !== 0 || lastSafeTransform.y !== 0) {
+      // Try last known safe transform
+      const lastSafeOverlap = checkCapsuleOverlap(
+        lastSafeTransform.x, lastSafeTransform.y, lastSafeTransform.rotation,
+        capsule, maze, rocks, characters, animalType
+      );
+      
+      if (!lastSafeOverlap.overlapping) {
+        newX = lastSafeTransform.x;
+        newY = lastSafeTransform.y;
+        newRotation = lastSafeTransform.rotation;
+      }
+      // else: we're stuck in a bad state - keep trying depenetration over multiple frames
     }
   }
 
