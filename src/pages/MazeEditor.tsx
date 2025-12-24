@@ -154,7 +154,7 @@ const MazeEditor: React.FC = () => {
   }
 
   // Load maze by ID
-  const loadMaze = useCallback((mazeId: number) => {
+  const loadMaze = useCallback((mazeId: number, showToast = true) => {
     const maze = getMaze(mazeId);
     if (!maze) {
       toast.error(`Maze with ID ${mazeId} not found`);
@@ -218,12 +218,42 @@ const MazeEditor: React.FC = () => {
     setLoadedMazeId(mazeId);
     setHasUnsavedChanges(false);
     setSearchParams({ mazeId: String(mazeId) });
-    toast.success(`Loaded: ${maze.name}`);
+    if (showToast) {
+      toast.success(`Loaded: ${maze.name}`);
+    }
   }, [getMaze, setSearchParams]);
+
+  // Delete any maze by ID
+  const handleDeleteMazeById = useCallback((mazeId: number, mazeName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Are you sure you want to delete "${mazeName}"?`)) return;
+    
+    deleteMaze(mazeId);
+    
+    // If we deleted the currently loaded maze, clear the editor
+    if (loadedMazeId === mazeId) {
+      setLoadedMazeId(null);
+      setSearchParams({});
+      setGrid(createEmptyGrid(16, 16));
+      setConfig({
+        name: 'New Maze',
+        difficulty: 'easy',
+        timeLimit: 60,
+        previewTime: 5,
+        requiredDialogues: [],
+      });
+      setDialogues([]);
+      setCharacters([]);
+      setHasUnsavedChanges(false);
+    }
+    toast.success('Maze deleted');
+  }, [loadedMazeId, deleteMaze, setSearchParams]);
   
-  // Load maze from URL param on mount
+  // Load maze from URL param on mount - only run once when storage is loaded
+  const hasInitiallyLoaded = useRef(false);
   useEffect(() => {
-    if (isLoaded && mazeIdParam) {
+    if (isLoaded && mazeIdParam && !hasInitiallyLoaded.current) {
+      hasInitiallyLoaded.current = true;
       const mazeId = parseInt(mazeIdParam, 10);
       if (!isNaN(mazeId)) {
         loadMaze(mazeId);
@@ -723,7 +753,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         ? 'bg-primary/10 border-primary' 
                         : 'hover:bg-muted border-transparent'
                     }`}
-                    onClick={() => loadMaze(maze.id)}
+                    onClick={() => loadMaze(maze.id, false)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -732,6 +762,14 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                           <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded">edited</span>
                         )}
                       </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                        onClick={(e) => handleDeleteMazeById(maze.id, maze.name, e)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       ID: {maze.id} • {maze.difficulty}
