@@ -1204,8 +1204,8 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 
   // Generate character positions for collision (all placed characters + map stations)
   const CHARACTER_COLLISION_RADIUS = 0.4; // Moderate radius - multi-point collision handles the rest
-  const STATION_COLLISION_RADIUS = 0.25; // MapStation tower - small enough to walk past
-  const STATION_ROTATION_RADIUS = 0.2; // Similar for rotation
+  const STATION_COLLISION_RADIUS = 0.35; // MapStation tower - matches visual cylinder size
+  const STATION_ROTATION_RADIUS = 0.3; // Slightly smaller for rotation
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
     
