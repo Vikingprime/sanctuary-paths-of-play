@@ -325,9 +325,9 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     // Debug collision points - must match GameLogic.ts getAnimalCollisionOffsets
     const HEAD_OFFSET = 0.95;
     const TAIL_OFFSET = 0.45;
-    const NECK_OFFSET = 0.50;
-    const BODY_WIDTH = 0.14;
-    const HORN_WIDTH = 0.08; // Tiny horns
+    const NECK_OFFSET = 0.50; // Lower neck
+    const UPPER_NECK_OFFSET = 0.72; // Upper neck
+    const HORN_WIDTH = 0.08;
     const DEBUG_Y = 0.5;
     
     return (
@@ -353,20 +353,15 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
             <sphereGeometry args={[0.12, 8, 8]} />
             <meshBasicMaterial color="#ff0000" depthTest={false} depthWrite={false} />
           </mesh>
-          {/* Neck (yellow) */}
+          {/* Lower Neck (yellow) */}
           <mesh position={[0, DEBUG_Y, NECK_OFFSET]} renderOrder={999}>
             <sphereGeometry args={[0.10, 8, 8]} />
             <meshBasicMaterial color="#ffff00" depthTest={false} depthWrite={false} />
           </mesh>
-          {/* Left body side (cyan) */}
-          <mesh position={[-BODY_WIDTH, DEBUG_Y, 0]} renderOrder={999}>
+          {/* Upper Neck (lime) */}
+          <mesh position={[0, DEBUG_Y, UPPER_NECK_OFFSET]} renderOrder={999}>
             <sphereGeometry args={[0.10, 8, 8]} />
-            <meshBasicMaterial color="#00ffff" depthTest={false} depthWrite={false} />
-          </mesh>
-          {/* Right body side (magenta) */}
-          <mesh position={[BODY_WIDTH, DEBUG_Y, 0]} renderOrder={999}>
-            <sphereGeometry args={[0.10, 8, 8]} />
-            <meshBasicMaterial color="#ff00ff" depthTest={false} depthWrite={false} />
+            <meshBasicMaterial color="#88ff00" depthTest={false} depthWrite={false} />
           </mesh>
           {/* Left horn (orange) */}
           <mesh position={[-HORN_WIDTH, DEBUG_Y, HEAD_OFFSET]} renderOrder={999}>
