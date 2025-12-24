@@ -14,7 +14,7 @@ export const Header = ({ totalMeals, stars, goldMedals, silverMedals }: HeaderPr
         <div className="text-3xl">🌾</div>
         <div>
           <h1 className="font-display text-xl font-bold text-foreground">
-            Sanctuary Run
+            Foggy Farm
           </h1>
           <p className="text-xs text-muted-foreground">
             Help farm animals, one maze at a time
