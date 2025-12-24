@@ -345,17 +345,17 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
           </mesh>
           {/* Upper Neck (lime) */}
           <mesh position={[0, DEBUG_Y, UPPER_NECK_OFFSET]} renderOrder={999}>
-            <sphereGeometry args={[0.10, 8, 8]} />
+            <sphereGeometry args={[0.15, 8, 8]} />
             <meshBasicMaterial color="#88ff00" depthTest={false} depthWrite={false} />
           </mesh>
           {/* Lower Neck (yellow) */}
           <mesh position={[0, DEBUG_Y, NECK_OFFSET]} renderOrder={999}>
-            <sphereGeometry args={[0.10, 8, 8]} />
+            <sphereGeometry args={[0.15, 8, 8]} />
             <meshBasicMaterial color="#ffff00" depthTest={false} depthWrite={false} />
           </mesh>
           {/* Spine point toward head (cyan) */}
           <mesh position={[0, DEBUG_Y, SPINE_POINTS[1]]} renderOrder={999}>
-            <sphereGeometry args={[0.10, 8, 8]} />
+            <sphereGeometry args={[0.15, 8, 8]} />
             <meshBasicMaterial color="#00ffff" depthTest={false} depthWrite={false} />
           </mesh>
           {/* Center (blue) */}
