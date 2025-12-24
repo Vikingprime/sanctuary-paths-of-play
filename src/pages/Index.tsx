@@ -7,6 +7,7 @@ import { LevelSelect } from '@/components/LevelSelect';
 import { MazeGame3D } from '@/components/MazeGame3D';
 import { ProgressTracker } from '@/components/ProgressTracker';
 import { Header } from '@/components/Header';
+import { HowToPlayPanel } from '@/components/HowToPlayPanel';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -204,10 +205,13 @@ const Index = () => {
               />
             </div>
 
-            {/* How it works */}
+            {/* How to Play Panel */}
+            <HowToPlayPanel />
+
+            {/* How it works - quick overview */}
             <div className="bg-card rounded-2xl p-6 shadow-warm animate-fade-in-delay-3">
               <h3 className="font-display text-lg font-bold text-foreground mb-4 text-center">
-                How It Works
+                Quick Overview
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
                 <div className="space-y-2">

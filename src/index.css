@@ -240,3 +240,74 @@
   animation: fadeIn 0.5s ease-out 0.3s forwards;
   opacity: 0;
 }
+
+/* Swipe demo animation for controls panel */
+@keyframes swipeDemo {
+  0% {
+    top: 80%;
+    left: 50%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    top: 30%;
+    left: 50%;
+    opacity: 1;
+  }
+  60% {
+    opacity: 0;
+  }
+  100% {
+    top: 30%;
+    left: 50%;
+    opacity: 0;
+  }
+}
+
+.animate-swipe-demo {
+  animation: swipeDemo 2.5s ease-in-out infinite;
+  transform: translate(-50%, -50%);
+}
+
+@keyframes swipeTrail {
+  0% {
+    stroke-dashoffset: 60;
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  50% {
+    stroke-dashoffset: 0;
+    opacity: 0.6;
+  }
+  60% {
+    opacity: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+.animate-swipe-trail {
+  animation: swipeTrail 2.5s ease-in-out infinite;
+}
+
+/* Scale in animation */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s ease-out forwards;
+}

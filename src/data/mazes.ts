@@ -351,6 +351,27 @@ export const mazes: Maze[] = [
         position: { x: 13, y: 13 },
       }
     ],
+    // Intro sequence - plays before the maze starts
+    introDialogues: [
+      {
+        characterId: 'char_stella',
+        speaker: 'Sanctuary Stella',
+        speakerEmoji: '👩‍🌾',
+        message: "Welcome to Foggy Farm! I'm Sanctuary Stella, and I help take care of all the animals here.",
+      },
+      {
+        characterId: 'sanctuary_sam',
+        speaker: 'Sanctuary Sam',
+        speakerEmoji: '👨‍🌾',
+        message: "And I'm Sanctuary Sam! We've got a bit of a corn maze situation here...",
+      },
+      {
+        characterId: 'char_stella',
+        speaker: 'Sanctuary Stella',
+        speakerEmoji: '👩‍🌾',
+        message: "Your job is to navigate through the maze and find Sam. Good luck!",
+      },
+    ],
     dialogues: [
       {
         id: 'stella_greeting',
