@@ -123,7 +123,7 @@ const Index = () => {
             <div className="text-center space-y-4 animate-fade-in">
               <div className="text-6xl mb-4">🐷🐮🐔</div>
               <h1 className="font-display text-4xl md:text-5xl font-bold text-gradient">
-                Sanctuary Run
+                Foggy Farm
               </h1>
               <p className="text-lg text-muted-foreground max-w-md mx-auto">
                 Navigate 3D corn mazes with adorable farm animals and help unlock
