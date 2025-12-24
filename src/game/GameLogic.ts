@@ -340,14 +340,17 @@ function checkCapsuleOverlap(
 ): { overlapping: boolean; mtv?: { x: number; y: number; depth: number } } {
   const endpoints = getCapsuleEndpoints(x, y, rotation, capsule);
   
-  // Sample MORE points along capsule for better coverage
-  const samplePoints: Array<{ x: number; y: number; radius: number }> = [];
+  // Build sample points for collision
+  // WALLS: Only use center point for now (simplified)
+  // CHARACTERS: Use full capsule for proper collision with tower etc.
   
-  // Add samples along the capsule body (5 points for better coverage)
+  const capsulePoints: Array<{ x: number; y: number; radius: number }> = [];
+  
+  // Add samples along the capsule body (for character collision)
   const numBodySamples = 5;
   for (let i = 0; i < numBodySamples; i++) {
     const t = i / (numBodySamples - 1);
-    samplePoints.push({
+    capsulePoints.push({
       x: endpoints.start.x + (endpoints.end.x - endpoints.start.x) * t,
       y: endpoints.start.y + (endpoints.end.y - endpoints.start.y) * t,
       radius: capsule.radius
@@ -356,38 +359,39 @@ function checkCapsuleOverlap(
   
   // Add head sphere if present
   if (endpoints.head && capsule.headRadius) {
-    samplePoints.push({ ...endpoints.head, radius: capsule.headRadius });
+    capsulePoints.push({ ...endpoints.head, radius: capsule.headRadius });
   }
   
   let totalMtvX = 0;
   let totalMtvY = 0;
   let maxDepth = 0;
   
-  for (const point of samplePoints) {
-    // Check wall collision
-    const wallPen = getWallPenetrationForPoint(maze, point.x, point.y, point.radius);
-    if (wallPen) {
-      totalMtvX += wallPen.x;
-      totalMtvY += wallPen.y;
-      if (wallPen.depth > maxDepth) maxDepth = wallPen.depth;
-    }
+  // WALL COLLISION: Use center point only (simplified for now)
+  const centerRadius = capsule.radius;
+  const wallPen = getWallPenetrationForPoint(maze, x, y, centerRadius);
+  if (wallPen) {
+    totalMtvX += wallPen.x;
+    totalMtvY += wallPen.y;
+    if (wallPen.depth > maxDepth) maxDepth = wallPen.depth;
+  }
+  
+  // ROCK COLLISION: Use center point only
+  for (const rock of rocks) {
+    const dx = x - rock.x;
+    const dy = y - rock.z;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const minDist = centerRadius + rock.radius;
     
-    // Check rock collision
-    for (const rock of rocks) {
-      const dx = point.x - rock.x;
-      const dy = point.y - rock.z;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const minDist = point.radius + rock.radius;
-      
-      if (dist < minDist && dist > 0.001) {
-        const depth = minDist - dist;
-        if (depth > maxDepth) maxDepth = depth;
-        totalMtvX += (dx / dist) * depth;
-        totalMtvY += (dy / dist) * depth;
-      }
+    if (dist < minDist && dist > 0.001) {
+      const depth = minDist - dist;
+      if (depth > maxDepth) maxDepth = depth;
+      totalMtvX += (dx / dist) * depth;
+      totalMtvY += (dy / dist) * depth;
     }
-    
-    // Check character collision (stations, other animals)
+  }
+  
+  // CHARACTER COLLISION: Use full capsule (all points)
+  for (const point of capsulePoints) {
     for (const char of characters) {
       const charX = char.x + 0.5;
       const charZ = char.y + 0.5;
