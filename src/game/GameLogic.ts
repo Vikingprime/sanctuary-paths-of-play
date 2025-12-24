@@ -229,14 +229,19 @@ export function checkCharacterCollision(
  * Get animal-specific collision offsets
  * Pig has shorter snout at ground level, cow has tall horns, bird is small
  */
-function getAnimalCollisionOffsets(animalType?: AnimalType): { head: number; tail: number; pointRadius: number } {
+function getAnimalCollisionOffsets(animalType?: AnimalType): { 
+  head: number; 
+  tail: number; 
+  pointRadius: number;
+  hornWidth?: number; // For cow - distance horns extend sideways from head
+} {
   switch (animalType) {
     case 'pig':
       // Pig's snout extends forward - keep small gap from characters
       return { head: 0.22, tail: 0.20, pointRadius: 0.10 };
     case 'cow':
-      // Cow has horns that extend forward more
-      return { head: 0.42, tail: 0.35, pointRadius: 0.12 };
+      // Cow has horns that extend forward AND sideways
+      return { head: 0.35, tail: 0.35, pointRadius: 0.12, hornWidth: 0.25 };
     case 'bird':
       // Chicken - larger negative head offset allows beak to get much closer
       return { head: -0.35, tail: 0.001, pointRadius: 0.001 };
@@ -246,7 +251,7 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): { head: number; tai
 }
 
 /**
- * Check character collision using multiple sample points (head, center, tail)
+ * Check character collision using multiple sample points (head, center, tail, and horns for cow)
  * This accounts for the animal model extending beyond center point
  * @param useRotationRadius - if true, use smaller rotation radius for collision checks
  */
@@ -268,10 +273,31 @@ export function checkCharacterCollisionMultiPoint(
   const tailX = x - Math.sin(rotation) * offsets.tail;
   const tailY = y + Math.cos(rotation) * offsets.tail;
   
-  // Check all three points
-  return checkCharacterCollision(x, y, characters, offsets.pointRadius, useRotationRadius) ||
-         checkCharacterCollision(headX, headY, characters, offsets.pointRadius, useRotationRadius) ||
-         checkCharacterCollision(tailX, tailY, characters, offsets.pointRadius, useRotationRadius);
+  // Check center, head, tail
+  if (checkCharacterCollision(x, y, characters, offsets.pointRadius, useRotationRadius) ||
+      checkCharacterCollision(headX, headY, characters, offsets.pointRadius, useRotationRadius) ||
+      checkCharacterCollision(tailX, tailY, characters, offsets.pointRadius, useRotationRadius)) {
+    return true;
+  }
+  
+  // For cow, also check horn positions (left and right of head)
+  if (offsets.hornWidth) {
+    // Horn positions are perpendicular to facing direction
+    const perpX = Math.cos(rotation); // Perpendicular direction
+    const perpY = Math.sin(rotation);
+    
+    const leftHornX = headX - perpX * offsets.hornWidth;
+    const leftHornY = headY - perpY * offsets.hornWidth;
+    const rightHornX = headX + perpX * offsets.hornWidth;
+    const rightHornY = headY + perpY * offsets.hornWidth;
+    
+    if (checkCharacterCollision(leftHornX, leftHornY, characters, offsets.pointRadius, useRotationRadius) ||
+        checkCharacterCollision(rightHornX, rightHornY, characters, offsets.pointRadius, useRotationRadius)) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 // ============================================
