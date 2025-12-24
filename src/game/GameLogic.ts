@@ -486,7 +486,17 @@ export function calculateMovement(
         const moveLen = Math.sqrt(desiredMoveX * desiredMoveX + desiredMoveY * desiredMoveY);
         
         // Choose the tangent that aligns better with desired movement, but use FULL speed
-        if (Math.abs(dot1) >= Math.abs(dot2) && Math.abs(dot1) > 0.001) {
+        // When hitting head-on (both dots near zero), pick consistent direction based on position
+        if (Math.abs(dot1) < 0.01 && Math.abs(dot2) < 0.01) {
+          // Head-on collision - pick direction based on which side of character we're on
+          // Use cross product to determine consistent side
+          const cross = desiredMoveX * toPlayerY - desiredMoveY * toPlayerX;
+          if (cross >= 0) {
+            return { slideX: tangent1X * moveLen, slideY: tangent1Y * moveLen };
+          } else {
+            return { slideX: tangent2X * moveLen, slideY: tangent2Y * moveLen };
+          }
+        } else if (Math.abs(dot1) >= Math.abs(dot2)) {
           const sign = dot1 > 0 ? 1 : -1;
           return { slideX: tangent1X * moveLen * sign, slideY: tangent1Y * moveLen * sign };
         } else if (Math.abs(dot2) > 0.001) {
