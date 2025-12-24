@@ -397,7 +397,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   // Bird/Chicken uses GLB model
   // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
   const CAPSULE_START = -0.05;
-  const CAPSULE_END = 0.05;
+  const CAPSULE_END = 0.18;  // Extended forward to match GameLogic.ts
   const CAPSULE_RADIUS = 0.08;
   const DEBUG_Y = 0.2;
   
