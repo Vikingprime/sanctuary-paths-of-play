@@ -5,6 +5,7 @@ import { SaveData } from '@/types/save';
 import { Button } from '@/components/ui/button';
 import { cn, formatTime } from '@/lib/utils';
 import { Lock, Pencil } from 'lucide-react';
+import { HowToPlayPanel } from './HowToPlayPanel';
 
 interface LevelSelectProps {
   mazes: Maze[];
@@ -115,6 +116,12 @@ export const LevelSelect = ({
         <p className="text-muted-foreground mb-4">
           Navigate through the cornfield and find the exit!
         </p>
+        
+        {/* How to Play Panel */}
+        <div className="max-w-md mx-auto mb-4">
+          <HowToPlayPanel />
+        </div>
+        
         <Button variant="ghost" onClick={onBack} className="mb-2">
           ← Back to Animals
         </Button>
