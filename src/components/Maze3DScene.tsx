@@ -721,6 +721,7 @@ interface CharacterRendererProps {
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive: boolean;
   isGoalMarker?: boolean; // If true, renders invisible collision trigger
+  alwaysFacePlayer?: boolean; // If true, character always faces player even outside dialogue
 }
 
 const CharacterRenderer = ({
@@ -730,6 +731,7 @@ const CharacterRenderer = ({
   playerStateRef,
   isDialogueActive,
   isGoalMarker = false,
+  alwaysFacePlayer = false,
 }: CharacterRendererProps) => {
   const groupRef = useRef<Group>(null);
   const mixerRef = useRef<AnimationMixer | null>(null);
@@ -782,16 +784,18 @@ const CharacterRenderer = ({
   
   useFrame((state, delta) => {
     if (groupRef.current && playerStateRef) {
-      // Always face the player (same as main character logic)
-      const charX = position.x + 0.5;
-      const charZ = position.y + 0.5;
-      const playerX = playerStateRef.current.x;
-      const playerZ = playerStateRef.current.y;
-      
-      const dx = playerX - charX;
-      const dz = playerZ - charZ;
-      const angle = Math.atan2(dx, dz);
-      groupRef.current.rotation.y = angle;
+      // Only face player during dialogue OR if alwaysFacePlayer is set
+      if (isDialogueActive || alwaysFacePlayer) {
+        const charX = position.x + 0.5;
+        const charZ = position.y + 0.5;
+        const playerX = playerStateRef.current.x;
+        const playerZ = playerStateRef.current.y;
+        
+        const dx = playerX - charX;
+        const dz = playerZ - charZ;
+        const angle = Math.atan2(dx, dz);
+        groupRef.current.rotation.y = angle;
+      }
     }
     
     // Update animation mixer
@@ -851,6 +855,7 @@ const PlacedCharacter = ({
       animation={character.animation}
       playerStateRef={playerStateRef}
       isDialogueActive={isDialogueActive}
+      alwaysFacePlayer={character.alwaysFacePlayer}
     />
   );
 };
