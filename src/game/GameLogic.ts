@@ -410,34 +410,39 @@ export function calculateMovement(
     checkCollision(maze, x, y) || 
     checkRockCollision(x, y, rocks);
   
-  // Helper for character collision (uses multi-point: head, center, tail)
-  // But allow movement if it increases distance from the character (escape when stuck)
+  // SIMPLE character collision - just check if any collision point overlaps
   const hasCharacterCollision = (x: number, y: number, rot: number) => {
-    // First check if new position collides
-    const wouldCollide = checkCharacterCollisionMultiPoint(x, y, rot, characters, animalType);
-    if (!wouldCollide) return false;
-    
-    // If we would collide, check if we're already colliding (stuck)
-    const alreadyColliding = checkCharacterCollisionMultiPoint(
-      currentState.x, currentState.y, currentState.rotation, characters, animalType
-    );
-    
-    // If already stuck, allow movement that increases distance from any character
-    if (alreadyColliding) {
-      for (const char of characters) {
-        const charX = char.x + 0.5;
-        const charZ = char.y + 0.5;
-        const currentDist = Math.sqrt((currentState.x - charX) ** 2 + (currentState.y - charZ) ** 2);
-        const newDist = Math.sqrt((x - charX) ** 2 + (y - charZ) ** 2);
-        // If moving away from this character, allow it
-        if (newDist > currentDist + 0.01) {
-          return false; // Allow this movement
-        }
+    return checkCharacterCollisionMultiPoint(x, y, rot, characters, animalType);
+  };
+  
+  // Check if position is inside a character collision zone and get push-out vector
+  const getPenetration = (px: number, py: number): { pushX: number; pushY: number } | null => {
+    for (const char of characters) {
+      const charX = char.x + 0.5;
+      const charZ = char.y + 0.5;
+      const dx = px - charX;
+      const dy = py - charZ;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minDist = (char.radius || 0.4) + 0.3; // Safe distance from center
+      if (dist < minDist && dist > 0.01) {
+        // We're inside - calculate push direction
+        const pushStrength = (minDist - dist) + 0.05; // Push out completely + buffer
+        return { pushX: (dx / dist) * pushStrength, pushY: (dy / dist) * pushStrength };
       }
     }
-    
-    return true; // Block movement
+    return null;
   };
+  
+  // FIRST: If we're currently penetrating, push us out immediately
+  const penetration = getPenetration(currentState.x, currentState.y);
+  if (penetration) {
+    const pushedX = currentState.x + penetration.pushX;
+    const pushedY = currentState.y + penetration.pushY;
+    if (!hasWallOrRockCollision(pushedX, pushedY)) {
+      // Push out and return - no other movement this frame
+      return { x: pushedX, y: pushedY, rotation: newRotation };
+    }
+  }
   
   // Combined collision check
   const hasCollision = (x: number, y: number, rot: number) => 
@@ -512,24 +517,6 @@ export function calculateMovement(
     return null;
   };
 
-  // Helper for push away (when inside collision zone)
-  const getCharacterPushVector = (x: number, y: number): { pushX: number; pushY: number } | null => {
-    for (const char of characters) {
-      const charX = char.x + 0.5;
-      const charZ = char.y + 0.5;
-      const dx = x - charX;
-      const dy = y - charZ;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const minDist = (char.radius || 0.4) + 0.15; // Minimum safe distance
-      if (dist < minDist && dist > 0.01) {
-        // Strong push proportional to how deep inside we are
-        const penetration = minDist - dist;
-        const pushStrength = Math.max(0.1, penetration * 2) * deltaTime * 60;
-        return { pushX: (dx / dist) * pushStrength, pushY: (dy / dist) * pushStrength };
-      }
-    }
-    return null;
-  };
   
   let newX = currentState.x + moveX;
   let newY = currentState.y + moveY;
@@ -597,17 +584,12 @@ export function calculateMovement(
     }
   }
   
-  // CRITICAL: Always push away from characters if inside collision zone
-  // This prevents phasing through even with rapid movement
-  const pushVector = getCharacterPushVector(newX, newY);
-  if (pushVector) {
-    const pushedX = newX + pushVector.pushX;
-    const pushedY = newY + pushVector.pushY;
-    // Only apply push if it doesn't put us in a wall
-    if (!hasWallOrRockCollision(pushedX, pushedY)) {
-      newX = pushedX;
-      newY = pushedY;
-    }
+  // BACKUP: Check if final position is still penetrating (shouldn't happen but safety net)
+  const finalPenetration = getPenetration(newX, newY);
+  if (finalPenetration) {
+    // We're still inside after movement - revert to current position
+    newX = currentState.x;
+    newY = currentState.y;
   }
 
   return { x: newX, y: newY, rotation: newRotation };
