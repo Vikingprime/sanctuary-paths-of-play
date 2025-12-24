@@ -233,153 +233,206 @@ export function checkCharacterCollision(
 }
 
 /**
- * Get animal-specific collision offsets
- * Pig has shorter snout at ground level, cow has tall horns, bird is small
+ * CAPSULE COLLIDER - Simplified collision shape for cow
+ * Replaces multiple spheres with a single capsule (two endpoints + radius)
  */
-function getAnimalCollisionOffsets(animalType?: AnimalType): { 
-  head: number; 
-  tail: number; 
-  pointRadius: number;
-  neckLength?: number; // For cow - distance from center to neck checkpoint
-  upperNeckLength?: number; // For cow - upper neck checkpoint
-  spinePoints?: number[]; // Additional spine collision points (offset from center)
-} {
+export interface CapsuleCollider {
+  // Capsule defined by two endpoints and a radius
+  startOffset: number;  // Offset from center toward tail (negative)
+  endOffset: number;    // Offset from center toward head (positive)
+  radius: number;       // Capsule radius
+  // Optional head sphere for extra forward collision
+  headOffset?: number;
+  headRadius?: number;
+}
+
+/**
+ * Get capsule collider for animal type
+ */
+function getAnimalCapsule(animalType?: AnimalType): CapsuleCollider {
   switch (animalType) {
-    case 'pig':
-      // Pig's snout extends forward - keep small gap from characters
-      return { head: 0.22, tail: 0.20, pointRadius: 0.10 };
     case 'cow':
-      // Cow collision - spine points from head to tail
-      // Increased rear radii to prevent getting trapped in walls
-      return { 
-        head: 0.95,
-        tail: 0.45,
-        pointRadius: 0.15, // Increased from 0.12 to cover gaps better
-        neckLength: 0.50,
-        upperNeckLength: 0.72,
-        // Spine points between center and neck/tail
-        spinePoints: [-0.22, 0.25] // Negative is toward tail, positive toward head
+      return {
+        startOffset: -0.40,  // Tail end
+        endOffset: 0.85,     // Head/neck end  
+        radius: 0.18,        // Body radius
+        headOffset: 0.95,    // Extra head sphere
+        headRadius: 0.15
+      };
+    case 'pig':
+      return {
+        startOffset: -0.18,
+        endOffset: 0.20,
+        radius: 0.12
       };
     case 'bird':
-      // Chicken - larger negative head offset allows beak to get much closer
-      return { head: -0.35, tail: 0.001, pointRadius: 0.001 };
+      return {
+        startOffset: -0.05,
+        endOffset: 0.05,
+        radius: 0.08
+      };
     default:
-      return { head: 0.30, tail: 0.25, pointRadius: 0.10 };
+      return {
+        startOffset: -0.20,
+        endOffset: 0.25,
+        radius: 0.12
+      };
   }
 }
 
 /**
- * Check character collision using multiple sample points (head, center, tail, and horns for cow)
- * This accounts for the animal model extending beyond center point
- * @param useRotationRadius - if true, use smaller rotation radius for collision checks
+ * Get capsule endpoints in world space
  */
-export function checkCharacterCollisionMultiPoint(
+function getCapsuleEndpoints(
+  x: number, 
+  y: number, 
+  rotation: number, 
+  capsule: CapsuleCollider
+): { start: { x: number; y: number }; end: { x: number; y: number }; head?: { x: number; y: number } } {
+  const sinR = Math.sin(rotation);
+  const cosR = Math.cos(rotation);
+  
+  return {
+    start: {
+      x: x + sinR * capsule.startOffset,
+      y: y - cosR * capsule.startOffset
+    },
+    end: {
+      x: x + sinR * capsule.endOffset,
+      y: y - cosR * capsule.endOffset
+    },
+    head: capsule.headOffset ? {
+      x: x + sinR * capsule.headOffset,
+      y: y - cosR * capsule.headOffset
+    } : undefined
+  };
+}
+
+// ============================================
+// COLLISION-SAFE MOTION SOLVER
+// ============================================
+
+// Solver constants
+const SKIN_WIDTH = 0.01;           // Small gap to prevent touching
+const ROTATION_STEP = 0.035;       // ~2 degrees per step for rotation sweep
+const SWEEP_STEPS = 8;             // Binary search steps for swept collision
+const MAX_DEPENETRATION = 0.02;    // Maximum push per frame
+const OVERLAP_EPSILON = 0.005;     // Overlap threshold
+
+// Persistent state for unstuck
+let stuckTimer = 0;
+let unstuckCooldown = 0;
+let lastSafeTransform = { x: 0, y: 0, rotation: 0 };
+
+/**
+ * Check if a capsule overlaps any static collider (walls, rocks, characters)
+ * Returns overlap info or null if no overlap
+ */
+function checkCapsuleOverlap(
   x: number,
   y: number,
   rotation: number,
+  capsule: CapsuleCollider,
+  maze: Maze,
+  rocks: RockPosition[],
   characters: CharacterPosition[],
-  animalType?: AnimalType,
-  useRotationRadius: boolean = false
-): boolean {
-  const offsets = getAnimalCollisionOffsets(animalType);
+  animalType?: AnimalType
+): { overlapping: boolean; mtv?: { x: number; y: number; depth: number } } {
+  const endpoints = getCapsuleEndpoints(x, y, rotation, capsule);
   
-  // Calculate head position (forward from center based on rotation)
-  const headX = x + Math.sin(rotation) * offsets.head;
-  const headY = y - Math.cos(rotation) * offsets.head;
+  // Sample points along capsule
+  const samplePoints = [
+    { ...endpoints.start, radius: capsule.radius },
+    { x: (endpoints.start.x + endpoints.end.x) / 2, y: (endpoints.start.y + endpoints.end.y) / 2, radius: capsule.radius },
+    { ...endpoints.end, radius: capsule.radius }
+  ];
   
-  // Calculate tail position (backward from center)
-  const tailX = x - Math.sin(rotation) * offsets.tail;
-  const tailY = y + Math.cos(rotation) * offsets.tail;
-  
-  // Check center, head, tail with debug labels
-  if (checkCharacterCollision(x, y, characters, offsets.pointRadius, useRotationRadius, 'CENTER') ||
-      checkCharacterCollision(headX, headY, characters, offsets.pointRadius, useRotationRadius, 'HEAD') ||
-      checkCharacterCollision(tailX, tailY, characters, offsets.pointRadius, useRotationRadius, 'TAIL')) {
-    return true;
+  // Add head sphere if present
+  if (endpoints.head && capsule.headRadius) {
+    samplePoints.push({ ...endpoints.head, radius: capsule.headRadius });
   }
   
-  // For cow, check neck positions (lower and upper)
-  if (offsets.neckLength) {
-    // Lower neck position
-    const neckX = x + Math.sin(rotation) * offsets.neckLength;
-    const neckY = y - Math.cos(rotation) * offsets.neckLength;
-    
-    if (checkCharacterCollision(neckX, neckY, characters, offsets.pointRadius, useRotationRadius)) {
-      return true;
+  let totalMtvX = 0;
+  let totalMtvY = 0;
+  let maxDepth = 0;
+  
+  for (const point of samplePoints) {
+    // Check wall collision
+    const wallPen = getWallPenetrationForPoint(maze, point.x, point.y, point.radius);
+    if (wallPen) {
+      totalMtvX += wallPen.x;
+      totalMtvY += wallPen.y;
+      if (wallPen.depth > maxDepth) maxDepth = wallPen.depth;
     }
-  }
-  
-  // Upper neck position (higher on neck toward head)
-  if (offsets.upperNeckLength) {
-    const upperNeckX = x + Math.sin(rotation) * offsets.upperNeckLength;
-    const upperNeckY = y - Math.cos(rotation) * offsets.upperNeckLength;
     
-    if (checkCharacterCollision(upperNeckX, upperNeckY, characters, offsets.pointRadius, useRotationRadius)) {
-      return true;
+    // Check rock collision
+    for (const rock of rocks) {
+      const dx = point.x - rock.x;
+      const dy = point.y - rock.z;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minDist = point.radius + rock.radius;
+      
+      if (dist < minDist && dist > 0.001) {
+        const depth = minDist - dist;
+        if (depth > maxDepth) maxDepth = depth;
+        totalMtvX += (dx / dist) * depth;
+        totalMtvY += (dy / dist) * depth;
+      }
     }
-  }
-  
-  // Check additional spine points
-  if (offsets.spinePoints) {
-    for (const spineOffset of offsets.spinePoints) {
-      const spineX = x + Math.sin(rotation) * spineOffset;
-      const spineY = y - Math.cos(rotation) * spineOffset;
-      if (checkCharacterCollision(spineX, spineY, characters, offsets.pointRadius, useRotationRadius)) {
-        return true;
+    
+    // Check character collision (stations, other animals)
+    for (const char of characters) {
+      const charX = char.x + 0.5;
+      const charZ = char.y + 0.5;
+      const dx = point.x - charX;
+      const dy = point.y - charZ;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minDist = point.radius + char.radius;
+      
+      if (dist < minDist && dist > 0.001) {
+        const depth = minDist - dist;
+        if (depth > maxDepth) maxDepth = depth;
+        totalMtvX += (dx / dist) * depth;
+        totalMtvY += (dy / dist) * depth;
       }
     }
   }
   
-  return false;
+  if (maxDepth > OVERLAP_EPSILON) {
+    return { 
+      overlapping: true, 
+      mtv: { x: totalMtvX, y: totalMtvY, depth: maxDepth } 
+    };
+  }
+  
+  return { overlapping: false };
 }
 
-// ============================================
-// MOVEMENT
-// ============================================
-
-// Unstuck failsafe state (module-level for persistence across frames)
-let stuckTimer = 0;
-let unstuckCooldown = 0;
-let lastStablePosition = { x: 0, y: 0 };
-
-// Constants for stable collision
-const STUCK_THRESHOLD = 0.5;        // seconds before unstuck triggers
-const UNSTUCK_COOLDOWN = 1.5;       // seconds between unstuck attempts  
-const MOVEMENT_EPSILON = 0.001;     // movements smaller than this are treated as zero
-const DEPENETRATION_MAX = 0.03;     // max depenetration per frame (prevents overshoot)
-const STUCK_DISTANCE_THRESHOLD = 0.005; // minimum movement to not be considered stuck
-
 /**
- * Get the nearest wall collision point and compute push-out vector
- * Returns clamped, monotonic depenetration (small steps only)
+ * Get wall penetration for a single point
  */
-function getWallPenetration(
+function getWallPenetrationForPoint(
   maze: Maze,
   x: number,
   y: number,
-  radius: number = GameConfig.PLAYER_RADIUS
-): { penetration: { x: number; y: number }; depth: number } | null {
+  radius: number
+): { x: number; y: number; depth: number } | null {
   const gridX = Math.floor(x);
   const gridY = Math.floor(y);
   
-  let totalPenX = 0;
-  let totalPenY = 0;
+  let totalX = 0;
+  let totalY = 0;
   let maxDepth = 0;
   
-  // Check all 8 neighboring cells + current
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
       const checkX = gridX + dx;
       const checkY = gridY + dy;
       
       if (isWall(maze, checkX, checkY)) {
-        const boxMinX = checkX;
-        const boxMaxX = checkX + 1;
-        const boxMinY = checkY;
-        const boxMaxY = checkY + 1;
-        
-        const nearestX = Math.max(boxMinX, Math.min(boxMaxX, x));
-        const nearestY = Math.max(boxMinY, Math.min(boxMaxY, y));
+        // Find nearest point on wall box
+        const nearestX = Math.max(checkX, Math.min(checkX + 1, x));
+        const nearestY = Math.max(checkY, Math.min(checkY + 1, y));
         
         const distX = x - nearestX;
         const distY = y - nearestY;
@@ -388,21 +441,18 @@ function getWallPenetration(
         if (dist < radius && dist > 0.001) {
           const depth = radius - dist;
           if (depth > maxDepth) maxDepth = depth;
-          
-          const pushX = distX / dist;
-          const pushY = distY / dist;
-          totalPenX += pushX * depth;
-          totalPenY += pushY * depth;
+          totalX += (distX / dist) * depth;
+          totalY += (distY / dist) * depth;
         } else if (dist < 0.001) {
-          // Center inside wall
+          // Inside wall cell
           const pushX = x - (checkX + 0.5);
           const pushY = y - (checkY + 0.5);
           const pushLen = Math.sqrt(pushX * pushX + pushY * pushY);
           if (pushLen > 0.001) {
-            const depth = radius * 0.5;
+            const depth = radius;
             if (depth > maxDepth) maxDepth = depth;
-            totalPenX += (pushX / pushLen) * depth;
-            totalPenY += (pushY / pushLen) * depth;
+            totalX += (pushX / pushLen) * depth;
+            totalY += (pushY / pushLen) * depth;
           }
         }
       }
@@ -410,35 +460,190 @@ function getWallPenetration(
   }
   
   if (maxDepth > 0) {
-    return { penetration: { x: totalPenX, y: totalPenY }, depth: maxDepth };
+    return { x: totalX, y: totalY, depth: maxDepth };
   }
   return null;
 }
 
 /**
- * Get sliding vector: project movement onto surface tangent
+ * Swept capsule translation - binary search to find safe position
+ * Returns the furthest safe position along the movement vector
  */
-function getSlideVector(
+function sweepTranslation(
+  startX: number,
+  startY: number,
   moveX: number,
   moveY: number,
-  normalX: number,
-  normalY: number
-): { x: number; y: number } {
-  const tangentX = -normalY;
-  const tangentY = normalX;
-  const dot = moveX * tangentX + moveY * tangentY;
-  return { x: tangentX * dot, y: tangentY * dot };
+  rotation: number,
+  capsule: CapsuleCollider,
+  maze: Maze,
+  rocks: RockPosition[],
+  characters: CharacterPosition[],
+  animalType?: AnimalType
+): { x: number; y: number; blocked: boolean; normal?: { x: number; y: number } } {
+  const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
+  if (moveLen < 0.0001) {
+    return { x: startX, y: startY, blocked: false };
+  }
+  
+  // Normalize movement
+  const dirX = moveX / moveLen;
+  const dirY = moveY / moveLen;
+  
+  // Check if end position is clear
+  const endX = startX + moveX;
+  const endY = startY + moveY;
+  const endOverlap = checkCapsuleOverlap(endX, endY, rotation, capsule, maze, rocks, characters, animalType);
+  
+  if (!endOverlap.overlapping) {
+    // Full movement is safe
+    return { x: endX, y: endY, blocked: false };
+  }
+  
+  // Binary search to find safe distance
+  let lo = 0;
+  let hi = moveLen;
+  let safeX = startX;
+  let safeY = startY;
+  
+  for (let i = 0; i < SWEEP_STEPS; i++) {
+    const mid = (lo + hi) / 2;
+    const testX = startX + dirX * mid;
+    const testY = startY + dirY * mid;
+    
+    const overlap = checkCapsuleOverlap(testX, testY, rotation, capsule, maze, rocks, characters, animalType);
+    
+    if (overlap.overlapping) {
+      hi = mid;
+    } else {
+      lo = mid;
+      safeX = testX;
+      safeY = testY;
+    }
+  }
+  
+  // Apply skin width (back off slightly from collision)
+  if (lo > SKIN_WIDTH) {
+    safeX = startX + dirX * (lo - SKIN_WIDTH);
+    safeY = startY + dirY * (lo - SKIN_WIDTH);
+  }
+  
+  // Compute approximate normal for sliding
+  const normalX = endOverlap.mtv ? endOverlap.mtv.x : -dirX;
+  const normalY = endOverlap.mtv ? endOverlap.mtv.y : -dirY;
+  const normalLen = Math.sqrt(normalX * normalX + normalY * normalY);
+  
+  return { 
+    x: safeX, 
+    y: safeY, 
+    blocked: true,
+    normal: normalLen > 0.001 ? { x: normalX / normalLen, y: normalY / normalLen } : undefined
+  };
 }
 
 /**
- * Calculate new player position based on input
+ * Incremental rotation sweep - apply rotation in small steps
+ * Returns the maximum safe rotation
+ */
+function sweepRotation(
+  x: number,
+  y: number,
+  currentRotation: number,
+  targetRotation: number,
+  capsule: CapsuleCollider,
+  maze: Maze,
+  rocks: RockPosition[],
+  characters: CharacterPosition[],
+  animalType?: AnimalType
+): number {
+  // Normalize rotation difference
+  let rotDiff = targetRotation - currentRotation;
+  while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+  while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+  
+  if (Math.abs(rotDiff) < 0.001) {
+    return currentRotation;
+  }
+  
+  const rotDir = Math.sign(rotDiff);
+  const totalRotation = Math.abs(rotDiff);
+  const steps = Math.ceil(totalRotation / ROTATION_STEP);
+  
+  let safeRotation = currentRotation;
+  
+  for (let i = 1; i <= steps; i++) {
+    const t = Math.min(i * ROTATION_STEP, totalRotation);
+    const testRotation = currentRotation + rotDir * t;
+    
+    const overlap = checkCapsuleOverlap(x, y, testRotation, capsule, maze, rocks, characters, animalType);
+    
+    if (overlap.overlapping) {
+      // This step causes overlap - stop at previous safe rotation
+      break;
+    }
+    
+    safeRotation = testRotation;
+  }
+  
+  // Normalize result
+  return ((safeRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+}
+
+/**
+ * Resolve overlap by pushing outward (MTV resolution)
+ * Only pushes outward, never through obstacles
+ */
+function resolveOverlap(
+  x: number,
+  y: number,
+  rotation: number,
+  capsule: CapsuleCollider,
+  maze: Maze,
+  rocks: RockPosition[],
+  characters: CharacterPosition[],
+  animalType?: AnimalType
+): { x: number; y: number } {
+  const overlap = checkCapsuleOverlap(x, y, rotation, capsule, maze, rocks, characters, animalType);
+  
+  if (!overlap.overlapping || !overlap.mtv) {
+    return { x, y };
+  }
+  
+  const mtvLen = Math.sqrt(overlap.mtv.x * overlap.mtv.x + overlap.mtv.y * overlap.mtv.y);
+  if (mtvLen < 0.001) {
+    return { x, y };
+  }
+  
+  // Clamp push amount
+  const pushAmount = Math.min(overlap.mtv.depth, MAX_DEPENETRATION);
+  const pushX = (overlap.mtv.x / mtvLen) * pushAmount;
+  const pushY = (overlap.mtv.y / mtvLen) * pushAmount;
+  
+  // Verify push reduces overlap (monotonic)
+  const newX = x + pushX;
+  const newY = y + pushY;
+  const newOverlap = checkCapsuleOverlap(newX, newY, rotation, capsule, maze, rocks, characters, animalType);
+  
+  if (!newOverlap.overlapping || (newOverlap.mtv && newOverlap.mtv.depth < overlap.mtv.depth)) {
+    return { x: newX, y: newY };
+  }
+  
+  // Push made things worse - don't apply
+  return { x, y };
+}
+
+/**
+ * MAIN MOVEMENT FUNCTION - Collision-Safe Motion Solver
  * 
- * STABLE COLLISION SYSTEM:
- * - No per-frame backward impulses
- * - Stop or slide when blocked (never reverse unless player inputs backward)
- * - Small, clamped depenetration (monotonic, no overshoot)
- * - Unstuck only as last resort with cooldown
- * - Hysteresis: tiny movements treated as zero
+ * All motion goes through this solver. Guarantees:
+ * 1. No direct transform moves - all via swept/validated motion
+ * 2. Translation is swept with binary search
+ * 3. Rotation is applied in small incremental steps
+ * 4. Depenetration only pushes outward (monotonic)
+ * 5. Post-step validation with revert if still overlapping
+ * 
+ * Files: src/game/GameLogic.ts
+ * Function: calculateMovement
  */
 export function calculateMovement(
   maze: Maze,
@@ -455,6 +660,8 @@ export function calculateMovement(
     unstuckCooldown -= deltaTime;
   }
 
+  const capsule = getAnimalCapsule(animalType);
+  
   const moveSpeed = speedBoostActive
     ? GameConfig.BOOSTED_MOVE_SPEED
     : GameConfig.BASE_MOVE_SPEED;
@@ -463,88 +670,59 @@ export function calculateMovement(
     ? GameConfig.ROTATION_SPEED_BIRD 
     : GameConfig.ROTATION_SPEED;
 
-  // Calculate rotation
+  // ========================================
+  // STEP 1: RESOLVE ANY EXISTING OVERLAP
+  // Before processing input, ensure we start non-overlapping
+  // ========================================
+  let resolved = resolveOverlap(
+    currentState.x, 
+    currentState.y, 
+    currentState.rotation, 
+    capsule, 
+    maze, 
+    rocks, 
+    characters, 
+    animalType
+  );
+  
+  let newX = resolved.x;
+  let newY = resolved.y;
+  let newRotation = currentState.rotation;
+
+  // ========================================
+  // STEP 2: SWEPT ROTATION
+  // Apply rotation in small increments, stop if overlap
+  // ========================================
   const isMoving = input.forward || input.backward;
   const baseMultiplier = isMoving ? 0.5 : 1.0;
   const intensity = input.rotationIntensity ?? 1.0;
   const rotationMultiplier = baseMultiplier * intensity;
   
-  let desiredRotation = currentState.rotation;
+  let desiredRotation = newRotation;
   if (input.rotateLeft) {
     desiredRotation -= rotationSpeed * rotationMultiplier * deltaTime;
   }
   if (input.rotateRight) {
     desiredRotation += rotationSpeed * rotationMultiplier * deltaTime;
   }
-  desiredRotation = ((desiredRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   
-  // Collision helpers
-  const hasWallOrRockCollision = (x: number, y: number) => 
-    checkCollision(maze, x, y) || checkRockCollision(x, y, rocks);
-  
-  const hasCharacterCollision = (x: number, y: number, rot: number) => 
-    checkCharacterCollisionMultiPoint(x, y, rot, characters, animalType);
-  
-  const offsets = getAnimalCollisionOffsets(animalType);
-  
-  // Get total penetration depth for all collision points
-  const getTotalPenetration = (x: number, y: number, rot: number): { x: number; y: number; depth: number } => {
-    const points = getCollisionPointsForAnimal(x, y, rot, offsets);
-    let totalX = 0, totalY = 0, maxDepth = 0;
-    
-    for (const point of points) {
-      const pen = getWallPenetration(maze, point.x, point.y, point.radius);
-      if (pen) {
-        totalX += pen.penetration.x;
-        totalY += pen.penetration.y;
-        if (pen.depth > maxDepth) maxDepth = pen.depth;
-      }
-    }
-    return { x: totalX, y: totalY, depth: maxDepth };
-  };
-  
-  // Check if ANY collision point would hit a wall OR character
-  // Must check all collision spheres, not just center point
-  const hasAnyCollisionPointBlocked = (x: number, y: number, rot: number): boolean => {
-    // First check center (fast path)
-    if (hasWallOrRockCollision(x, y)) return true;
-    
-    // Check character collision (includes stations like the map tower)
-    if (hasCharacterCollision(x, y, rot)) return true;
-    
-    // Check all collision points against walls
-    const points = getCollisionPointsForAnimal(x, y, rot, offsets);
-    for (const point of points) {
-      // Check if this point's position is in a wall cell
-      if (checkCollision(maze, point.x, point.y, point.radius)) return true;
-      if (checkRockCollision(point.x, point.y, rocks, point.radius)) return true;
-      
-      // Also check penetration depth
-      const pen = getWallPenetration(maze, point.x, point.y, point.radius);
-      if (pen && pen.depth > 0.02) return true;
-    }
-    return false;
-  };
-  
-  // Check if rotation makes wall penetration worse
-  const currentPen = getTotalPenetration(currentState.x, currentState.y, currentState.rotation);
-  const newRotPen = getTotalPenetration(currentState.x, currentState.y, desiredRotation);
-  
-  const currentCharCollision = checkCharacterCollisionMultiPoint(
-    currentState.x, currentState.y, currentState.rotation, characters, animalType, true
+  // Sweep rotation to find safe angle
+  newRotation = sweepRotation(
+    newX, 
+    newY, 
+    newRotation, 
+    desiredRotation, 
+    capsule, 
+    maze, 
+    rocks, 
+    characters, 
+    animalType
   );
-  const newCharCollision = checkCharacterCollisionMultiPoint(
-    currentState.x, currentState.y, desiredRotation, characters, animalType, true
-  );
-  
-  // Block rotation only if it makes things strictly worse
-  const rotationMakesWorse = newRotPen.depth > currentPen.depth + 0.01;
-  const rotationMakesCharWorse = !currentCharCollision && newCharCollision;
-  const newRotation = (rotationMakesWorse || rotationMakesCharWorse) 
-    ? currentState.rotation 
-    : desiredRotation;
 
-  // Calculate intended movement vector (only from player input)
+  // ========================================
+  // STEP 3: SWEPT TRANSLATION
+  // Use binary search to find safe position along movement
+  // ========================================
   let moveX = 0;
   let moveY = 0;
 
@@ -557,190 +735,124 @@ export function calculateMovement(
     moveY += Math.cos(newRotation) * moveSpeed * deltaTime;
   }
 
-  // Apply epsilon: treat tiny movements as zero (hysteresis)
-  if (Math.abs(moveX) < MOVEMENT_EPSILON) moveX = 0;
-  if (Math.abs(moveY) < MOVEMENT_EPSILON) moveY = 0;
-
-  const hasInput = input.forward || input.backward || input.rotateLeft || input.rotateRight;
-  
-  // Start from current position
-  let newX = currentState.x;
-  let newY = currentState.y;
-  
-  // ========================================
-  // STEP 1: CLAMPED DEPENETRATION
-  // Small, monotonic push - never overshoot
-  // ========================================
-  const pen = getTotalPenetration(newX, newY, newRotation);
-  
-  if (pen.depth > 0.001) {
-    const penLen = Math.sqrt(pen.x * pen.x + pen.y * pen.y);
-    if (penLen > 0.001) {
-      // Clamp depenetration to small step (prevents bounce/overshoot)
-      const pushAmount = Math.min(pen.depth, DEPENETRATION_MAX);
-      const pushX = (pen.x / penLen) * pushAmount;
-      const pushY = (pen.y / penLen) * pushAmount;
-      
-      // Only apply if it actually reduces penetration (monotonic)
-      const testX = newX + pushX;
-      const testY = newY + pushY;
-      const testPen = getTotalPenetration(testX, testY, newRotation);
-      
-      if (testPen.depth < pen.depth) {
-        newX = testX;
-        newY = testY;
-      }
-    }
-  }
-  
-  // ========================================
-  // STEP 2: APPLY MOVEMENT (stop or slide)
-  // Use multi-point collision for ALL checks
-  // ========================================
   if (moveX !== 0 || moveY !== 0) {
-    const targetX = newX + moveX;
-    const targetY = newY + moveY;
+    const sweepResult = sweepTranslation(
+      newX, 
+      newY, 
+      moveX, 
+      moveY, 
+      newRotation, 
+      capsule, 
+      maze, 
+      rocks, 
+      characters, 
+      animalType
+    );
     
-    // Check if target is clear - must check ALL collision points!
-    const targetBlocked = hasAnyCollisionPointBlocked(targetX, targetY, newRotation);
-    
-    if (!targetBlocked) {
-      // Clear path - apply full movement
-      newX = targetX;
-      newY = targetY;
+    if (!sweepResult.blocked) {
+      // Full movement allowed
+      newX = sweepResult.x;
+      newY = sweepResult.y;
     } else {
-      // Blocked - try sliding along the wall
-      // Find which axis is blocked using multi-point check
-      const testDist = 0.05;
-      const xTestPos = { x: newX + Math.sign(moveX) * testDist, y: newY };
-      const yTestPos = { x: newX, y: newY + Math.sign(moveY) * testDist };
+      // Blocked - try to slide
+      newX = sweepResult.x;
+      newY = sweepResult.y;
       
-      const xBlocked = moveX !== 0 && hasAnyCollisionPointBlocked(xTestPos.x, xTestPos.y, newRotation);
-      const yBlocked = moveY !== 0 && hasAnyCollisionPointBlocked(yTestPos.x, yTestPos.y, newRotation);
-      
-      if (xBlocked && !yBlocked && moveY !== 0) {
-        // Slide along Y axis only
-        const slideX = newX;
-        const slideY = newY + moveY;
-        if (!hasAnyCollisionPointBlocked(slideX, slideY, newRotation)) {
-          newY = slideY;
-        }
-      } else if (yBlocked && !xBlocked && moveX !== 0) {
-        // Slide along X axis only
-        const slideX = newX + moveX;
-        const slideY = newY;
-        if (!hasAnyCollisionPointBlocked(slideX, slideY, newRotation)) {
-          newX = slideX;
+      // Attempt slide along tangent
+      if (sweepResult.normal) {
+        const remainingX = (moveX - (sweepResult.x - (newX - moveX)));
+        const remainingY = (moveY - (sweepResult.y - (newY - moveY)));
+        
+        // Project remaining onto tangent
+        const tangentX = -sweepResult.normal.y;
+        const tangentY = sweepResult.normal.x;
+        const dot = remainingX * tangentX + remainingY * tangentY;
+        const slideX = tangentX * dot * 0.8; // Slight friction
+        const slideY = tangentY * dot * 0.8;
+        
+        if (Math.abs(slideX) > 0.001 || Math.abs(slideY) > 0.001) {
+          const slideResult = sweepTranslation(
+            newX, 
+            newY, 
+            slideX, 
+            slideY, 
+            newRotation, 
+            capsule, 
+            maze, 
+            rocks, 
+            characters, 
+            animalType
+          );
+          newX = slideResult.x;
+          newY = slideResult.y;
         }
       }
-      // Both blocked or corner: stay at current position (no movement, no bounce)
     }
   }
+
+  // ========================================
+  // STEP 4: POST-STEP VALIDATION
+  // If still overlapping, revert to previous safe transform
+  // ========================================
+  const finalOverlap = checkCapsuleOverlap(newX, newY, newRotation, capsule, maze, rocks, characters, animalType);
   
-  // ========================================
-  // STEP 3: CHARACTER COLLISION
-  // ========================================
-  if (hasCharacterCollision(newX, newY, newRotation)) {
-    // Revert to current position (no bounce)
-    newX = currentState.x;
-    newY = currentState.y;
+  if (finalOverlap.overlapping) {
+    // Try one more depenetration push
+    const finalResolved = resolveOverlap(newX, newY, newRotation, capsule, maze, rocks, characters, animalType);
+    newX = finalResolved.x;
+    newY = finalResolved.y;
+    
+    // Check again
+    const stillOverlapping = checkCapsuleOverlap(newX, newY, newRotation, capsule, maze, rocks, characters, animalType);
+    
+    if (stillOverlapping.overlapping) {
+      // Revert to last known safe transform
+      newX = lastSafeTransform.x || currentState.x;
+      newY = lastSafeTransform.y || currentState.y;
+      newRotation = lastSafeTransform.rotation || currentState.rotation;
+    }
   }
-  
+
   // ========================================
-  // STEP 4: UNSTUCK FAILSAFE (with cooldown)
-  // Only triggers after 0.5s of no movement while input active
-  // Then has 1.5s cooldown before next attempt
+  // STEP 5: UNSTUCK FAILSAFE
+  // Only if truly stuck for extended period
   // ========================================
+  const hasInput = input.forward || input.backward || input.rotateLeft || input.rotateRight;
   const actualMovement = Math.sqrt(
     Math.pow(newX - currentState.x, 2) + 
     Math.pow(newY - currentState.y, 2)
   );
   
-  if (hasInput && actualMovement < STUCK_DISTANCE_THRESHOLD && unstuckCooldown <= 0) {
+  if (hasInput && actualMovement < 0.002 && unstuckCooldown <= 0) {
     stuckTimer += deltaTime;
     
-    if (stuckTimer > STUCK_THRESHOLD) {
-      // Single unstuck attempt - try to find nearest non-colliding position
-      // Try small lateral nudges (not backward - player didn't input backward!)
-      const nudgeAmount = 0.08; // Small nudge
-      const nudgeDirections = [
-        { x: Math.cos(newRotation), y: Math.sin(newRotation) },   // left
-        { x: -Math.cos(newRotation), y: -Math.sin(newRotation) }, // right
-        { x: -Math.sin(newRotation), y: Math.cos(newRotation) },  // backward (as last resort)
-      ];
+    if (stuckTimer > 0.5) {
+      // Try small nudges to escape
+      const nudgeAmount = 0.06;
+      const nudgeAngles = [0, Math.PI/2, Math.PI, -Math.PI/2];
       
-      for (const dir of nudgeDirections) {
-        const testX = currentState.x + dir.x * nudgeAmount;
-        const testY = currentState.y + dir.y * nudgeAmount;
-        const testPen = getTotalPenetration(testX, testY, newRotation);
+      for (const angle of nudgeAngles) {
+        const testX = currentState.x + Math.cos(angle) * nudgeAmount;
+        const testY = currentState.y + Math.sin(angle) * nudgeAmount;
         
-        if (!hasWallOrRockCollision(testX, testY) && testPen.depth < 0.01) {
+        const overlap = checkCapsuleOverlap(testX, testY, newRotation, capsule, maze, rocks, characters, animalType);
+        if (!overlap.overlapping) {
           newX = testX;
           newY = testY;
           break;
         }
       }
       
-      // Reset timer and start cooldown regardless of success
       stuckTimer = 0;
-      unstuckCooldown = UNSTUCK_COOLDOWN;
+      unstuckCooldown = 1.5;
     }
-  } else if (actualMovement >= STUCK_DISTANCE_THRESHOLD) {
-    // Moving successfully - reset stuck timer
+  } else if (actualMovement >= 0.002) {
     stuckTimer = 0;
-    lastStablePosition = { x: newX, y: newY };
+    // Update safe transform when moving successfully
+    lastSafeTransform = { x: newX, y: newY, rotation: newRotation };
   }
 
   return { x: newX, y: newY, rotation: newRotation };
-}
-
-/**
- * Get collision points for an animal at a position/rotation
- */
-function getCollisionPointsForAnimal(
-  x: number, 
-  y: number, 
-  rotation: number,
-  offsets: ReturnType<typeof getAnimalCollisionOffsets>
-): Array<{ x: number; y: number; radius: number }> {
-  const points: Array<{ x: number; y: number; radius: number }> = [];
-  
-  // Center
-  points.push({ x, y, radius: offsets.pointRadius });
-  
-  // Head
-  const headX = x + Math.sin(rotation) * offsets.head;
-  const headY = y - Math.cos(rotation) * offsets.head;
-  points.push({ x: headX, y: headY, radius: offsets.pointRadius });
-  
-  // Tail
-  const tailX = x - Math.sin(rotation) * offsets.tail;
-  const tailY = y + Math.cos(rotation) * offsets.tail;
-  points.push({ x: tailX, y: tailY, radius: offsets.pointRadius });
-  
-  // Neck points
-  if (offsets.neckLength) {
-    const neckX = x + Math.sin(rotation) * offsets.neckLength;
-    const neckY = y - Math.cos(rotation) * offsets.neckLength;
-    points.push({ x: neckX, y: neckY, radius: offsets.pointRadius });
-  }
-  
-  if (offsets.upperNeckLength) {
-    const upperNeckX = x + Math.sin(rotation) * offsets.upperNeckLength;
-    const upperNeckY = y - Math.cos(rotation) * offsets.upperNeckLength;
-    points.push({ x: upperNeckX, y: upperNeckY, radius: offsets.pointRadius });
-  }
-  
-  // Spine points
-  if (offsets.spinePoints) {
-    for (const spineOffset of offsets.spinePoints) {
-      const spineX = x + Math.sin(rotation) * spineOffset;
-      const spineY = y - Math.cos(rotation) * spineOffset;
-      points.push({ x: spineX, y: spineY, radius: offsets.pointRadius });
-    }
-  }
-  
-  return points;
 }
 // ============================================
 // CELL INTERACTIONS

@@ -323,12 +323,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
 
   // Cow uses GLB model with animation
   if (animalType === 'cow') {
-    // Debug collision points - must match GameLogic.ts getAnimalCollisionOffsets
-    const HEAD_OFFSET = 0.95;
-    const TAIL_OFFSET = 0.45;
-    const NECK_OFFSET = 0.50;
-    const UPPER_NECK_OFFSET = 0.72;
-    const SPINE_POINTS = [-0.22, 0.25]; // Between center and tail/neck
+    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
+    const CAPSULE_START = -0.40;  // Tail end offset
+    const CAPSULE_END = 0.85;     // Head/neck end offset
+    const CAPSULE_RADIUS = 0.18;  // Body radius
+    const HEAD_OFFSET = 0.95;     // Extra head sphere
+    const HEAD_RADIUS = 0.15;
     const DEBUG_Y = 0.5;
     
     return (
@@ -337,43 +337,29 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
           <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.3, 0]} />
         </group>
         
-        {/* Debug collision points - rotate with cow using rotation prop */}
+        {/* Debug capsule collider - rotate with cow using rotation prop */}
         {showCollisionDebug && (
           <group rotation={[0, rotation, 0]}>
-            {/* Head (green) - snout tip */}
+            {/* Capsule body - represented as cylinder with spherical ends */}
+            {/* Tail sphere (red) */}
+            <mesh position={[0, DEBUG_Y, CAPSULE_START]} renderOrder={999}>
+              <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
+              <meshBasicMaterial color="#ff0000" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Body cylinder (orange, transparent) */}
+            <mesh position={[0, DEBUG_Y, (CAPSULE_START + CAPSULE_END) / 2]} rotation={[Math.PI / 2, 0, 0]} renderOrder={998}>
+              <cylinderGeometry args={[CAPSULE_RADIUS, CAPSULE_RADIUS, CAPSULE_END - CAPSULE_START, 12]} />
+              <meshBasicMaterial color="#ff8800" transparent opacity={0.3} depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Neck/body end sphere (yellow) */}
+            <mesh position={[0, DEBUG_Y, CAPSULE_END]} renderOrder={999}>
+              <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
+              <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Head sphere (green) */}
             <mesh position={[0, DEBUG_Y, HEAD_OFFSET]} renderOrder={999}>
-              <sphereGeometry args={[0.12, 8, 8]} />
-              <meshBasicMaterial color="#00ff00" depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Upper Neck (lime) */}
-            <mesh position={[0, DEBUG_Y, UPPER_NECK_OFFSET]} renderOrder={999}>
-              <sphereGeometry args={[0.15, 8, 8]} />
-              <meshBasicMaterial color="#88ff00" depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Lower Neck (yellow) */}
-            <mesh position={[0, DEBUG_Y, NECK_OFFSET]} renderOrder={999}>
-              <sphereGeometry args={[0.15, 8, 8]} />
-              <meshBasicMaterial color="#ffff00" depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Spine point toward head (cyan) */}
-            <mesh position={[0, DEBUG_Y, SPINE_POINTS[1]]} renderOrder={999}>
-              <sphereGeometry args={[0.15, 8, 8]} />
-              <meshBasicMaterial color="#00ffff" depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Center (blue) - increased radius */}
-            <mesh position={[0, DEBUG_Y, 0]} renderOrder={999}>
-              <sphereGeometry args={[0.15, 8, 8]} />
-              <meshBasicMaterial color="#0000ff" depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Spine point toward tail (magenta) - increased radius */}
-            <mesh position={[0, DEBUG_Y, SPINE_POINTS[0]]} renderOrder={999}>
-              <sphereGeometry args={[0.15, 8, 8]} />
-              <meshBasicMaterial color="#ff00ff" depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Tail (red) - increased radius */}
-            <mesh position={[0, DEBUG_Y, -TAIL_OFFSET]} renderOrder={999}>
-              <sphereGeometry args={[0.15, 8, 8]} />
-              <meshBasicMaterial color="#ff0000" depthTest={false} depthWrite={false} />
+              <sphereGeometry args={[HEAD_RADIUS, 12, 12]} />
+              <meshBasicMaterial color="#00ff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
             </mesh>
           </group>
         )}
