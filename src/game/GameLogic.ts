@@ -312,13 +312,16 @@ function getCapsuleEndpoints(
 // COLLISION-SAFE MOTION SOLVER
 // ============================================
 
-// Solver constants
-const SKIN_WIDTH = 0.02;           // Gap to prevent touching (increased)
-const ROTATION_STEP = 0.02;        // ~1.15 degrees per step for rotation sweep (smaller)
-const SWEEP_STEPS = 12;            // Binary search steps for swept collision (more)
-const MAX_DEPENETRATION = 0.03;    // Maximum push per frame
-const OVERLAP_EPSILON = 0.001;     // Overlap threshold (reduced for stricter detection)
-const TOWER_SLIDE_BOOST = 1.3;     // Tangent boost when sliding around towers/characters (1.2-1.5)
+// ============================================
+// TUNING CONSTANTS (easy to tweak)
+// ============================================
+const SKIN_WIDTH = 0.03;              // Gap to prevent sticking (0.02-0.05)
+const ROTATION_STEP = 0.02;           // ~1.15 degrees per step for rotation sweep
+const SWEEP_STEPS = 12;               // Binary search steps for swept collision
+const MAX_DEPENETRATION = 0.03;       // Maximum push per frame
+const OVERLAP_EPSILON = 0.001;        // Overlap threshold
+const TOWER_SLIDE_BOOST = 1.4;        // Tangent boost for towers/characters (1.2-1.5)
+const POLE_ASSIST_STRENGTH = 0.35;    // Head-on pole assist (0.2-0.35 of speed)
 
 // Collision types
 export type ColliderType = 'wall' | 'tower' | 'rock' | 'character';
@@ -327,13 +330,15 @@ export type ColliderType = 'wall' | 'tower' | 'rock' | 'character';
 export interface CollisionHitInfo {
   overlapping: boolean;
   mtv?: { x: number; y: number; depth: number };
-  hitType?: ColliderType;  // Type of collider that was hit
+  hitType?: ColliderType;
 }
 
-// Persistent state for unstuck
+// Persistent state for smooth sliding
 let stuckTimer = 0;
 let unstuckCooldown = 0;
 let lastSafeTransform = { x: 0, y: 0, rotation: 0 };
+let lastSlideTangent = { x: 0, y: 0 };  // Track consistent tangent direction
+let slidingContactTime = 0;              // How long we've been in sliding contact
 
 /**
  * Check if a capsule overlaps any static collider (walls, rocks, characters)
@@ -798,69 +803,82 @@ export function calculateMovement(
     );
     
     if (!sweepResult.blocked) {
-      // Full movement allowed
+      // Full movement allowed - reset sliding state
       newX = sweepResult.x;
       newY = sweepResult.y;
+      slidingContactTime = 0;
+      lastSlideTangent = { x: 0, y: 0 };
     } else {
-      // Blocked - move to safe contact point first
+      // Blocked - move to safe contact point
       newX = sweepResult.x;
       newY = sweepResult.y;
       
-      // TRUE SLIDING: Remove only the component INTO the surface
-      // slideMove = desiredMove - normal * dot(desiredMove, normal)
+      // TRUE PER-FRAME SLIDING (no jerks, no discrete corrections)
       if (sweepResult.normal) {
         const nx = sweepResult.normal.x;
         const ny = sweepResult.normal.y;
         
+        // Compute natural tangent from normal
+        const naturalTangentX = -ny;
+        const naturalTangentY = nx;
+        
         // Dot product of desired movement with collision normal
         const dotIntoSurface = moveX * nx + moveY * ny;
         
-        // Only remove the component going INTO the surface (negative dot)
-        // If dot is positive, we're moving away - don't modify
+        // Only slide if pushing into surface
         if (dotIntoSurface < 0) {
-          // Remove the blocked component, keep the tangent
-          let slideX = moveX - nx * dotIntoSurface;
-          let slideY = moveY - ny * dotIntoSurface;
-          
-          const slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
-          
-          // Check if slide magnitude is near zero (hitting obstacle head-on)
           const isSlideable = sweepResult.hitType === 'tower' || sweepResult.hitType === 'character';
           
-          if (isSlideable && slideMag < 0.001) {
-            // POLE-ASSIST STEERING: When hitting head-on, pick a consistent tangent
-            // Use cross product sign to pick left or right consistently based on approach angle
-            const tangentX = -ny;
-            const tangentY = nx;
-            
-            // Pick direction based on which side of the obstacle center we're approaching from
-            // This ensures consistent behavior (always go same direction around pole)
-            const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
-            if (moveLen > 0.001) {
-              const assistStrength = moveLen * 0.3; // 30% of input speed as assist
-              slideX = tangentX * assistStrength;
-              slideY = tangentY * assistStrength;
-            }
-          } else if (isSlideable && slideMag > 0.001) {
-            // Apply boost for towers/characters to slide smoothly
-            slideX *= TOWER_SLIDE_BOOST;
-            slideY *= TOWER_SLIDE_BOOST;
-          }
-          // Walls/rocks: keep slide as-is (no boost, no assist)
+          // Compute base slide: remove component into surface
+          let slideX = moveX - nx * dotIntoSurface;
+          let slideY = moveY - ny * dotIntoSurface;
+          let slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
           
-          // Perform second sweep along slide direction
-          if (Math.abs(slideX) > 0.001 || Math.abs(slideY) > 0.001) {
+          // Track contact time for smooth transitions
+          slidingContactTime += deltaTime;
+          
+          if (isSlideable) {
+            // SMOOTH POLE-ASSIST: Apply every frame, not discrete kicks
+            const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
+            
+            // Determine consistent tangent direction (don't flip while in contact)
+            if (lastSlideTangent.x === 0 && lastSlideTangent.y === 0) {
+              // First frame of contact - pick direction based on slight offset
+              // Use cross product of movement and normal to determine handedness
+              const cross = moveX * ny - moveY * nx;
+              const sign = cross >= 0 ? 1 : -1;
+              lastSlideTangent = { 
+                x: naturalTangentX * sign, 
+                y: naturalTangentY * sign 
+              };
+            }
+            
+            // If natural slide is too small, add assist in consistent direction
+            if (slideMag < moveLen * 0.3 && moveLen > 0.001) {
+              // Blend in pole-assist smoothly every frame
+              const assistAmount = moveLen * POLE_ASSIST_STRENGTH;
+              slideX = lastSlideTangent.x * assistAmount;
+              slideY = lastSlideTangent.y * assistAmount;
+              slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
+            } else if (slideMag > 0.001) {
+              // Natural slide is good - apply boost and update tangent direction
+              slideX *= TOWER_SLIDE_BOOST;
+              slideY *= TOWER_SLIDE_BOOST;
+              // Update tangent direction to match current slide
+              const normSlide = 1 / slideMag;
+              lastSlideTangent = { 
+                x: slideX * normSlide * TOWER_SLIDE_BOOST, 
+                y: slideY * normSlide * TOWER_SLIDE_BOOST
+              };
+            }
+          }
+          // Walls/rocks: use natural slide, no boost or assist
+          
+          // Apply slide via second sweep (same frame, continuous motion)
+          if (Math.abs(slideX) > 0.0001 || Math.abs(slideY) > 0.0001) {
             const slideResult = sweepTranslation(
-              newX, 
-              newY, 
-              slideX, 
-              slideY, 
-              newRotation, 
-              capsule, 
-              maze, 
-              rocks, 
-              characters, 
-              animalType
+              newX, newY, slideX, slideY, newRotation,
+              capsule, maze, rocks, characters, animalType
             );
             newX = slideResult.x;
             newY = slideResult.y;
@@ -868,6 +886,10 @@ export function calculateMovement(
         }
       }
     }
+  } else {
+    // No movement input - reset sliding state
+    slidingContactTime = 0;
+    lastSlideTangent = { x: 0, y: 0 };
   }
 
   // ========================================
