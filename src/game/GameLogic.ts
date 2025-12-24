@@ -242,6 +242,7 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): {
   pointRadius: number;
   hornWidth?: number; // For cow - distance horns extend sideways from head
   neckLength?: number; // For cow - distance from center to neck checkpoint
+  upperNeckLength?: number; // For cow - upper neck checkpoint
   bodyWidth?: number; // For cow - distance sides extend from center
 } {
   switch (animalType) {
@@ -249,14 +250,15 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): {
       // Pig's snout extends forward - keep small gap from characters
       return { head: 0.22, tail: 0.20, pointRadius: 0.10 };
     case 'cow':
-      // Cow collision - extended to cover full body length including snout
+      // Cow collision - no side points, larger center, two neck points
       return { 
         head: 0.95,
         tail: 0.45,
-        pointRadius: 0.06, // Smaller collision radius
-        hornWidth: 0.08, // Tiny horns - barely perceptible
-        neckLength: 0.50,
-        bodyWidth: 0.14 
+        pointRadius: 0.12, // Larger center radius
+        hornWidth: 0.08,
+        neckLength: 0.50, // Lower neck
+        upperNeckLength: 0.72, // Upper neck (new)
+        bodyWidth: 0 // Remove side points
       };
     case 'bird':
       // Chicken - larger negative head offset allows beak to get much closer
@@ -296,13 +298,23 @@ export function checkCharacterCollisionMultiPoint(
     return true;
   }
   
-  // For cow, also check neck and horn positions
+  // For cow, check neck positions (lower and upper)
   if (offsets.neckLength) {
-    // Neck position - between center and head
+    // Lower neck position
     const neckX = x + Math.sin(rotation) * offsets.neckLength;
     const neckY = y - Math.cos(rotation) * offsets.neckLength;
     
     if (checkCharacterCollision(neckX, neckY, characters, offsets.pointRadius, useRotationRadius)) {
+      return true;
+    }
+  }
+  
+  // Upper neck position (higher on neck toward head)
+  if (offsets.upperNeckLength) {
+    const upperNeckX = x + Math.sin(rotation) * offsets.upperNeckLength;
+    const upperNeckY = y - Math.cos(rotation) * offsets.upperNeckLength;
+    
+    if (checkCharacterCollision(upperNeckX, upperNeckY, characters, offsets.pointRadius, useRotationRadius)) {
       return true;
     }
   }
