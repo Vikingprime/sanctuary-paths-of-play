@@ -869,10 +869,21 @@ export function calculateMovement(
             
             if (moveLen > 0.001) {
               const cross = moveX * ny - moveY * nx;
-              const sideSign = cross >= 0 ? 1 : -1;
               
-              const tangentX = naturalTangentX * sideSign;
-              const tangentY = naturalTangentY * sideSign;
+              // PERSIST side sign - only set on first contact, keep stable while touching same collider
+              // This prevents oscillation when cross is near zero
+              if (headOnSideSign === 0) {
+                // First contact - pick a side and stick with it
+                headOnSideSign = cross >= 0 ? 1 : -1;
+                // Add hysteresis: if cross is very small, pick based on slight randomness to avoid deadlock
+                if (Math.abs(cross) < 0.01) {
+                  headOnSideSign = 1; // Default to consistent direction when head-on
+                }
+                console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
+              }
+              
+              const tangentX = naturalTangentX * headOnSideSign;
+              const tangentY = naturalTangentY * headOnSideSign;
               
               const boostedSlideX = slideX * TOWER_SLIDE_BOOST;
               const boostedSlideY = slideY * TOWER_SLIDE_BOOST;
@@ -885,7 +896,7 @@ export function calculateMovement(
               
               console.log('[SLIDE] TOWER/CHAR assist applied:', {
                 cross: cross.toFixed(4),
-                sideSign,
+                persistedSideSign: headOnSideSign,
                 tangent: { x: tangentX.toFixed(4), y: tangentY.toFixed(4) },
                 assistMag: assistMag.toFixed(4),
                 finalSlide: { x: slideX.toFixed(4), y: slideY.toFixed(4), mag: slideMag.toFixed(4) }
