@@ -249,14 +249,14 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): {
       // Pig's snout extends forward - keep small gap from characters
       return { head: 0.22, tail: 0.20, pointRadius: 0.10 };
     case 'cow':
-      // Cow collision - head at snout, reasonable sizes for navigation
+      // Cow collision - head point at actual snout tip, small radii
       return { 
-        head: 0.38, // At snout tip, not too far
+        head: 0.48, // Positioned at snout tip
         tail: 0.30, 
-        pointRadius: 0.12, 
+        pointRadius: 0.08, // Small radius - position matters more
         hornWidth: 0.18, 
-        neckLength: 0.20, 
-        bodyWidth: 0.20 
+        neckLength: 0.22, 
+        bodyWidth: 0.18 
       };
     case 'bird':
       // Chicken - larger negative head offset allows beak to get much closer
