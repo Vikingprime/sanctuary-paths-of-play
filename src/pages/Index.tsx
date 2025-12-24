@@ -118,13 +118,6 @@ const Index = () => {
         silverMedals={silverMedals}
       />
       <main className="container max-w-4xl mx-auto px-4 py-8">
-        {/* How to Play Panel - visible on both home and levels screens */}
-        {(screen === 'home' || screen === 'levels') && (
-          <div className="mb-8">
-            <HowToPlayPanel />
-          </div>
-        )}
-
         {screen === 'home' && (
           <div className="space-y-8">
             {/* Hero Section */}
@@ -138,6 +131,9 @@ const Index = () => {
                 real meals for sanctuary residents!
               </p>
             </div>
+
+            {/* How to Play Panel */}
+            <HowToPlayPanel />
 
             {/* Animal Selection */}
             <div className="space-y-4">
