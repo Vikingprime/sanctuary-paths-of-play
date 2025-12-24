@@ -271,7 +271,7 @@ export const mazes: Maze[] = [
     ]),
   },
   {
-    id: 5,
+    id: 6,
     name: 'Soda Pop',
     difficulty: 'easy',
     timeLimit: 60,
