@@ -18,7 +18,7 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
   },
   'Animated_Woman.glb': {
     scale: 0.20, // Model is much larger than Farmer
-    yOffset: -0.08, // Adjust to ground feet
+    yOffset: -0.15, // Lower to ground feet properly
   },
   
   // Animals
