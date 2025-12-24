@@ -124,6 +124,7 @@ const MazeEditor: React.FC = () => {
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
   const [placingCharacterId, setPlacingCharacterId] = useState<string | null>(null);
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
+  const [singleTileMode, setSingleTileMode] = useState(false); // For placing single Start/End tiles
 
   function createEmptyGrid(w: number, h: number): CellType[][] {
     return Array.from({ length: h }, (_, y) =>
@@ -210,29 +211,41 @@ const MazeEditor: React.FC = () => {
 
   const paintCell = useCallback((x: number, y: number) => {
     if (selectedTool === 'S' || selectedTool === 'E') {
-      const startX = x % 2 === 0 ? x : x - 1;
-      const startY = y % 2 === 0 ? y : y - 1;
-      
-      setGrid(prev => {
-        const newGrid = prev.map(row => [...row]);
-        for (let py = 0; py < newGrid.length; py++) {
-          for (let px = 0; px < newGrid[py].length; px++) {
-            if (newGrid[py][px] === selectedTool) {
-              newGrid[py][px] = ' ';
+      if (singleTileMode) {
+        // Single tile mode - just paint one cell, don't clear others
+        setGrid(prev => {
+          const newGrid = prev.map(row => [...row]);
+          newGrid[y][x] = selectedTool;
+          return newGrid;
+        });
+      } else {
+        // 2x2 block mode (original behavior)
+        const startX = x % 2 === 0 ? x : x - 1;
+        const startY = y % 2 === 0 ? y : y - 1;
+        
+        setGrid(prev => {
+          const newGrid = prev.map(row => [...row]);
+          // Clear existing Start/End cells
+          for (let py = 0; py < newGrid.length; py++) {
+            for (let px = 0; px < newGrid[py].length; px++) {
+              if (newGrid[py][px] === selectedTool) {
+                newGrid[py][px] = ' ';
+              }
             }
           }
-        }
-        for (let dy = 0; dy < 2; dy++) {
-          for (let dx = 0; dx < 2; dx++) {
-            const nx = startX + dx;
-            const ny = startY + dy;
-            if (ny >= 0 && ny < newGrid.length && nx >= 0 && nx < newGrid[0].length) {
-              newGrid[ny][nx] = selectedTool;
+          // Paint 2x2 block
+          for (let dy = 0; dy < 2; dy++) {
+            for (let dx = 0; dx < 2; dx++) {
+              const nx = startX + dx;
+              const ny = startY + dy;
+              if (ny >= 0 && ny < newGrid.length && nx >= 0 && nx < newGrid[0].length) {
+                newGrid[ny][nx] = selectedTool;
+              }
             }
           }
-        }
-        return newGrid;
-      });
+          return newGrid;
+        });
+      }
     } else if (selectedTool === 'D') {
       // For dialogue cells, add to selected dialogue's cells WITHOUT changing the grid cell type
       // This allows dialogue triggers to overlay any cell type (including End cells)
@@ -603,6 +616,30 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     </Button>
                   ))}
                 </div>
+                
+                {/* Single Tile Mode Toggle */}
+                <div className="flex items-center gap-2 pt-2">
+                  <input
+                    type="checkbox"
+                    id="singleTileMode"
+                    checked={singleTileMode}
+                    onChange={e => setSingleTileMode(e.target.checked)}
+                    className="rounded"
+                  />
+                  <Label htmlFor="singleTileMode" className="text-xs cursor-pointer">
+                    Single tile mode (Start/End)
+                  </Label>
+                </div>
+                {singleTileMode && (
+                  <p className="text-xs text-muted-foreground">
+                    Click to add individual tiles. Use Path tool to remove.
+                  </p>
+                )}
+                {(selectedTool === 'E') && (
+                  <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                    💡 The End Farmer (Sanctuary Sam) will appear at the first End tile found (top-left most).
+                  </p>
+                )}
               </div>
 
               {/* Grid Size */}
