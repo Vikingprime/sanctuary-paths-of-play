@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Maze, MedalType } from '@/types/game';
 import { SaveData } from '@/types/save';
 import { Button } from '@/components/ui/button';
 import { cn, formatTime } from '@/lib/utils';
-import { Lock } from 'lucide-react';
+import { Lock, Pencil } from 'lucide-react';
 import { mazes as allMazes } from '@/data/mazes';
 
 interface LevelSelectProps {
@@ -34,6 +35,7 @@ export const LevelSelect = ({
   isMazeUnlocked,
   unlockMazeWithCurrency 
 }: LevelSelectProps) => {
+  const navigate = useNavigate();
   const [unlockedStatus, setUnlockedStatus] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
 
@@ -203,7 +205,7 @@ export const LevelSelect = ({
                   </div>
                   
                   {/* Large medal on the right OR arrow */}
-                  <div className="flex flex-col items-center justify-center min-w-[60px]">
+                  <div className="flex flex-col items-center justify-center min-w-[60px] gap-2">
                     {medal ? (
                       <span className="text-5xl" title={`${medal} medal`}>
                         {medalEmoji[medal]}
@@ -212,6 +214,19 @@ export const LevelSelect = ({
                       <div className="text-3xl opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
                         {isUnlocked ? '→' : '🔒'}
                       </div>
+                    )}
+                    {/* Edit button - always visible for debugging/admin */}
+                    {save.settings.debugMode && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/editor?mazeId=${maze.id}`);
+                        }}
+                        className="p-1.5 rounded-lg bg-primary/20 hover:bg-primary/40 transition-colors"
+                        title="Edit maze"
+                      >
+                        <Pencil className="w-4 h-4 text-primary" />
+                      </button>
                     )}
                   </div>
                 </div>

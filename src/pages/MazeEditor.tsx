@@ -1,12 +1,14 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Download, Trash2, Grid3X3, Plus, MessageSquare, X, User } from 'lucide-react';
+import { Copy, Download, Trash2, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { mazes as allMazes } from '@/data/mazes';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -98,6 +100,10 @@ const AVAILABLE_ANIMATIONS = [
 ];
 
 const MazeEditor: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const mazeIdParam = searchParams.get('mazeId');
+  
   const [width, setWidth] = useState(16);
   const [height, setHeight] = useState(16);
   const [grid, setGrid] = useState<CellType[][]>(() => createEmptyGrid(16, 16));
@@ -117,6 +123,7 @@ const MazeEditor: React.FC = () => {
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
   const [placingCharacterId, setPlacingCharacterId] = useState<string | null>(null);
+  const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
 
   function createEmptyGrid(w: number, h: number): CellType[][] {
     return Array.from({ length: h }, (_, y) =>
@@ -127,6 +134,70 @@ const MazeEditor: React.FC = () => {
       })
     );
   }
+  
+  // Load maze from URL param
+  useEffect(() => {
+    if (mazeIdParam) {
+      const mazeId = parseInt(mazeIdParam, 10);
+      const maze = allMazes.find(m => m.id === mazeId);
+      if (maze) {
+        // Convert maze grid to editor format
+        const newGrid: CellType[][] = maze.grid.map(row => 
+          row.map(cell => {
+            if (cell.isWall) return '#';
+            if (cell.isStart) return 'S';
+            if (cell.isEnd) return 'E';
+            if (cell.isPowerUp) return 'P';
+            if (cell.isStation) return 'H';
+            return ' ';
+          })
+        );
+        
+        setGrid(newGrid);
+        setWidth(newGrid[0]?.length || 16);
+        setHeight(newGrid.length);
+        setConfig({
+          name: maze.name,
+          difficulty: maze.difficulty,
+          timeLimit: maze.timeLimit,
+          previewTime: maze.previewTime,
+          requiredDialogues: maze.endConditions?.requiredDialogues || [],
+        });
+        
+        // Load dialogues
+        if (maze.dialogues) {
+          setDialogues(maze.dialogues.map(d => ({
+            id: d.id,
+            speaker: d.speaker,
+            speakerEmoji: d.speakerEmoji,
+            message: d.message,
+            cells: d.cells,
+            characterModel: d.characterModel,
+            characterAnimation: d.characterAnimation,
+            requires: d.requires,
+            speakerCharacterId: d.speakerCharacterId,
+          })));
+        }
+        
+        // Load characters
+        if (maze.characters) {
+          setCharacters(maze.characters.map(c => ({
+            id: c.id,
+            name: c.name,
+            emoji: c.emoji,
+            model: c.model,
+            animation: c.animation,
+            position: c.position,
+          })));
+        }
+        
+        setLoadedMazeId(mazeId);
+        toast.success(`Loaded maze: ${maze.name}`);
+      } else {
+        toast.error(`Maze with ID ${mazeId} not found`);
+      }
+    }
+  }, [mazeIdParam]);
 
   const resizeGrid = useCallback(() => {
     const evenWidth = width % 2 === 0 ? width : width + 1;
@@ -496,9 +567,15 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
       onMouseLeave={handleMouseUp}
     >
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-amber-900 mb-6 text-center">
-          🌽 Maze Editor
-        </h1>
+        <div className="flex items-center justify-between mb-6">
+          <Button variant="ghost" onClick={() => navigate('/')} className="text-amber-900">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Game
+          </Button>
+          <h1 className="text-3xl font-bold text-amber-900 text-center flex-1">
+            🌽 {loadedMazeId ? `Editing: ${config.name}` : 'Maze Editor'}
+          </h1>
+          <div className="w-32" /> {/* Spacer for centering */}
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* Tools Panel */}
