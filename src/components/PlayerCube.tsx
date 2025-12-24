@@ -312,11 +312,38 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
 
   // Pig uses GLB model
   if (animalType === 'pig') {
+    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
+    const CAPSULE_START = -0.18;
+    const CAPSULE_END = 0.20;
+    const CAPSULE_RADIUS = 0.12;
+    const DEBUG_Y = 0.3;
+    
     return (
       <group position={position}>
         <group ref={innerGroupRef}>
           <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.25, 0]} />
         </group>
+        
+        {/* Debug capsule collider */}
+        {showCollisionDebug && (
+          <group rotation={[0, rotation, 0]}>
+            {/* Tail sphere (red) */}
+            <mesh position={[0, DEBUG_Y, CAPSULE_START]} renderOrder={999}>
+              <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
+              <meshBasicMaterial color="#ff0000" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Body cylinder (orange) */}
+            <mesh position={[0, DEBUG_Y, (CAPSULE_START + CAPSULE_END) / 2]} rotation={[Math.PI / 2, 0, 0]} renderOrder={998}>
+              <cylinderGeometry args={[CAPSULE_RADIUS, CAPSULE_RADIUS, CAPSULE_END - CAPSULE_START, 12]} />
+              <meshBasicMaterial color="#ff8800" transparent opacity={0.3} depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Head sphere (yellow) */}
+            <mesh position={[0, DEBUG_Y, CAPSULE_END]} renderOrder={999}>
+              <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
+              <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+            </mesh>
+          </group>
+        )}
       </group>
     );
   }
@@ -368,11 +395,38 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   }
 
   // Bird/Chicken uses GLB model
+  // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
+  const CAPSULE_START = -0.05;
+  const CAPSULE_END = 0.05;
+  const CAPSULE_RADIUS = 0.08;
+  const DEBUG_Y = 0.2;
+  
   return (
     <group position={position}>
       <group ref={innerGroupRef}>
         <primitive object={clonedHenScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.32, 0]} />
       </group>
+      
+      {/* Debug capsule collider */}
+      {showCollisionDebug && (
+        <group rotation={[0, rotation, 0]}>
+          {/* Tail sphere (red) */}
+          <mesh position={[0, DEBUG_Y, CAPSULE_START]} renderOrder={999}>
+            <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
+            <meshBasicMaterial color="#ff0000" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+          </mesh>
+          {/* Body cylinder (orange) */}
+          <mesh position={[0, DEBUG_Y, (CAPSULE_START + CAPSULE_END) / 2]} rotation={[Math.PI / 2, 0, 0]} renderOrder={998}>
+            <cylinderGeometry args={[CAPSULE_RADIUS, CAPSULE_RADIUS, CAPSULE_END - CAPSULE_START, 12]} />
+            <meshBasicMaterial color="#ff8800" transparent opacity={0.3} depthTest={false} depthWrite={false} />
+          </mesh>
+          {/* Head sphere (yellow) */}
+          <mesh position={[0, DEBUG_Y, CAPSULE_END]} renderOrder={999}>
+            <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
+            <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+          </mesh>
+        </group>
+      )}
     </group>
   );
 };
