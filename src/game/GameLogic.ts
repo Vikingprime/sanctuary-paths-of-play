@@ -503,6 +503,26 @@ export function calculateMovement(
     return { x: totalX, y: totalY, depth: maxDepth };
   };
   
+  // Check if ANY collision point would hit a wall - this is the key fix!
+  // Must check all collision spheres, not just center point
+  const hasAnyCollisionPointBlocked = (x: number, y: number, rot: number): boolean => {
+    // First check center (fast path)
+    if (hasWallOrRockCollision(x, y)) return true;
+    
+    // Check all collision points
+    const points = getCollisionPointsForAnimal(x, y, rot, offsets);
+    for (const point of points) {
+      // Check if this point's position is in a wall cell
+      if (checkCollision(maze, point.x, point.y, point.radius)) return true;
+      if (checkRockCollision(point.x, point.y, rocks, point.radius)) return true;
+      
+      // Also check penetration depth
+      const pen = getWallPenetration(maze, point.x, point.y, point.radius);
+      if (pen && pen.depth > 0.02) return true;
+    }
+    return false;
+  };
+  
   // Check if rotation makes wall penetration worse
   const currentPen = getTotalPenetration(currentState.x, currentState.y, currentState.rotation);
   const newRotPen = getTotalPenetration(currentState.x, currentState.y, desiredRotation);
@@ -572,45 +592,43 @@ export function calculateMovement(
   
   // ========================================
   // STEP 2: APPLY MOVEMENT (stop or slide)
-  // No backward impulses - only player-intended movement
+  // Use multi-point collision for ALL checks
   // ========================================
   if (moveX !== 0 || moveY !== 0) {
     const targetX = newX + moveX;
     const targetY = newY + moveY;
     
-    // Check if target is clear
-    const targetPen = getTotalPenetration(targetX, targetY, newRotation);
-    const targetWallCollision = hasWallOrRockCollision(targetX, targetY);
+    // Check if target is clear - must check ALL collision points!
+    const targetBlocked = hasAnyCollisionPointBlocked(targetX, targetY, newRotation);
     
-    if (!targetWallCollision && targetPen.depth < 0.01) {
+    if (!targetBlocked) {
       // Clear path - apply full movement
       newX = targetX;
       newY = targetY;
     } else {
       // Blocked - try sliding along the wall
-      // Find which axis is blocked
+      // Find which axis is blocked using multi-point check
       const testDist = 0.05;
-      const xBlocked = hasWallOrRockCollision(newX + Math.sign(moveX) * testDist, newY) || 
-                       getTotalPenetration(newX + Math.sign(moveX) * testDist, newY, newRotation).depth > 0.01;
-      const yBlocked = hasWallOrRockCollision(newX, newY + Math.sign(moveY) * testDist) ||
-                       getTotalPenetration(newX, newY + Math.sign(moveY) * testDist, newRotation).depth > 0.01;
+      const xTestPos = { x: newX + Math.sign(moveX) * testDist, y: newY };
+      const yTestPos = { x: newX, y: newY + Math.sign(moveY) * testDist };
+      
+      const xBlocked = moveX !== 0 && hasAnyCollisionPointBlocked(xTestPos.x, xTestPos.y, newRotation);
+      const yBlocked = moveY !== 0 && hasAnyCollisionPointBlocked(yTestPos.x, yTestPos.y, newRotation);
       
       if (xBlocked && !yBlocked && moveY !== 0) {
         // Slide along Y axis only
+        const slideX = newX;
         const slideY = newY + moveY;
-        const slidePen = getTotalPenetration(newX, slideY, newRotation);
-        if (!hasWallOrRockCollision(newX, slideY) && slidePen.depth < 0.01) {
+        if (!hasAnyCollisionPointBlocked(slideX, slideY, newRotation)) {
           newY = slideY;
         }
-        // else: stay put (no backward impulse!)
       } else if (yBlocked && !xBlocked && moveX !== 0) {
         // Slide along X axis only
         const slideX = newX + moveX;
-        const slidePen = getTotalPenetration(slideX, newY, newRotation);
-        if (!hasWallOrRockCollision(slideX, newY) && slidePen.depth < 0.01) {
+        const slideY = newY;
+        if (!hasAnyCollisionPointBlocked(slideX, slideY, newRotation)) {
           newX = slideX;
         }
-        // else: stay put
       }
       // Both blocked or corner: stay at current position (no movement, no bounce)
     }
