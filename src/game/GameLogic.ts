@@ -802,47 +802,69 @@ export function calculateMovement(
       newX = sweepResult.x;
       newY = sweepResult.y;
     } else {
-      // Blocked - try to slide
+      // Blocked - move to safe contact point first
       newX = sweepResult.x;
       newY = sweepResult.y;
       
-      // Attempt slide along tangent
+      // TRUE SLIDING: Remove only the component INTO the surface
+      // slideMove = desiredMove - normal * dot(desiredMove, normal)
       if (sweepResult.normal) {
-        // Calculate remaining movement (what couldn't be applied)
-        const appliedX = sweepResult.x - (newX - moveX);
-        const appliedY = sweepResult.y - (newY - moveY);
-        const remainingX = moveX - appliedX;
-        const remainingY = moveY - appliedY;
+        const nx = sweepResult.normal.x;
+        const ny = sweepResult.normal.y;
         
-        // Project remaining onto tangent (perpendicular to normal)
-        const tangentX = -sweepResult.normal.y;
-        const tangentY = sweepResult.normal.x;
-        const dot = remainingX * tangentX + remainingY * tangentY;
+        // Dot product of desired movement with collision normal
+        const dotIntoSurface = moveX * nx + moveY * ny;
         
-        // Apply slide multiplier based on hit type
-        // TOWERS and CHARACTERS get a boost (1.3x) to slide smoothly around them
-        // WALLS and ROCKS get standard friction (0.8x) - no boost
-        const isSlideable = sweepResult.hitType === 'tower' || sweepResult.hitType === 'character';
-        const slideMultiplier = isSlideable ? TOWER_SLIDE_BOOST : 0.8;
-        
-        const slideX = tangentX * dot * slideMultiplier;
-        const slideY = tangentY * dot * slideMultiplier;
-        
-        if (Math.abs(slideX) > 0.001 || Math.abs(slideY) > 0.001) {
-          const slideResult = sweepTranslation(
-            newX, 
-            newY, 
-            slideX, 
-            slideY, 
-            newRotation, 
-            capsule, 
-            maze, 
-            rocks, 
-            characters, 
-            animalType
-          );
-          newX = slideResult.x;
-          newY = slideResult.y;
+        // Only remove the component going INTO the surface (negative dot)
+        // If dot is positive, we're moving away - don't modify
+        if (dotIntoSurface < 0) {
+          // Remove the blocked component, keep the tangent
+          let slideX = moveX - nx * dotIntoSurface;
+          let slideY = moveY - ny * dotIntoSurface;
+          
+          const slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
+          
+          // Check if slide magnitude is near zero (hitting obstacle head-on)
+          const isSlideable = sweepResult.hitType === 'tower' || sweepResult.hitType === 'character';
+          
+          if (isSlideable && slideMag < 0.001) {
+            // POLE-ASSIST STEERING: When hitting head-on, pick a consistent tangent
+            // Use cross product sign to pick left or right consistently based on approach angle
+            const tangentX = -ny;
+            const tangentY = nx;
+            
+            // Pick direction based on which side of the obstacle center we're approaching from
+            // This ensures consistent behavior (always go same direction around pole)
+            const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
+            if (moveLen > 0.001) {
+              const assistStrength = moveLen * 0.3; // 30% of input speed as assist
+              slideX = tangentX * assistStrength;
+              slideY = tangentY * assistStrength;
+            }
+          } else if (isSlideable && slideMag > 0.001) {
+            // Apply boost for towers/characters to slide smoothly
+            slideX *= TOWER_SLIDE_BOOST;
+            slideY *= TOWER_SLIDE_BOOST;
+          }
+          // Walls/rocks: keep slide as-is (no boost, no assist)
+          
+          // Perform second sweep along slide direction
+          if (Math.abs(slideX) > 0.001 || Math.abs(slideY) > 0.001) {
+            const slideResult = sweepTranslation(
+              newX, 
+              newY, 
+              slideX, 
+              slideY, 
+              newRotation, 
+              capsule, 
+              maze, 
+              rocks, 
+              characters, 
+              animalType
+            );
+            newX = slideResult.x;
+            newY = slideResult.y;
+          }
         }
       }
     }
