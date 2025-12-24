@@ -52,6 +52,7 @@ export interface MazeCharacter {
   model: string; // GLB file name (e.g., 'Farmer.glb')
   animation: string;
   position: { x: number; y: number };
+  alwaysFacePlayer?: boolean; // If true, character always rotates to face player (default: false, only faces during dialogue)
 }
 
 export interface DialogueTrigger {
