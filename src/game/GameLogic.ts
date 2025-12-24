@@ -337,9 +337,108 @@ export function checkCharacterCollisionMultiPoint(
 // MOVEMENT
 // ============================================
 
+// Unstuck failsafe state (module-level for persistence across frames)
+let stuckTimer = 0;
+let lastPosition = { x: 0, y: 0 };
+const STUCK_THRESHOLD = 0.5; // seconds before unstuck kicks in
+const STUCK_DISTANCE_THRESHOLD = 0.01; // minimum movement to not be considered stuck
+
+/**
+ * Get the nearest wall collision point and compute push-out vector
+ */
+function getWallPenetration(
+  maze: Maze,
+  x: number,
+  y: number,
+  radius: number = GameConfig.PLAYER_RADIUS
+): { penetration: { x: number; y: number }; depth: number } | null {
+  const gridX = Math.floor(x);
+  const gridY = Math.floor(y);
+  
+  let totalPenX = 0;
+  let totalPenY = 0;
+  let maxDepth = 0;
+  
+  // Check all 8 neighboring cells + current
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const checkX = gridX + dx;
+      const checkY = gridY + dy;
+      
+      if (isWall(maze, checkX, checkY)) {
+        // Treat wall cell as a box, find nearest point on box to player
+        const boxMinX = checkX;
+        const boxMaxX = checkX + 1;
+        const boxMinY = checkY;
+        const boxMaxY = checkY + 1;
+        
+        // Clamp player pos to box to find nearest point
+        const nearestX = Math.max(boxMinX, Math.min(boxMaxX, x));
+        const nearestY = Math.max(boxMinY, Math.min(boxMaxY, y));
+        
+        const distX = x - nearestX;
+        const distY = y - nearestY;
+        const dist = Math.sqrt(distX * distX + distY * distY);
+        
+        if (dist < radius && dist > 0.001) {
+          const depth = radius - dist;
+          if (depth > maxDepth) maxDepth = depth;
+          
+          // Push direction is from wall to player
+          const pushX = distX / dist;
+          const pushY = distY / dist;
+          totalPenX += pushX * depth;
+          totalPenY += pushY * depth;
+        } else if (dist < 0.001 && dist < radius) {
+          // Player center is inside wall - push toward cell center they came from
+          const pushX = x - (checkX + 0.5);
+          const pushY = y - (checkY + 0.5);
+          const pushLen = Math.sqrt(pushX * pushX + pushY * pushY);
+          if (pushLen > 0.001) {
+            const depth = radius;
+            if (depth > maxDepth) maxDepth = depth;
+            totalPenX += (pushX / pushLen) * depth;
+            totalPenY += (pushY / pushLen) * depth;
+          }
+        }
+      }
+    }
+  }
+  
+  if (maxDepth > 0) {
+    return { penetration: { x: totalPenX, y: totalPenY }, depth: maxDepth };
+  }
+  return null;
+}
+
+/**
+ * Get sliding vector: project movement onto surface tangent
+ */
+function getSlideVector(
+  moveX: number,
+  moveY: number,
+  normalX: number,
+  normalY: number
+): { x: number; y: number } {
+  // Tangent is perpendicular to normal
+  const tangentX = -normalY;
+  const tangentY = normalX;
+  
+  // Project movement onto tangent
+  const dot = moveX * tangentX + moveY * tangentY;
+  
+  return { x: tangentX * dot, y: tangentY * dot };
+}
+
 /**
  * Calculate new player position based on input
  * Returns new state without mutation
+ * 
+ * Features:
+ * 1. Sliding collision - projects movement onto collision surface tangent
+ * 2. Depenetration - pushes cow out of overlapping colliders
+ * 3. Rotation allowed unless it causes deeper penetration
+ * 4. Unstuck failsafe - after 0.5s of blocked movement, applies escape logic
  */
 export function calculateMovement(
   maze: Maze,
@@ -361,10 +460,8 @@ export function calculateMovement(
     : GameConfig.ROTATION_SPEED;
 
   // Calculate rotation - use intensity for proportional control (mobile)
-  // or full speed for keyboard input
   const isMoving = input.forward || input.backward;
-  const baseMultiplier = isMoving ? 0.5 : 1.0; // Slower while moving
-  // Use intensity if provided (0-1), otherwise full intensity for keyboard
+  const baseMultiplier = isMoving ? 0.5 : 1.0;
   const intensity = input.rotationIntensity ?? 1.0;
   const rotationMultiplier = baseMultiplier * intensity;
   
@@ -375,17 +472,23 @@ export function calculateMovement(
   if (input.rotateRight) {
     desiredRotation += rotationSpeed * rotationMultiplier * deltaTime;
   }
-  // Normalize rotation to prevent accumulation of large values
   desiredRotation = ((desiredRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   
-  // Check if rotation would cause character collision - if so, don't rotate
-  // Use rotation radius for stations (smaller, allows turning when at edge)
-  const rotationCausesCollision = checkCharacterCollisionMultiPoint(
+  // ROTATION: Allow unless it causes DEEPER penetration into characters
+  // Check current penetration vs new penetration
+  const currentCharCollision = checkCharacterCollisionMultiPoint(
+    currentState.x, currentState.y, currentState.rotation, characters, animalType, true
+  );
+  const newCharCollision = checkCharacterCollisionMultiPoint(
     currentState.x, currentState.y, desiredRotation, characters, animalType, true
   );
-  const newRotation = rotationCausesCollision ? currentState.rotation : desiredRotation;
+  
+  // Allow rotation if: no collision, or already colliding but new rotation doesn't make it worse
+  const newRotation = (!newCharCollision || (currentCharCollision && newCharCollision)) 
+    ? desiredRotation 
+    : currentState.rotation;
 
-  // Calculate movement vector based on facing direction
+  // Calculate movement vector
   let moveX = 0;
   let moveY = 0;
 
@@ -398,74 +501,205 @@ export function calculateMovement(
     moveY += Math.cos(newRotation) * moveSpeed * deltaTime;
   }
 
-  // Helper to check wall and rock collision (uses center point with radius)
+  const hasInput = input.forward || input.backward || input.rotateLeft || input.rotateRight;
+  
+  // Collision helpers
   const hasWallOrRockCollision = (x: number, y: number) => 
-    checkCollision(maze, x, y) || 
-    checkRockCollision(x, y, rocks);
+    checkCollision(maze, x, y) || checkRockCollision(x, y, rocks);
   
-  // SIMPLE character collision - just check if any collision point overlaps
-  const hasCharacterCollision = (x: number, y: number, rot: number) => {
-    return checkCharacterCollisionMultiPoint(x, y, rot, characters, animalType);
-  };
-  
-  // Combined collision check (no sliding/push logic - just block movement)
-  const hasCollision = (x: number, y: number, rot: number) => 
-    hasWallOrRockCollision(x, y) || hasCharacterCollision(x, y, rot);
-
-  // Check if we're ALREADY stuck (current position has collision)
-  const alreadyStuck = hasWallOrRockCollision(currentState.x, currentState.y);
+  const hasCharacterCollision = (x: number, y: number, rot: number) => 
+    checkCharacterCollisionMultiPoint(x, y, rot, characters, animalType);
   
   let newX = currentState.x + moveX;
   let newY = currentState.y + moveY;
-
-  // UNSTICK LOGIC: If already stuck and moving forward, allow movement if it reduces collision
-  // This prevents the player from getting permanently trapped
-  if (alreadyStuck && input.forward) {
-    // Allow forward movement even if new position also collides - we're trying to escape
-    const newPosCollides = hasWallOrRockCollision(newX, newY);
-    if (!newPosCollides) {
-      // New position is clear - allow move (escape from wall)
-      return { x: newX, y: newY, rotation: newRotation };
+  
+  // ========================================
+  // DEPENETRATION: Push out of walls first
+  // ========================================
+  const offsets = getAnimalCollisionOffsets(animalType);
+  const collisionPoints = getCollisionPointsForAnimal(currentState.x, currentState.y, newRotation, offsets);
+  
+  let depenetrationX = 0;
+  let depenetrationY = 0;
+  
+  for (const point of collisionPoints) {
+    const pen = getWallPenetration(maze, point.x, point.y, point.radius);
+    if (pen) {
+      depenetrationX += pen.penetration.x * 0.5; // Damped push-out
+      depenetrationY += pen.penetration.y * 0.5;
     }
-    // Still colliding but moving forward - try axis movement to escape
   }
-
-  // Normal collision handling - if new position collides, try axis-aligned movement
-  if (hasCollision(newX, newY, newRotation)) {
-    // Try moving along just X axis
-    const canMoveX = !hasCollision(currentState.x + moveX, currentState.y, newRotation);
-    // Try moving along just Y axis
-    const canMoveY = !hasCollision(currentState.x, currentState.y + moveY, newRotation);
+  
+  // Apply depenetration
+  if (depenetrationX !== 0 || depenetrationY !== 0) {
+    newX = currentState.x + depenetrationX;
+    newY = currentState.y + depenetrationY;
     
-    if (canMoveX && !canMoveY) {
-      newX = currentState.x + moveX;
-      newY = currentState.y;
-    } else if (canMoveY && !canMoveX) {
-      newX = currentState.x;
-      newY = currentState.y + moveY;
-    } else if (alreadyStuck && (canMoveX || canMoveY)) {
-      // If stuck and at least one axis can move, take it
-      if (canMoveX) {
-        newX = currentState.x + moveX;
-        newY = currentState.y;
+    // If depenetration position is clear, use it
+    if (!hasWallOrRockCollision(newX, newY)) {
+      // Continue with movement from depenetrated position
+      newX += moveX;
+      newY += moveY;
+    }
+  }
+  
+  // ========================================
+  // SLIDING COLLISION
+  // ========================================
+  if (hasWallOrRockCollision(newX, newY) && (moveX !== 0 || moveY !== 0)) {
+    // Find collision normal by checking which direction is blocked
+    const testDist = 0.1;
+    const blockedX = hasWallOrRockCollision(currentState.x + Math.sign(moveX) * testDist, currentState.y);
+    const blockedY = hasWallOrRockCollision(currentState.x, currentState.y + Math.sign(moveY) * testDist);
+    
+    let normalX = 0;
+    let normalY = 0;
+    
+    if (blockedX && !blockedY) {
+      normalX = -Math.sign(moveX);
+    } else if (blockedY && !blockedX) {
+      normalY = -Math.sign(moveY);
+    } else if (blockedX && blockedY) {
+      // Corner - use diagonal normal
+      normalX = -Math.sign(moveX) * 0.707;
+      normalY = -Math.sign(moveY) * 0.707;
+    }
+    
+    if (normalX !== 0 || normalY !== 0) {
+      // Project movement onto tangent for sliding
+      const slide = getSlideVector(moveX, moveY, normalX, normalY);
+      const slideX = currentState.x + slide.x;
+      const slideY = currentState.y + slide.y;
+      
+      if (!hasWallOrRockCollision(slideX, slideY)) {
+        newX = slideX;
+        newY = slideY;
       } else {
-        newX = currentState.x;
-        newY = currentState.y + moveY;
+        // Sliding also blocked - try axis-aligned movement
+        const canMoveX = !hasWallOrRockCollision(currentState.x + moveX, currentState.y);
+        const canMoveY = !hasWallOrRockCollision(currentState.x, currentState.y + moveY);
+        
+        if (canMoveX && !canMoveY) {
+          newX = currentState.x + moveX;
+          newY = currentState.y;
+        } else if (canMoveY && !canMoveX) {
+          newX = currentState.x;
+          newY = currentState.y + moveY;
+        } else {
+          newX = currentState.x;
+          newY = currentState.y;
+        }
       }
     } else {
-      // Both blocked - stay put
       newX = currentState.x;
       newY = currentState.y;
     }
   }
   
-  // Final safety check - if still colliding with character, revert
+  // ========================================
+  // CHARACTER COLLISION (simple block)
+  // ========================================
   if (hasCharacterCollision(newX, newY, newRotation)) {
     newX = currentState.x;
     newY = currentState.y;
   }
+  
+  // ========================================
+  // UNSTUCK FAILSAFE
+  // ========================================
+  const moved = Math.sqrt(
+    Math.pow(newX - lastPosition.x, 2) + 
+    Math.pow(newY - lastPosition.y, 2)
+  );
+  
+  if (hasInput && moved < STUCK_DISTANCE_THRESHOLD) {
+    stuckTimer += deltaTime;
+    
+    if (stuckTimer > STUCK_THRESHOLD) {
+      // Apply escape logic: try backward movement or shrink colliders temporarily
+      const escapeSpeed = moveSpeed * 0.5;
+      const backX = currentState.x - Math.sin(newRotation) * escapeSpeed * deltaTime;
+      const backY = currentState.y + Math.cos(newRotation) * escapeSpeed * deltaTime;
+      
+      // Try backward escape
+      if (!hasWallOrRockCollision(backX, backY)) {
+        newX = backX;
+        newY = backY;
+        stuckTimer = 0;
+      } else {
+        // Try sideways escape
+        const sideX1 = currentState.x + Math.cos(newRotation) * escapeSpeed * deltaTime;
+        const sideY1 = currentState.y + Math.sin(newRotation) * escapeSpeed * deltaTime;
+        const sideX2 = currentState.x - Math.cos(newRotation) * escapeSpeed * deltaTime;
+        const sideY2 = currentState.y - Math.sin(newRotation) * escapeSpeed * deltaTime;
+        
+        if (!hasWallOrRockCollision(sideX1, sideY1)) {
+          newX = sideX1;
+          newY = sideY1;
+          stuckTimer = 0;
+        } else if (!hasWallOrRockCollision(sideX2, sideY2)) {
+          newX = sideX2;
+          newY = sideY2;
+          stuckTimer = 0;
+        }
+      }
+    }
+  } else {
+    stuckTimer = 0;
+  }
+  
+  lastPosition = { x: newX, y: newY };
 
   return { x: newX, y: newY, rotation: newRotation };
+}
+
+/**
+ * Get collision points for an animal at a position/rotation
+ */
+function getCollisionPointsForAnimal(
+  x: number, 
+  y: number, 
+  rotation: number,
+  offsets: ReturnType<typeof getAnimalCollisionOffsets>
+): Array<{ x: number; y: number; radius: number }> {
+  const points: Array<{ x: number; y: number; radius: number }> = [];
+  
+  // Center
+  points.push({ x, y, radius: offsets.pointRadius });
+  
+  // Head
+  const headX = x + Math.sin(rotation) * offsets.head;
+  const headY = y - Math.cos(rotation) * offsets.head;
+  points.push({ x: headX, y: headY, radius: offsets.pointRadius });
+  
+  // Tail
+  const tailX = x - Math.sin(rotation) * offsets.tail;
+  const tailY = y + Math.cos(rotation) * offsets.tail;
+  points.push({ x: tailX, y: tailY, radius: offsets.pointRadius });
+  
+  // Neck points
+  if (offsets.neckLength) {
+    const neckX = x + Math.sin(rotation) * offsets.neckLength;
+    const neckY = y - Math.cos(rotation) * offsets.neckLength;
+    points.push({ x: neckX, y: neckY, radius: offsets.pointRadius });
+  }
+  
+  if (offsets.upperNeckLength) {
+    const upperNeckX = x + Math.sin(rotation) * offsets.upperNeckLength;
+    const upperNeckY = y - Math.cos(rotation) * offsets.upperNeckLength;
+    points.push({ x: upperNeckX, y: upperNeckY, radius: offsets.pointRadius });
+  }
+  
+  // Spine points
+  if (offsets.spinePoints) {
+    for (const spineOffset of offsets.spinePoints) {
+      const spineX = x + Math.sin(rotation) * spineOffset;
+      const spineY = y - Math.cos(rotation) * spineOffset;
+      points.push({ x: spineX, y: spineY, radius: offsets.pointRadius });
+    }
+  }
+  
+  return points;
 }
 // ============================================
 // CELL INTERACTIONS
