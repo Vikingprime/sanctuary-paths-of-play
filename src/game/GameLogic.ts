@@ -540,9 +540,10 @@ export function calculateMovement(
   };
   let newX = currentState.x + moveX;
   let newY = currentState.y + moveY;
+  let usedCircularSlide = false;
 
   if (hasCollision(newX, newY, newRotation)) {
-    // First try circular sliding around stations (smooth tangent movement)
+    // First try circular sliding around characters (smooth tangent movement)
     const circularSlide = getCircularSlideVector(currentState.x, currentState.y, moveX, moveY);
     if (circularSlide) {
       const slideX = currentState.x + circularSlide.slideX;
@@ -550,24 +551,15 @@ export function calculateMovement(
       if (!hasCollision(slideX, slideY, newRotation)) {
         newX = slideX;
         newY = slideY;
+        usedCircularSlide = true;
       } else {
-        // Circular slide blocked, fall back to axis-aligned
-        const canMoveX = !hasCollision(currentState.x + moveX, currentState.y, newRotation);
-        const canMoveY = !hasCollision(currentState.x, currentState.y + moveY, newRotation);
-        
-        if (canMoveX) {
-          newX = currentState.x + moveX;
-          newY = currentState.y;
-        } else if (canMoveY) {
-          newX = currentState.x;
-          newY = currentState.y + moveY;
-        } else {
-          newX = currentState.x;
-          newY = currentState.y;
-        }
+        // Circular slide blocked - just stop, don't vibrate with fallbacks
+        newX = currentState.x;
+        newY = currentState.y;
+        usedCircularSlide = true; // Mark as handled to skip safety check
       }
     } else {
-      // No station nearby, use axis-aligned wall sliding
+      // No character nearby, use axis-aligned wall sliding
       const canMoveX = !hasCollision(currentState.x + moveX, currentState.y, newRotation);
       const canMoveY = !hasCollision(currentState.x, currentState.y + moveY, newRotation);
       
@@ -587,44 +579,19 @@ export function calculateMovement(
         newX = currentState.x;
         newY = currentState.y + moveY;
       } else {
-        // Completely blocked - try push away from character
-        const push = getCharacterPushVector(currentState.x, currentState.y);
-        if (push) {
-          const pushedX = currentState.x + push.pushX;
-          const pushedY = currentState.y + push.pushY;
-          if (!hasWallOrRockCollision(pushedX, pushedY)) {
-            newX = pushedX;
-            newY = pushedY;
-          } else {
-            newX = currentState.x;
-            newY = currentState.y;
-          }
-        } else {
-          newX = currentState.x;
-          newY = currentState.y;
-        }
+        // Completely blocked
+        newX = currentState.x;
+        newY = currentState.y;
       }
     }
   }
   
-  // Final safety check: never allow moving closer to a character when we're near it
-  if (wouldMoveCloserToCharacter(currentState.x, currentState.y, newX, newY)) {
-    // Only allow movement that's tangent or away from character
-    const push = getCharacterPushVector(currentState.x, currentState.y);
-    if (push) {
-      const pushedX = currentState.x + push.pushX;
-      const pushedY = currentState.y + push.pushY;
-      if (!hasWallOrRockCollision(pushedX, pushedY)) {
-        newX = pushedX;
-        newY = pushedY;
-      } else {
-        newX = currentState.x;
-        newY = currentState.y;
-      }
-    } else {
-      newX = currentState.x;
-      newY = currentState.y;
-    }
+  // Final safety check: only apply when circular slide wasn't used
+  // This prevents the safety check from fighting with tangent sliding
+  if (!usedCircularSlide && wouldMoveCloserToCharacter(currentState.x, currentState.y, newX, newY)) {
+    // Just stop - don't push, which causes vibration
+    newX = currentState.x;
+    newY = currentState.y;
   }
 
   return { x: newX, y: newY, rotation: newRotation };
