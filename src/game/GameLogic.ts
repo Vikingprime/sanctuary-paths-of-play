@@ -443,8 +443,8 @@ export function calculateMovement(
   const hasCollision = (x: number, y: number, rot: number) => 
     hasWallOrRockCollision(x, y) || hasCharacterCollision(x, y, rot);
 
-  // Helper to find nearest station and calculate push direction
-  const getStationPushVector = (x: number, y: number): { pushX: number; pushY: number } | null => {
+  // Helper to find nearest station and calculate tangent slide vector for circular obstacles
+  const getCircularSlideVector = (x: number, y: number, desiredMoveX: number, desiredMoveY: number): { slideX: number; slideY: number } | null => {
     let nearestStation: CharacterPosition | null = null;
     let nearestDist = Infinity;
     
@@ -459,16 +459,53 @@ export function calculateMovement(
       }
     }
     
-    if (nearestStation && nearestDist < 1.0) {
+    if (nearestStation && nearestDist < 1.5) {
       const charX = nearestStation.x + 0.5;
       const charZ = nearestStation.y + 0.5;
+      
+      // Vector from tower center to player
+      const toPlayerX = x - charX;
+      const toPlayerY = y - charZ;
+      const toPlayerLen = Math.sqrt(toPlayerX * toPlayerX + toPlayerY * toPlayerY);
+      
+      if (toPlayerLen > 0.01) {
+        // Normalize radial vector (pointing outward from tower)
+        const radialX = toPlayerX / toPlayerLen;
+        const radialY = toPlayerY / toPlayerLen;
+        
+        // Tangent vectors (perpendicular to radial) - two options: clockwise and counter-clockwise
+        const tangent1X = -radialY;
+        const tangent1Y = radialX;
+        const tangent2X = radialY;
+        const tangent2Y = -radialX;
+        
+        // Project desired movement onto both tangent vectors
+        const dot1 = desiredMoveX * tangent1X + desiredMoveY * tangent1Y;
+        const dot2 = desiredMoveX * tangent2X + desiredMoveY * tangent2Y;
+        
+        // Choose the tangent that aligns better with desired movement
+        if (Math.abs(dot1) > Math.abs(dot2) && Math.abs(dot1) > 0.01) {
+          return { slideX: tangent1X * dot1, slideY: tangent1Y * dot1 };
+        } else if (Math.abs(dot2) > 0.01) {
+          return { slideX: tangent2X * dot2, slideY: tangent2Y * dot2 };
+        }
+      }
+    }
+    return null;
+  };
+
+  // Helper for push away (when completely stuck)
+  const getStationPushVector = (x: number, y: number): { pushX: number; pushY: number } | null => {
+    for (const char of characters) {
+      if (!char.isStation) continue;
+      const charX = char.x + 0.5;
+      const charZ = char.y + 0.5;
       const dx = x - charX;
       const dy = y - charZ;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len > 0.01) {
-        // Normalize and scale push force
-        const pushStrength = 0.08 * deltaTime * 60; // Consistent across frame rates
-        return { pushX: (dx / len) * pushStrength, pushY: (dy / len) * pushStrength };
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 1.0 && dist > 0.01) {
+        const pushStrength = 0.08 * deltaTime * 60;
+        return { pushX: (dx / dist) * pushStrength, pushY: (dy / dist) * pushStrength };
       }
     }
     return null;
@@ -479,43 +516,67 @@ export function calculateMovement(
   let newY = currentState.y + moveY;
 
   if (hasCollision(newX, newY, newRotation)) {
-    // Smooth wall sliding using surface projection
-    const canMoveX = !hasCollision(currentState.x + moveX, currentState.y, newRotation);
-    const canMoveY = !hasCollision(currentState.x, currentState.y + moveY, newRotation);
-    
-    if (canMoveX && canMoveY) {
-      // Both axes free individually but diagonal blocked - slide along dominant axis
-      if (Math.abs(moveX) > Math.abs(moveY)) {
-        newX = currentState.x + moveX;
-        newY = currentState.y;
+    // First try circular sliding around stations (smooth tangent movement)
+    const circularSlide = getCircularSlideVector(currentState.x, currentState.y, moveX, moveY);
+    if (circularSlide) {
+      const slideX = currentState.x + circularSlide.slideX;
+      const slideY = currentState.y + circularSlide.slideY;
+      if (!hasCollision(slideX, slideY, newRotation)) {
+        newX = slideX;
+        newY = slideY;
       } else {
-        newX = currentState.x;
-        newY = currentState.y + moveY;
-      }
-    } else if (canMoveX) {
-      // Slide along X axis
-      newX = currentState.x + moveX;
-      newY = currentState.y;
-    } else if (canMoveY) {
-      // Slide along Y axis  
-      newX = currentState.x;
-      newY = currentState.y + moveY;
-    } else {
-      // Completely blocked - try push away from station
-      const push = getStationPushVector(currentState.x, currentState.y);
-      if (push) {
-        const pushedX = currentState.x + push.pushX;
-        const pushedY = currentState.y + push.pushY;
-        if (!hasWallOrRockCollision(pushedX, pushedY)) {
-          newX = pushedX;
-          newY = pushedY;
+        // Circular slide blocked, fall back to axis-aligned
+        const canMoveX = !hasCollision(currentState.x + moveX, currentState.y, newRotation);
+        const canMoveY = !hasCollision(currentState.x, currentState.y + moveY, newRotation);
+        
+        if (canMoveX) {
+          newX = currentState.x + moveX;
+          newY = currentState.y;
+        } else if (canMoveY) {
+          newX = currentState.x;
+          newY = currentState.y + moveY;
         } else {
           newX = currentState.x;
           newY = currentState.y;
         }
-      } else {
-        newX = currentState.x;
+      }
+    } else {
+      // No station nearby, use axis-aligned wall sliding
+      const canMoveX = !hasCollision(currentState.x + moveX, currentState.y, newRotation);
+      const canMoveY = !hasCollision(currentState.x, currentState.y + moveY, newRotation);
+      
+      if (canMoveX && canMoveY) {
+        // Both axes free individually but diagonal blocked - slide along dominant axis
+        if (Math.abs(moveX) > Math.abs(moveY)) {
+          newX = currentState.x + moveX;
+          newY = currentState.y;
+        } else {
+          newX = currentState.x;
+          newY = currentState.y + moveY;
+        }
+      } else if (canMoveX) {
+        newX = currentState.x + moveX;
         newY = currentState.y;
+      } else if (canMoveY) {
+        newX = currentState.x;
+        newY = currentState.y + moveY;
+      } else {
+        // Completely blocked - try push away from station
+        const push = getStationPushVector(currentState.x, currentState.y);
+        if (push) {
+          const pushedX = currentState.x + push.pushX;
+          const pushedY = currentState.y + push.pushY;
+          if (!hasWallOrRockCollision(pushedX, pushedY)) {
+            newX = pushedX;
+            newY = pushedY;
+          } else {
+            newX = currentState.x;
+            newY = currentState.y;
+          }
+        } else {
+          newX = currentState.x;
+          newY = currentState.y;
+        }
       }
     }
   }
