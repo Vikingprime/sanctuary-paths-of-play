@@ -515,8 +515,22 @@ export function calculateMovement(
     }
     return null;
   };
-
-  // Try combined movement first
+  
+  // Safety check: ensure movement doesn't push player closer to a station when colliding
+  const wouldMoveCloserToStation = (fromX: number, fromY: number, toX: number, toY: number): boolean => {
+    for (const char of characters) {
+      if (!char.isStation) continue;
+      const charX = char.x + 0.5;
+      const charZ = char.y + 0.5;
+      const currentDist = Math.sqrt((fromX - charX) ** 2 + (fromY - charZ) ** 2);
+      const newDist = Math.sqrt((toX - charX) ** 2 + (toY - charZ) ** 2);
+      // If we're close to this station and would move closer, block it
+      if (currentDist < 1.0 && newDist < currentDist - 0.001) {
+        return true;
+      }
+    }
+    return false;
+  };
   let newX = currentState.x + moveX;
   let newY = currentState.y + moveY;
 
@@ -583,6 +597,26 @@ export function calculateMovement(
           newY = currentState.y;
         }
       }
+    }
+  }
+  
+  // Final safety check: never allow moving closer to a station when we're near it
+  if (wouldMoveCloserToStation(currentState.x, currentState.y, newX, newY)) {
+    // Only allow movement that's tangent or away from station
+    const push = getStationPushVector(currentState.x, currentState.y);
+    if (push) {
+      const pushedX = currentState.x + push.pushX;
+      const pushedY = currentState.y + push.pushY;
+      if (!hasWallOrRockCollision(pushedX, pushedY)) {
+        newX = pushedX;
+        newY = pushedY;
+      } else {
+        newX = currentState.x;
+        newY = currentState.y;
+      }
+    } else {
+      newX = currentState.x;
+      newY = currentState.y;
     }
   }
 
