@@ -933,8 +933,14 @@ export function calculateMovement(
               finalPos: { x: slideResult.x.toFixed(3), y: slideResult.y.toFixed(3) }
             });
             
-            // If still blocked after push-away, apply rotation nudge to steer around obstacle
-            if (slideResult.blocked && (slideResult.x === pushedX && slideResult.y === pushedY)) {
+            // Check if the slide made meaningful progress beyond just the push-away
+            const slideProgressX = slideResult.x - pushedX;
+            const slideProgressY = slideResult.y - pushedY;
+            const slideProgressMag = Math.sqrt(slideProgressX * slideProgressX + slideProgressY * slideProgressY);
+            const madeProgress = slideProgressMag > 0.005; // Meaningful progress threshold
+            
+            // If still blocked after push-away with no meaningful slide progress, apply rotation nudge
+            if (slideResult.blocked && !madeProgress) {
               // Increment stuck counter
               slideBlockedCounter++;
               
