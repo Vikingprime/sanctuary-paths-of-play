@@ -479,71 +479,45 @@ export function calculateMovement(
   let newY = currentState.y + moveY;
 
   if (hasCollision(newX, newY, newRotation)) {
-    // Smooth wall sliding: try partial movements with gradual reduction
-    const slideSteps = 8; // More steps = smoother sliding
-    let bestX = currentState.x;
-    let bestY = currentState.y;
-    let foundValidMove = false;
+    // Smooth wall sliding using surface projection
+    const canMoveX = !hasCollision(currentState.x + moveX, currentState.y, newRotation);
+    const canMoveY = !hasCollision(currentState.x, currentState.y + moveY, newRotation);
     
-    // First try pure axis-aligned sliding (most common case)
-    if (!hasCollision(currentState.x + moveX, currentState.y, newRotation)) {
-      bestX = currentState.x + moveX;
-      bestY = currentState.y;
-      foundValidMove = true;
-    } else if (!hasCollision(currentState.x, currentState.y + moveY, newRotation)) {
-      bestX = currentState.x;
-      bestY = currentState.y + moveY;
-      foundValidMove = true;
-    }
-    
-    // If pure axis sliding failed, try gradual slide with reduced speed
-    if (!foundValidMove) {
-      for (let i = slideSteps - 1; i >= 1; i--) {
-        const factor = i / slideSteps;
-        const slideX = currentState.x + moveX * factor;
-        const slideY = currentState.y + moveY * factor;
-        
-        // Try reduced diagonal movement
-        if (!hasCollision(slideX, slideY, newRotation)) {
-          bestX = slideX;
-          bestY = slideY;
-          foundValidMove = true;
-          break;
-        }
-        
-        // Try X-only at reduced speed
-        if (!hasCollision(slideX, currentState.y, newRotation)) {
-          bestX = slideX;
-          bestY = currentState.y;
-          foundValidMove = true;
-          break;
-        }
-        
-        // Try Y-only at reduced speed
-        if (!hasCollision(currentState.x, slideY, newRotation)) {
-          bestX = currentState.x;
-          bestY = slideY;
-          foundValidMove = true;
-          break;
-        }
+    if (canMoveX && canMoveY) {
+      // Both axes free individually but diagonal blocked - slide along dominant axis
+      if (Math.abs(moveX) > Math.abs(moveY)) {
+        newX = currentState.x + moveX;
+        newY = currentState.y;
+      } else {
+        newX = currentState.x;
+        newY = currentState.y + moveY;
       }
-    }
-    
-    // Last resort: apply bounce/push away from station
-    if (!foundValidMove) {
+    } else if (canMoveX) {
+      // Slide along X axis
+      newX = currentState.x + moveX;
+      newY = currentState.y;
+    } else if (canMoveY) {
+      // Slide along Y axis  
+      newX = currentState.x;
+      newY = currentState.y + moveY;
+    } else {
+      // Completely blocked - try push away from station
       const push = getStationPushVector(currentState.x, currentState.y);
       if (push) {
         const pushedX = currentState.x + push.pushX;
         const pushedY = currentState.y + push.pushY;
         if (!hasWallOrRockCollision(pushedX, pushedY)) {
-          bestX = pushedX;
-          bestY = pushedY;
+          newX = pushedX;
+          newY = pushedY;
+        } else {
+          newX = currentState.x;
+          newY = currentState.y;
         }
+      } else {
+        newX = currentState.x;
+        newY = currentState.y;
       }
     }
-    
-    newX = bestX;
-    newY = bestY;
   }
 
   return { x: newX, y: newY, rotation: newRotation };
