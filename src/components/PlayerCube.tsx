@@ -304,9 +304,9 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     }
     
     // Bobbing for pig only (cow and bird have their own animations)
-    // Note: Bobbing adds to the base position which starts at y=0
     if (innerGroupRef.current && animalType === 'pig') {
-      innerGroupRef.current.position.y = Math.sin(state.clock.elapsedTime * 3) * 0.03;
+      const baseHeight = 0.15;
+      innerGroupRef.current.position.y = baseHeight + Math.sin(state.clock.elapsedTime * 3) * 0.03;
     }
   });
 
@@ -319,9 +319,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     const CAPSULE_RADIUS = 0.15;  // Slightly larger radius
     const DEBUG_Y = 0.3;
     
-    // The pig GLB model's origin is above feet (at body center)
-    // We need a NEGATIVE offset to lower the model so feet touch y=0
-    const PIG_Y_OFFSET = -0.25;
+    // FIX: Raise pig model so feet touch ground at y=0
+    const PIG_Y_OFFSET = 0.05;
     
     return (
       <group position={position}>
@@ -363,13 +362,10 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     const HEAD_RADIUS = 0.15;
     const DEBUG_Y = 0.5;
     
-    // Cow GLB model's origin is above feet - needs negative offset to ground
-    const COW_Y_OFFSET = -0.15;
-    
     return (
       <group position={position}>
-        <group ref={cowGroupRef} position={[0, COW_Y_OFFSET, 0]}>
-          <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, 0, 0]} />
+        <group ref={cowGroupRef} position={[0, 0.15, 0]}>
+          <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.3, 0]} />
         </group>
         
         {/* Debug capsule collider - rotate with cow using rotation prop */}
@@ -409,9 +405,10 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   const CAPSULE_RADIUS = 0.08;
   const DEBUG_Y = 0.2;
   
-  // The chicken GLB model's origin is above feet (at body center)
-  // We need a NEGATIVE offset to lower the model so feet touch y=0
-  const CHICKEN_Y_OFFSET = -0.25;
+  // FIX: The chicken model's origin is at its body center, not feet.
+  // We need a positive Y offset to raise the model so feet touch ground.
+  // At scale 0.008, the model's visual half-height is roughly 0.15-0.2 units.
+  const CHICKEN_Y_OFFSET = 0.15;
   
   return (
     <group position={position}>
