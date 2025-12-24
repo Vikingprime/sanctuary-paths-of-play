@@ -234,14 +234,15 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): {
   tail: number; 
   pointRadius: number;
   hornWidth?: number; // For cow - distance horns extend sideways from head
+  neckLength?: number; // For cow - distance from center to neck checkpoint
 } {
   switch (animalType) {
     case 'pig':
       // Pig's snout extends forward - keep small gap from characters
       return { head: 0.22, tail: 0.20, pointRadius: 0.10 };
     case 'cow':
-      // Cow has horns that extend forward AND sideways
-      return { head: 0.35, tail: 0.35, pointRadius: 0.12, hornWidth: 0.25 };
+      // Cow has horns that extend forward AND sideways, plus a long neck
+      return { head: 0.35, tail: 0.35, pointRadius: 0.12, hornWidth: 0.25, neckLength: 0.18 };
     case 'bird':
       // Chicken - larger negative head offset allows beak to get much closer
       return { head: -0.35, tail: 0.001, pointRadius: 0.001 };
@@ -280,7 +281,17 @@ export function checkCharacterCollisionMultiPoint(
     return true;
   }
   
-  // For cow, also check horn positions (left and right of head)
+  // For cow, also check neck and horn positions
+  if (offsets.neckLength) {
+    // Neck position - between center and head
+    const neckX = x + Math.sin(rotation) * offsets.neckLength;
+    const neckY = y - Math.cos(rotation) * offsets.neckLength;
+    
+    if (checkCharacterCollision(neckX, neckY, characters, offsets.pointRadius, useRotationRadius)) {
+      return true;
+    }
+  }
+  
   if (offsets.hornWidth) {
     // Horn positions are perpendicular to facing direction
     const perpX = Math.cos(rotation); // Perpendicular direction
