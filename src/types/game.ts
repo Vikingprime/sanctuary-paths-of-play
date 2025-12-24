@@ -65,7 +65,7 @@ export interface DialogueTrigger {
   requires?: string[]; // IDs of dialogues that must be completed before this one can trigger
   characterModel?: string; // GLB model file name - used if speakerCharacterId not set
   characterAnimation?: string; // Animation to play during dialogue
-  speakerCharacterId?: string; // ID of placed character OR 'endFarmer' for built-in end farmer
+  speakerCharacterId?: string; // ID of placed character to zoom camera to
 }
 
 export interface Maze {
@@ -80,7 +80,6 @@ export interface Maze {
   currencyCost?: number; // optional currency cost to unlock special mazes
   characters?: MazeCharacter[]; // placed characters in the maze
   dialogues?: DialogueTrigger[]; // optional dialogue triggers
-  endFarmerPosition?: { x: number; y: number }; // explicit position for the end farmer (if not set, no farmer is shown)
   endConditions?: {
     requiredDialogues?: string[]; // Dialogues that must be completed before end cell triggers level complete
   };

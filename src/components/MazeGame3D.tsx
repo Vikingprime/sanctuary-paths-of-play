@@ -108,16 +108,6 @@ export const MazeGame3D = ({
     
     // Check for speakerCharacterId first
     if (dialogue.speakerCharacterId) {
-      // Special case: 'endFarmer' refers to the built-in end farmer
-      if (dialogue.speakerCharacterId === 'endFarmer') {
-        // Use explicit endFarmerPosition if set
-        if (maze.endFarmerPosition) {
-          return { x: maze.endFarmerPosition.x, y: maze.endFarmerPosition.y };
-        }
-        // Fallback: no farmer shown if position not set
-        return null;
-      }
-      
       // Look up character in maze.characters array
       const character = maze.characters?.find(c => c.id === dialogue.speakerCharacterId);
       if (character) {

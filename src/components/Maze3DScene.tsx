@@ -1201,7 +1201,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
-  // Generate character positions for collision (placed characters + end farmer)
+  // Generate character positions for collision (all placed characters)
   const CHARACTER_COLLISION_RADIUS = 0.4; // Moderate radius - multi-point collision handles the rest
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
@@ -1215,22 +1215,12 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
       });
     });
     
-    // Add end farmer if position is explicitly set
-    if (maze.endFarmerPosition) {
-      positions.push({
-        x: maze.endFarmerPosition.x,
-        y: maze.endFarmerPosition.y,
-        radius: CHARACTER_COLLISION_RADIUS,
-      });
-    }
-    
     return positions;
   }, [maze]);
 
   const items = useMemo(() => {
     const powerUps: { pos: [number, number, number]; key: string }[] = [];
     const stations: [number, number, number][] = [];
-    let goalPos: [number, number, number] | null = null;
 
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
@@ -1240,17 +1230,10 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
         if (cell.isStation) {
           stations.push([x + 0.5, 0, y + 0.5]);
         }
-        // Note: goalPos is no longer auto-calculated from end cells
-        // It will be set from maze.endFarmerPosition below
       });
     });
-
-    // Use explicit endFarmerPosition if set, otherwise null (no farmer)
-    const farmerPos = maze.endFarmerPosition 
-      ? [maze.endFarmerPosition.x, 0, maze.endFarmerPosition.y] as [number, number, number]
-      : null;
     
-    return { powerUps, stations, goalPos: farmerPos };
+    return { powerUps, stations };
   }, [maze]);
 
   // Filter out collected powerups
@@ -1369,19 +1352,7 @@ return (
         />
       ))}
       
-      {/* Goal - only render if endFarmerPosition is explicitly set */}
-      {items.goalPos && (
-        <GoalMarker 
-          position={items.goalPos} 
-          playerStateRef={playerStateRef}
-          isDialogueActive={
-            // Only activate when dialogue is with the goal marker itself
-            dialogueTarget !== null && 
-            Math.abs(dialogueTarget.speakerX - items.goalPos[0]) < 0.5 &&
-            Math.abs(dialogueTarget.speakerZ - items.goalPos[2]) < 0.5
-          }
-        />
-      )}
+      {/* Note: GoalMarker removed - farmer is now a regular PlacedCharacter */}
       
       {/* Player - handles movement + rendering in sync */}
       <RefBasedPlayer 
