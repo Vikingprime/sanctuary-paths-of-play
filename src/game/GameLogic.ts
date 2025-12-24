@@ -941,7 +941,10 @@ export function calculateMovement(
             });
             
             // If still blocked after push-away, apply rotation nudge to steer around obstacle
-            if (slideResult.blocked && (slideResult.x === pushedX && slideResult.y === pushedY)) {
+            // ONLY for characters/towers - walls should not trigger rotation nudge
+            const shouldApplyRotationNudge = hitType === 'character' || hitType === 'tower';
+            
+            if (slideResult.blocked && (slideResult.x === pushedX && slideResult.y === pushedY) && shouldApplyRotationNudge) {
               // Increment stuck counter
               slideBlockedCounter++;
               
@@ -975,6 +978,10 @@ export function calculateMovement(
               
               // Don't force translation - let the rotation guide the player
               // Just stay at pushed position (slightly away from collider)
+              newX = pushedX;
+              newY = pushedY;
+            } else if (slideResult.blocked && (slideResult.x === pushedX && slideResult.y === pushedY)) {
+              // Wall collision - just stay put, no rotation nudge
               newX = pushedX;
               newY = pushedY;
             } else {
