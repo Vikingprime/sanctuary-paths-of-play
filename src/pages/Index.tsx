@@ -118,6 +118,13 @@ const Index = () => {
         silverMedals={silverMedals}
       />
       <main className="container max-w-4xl mx-auto px-4 py-8">
+        {/* How to Play Panel - visible on both home and levels screens */}
+        {(screen === 'home' || screen === 'levels') && (
+          <div className="mb-8">
+            <HowToPlayPanel />
+          </div>
+        )}
+
         {screen === 'home' && (
           <div className="space-y-8">
             {/* Hero Section */}
@@ -204,9 +211,6 @@ const Index = () => {
                 targetMeals={5}
               />
             </div>
-
-            {/* How to Play Panel */}
-            <HowToPlayPanel />
 
             {/* How it works - quick overview */}
             <div className="bg-card rounded-2xl p-6 shadow-warm animate-fade-in-delay-3">
