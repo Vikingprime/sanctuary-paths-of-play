@@ -1231,8 +1231,8 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 
   // Generate character positions for collision (all placed characters + map stations)
   const CHARACTER_COLLISION_RADIUS = 0.4;
-  const STATION_COLLISION_RADIUS = 0.12; // Tiny - barely perceptible
-  const STATION_ROTATION_RADIUS = 0.10; // Even smaller for rotation
+  const STATION_COLLISION_RADIUS = 0.35; // Solid collision - prevents walking through
+  const STATION_ROTATION_RADIUS = 0.25; // Slightly smaller for rotation, but still blocks
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
     
@@ -1413,6 +1413,7 @@ return (
         isMuted={isMuted}
         rocks={rocks}
         characters={characterPositions}
+        showCollisionDebug={showCollisionDebug}
       />
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
