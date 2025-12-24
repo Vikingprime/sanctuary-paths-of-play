@@ -348,7 +348,7 @@ export const mazes: Maze[] = [
         emoji: '🧑‍🌾',
         model: 'Farmer.glb',
         animation: 'wave',
-        position: { x: 13, y: 13 },
+        position: { x: 10, y: 12 },
       }
     ],
     // Intro sequence - plays before the maze starts
@@ -390,7 +390,7 @@ export const mazes: Maze[] = [
         messages: [
           { speaker: 'Sanctuary Sam', speakerEmoji: '👨‍🌾', message: "I've been looking for you!" }
         ],
-        cells: [{ x: 12, y: 12 }, { x: 13, y: 12 }, { x: 13, y: 13 }, { x: 12, y: 13 }],
+        cells: [{ x: 9, y: 11 }, { x: 10, y: 11 }, { x: 10, y: 12 }, { x: 9, y: 12 }],
         speakerCharacterId: 'sanctuary_sam',
         characterAnimation: 'idle',
       },
