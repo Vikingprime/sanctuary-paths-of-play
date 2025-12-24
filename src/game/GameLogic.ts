@@ -318,10 +318,10 @@ const ROTATION_STEP = 0.02;        // ~1.15 degrees per step for rotation sweep 
 const SWEEP_STEPS = 12;            // Binary search steps for swept collision (more)
 const MAX_DEPENETRATION = 0.03;    // Maximum push per frame
 const OVERLAP_EPSILON = 0.001;     // Overlap threshold (reduced for stricter detection)
-const TOWER_SLIDE_BOOST = 1.3;     // Tangent boost when sliding around towers (1.2-1.5)
+const TOWER_SLIDE_BOOST = 1.3;     // Tangent boost when sliding around towers/characters (1.2-1.5)
 
 // Collision types
-export type ColliderType = 'wall' | 'tower' | 'rock';
+export type ColliderType = 'wall' | 'tower' | 'rock' | 'character';
 
 // Hit info returned from collision checks
 export interface CollisionHitInfo {
@@ -423,8 +423,8 @@ function checkCapsuleOverlap(
         const depth = minDist - dist;
         if (depth > maxDepth) {
           maxDepth = depth;
-          // Stations are "towers" - apply slide boost
-          hitType = char.isStation ? 'tower' : 'wall';
+          // Stations are "towers", other NPCs are "characters" - both get slide boost
+          hitType = char.isStation ? 'tower' : 'character';
         }
         totalMtvX += (dx / dist) * depth;
         totalMtvY += (dy / dist) * depth;
@@ -820,10 +820,10 @@ export function calculateMovement(
         const dot = remainingX * tangentX + remainingY * tangentY;
         
         // Apply slide multiplier based on hit type
-        // TOWERS get a boost (1.3x) to slide smoothly around them
-        // WALLS get standard friction (0.8x) - no boost
-        const isTower = sweepResult.hitType === 'tower';
-        const slideMultiplier = isTower ? TOWER_SLIDE_BOOST : 0.8;
+        // TOWERS and CHARACTERS get a boost (1.3x) to slide smoothly around them
+        // WALLS and ROCKS get standard friction (0.8x) - no boost
+        const isSlideable = sweepResult.hitType === 'tower' || sweepResult.hitType === 'character';
+        const slideMultiplier = isSlideable ? TOWER_SLIDE_BOOST : 0.8;
         
         const slideX = tangentX * dot * slideMultiplier;
         const slideY = tangentY * dot * slideMultiplier;
