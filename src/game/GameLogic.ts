@@ -318,6 +318,17 @@ const ROTATION_STEP = 0.02;        // ~1.15 degrees per step for rotation sweep 
 const SWEEP_STEPS = 12;            // Binary search steps for swept collision (more)
 const MAX_DEPENETRATION = 0.03;    // Maximum push per frame
 const OVERLAP_EPSILON = 0.001;     // Overlap threshold (reduced for stricter detection)
+const TOWER_SLIDE_BOOST = 1.3;     // Tangent boost when sliding around towers (1.2-1.5)
+
+// Collision types
+export type ColliderType = 'wall' | 'tower' | 'rock';
+
+// Hit info returned from collision checks
+export interface CollisionHitInfo {
+  overlapping: boolean;
+  mtv?: { x: number; y: number; depth: number };
+  hitType?: ColliderType;  // Type of collider that was hit
+}
 
 // Persistent state for unstuck
 let stuckTimer = 0;
@@ -326,7 +337,7 @@ let lastSafeTransform = { x: 0, y: 0, rotation: 0 };
 
 /**
  * Check if a capsule overlaps any static collider (walls, rocks, characters)
- * Returns overlap info or null if no overlap
+ * Returns overlap info including the type of collider hit (for tower sliding logic)
  */
 function checkCapsuleOverlap(
   x: number,
@@ -337,7 +348,7 @@ function checkCapsuleOverlap(
   rocks: RockPosition[],
   characters: CharacterPosition[],
   animalType?: AnimalType
-): { overlapping: boolean; mtv?: { x: number; y: number; depth: number } } {
+): CollisionHitInfo {
   const endpoints = getCapsuleEndpoints(x, y, rotation, capsule);
   
   // Build sample points for collision
@@ -365,6 +376,7 @@ function checkCapsuleOverlap(
   let totalMtvX = 0;
   let totalMtvY = 0;
   let maxDepth = 0;
+  let hitType: ColliderType | undefined = undefined;
   
   // WALL COLLISION: Use center point only (simplified for now)
   const centerRadius = capsule.radius;
@@ -372,7 +384,10 @@ function checkCapsuleOverlap(
   if (wallPen) {
     totalMtvX += wallPen.x;
     totalMtvY += wallPen.y;
-    if (wallPen.depth > maxDepth) maxDepth = wallPen.depth;
+    if (wallPen.depth > maxDepth) {
+      maxDepth = wallPen.depth;
+      hitType = 'wall';  // Wall collision
+    }
   }
   
   // ROCK COLLISION: Use center point only
@@ -384,13 +399,17 @@ function checkCapsuleOverlap(
     
     if (dist < minDist && dist > 0.001) {
       const depth = minDist - dist;
-      if (depth > maxDepth) maxDepth = depth;
+      if (depth > maxDepth) {
+        maxDepth = depth;
+        hitType = 'rock';  // Rock collision
+      }
       totalMtvX += (dx / dist) * depth;
       totalMtvY += (dy / dist) * depth;
     }
   }
   
-  // CHARACTER COLLISION: Use full capsule (all points)
+  // CHARACTER/TOWER COLLISION: Use full capsule (all points)
+  // Characters marked as isStation are TOWERS - apply slide boost
   for (const point of capsulePoints) {
     for (const char of characters) {
       const charX = char.x + 0.5;
@@ -402,7 +421,11 @@ function checkCapsuleOverlap(
       
       if (dist < minDist && dist > 0.001) {
         const depth = minDist - dist;
-        if (depth > maxDepth) maxDepth = depth;
+        if (depth > maxDepth) {
+          maxDepth = depth;
+          // Stations are "towers" - apply slide boost
+          hitType = char.isStation ? 'tower' : 'wall';
+        }
         totalMtvX += (dx / dist) * depth;
         totalMtvY += (dy / dist) * depth;
       }
@@ -412,7 +435,8 @@ function checkCapsuleOverlap(
   if (maxDepth > OVERLAP_EPSILON) {
     return { 
       overlapping: true, 
-      mtv: { x: totalMtvX, y: totalMtvY, depth: maxDepth } 
+      mtv: { x: totalMtvX, y: totalMtvY, depth: maxDepth },
+      hitType
     };
   }
   
@@ -479,6 +503,7 @@ function getWallPenetrationForPoint(
 /**
  * Swept capsule translation - binary search to find safe position
  * Returns the furthest safe position along the movement vector
+ * Also returns the type of collider hit for slide behavior differentiation
  */
 function sweepTranslation(
   startX: number,
@@ -491,7 +516,7 @@ function sweepTranslation(
   rocks: RockPosition[],
   characters: CharacterPosition[],
   animalType?: AnimalType
-): { x: number; y: number; blocked: boolean; normal?: { x: number; y: number } } {
+): { x: number; y: number; blocked: boolean; normal?: { x: number; y: number }; hitType?: ColliderType } {
   const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
   if (moveLen < 0.0001) {
     return { x: startX, y: startY, blocked: false };
@@ -548,7 +573,8 @@ function sweepTranslation(
     x: safeX, 
     y: safeY, 
     blocked: true,
-    normal: normalLen > 0.001 ? { x: normalX / normalLen, y: normalY / normalLen } : undefined
+    normal: normalLen > 0.001 ? { x: normalX / normalLen, y: normalY / normalLen } : undefined,
+    hitType: endOverlap.hitType  // Return the type of collider hit
   };
 }
 
@@ -782,15 +808,25 @@ export function calculateMovement(
       
       // Attempt slide along tangent
       if (sweepResult.normal) {
-        const remainingX = (moveX - (sweepResult.x - (newX - moveX)));
-        const remainingY = (moveY - (sweepResult.y - (newY - moveY)));
+        // Calculate remaining movement (what couldn't be applied)
+        const appliedX = sweepResult.x - (newX - moveX);
+        const appliedY = sweepResult.y - (newY - moveY);
+        const remainingX = moveX - appliedX;
+        const remainingY = moveY - appliedY;
         
-        // Project remaining onto tangent
+        // Project remaining onto tangent (perpendicular to normal)
         const tangentX = -sweepResult.normal.y;
         const tangentY = sweepResult.normal.x;
         const dot = remainingX * tangentX + remainingY * tangentY;
-        const slideX = tangentX * dot * 0.8; // Slight friction
-        const slideY = tangentY * dot * 0.8;
+        
+        // Apply slide multiplier based on hit type
+        // TOWERS get a boost (1.3x) to slide smoothly around them
+        // WALLS get standard friction (0.8x) - no boost
+        const isTower = sweepResult.hitType === 'tower';
+        const slideMultiplier = isTower ? TOWER_SLIDE_BOOST : 0.8;
+        
+        const slideX = tangentX * dot * slideMultiplier;
+        const slideY = tangentY * dot * slideMultiplier;
         
         if (Math.abs(slideX) > 0.001 || Math.abs(slideY) > 0.001) {
           const slideResult = sweepTranslation(
