@@ -443,33 +443,32 @@ export function calculateMovement(
   const hasCollision = (x: number, y: number, rot: number) => 
     hasWallOrRockCollision(x, y) || hasCharacterCollision(x, y, rot);
 
-  // Helper to find nearest station and calculate tangent slide vector for circular obstacles
+  // Helper to find nearest character and calculate tangent slide vector for circular obstacles
   const getCircularSlideVector = (x: number, y: number, desiredMoveX: number, desiredMoveY: number): { slideX: number; slideY: number } | null => {
-    let nearestStation: CharacterPosition | null = null;
+    let nearestChar: CharacterPosition | null = null;
     let nearestDist = Infinity;
     
     for (const char of characters) {
-      if (!char.isStation) continue;
       const charX = char.x + 0.5;
       const charZ = char.y + 0.5;
       const dist = Math.sqrt((x - charX) ** 2 + (y - charZ) ** 2);
       if (dist < nearestDist) {
         nearestDist = dist;
-        nearestStation = char;
+        nearestChar = char;
       }
     }
     
-    if (nearestStation && nearestDist < 1.5) {
-      const charX = nearestStation.x + 0.5;
-      const charZ = nearestStation.y + 0.5;
+    if (nearestChar && nearestDist < 1.5) {
+      const charX = nearestChar.x + 0.5;
+      const charZ = nearestChar.y + 0.5;
       
-      // Vector from tower center to player
+      // Vector from character center to player
       const toPlayerX = x - charX;
       const toPlayerY = y - charZ;
       const toPlayerLen = Math.sqrt(toPlayerX * toPlayerX + toPlayerY * toPlayerY);
       
       if (toPlayerLen > 0.01) {
-        // Normalize radial vector (pointing outward from tower)
+        // Normalize radial vector (pointing outward from character)
         const radialX = toPlayerX / toPlayerLen;
         const radialY = toPlayerY / toPlayerLen;
         
@@ -500,9 +499,8 @@ export function calculateMovement(
   };
 
   // Helper for push away (when completely stuck)
-  const getStationPushVector = (x: number, y: number): { pushX: number; pushY: number } | null => {
+  const getCharacterPushVector = (x: number, y: number): { pushX: number; pushY: number } | null => {
     for (const char of characters) {
-      if (!char.isStation) continue;
       const charX = char.x + 0.5;
       const charZ = char.y + 0.5;
       const dx = x - charX;
@@ -516,15 +514,14 @@ export function calculateMovement(
     return null;
   };
   
-  // Safety check: ensure movement doesn't push player closer to a station when colliding
-  const wouldMoveCloserToStation = (fromX: number, fromY: number, toX: number, toY: number): boolean => {
+  // Safety check: ensure movement doesn't push player closer to a character when colliding
+  const wouldMoveCloserToCharacter = (fromX: number, fromY: number, toX: number, toY: number): boolean => {
     for (const char of characters) {
-      if (!char.isStation) continue;
       const charX = char.x + 0.5;
       const charZ = char.y + 0.5;
       const currentDist = Math.sqrt((fromX - charX) ** 2 + (fromY - charZ) ** 2);
       const newDist = Math.sqrt((toX - charX) ** 2 + (toY - charZ) ** 2);
-      // If we're close to this station and would move closer, block it
+      // If we're close to this character and would move closer, block it
       if (currentDist < 1.0 && newDist < currentDist - 0.001) {
         return true;
       }
@@ -580,8 +577,8 @@ export function calculateMovement(
         newX = currentState.x;
         newY = currentState.y + moveY;
       } else {
-        // Completely blocked - try push away from station
-        const push = getStationPushVector(currentState.x, currentState.y);
+        // Completely blocked - try push away from character
+        const push = getCharacterPushVector(currentState.x, currentState.y);
         if (push) {
           const pushedX = currentState.x + push.pushX;
           const pushedY = currentState.y + push.pushY;
@@ -600,10 +597,10 @@ export function calculateMovement(
     }
   }
   
-  // Final safety check: never allow moving closer to a station when we're near it
-  if (wouldMoveCloserToStation(currentState.x, currentState.y, newX, newY)) {
-    // Only allow movement that's tangent or away from station
-    const push = getStationPushVector(currentState.x, currentState.y);
+  // Final safety check: never allow moving closer to a character when we're near it
+  if (wouldMoveCloserToCharacter(currentState.x, currentState.y, newX, newY)) {
+    // Only allow movement that's tangent or away from character
+    const push = getCharacterPushVector(currentState.x, currentState.y);
     if (push) {
       const pushedX = currentState.x + push.pushX;
       const pushedY = currentState.y + push.pushY;
