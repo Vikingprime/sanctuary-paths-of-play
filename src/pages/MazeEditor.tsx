@@ -117,7 +117,7 @@ const AVAILABLE_ANIMATIONS = [
   'celebrate',
 ];
 
-// Sortable maze item component for drag-and-drop
+// Sortable maze list item component for drag-and-drop reordering
 interface SortableMazeItemProps {
   maze: Maze;
   isSelected: boolean;
