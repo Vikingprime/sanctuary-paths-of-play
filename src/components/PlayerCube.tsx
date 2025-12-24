@@ -329,10 +329,15 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
         <group ref={cowGroupRef} position={[0, 0.15, 0]}>
           <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.3, 0]} />
         </group>
-        {/* Debug: collision head point - green sphere shows where collision is checked */}
-        <mesh position={[0, 0.1, HEAD_OFFSET]}>
-          <sphereGeometry args={[0.08, 8, 8]} />
-          <meshBasicMaterial color="#00ff00" transparent opacity={0.8} />
+        {/* Debug: collision head point - bright green sphere, raised high for visibility */}
+        <mesh position={[0, 1.5, -HEAD_OFFSET]}>
+          <sphereGeometry args={[0.15, 16, 16]} />
+          <meshBasicMaterial color="#00ff00" />
+        </mesh>
+        {/* Debug: center point - blue sphere */}
+        <mesh position={[0, 1.5, 0]}>
+          <sphereGeometry args={[0.12, 16, 16]} />
+          <meshBasicMaterial color="#0000ff" />
         </mesh>
       </group>
     );
