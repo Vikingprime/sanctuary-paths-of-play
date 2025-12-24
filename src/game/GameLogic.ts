@@ -872,25 +872,25 @@ export function calculateMovement(
             slidingContactTime += deltaTime;
           }
           
-          // Calculate headOnSideSign for ALL blocked collisions (not just slideable)
-          // This is needed for the rotation nudge when stuck
-          const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
-          if (moveLen > 0.001 && headOnSideSign === 0) {
-            const cross = moveX * ny - moveY * nx;
-            // First contact - pick a side and stick with it
-            headOnSideSign = cross >= 0 ? 1 : -1;
-            // Add hysteresis: if cross is very small, pick based on slight randomness to avoid deadlock
-            if (Math.abs(cross) < 0.01) {
-              headOnSideSign = 1; // Default to consistent direction when head-on
-            }
-            console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
-          }
-          
           if (isSlideable) {
+            const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
+            
             if (moveLen > 0.001) {
               const cross = moveX * ny - moveY * nx;
               
-              const tangentX = naturalTangentX * headOnSideSign;
+              // PERSIST side sign - only set on first contact, keep stable while touching same collider
+              // This prevents oscillation when cross is near zero
+              if (headOnSideSign === 0) {
+                // First contact - pick a side and stick with it
+                headOnSideSign = cross >= 0 ? 1 : -1;
+                // Add hysteresis: if cross is very small, pick based on slight randomness to avoid deadlock
+                if (Math.abs(cross) < 0.01) {
+                  headOnSideSign = 1; // Default to consistent direction when head-on
+                }
+                console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
+              }
+              
+            const tangentX = naturalTangentX * headOnSideSign;
               const tangentY = naturalTangentY * headOnSideSign;
               
               const boostedSlideX = slideX * TOWER_SLIDE_BOOST;
@@ -917,10 +917,9 @@ export function calculateMovement(
           
           // Apply slide via second sweep (same frame, continuous motion)
           if (Math.abs(slideX) > 0.0001 || Math.abs(slideY) > 0.0001) {
-            // Push away from surface BEFORE sliding (only for characters/towers, not walls)
-            // Walls don't need push-away as they have high friction and don't cause sticking
-            const shouldPushAway = hitType === 'character' || hitType === 'tower';
-            const pushAwayDist = shouldPushAway ? 0.02 : 0;
+            // CRITICAL FIX: Push slightly away from surface FIRST before sliding
+            // This prevents the second sweep from immediately hitting the same collider
+            const pushAwayDist = 0.02; // Small push away from the surface
             const pushedX = newX + nx * pushAwayDist;
             const pushedY = newY + ny * pushAwayDist;
             
@@ -941,10 +940,7 @@ export function calculateMovement(
             });
             
             // If still blocked after push-away, apply rotation nudge to steer around obstacle
-            // ONLY for characters/towers - walls should not trigger rotation nudge
-            const shouldApplyRotationNudge = hitType === 'character' || hitType === 'tower';
-            
-            if (slideResult.blocked && (slideResult.x === pushedX && slideResult.y === pushedY) && shouldApplyRotationNudge) {
+            if (slideResult.blocked && (slideResult.x === pushedX && slideResult.y === pushedY)) {
               // Increment stuck counter
               slideBlockedCounter++;
               
@@ -978,10 +974,6 @@ export function calculateMovement(
               
               // Don't force translation - let the rotation guide the player
               // Just stay at pushed position (slightly away from collider)
-              newX = pushedX;
-              newY = pushedY;
-            } else if (slideResult.blocked && (slideResult.x === pushedX && slideResult.y === pushedY)) {
-              // Wall collision - just stay put, no rotation nudge
               newX = pushedX;
               newY = pushedY;
             } else {
