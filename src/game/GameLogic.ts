@@ -345,6 +345,7 @@ let lastSlideTangent = { x: 0, y: 0 };  // Track consistent tangent direction
 let headOnSideSign = 0;                 // Persistent side sign for head-on pole unstick (+1 or -1)
 let slidingContactTime = 0;             // How long we've been in sliding contact
 let lastContactColliderKey = '';        // Track which collider we're contacting for cast offset
+let slideBlockedCounter = 0;            // Count consecutive frames where slide is blocked
 
 /**
  * Check if a capsule overlaps any static collider (walls, rocks, characters)
@@ -940,6 +941,17 @@ export function calculateMovement(
             
             // If still blocked after push-away, apply rotation nudge to steer around obstacle
             if (slideResult.blocked && (slideResult.x === pushedX && slideResult.y === pushedY)) {
+              // Increment stuck counter
+              slideBlockedCounter++;
+              
+              // If stuck for too many frames on same side, flip the side
+              const FLIP_THRESHOLD = 15; // Flip after ~15 frames of being stuck
+              if (slideBlockedCounter > FLIP_THRESHOLD && headOnSideSign !== 0) {
+                headOnSideSign = -headOnSideSign;
+                slideBlockedCounter = 0; // Reset counter after flip
+                console.log('[SLIDE] Flipping side after being stuck:', headOnSideSign);
+              }
+              
               // Second sweep made no progress - APPLY ROTATION to turn toward gap
               // This "turns the head" instead of forcing a blocked translation
               const ROTATION_NUDGE_STRENGTH = 0.12; // Radians per frame when blocked
@@ -955,6 +967,7 @@ export function calculateMovement(
               console.log('[SLIDE] Rotation nudge (blocked slide):', {
                 sideSign: headOnSideSign,
                 isBackward: isMovingBackward,
+                blockedFrames: slideBlockedCounter,
                 rotationNudge: rotationNudge.toFixed(4),
                 newRotation: newRotation.toFixed(3)
               });
@@ -964,6 +977,8 @@ export function calculateMovement(
               newX = pushedX;
               newY = pushedY;
             } else {
+              // Slide succeeded - reset blocked counter
+              slideBlockedCounter = 0;
               newX = slideResult.x;
               newY = slideResult.y;
             }
@@ -982,6 +997,7 @@ export function calculateMovement(
     slidingContactTime = 0;
     lastSlideTangent = { x: 0, y: 0 };
     headOnSideSign = 0;
+    slideBlockedCounter = 0;  // Reset blocked counter
     lastContactColliderKey = '';  // Reset contact tracking
   }
 
