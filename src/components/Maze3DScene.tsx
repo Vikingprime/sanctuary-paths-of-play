@@ -776,6 +776,13 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive }: {
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive?: boolean;
 }) => {
+  // DEBUG: Log actual farmer position
+  useEffect(() => {
+    console.log('=== GOAL MARKER POSITION ===');
+    console.log('GoalMarker raw position prop:', position);
+    console.log('Farmer 3D position will be:', { x: position[0] + 0.5, y: 0, z: position[2] + 0.5 });
+  }, [position]);
+  
   return (
     <CharacterRenderer
       modelFile="Farmer.glb"
@@ -1120,10 +1127,10 @@ const CutsceneCameraController = ({
     const speakerX = dialogueTarget.speakerX + 0.5;
     const speakerZ = dialogueTarget.speakerZ + 0.5;
     
-    // DEBUG: Force camera to look in -Z direction (toward speaker)
-    // Position camera BEHIND the speaker (higher Z), looking toward speaker (lower Z)
-    const camX = speakerX;
-    const camZ = speakerZ + ZOOM_DISTANCE; // Camera behind speaker in +Z
+    // DEBUG: Force camera to look in -X direction
+    // Position camera to the RIGHT of speaker (+X), looking LEFT toward speaker (-X)
+    const camX = speakerX + ZOOM_DISTANCE;
+    const camZ = speakerZ;
     
     // DEBUG LOGGING
     if (!loggedRef.current) {
