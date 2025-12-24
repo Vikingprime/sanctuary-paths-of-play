@@ -483,11 +483,16 @@ export function calculateMovement(
         const dot1 = desiredMoveX * tangent1X + desiredMoveY * tangent1Y;
         const dot2 = desiredMoveX * tangent2X + desiredMoveY * tangent2Y;
         
-        // Choose the tangent that aligns better with desired movement
-        if (Math.abs(dot1) > Math.abs(dot2) && Math.abs(dot1) > 0.01) {
-          return { slideX: tangent1X * dot1, slideY: tangent1Y * dot1 };
-        } else if (Math.abs(dot2) > 0.01) {
-          return { slideX: tangent2X * dot2, slideY: tangent2Y * dot2 };
+        // Get the magnitude of desired movement for full-speed sliding
+        const moveLen = Math.sqrt(desiredMoveX * desiredMoveX + desiredMoveY * desiredMoveY);
+        
+        // Choose the tangent that aligns better with desired movement, but use FULL speed
+        if (Math.abs(dot1) >= Math.abs(dot2) && Math.abs(dot1) > 0.001) {
+          const sign = dot1 > 0 ? 1 : -1;
+          return { slideX: tangent1X * moveLen * sign, slideY: tangent1Y * moveLen * sign };
+        } else if (Math.abs(dot2) > 0.001) {
+          const sign = dot2 > 0 ? 1 : -1;
+          return { slideX: tangent2X * moveLen * sign, slideY: tangent2Y * moveLen * sign };
         }
       }
     }
