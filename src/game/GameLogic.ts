@@ -218,6 +218,26 @@ export function checkCharacterCollision(
 }
 
 /**
+ * Get animal-specific collision offsets
+ * Pig has shorter snout at ground level, cow has tall horns, bird is small
+ */
+function getAnimalCollisionOffsets(animalType?: AnimalType): { head: number; tail: number; pointRadius: number } {
+  switch (animalType) {
+    case 'pig':
+      // Pig's snout is short and low - use smaller forward offset
+      return { head: 0.15, tail: 0.20, pointRadius: 0.10 };
+    case 'cow':
+      // Cow has horns that extend forward more
+      return { head: 0.42, tail: 0.35, pointRadius: 0.12 };
+    case 'bird':
+      // Chicken is small all around
+      return { head: 0.10, tail: 0.10, pointRadius: 0.08 };
+    default:
+      return { head: 0.30, tail: 0.25, pointRadius: 0.10 };
+  }
+}
+
+/**
  * Check character collision using multiple sample points (head, center, tail)
  * This accounts for the animal model extending beyond center point
  */
@@ -226,24 +246,22 @@ export function checkCharacterCollisionMultiPoint(
   y: number,
   rotation: number,
   characters: CharacterPosition[],
-  headOffset: number = 0.25,  // How far head extends forward (reduced for closer interaction)
-  tailOffset: number = 0.20   // How far tail extends backward
+  animalType?: AnimalType
 ): boolean {
+  const offsets = getAnimalCollisionOffsets(animalType);
+  
   // Calculate head position (forward from center based on rotation)
-  const headX = x + Math.sin(rotation) * headOffset;
-  const headY = y - Math.cos(rotation) * headOffset;
+  const headX = x + Math.sin(rotation) * offsets.head;
+  const headY = y - Math.cos(rotation) * offsets.head;
   
   // Calculate tail position (backward from center)
-  const tailX = x - Math.sin(rotation) * tailOffset;
-  const tailY = y + Math.cos(rotation) * tailOffset;
-  
-  // Radius for point checks - smaller for tighter collision
-  const pointRadius = 0.12;
+  const tailX = x - Math.sin(rotation) * offsets.tail;
+  const tailY = y + Math.cos(rotation) * offsets.tail;
   
   // Check all three points
-  return checkCharacterCollision(x, y, characters, pointRadius) ||
-         checkCharacterCollision(headX, headY, characters, pointRadius) ||
-         checkCharacterCollision(tailX, tailY, characters, pointRadius);
+  return checkCharacterCollision(x, y, characters, offsets.pointRadius) ||
+         checkCharacterCollision(headX, headY, characters, offsets.pointRadius) ||
+         checkCharacterCollision(tailX, tailY, characters, offsets.pointRadius);
 }
 
 // ============================================
@@ -293,7 +311,7 @@ export function calculateMovement(
   
   // Check if rotation would cause character collision - if so, don't rotate
   const rotationCausesCollision = checkCharacterCollisionMultiPoint(
-    currentState.x, currentState.y, desiredRotation, characters
+    currentState.x, currentState.y, desiredRotation, characters, animalType
   );
   const newRotation = rotationCausesCollision ? currentState.rotation : desiredRotation;
 
@@ -319,12 +337,12 @@ export function calculateMovement(
   // But allow movement if it increases distance from the character (escape when stuck)
   const hasCharacterCollision = (x: number, y: number, rot: number) => {
     // First check if new position collides
-    const wouldCollide = checkCharacterCollisionMultiPoint(x, y, rot, characters);
+    const wouldCollide = checkCharacterCollisionMultiPoint(x, y, rot, characters, animalType);
     if (!wouldCollide) return false;
     
     // If we would collide, check if we're already colliding (stuck)
     const alreadyColliding = checkCharacterCollisionMultiPoint(
-      currentState.x, currentState.y, currentState.rotation, characters
+      currentState.x, currentState.y, currentState.rotation, characters, animalType
     );
     
     // If already stuck, allow movement that increases distance from any character
