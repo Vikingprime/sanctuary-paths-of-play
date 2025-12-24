@@ -401,10 +401,10 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   const CAPSULE_RADIUS = 0.08;
   const DEBUG_Y = 0.2;
   
-  // FIX: The chicken model was offset to -0.32 which pushed it below ground.
-  // The model's origin is at its center, so we need to raise it to ground level.
-  // Changed from -0.32 to 0 so the model sits at y=0 (ground plane).
-  const CHICKEN_Y_OFFSET = 0;
+  // FIX: The chicken model's origin is at its body center, not feet.
+  // We need a positive Y offset to raise the model so feet touch ground.
+  // At scale 0.008, the model's visual half-height is roughly 0.15-0.2 units.
+  const CHICKEN_Y_OFFSET = 0.15;
   
   return (
     <group position={position}>

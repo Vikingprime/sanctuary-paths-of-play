@@ -217,12 +217,21 @@ const mat = new ShaderMaterial({
           float medRockShape = length(rotated2 * vec2(1.0, 0.7 + hash2(floor(worldUV * 3.5 + 20.0)) * 0.3));
           float medRocks = smoothstep(0.15, 0.08, medRockShape) * step(0.88, medRockNoise);
           
-          // Small rocks - circular is fine at this scale
+          // Small rocks - also rotated for organic look
+          float rockAngle3 = hash(floor(worldUV * 8.0 + 40.0)) * 6.28;
+          vec2 rockCenter3 = fract(worldUV * 8.0 + 40.0) - 0.5;
+          vec2 rotated3 = vec2(
+            rockCenter3.x * cos(rockAngle3) - rockCenter3.y * sin(rockAngle3),
+            rockCenter3.x * sin(rockAngle3) + rockCenter3.y * cos(rockAngle3)
+          );
           float smallNoise = hash(floor(worldUV * 8.0 + 40.0));
-          float smallShape = length(fract(worldUV * 8.0 + 40.0) - 0.5);
+          float smallShape = length(rotated3 * vec2(1.0, 0.7));
           float smallRocks = smoothstep(0.12, 0.06, smallShape) * step(0.82, smallNoise);
+          
+          // Tiny pebbles - use circular shapes with softer edges
           float tinyNoise = hash(floor(worldUV * 15.0 + 60.0));
-          float tinyRocks = step(0.94, tinyNoise) * 0.5;
+          float tinyShape = length(fract(worldUV * 15.0 + 60.0) - 0.5);
+          float tinyRocks = smoothstep(0.08, 0.03, tinyShape) * step(0.92, tinyNoise) * 0.5;
           float rockMask = max(max(largeRocks, medRocks * 0.9), max(smallRocks * 0.7, tinyRocks));
           float rockShade = noise(worldUV * 12.0);
           vec3 rockColor = mix(rockDark, rockMid, rockShade * 0.5 + largeVar * 0.3);
