@@ -838,39 +838,52 @@ export function calculateMovement(
           slidingContactTime += deltaTime;
           
           if (isSlideable) {
-            // SMOOTH POLE-ASSIST: Apply every frame, not discrete kicks
+            // PERSISTENT TANGENT + CONTINUOUS ASSIST (no threshold-based kicks)
             const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
             
-            // Determine consistent tangent direction (don't flip while in contact)
-            if (lastSlideTangent.x === 0 && lastSlideTangent.y === 0) {
-              // First frame of contact - pick direction based on slight offset
-              // Use cross product of movement and normal to determine handedness
+            // Compute new tangent from current slide direction
+            let newTangentX = 0;
+            let newTangentY = 0;
+            
+            if (slideMag > 0.001) {
+              // Use natural slide direction as tangent
+              newTangentX = slideX / slideMag;
+              newTangentY = slideY / slideMag;
+            } else {
+              // Slide near zero - use natural tangent with consistent handedness
               const cross = moveX * ny - moveY * nx;
               const sign = cross >= 0 ? 1 : -1;
-              lastSlideTangent = { 
-                x: naturalTangentX * sign, 
-                y: naturalTangentY * sign 
-              };
+              newTangentX = naturalTangentX * sign;
+              newTangentY = naturalTangentY * sign;
             }
             
-            // If natural slide is too small, add assist in consistent direction
-            if (slideMag < moveLen * 0.3 && moveLen > 0.001) {
-              // Blend in pole-assist smoothly every frame
-              const assistAmount = moveLen * POLE_ASSIST_STRENGTH;
-              slideX = lastSlideTangent.x * assistAmount;
-              slideY = lastSlideTangent.y * assistAmount;
-              slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
-            } else if (slideMag > 0.001) {
-              // Natural slide is good - apply boost and update tangent direction
-              slideX *= TOWER_SLIDE_BOOST;
-              slideY *= TOWER_SLIDE_BOOST;
-              // Update tangent direction to match current slide
-              const normSlide = 1 / slideMag;
-              lastSlideTangent = { 
-                x: slideX * normSlide * TOWER_SLIDE_BOOST, 
-                y: slideY * normSlide * TOWER_SLIDE_BOOST
-              };
+            // Persist and smooth tangent while in contact (prevents bursts/snaps)
+            if (lastSlideTangent.x === 0 && lastSlideTangent.y === 0) {
+              // First frame of contact - initialize tangent
+              lastSlideTangent = { x: newTangentX, y: newTangentY };
+            } else {
+              // SMOOTH INTERPOLATION: lerp(lastTangent, newTangent, 0.15)
+              const lerpFactor = 0.15;
+              let smoothX = lastSlideTangent.x + (newTangentX - lastSlideTangent.x) * lerpFactor;
+              let smoothY = lastSlideTangent.y + (newTangentY - lastSlideTangent.y) * lerpFactor;
+              // Normalize the smoothed tangent
+              const smoothMag = Math.sqrt(smoothX * smoothX + smoothY * smoothY);
+              if (smoothMag > 0.001) {
+                smoothX /= smoothMag;
+                smoothY /= smoothMag;
+              }
+              lastSlideTangent = { x: smoothX, y: smoothY };
             }
+            
+            // CONTINUOUS ASSIST: Apply every frame when pushing into obstacle
+            // No threshold - always blend in assist based on how "stuck" we are
+            const stuckFactor = Math.max(0, 1 - slideMag / (moveLen + 0.001));
+            const assistAmount = moveLen * POLE_ASSIST_STRENGTH * stuckFactor;
+            
+            // Combine natural slide with continuous assist
+            slideX = slideX * TOWER_SLIDE_BOOST + lastSlideTangent.x * assistAmount;
+            slideY = slideY * TOWER_SLIDE_BOOST + lastSlideTangent.y * assistAmount;
+            slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
           }
           // Walls/rocks: use natural slide, no boost or assist
           
