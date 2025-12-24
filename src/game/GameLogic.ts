@@ -872,27 +872,23 @@ export function calculateMovement(
             slidingContactTime += deltaTime;
           }
           
+          // ALWAYS set headOnSideSign for rotation nudge, regardless of slideable status
+          const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
+          if (moveLen > 0.001 && headOnSideSign === 0) {
+            const cross = moveX * ny - moveY * nx;
+            // First contact - pick a side and stick with it
+            headOnSideSign = cross >= 0 ? 1 : -1;
+            // Add hysteresis: if cross is very small, default to right turn (positive rotation)
+            if (Math.abs(cross) < 0.01) {
+              headOnSideSign = 1; // Default right turn when head-on
+            }
+            slideBlockedCounter = 0; // Reset blocked counter on new contact
+            console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
+          }
+          
           if (isSlideable) {
-            const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
-            
             if (moveLen > 0.001) {
-              const cross = moveX * ny - moveY * nx;
-              
-              // PERSIST side sign - only set on first contact, keep stable while touching same collider
-              // This prevents oscillation when cross is near zero
-              if (headOnSideSign === 0) {
-                // First contact - pick a side and stick with it
-                headOnSideSign = cross >= 0 ? 1 : -1;
-                // Add hysteresis: if cross is very small, default to right turn (positive rotation)
-                // This gives a consistent escape direction for head-on collisions
-                if (Math.abs(cross) < 0.01) {
-                  headOnSideSign = 1; // Default right turn when head-on
-                }
-                slideBlockedCounter = 0; // Reset blocked counter on new contact
-                console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
-              }
-              
-            const tangentX = naturalTangentX * headOnSideSign;
+              const tangentX = naturalTangentX * headOnSideSign;
               const tangentY = naturalTangentY * headOnSideSign;
               
               const boostedSlideX = slideX * TOWER_SLIDE_BOOST;
@@ -904,11 +900,7 @@ export function calculateMovement(
               slideY = boostedSlideY + tangentY * assistMag;
               slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
               
-              // Store headOnSideSign for later rotation nudge when blocked
-              // (rotation is applied after checking if slide was blocked)
-              
               console.log('[SLIDE] TOWER/CHAR assist applied:', {
-                cross: cross.toFixed(4),
                 persistedSideSign: headOnSideSign,
                 tangent: { x: tangentX.toFixed(4), y: tangentY.toFixed(4) },
                 assistMag: assistMag.toFixed(4),
