@@ -1215,18 +1215,13 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
       });
     });
     
-    // Find first end cell for the end farmer
-    for (let y = 0; y < maze.grid.length; y++) {
-      for (let x = 0; x < maze.grid[y].length; x++) {
-        if (maze.grid[y][x].isEnd) {
-          positions.push({
-            x: x,
-            y: y,
-            radius: CHARACTER_COLLISION_RADIUS,
-          });
-          return positions; // Only add one farmer at first end cell
-        }
-      }
+    // Add end farmer if position is explicitly set
+    if (maze.endFarmerPosition) {
+      positions.push({
+        x: maze.endFarmerPosition.x,
+        y: maze.endFarmerPosition.y,
+        radius: CHARACTER_COLLISION_RADIUS,
+      });
     }
     
     return positions;
@@ -1245,14 +1240,17 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
         if (cell.isStation) {
           stations.push([x + 0.5, 0, y + 0.5]);
         }
-        // Use first end cell found (matches camera zoom logic in MazeGame3D)
-        if (cell.isEnd && goalPos === null) {
-          goalPos = [x, 0, y];
-        }
+        // Note: goalPos is no longer auto-calculated from end cells
+        // It will be set from maze.endFarmerPosition below
       });
     });
 
-    return { powerUps, stations, goalPos: goalPos || [0, 0, 0] };
+    // Use explicit endFarmerPosition if set, otherwise null (no farmer)
+    const farmerPos = maze.endFarmerPosition 
+      ? [maze.endFarmerPosition.x, 0, maze.endFarmerPosition.y] as [number, number, number]
+      : null;
+    
+    return { powerUps, stations, goalPos: farmerPos };
   }, [maze]);
 
   // Filter out collected powerups
@@ -1371,17 +1369,19 @@ return (
         />
       ))}
       
-      {/* Goal */}
-      <GoalMarker 
-        position={items.goalPos} 
-        playerStateRef={playerStateRef}
-        isDialogueActive={
-          // Only activate when dialogue is with the goal marker itself
-          dialogueTarget !== null && 
-          Math.abs(dialogueTarget.speakerX - items.goalPos[0]) < 0.5 &&
-          Math.abs(dialogueTarget.speakerZ - items.goalPos[2]) < 0.5
-        }
-      />
+      {/* Goal - only render if endFarmerPosition is explicitly set */}
+      {items.goalPos && (
+        <GoalMarker 
+          position={items.goalPos} 
+          playerStateRef={playerStateRef}
+          isDialogueActive={
+            // Only activate when dialogue is with the goal marker itself
+            dialogueTarget !== null && 
+            Math.abs(dialogueTarget.speakerX - items.goalPos[0]) < 0.5 &&
+            Math.abs(dialogueTarget.speakerZ - items.goalPos[2]) < 0.5
+          }
+        />
+      )}
       
       {/* Player - handles movement + rendering in sync */}
       <RefBasedPlayer 

@@ -125,6 +125,8 @@ const MazeEditor: React.FC = () => {
   const [placingCharacterId, setPlacingCharacterId] = useState<string | null>(null);
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false); // For placing single Start/End tiles
+  const [endFarmerPosition, setEndFarmerPosition] = useState<{ x: number; y: number } | null>(null);
+  const [placingEndFarmer, setPlacingEndFarmer] = useState(false);
 
   function createEmptyGrid(w: number, h: number): CellType[][] {
     return Array.from({ length: h }, (_, y) =>
@@ -190,6 +192,11 @@ const MazeEditor: React.FC = () => {
             animation: c.animation,
             position: c.position,
           })));
+        }
+        
+        // Load end farmer position
+        if (maze.endFarmerPosition) {
+          setEndFarmerPosition(maze.endFarmerPosition);
         }
         
         setLoadedMazeId(mazeId);
@@ -275,7 +282,15 @@ const MazeEditor: React.FC = () => {
   }, [selectedTool, selectedDialogueId]);
 
   const handleMouseDown = (x: number, y: number) => {
-    // If placing a character, handle that first
+    // If placing end farmer, handle that first
+    if (placingEndFarmer) {
+      setEndFarmerPosition({ x, y });
+      toast.success(`End Farmer placed at (${x}, ${y})`);
+      setPlacingEndFarmer(false);
+      return;
+    }
+    
+    // If placing a character, handle that next
     if (placingCharacterId) {
       // Remove character from previous position if it had one
       const char = characters.find(c => c.id === placingCharacterId);
@@ -292,7 +307,7 @@ const MazeEditor: React.FC = () => {
   };
 
   const handleMouseEnter = (x: number, y: number) => {
-    if (isDragging && !placingCharacterId) {
+    if (isDragging && !placingCharacterId && !placingEndFarmer) {
       paintCell(x, y);
     }
   };
@@ -418,20 +433,25 @@ ${dialogues.map(d => {
   },` 
       : '';
 
+    const endFarmerSchema = endFarmerPosition 
+      ? `
+  endFarmerPosition: { x: ${endFarmerPosition.x}, y: ${endFarmerPosition.y} },`
+      : '';
+
     const schema = `{
   id: ${Date.now()},
   name: '${config.name}',
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
   previewTime: ${config.previewTime},
-  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endConditionsSchema}
+  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endFarmerSchema}${endConditionsSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
   ]),
 },`;
     
     return schema;
-  }, [grid, config, dialogues]);
+  }, [grid, config, dialogues, endFarmerPosition, characters]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateSchema());
@@ -484,26 +504,32 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     });
     
     if (endCells.length === 0) {
-      warnings.push('⚠️ No end (goal) position set');
+      warnings.push('⚠️ No end (goal) tiles set');
+    }
+    
+    // Check end farmer position
+    if (!endFarmerPosition) {
+      warnings.push('⚠️ End Farmer not placed - use the "Place" button to set farmer position');
     } else {
-      // Find the first end cell (where farmer is placed)
-      const farmerCell = endCells[0];
+      // Check if farmer is on an end cell
+      const farmerOnEndCell = endCells.some(ec => ec.x === endFarmerPosition.x && ec.y === endFarmerPosition.y);
+      if (!farmerOnEndCell && endCells.length > 0) {
+        warnings.push('⚠️ End Farmer is not on an End tile - consider placing on or near end tiles');
+      }
       
-      // Check if farmer is fully surrounded by end cells or wall cells
+      // Check if farmer is fully surrounded by safe cells
       const adjacentCells = [
-        { x: farmerCell.x - 1, y: farmerCell.y },
-        { x: farmerCell.x + 1, y: farmerCell.y },
-        { x: farmerCell.x, y: farmerCell.y - 1 },
-        { x: farmerCell.x, y: farmerCell.y + 1 },
+        { x: endFarmerPosition.x - 1, y: endFarmerPosition.y },
+        { x: endFarmerPosition.x + 1, y: endFarmerPosition.y },
+        { x: endFarmerPosition.x, y: endFarmerPosition.y - 1 },
+        { x: endFarmerPosition.x, y: endFarmerPosition.y + 1 },
       ];
       
       const unsafeAdjacent = adjacentCells.filter(adj => {
-        // Check bounds
         if (adj.y < 0 || adj.y >= grid.length || adj.x < 0 || adj.x >= grid[0].length) {
-          return false; // Out of bounds is safe (treated as wall)
+          return false;
         }
         const cellType = grid[adj.y][adj.x];
-        // Safe cells are: walls (#), end cells (E), or cells with dialogue triggers
         const isEndCell = cellType === 'E';
         const isWall = cellType === '#';
         const hasDialogueTrigger = dialogues.some(d => d.cells.some(c => c.x === adj.x && c.y === adj.y));
@@ -511,34 +537,25 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
       });
       
       if (unsafeAdjacent.length > 0) {
-        warnings.push(`⚠️ End Farmer is not fully surrounded by End tiles, Walls, or Dialogue triggers. ${unsafeAdjacent.length} adjacent path cell(s) would require crashing into the farmer.`);
+        warnings.push(`⚠️ End Farmer is not fully surrounded by End tiles, Walls, or Dialogue triggers`);
       }
       
-      // Check if the end farmer has dialogue associated (speakerCharacterId = 'endFarmer')
+      // Check if the end farmer has dialogue associated
       const endFarmerDialogue = dialogues.find(d => d.speakerCharacterId === 'endFarmer');
       
       if (!endFarmerDialogue) {
-        // Check if any dialogue triggers overlap with end cells
-        const hasDialogueOnEndCells = endCells.some(ec => 
-          dialogues.some(d => d.cells.some(c => c.x === ec.x && c.y === ec.y))
+        const hasDialogueNearFarmer = dialogues.some(d => 
+          d.cells.some(c => 
+            Math.abs(c.x - endFarmerPosition.x) <= 1 && 
+            Math.abs(c.y - endFarmerPosition.y) <= 1
+          )
         );
         
-        if (!hasDialogueOnEndCells) {
-          warnings.push('⚠️ End Farmer has no dialogue. Add dialogue and set "Speaker" to "🧑‍🌾 End Farmer" or place dialogue triggers on end cells.');
+        if (!hasDialogueNearFarmer) {
+          warnings.push('⚠️ End Farmer has no dialogue nearby');
         }
-      } else {
-        // Check if endFarmer dialogue has trigger cells that overlap with end cells
-        const endFarmerDialogueCellsOnEnd = endFarmerDialogue.cells.some(c => 
-          endCells.some(ec => ec.x === c.x && ec.y === c.y)
-        );
-        
-        if (!endFarmerDialogueCellsOnEnd && endFarmerDialogue.cells.length > 0) {
-          warnings.push('⚠️ End Farmer dialogue trigger cells should overlap with End tiles');
-        }
-        
-        if (endFarmerDialogue.cells.length === 0) {
-          warnings.push('⚠️ End Farmer dialogue has no trigger cells - place dialogue triggers on/around end cells');
-        }
+      } else if (endFarmerDialogue.cells.length === 0) {
+        warnings.push('⚠️ End Farmer dialogue has no trigger cells');
       }
     }
     
@@ -571,7 +588,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     });
     
     return warnings;
-  }, [grid, dialogues, characters]);
+  }, [grid, dialogues, characters, endFarmerPosition]);
 
   return (
     <div 
@@ -637,7 +654,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                 )}
                 {(selectedTool === 'E') && (
                   <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
-                    💡 The End Farmer (Sanctuary Sam) will appear at the first End tile found (top-left most).
+                    💡 End tiles define where the level completes. Place the End Farmer separately using the button below.
                   </p>
                 )}
               </div>
@@ -715,6 +732,48 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     min={1}
                   />
                 </div>
+              </div>
+
+              {/* End Farmer Placement */}
+              <div className="pt-2 border-t">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">🧑‍🌾</span>
+                  <span className="text-sm font-medium">End Farmer</span>
+                  {endFarmerPosition && (
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      ({endFarmerPosition.x}, {endFarmerPosition.y})
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => setPlacingEndFarmer(true)} 
+                    variant={placingEndFarmer ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1"
+                  >
+                    {endFarmerPosition ? 'Move' : 'Place'}
+                  </Button>
+                  {endFarmerPosition && (
+                    <Button 
+                      onClick={() => setEndFarmerPosition(null)} 
+                      variant="destructive"
+                      size="sm"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+                {placingEndFarmer && (
+                  <p className="text-xs text-amber-600 mt-1 text-center">
+                    Click grid to place End Farmer
+                  </p>
+                )}
+                {!endFarmerPosition && !placingEndFarmer && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Place the farmer where you want the goal character to appear.
+                  </p>
+                )}
               </div>
 
               {/* Characters Toggle */}
@@ -797,7 +856,8 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     const isSelectedDialogueCell = cellDialogue?.id === selectedDialogueId;
                     const dialogueIndex = cellDialogue ? getDialogueIndex(cellDialogue.id) + 1 : null;
                     const dialogueColor = cellDialogue ? getDialogueColor(cellDialogue.id) : null;
-                    const isPlacingMode = !!placingCharacterId;
+                    const isPlacingMode = !!placingCharacterId || placingEndFarmer;
+                    const isEndFarmerCell = endFarmerPosition?.x === x && endFarmerPosition?.y === y;
                     
                     // Always use the base cell color - dialogue/character are overlays
                     const bgColor = CELL_COLORS[cell];
@@ -808,22 +868,28 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         className={`w-5 h-5 border cursor-pointer transition-colors flex items-center justify-center text-[8px] font-bold relative ${
                           isSelectedDialogueCell 
                             ? 'border-2 border-white ring-2 ring-yellow-300 z-10' 
-                            : isPlacingMode 
-                              ? 'border-amber-400 hover:border-amber-600' 
-                              : 'border-amber-900/20'
+                            : isEndFarmerCell
+                              ? 'border-2 border-orange-500 ring-2 ring-orange-300 z-10'
+                              : isPlacingMode 
+                                ? 'border-amber-400 hover:border-amber-600' 
+                                : 'border-amber-900/20'
                         } ${bgColor}`}
                         onMouseDown={() => handleMouseDown(x, y)}
                         onMouseEnter={() => handleMouseEnter(x, y)}
                         title={
-                          cellCharacter 
-                            ? `${cellCharacter.emoji} ${cellCharacter.name}` 
-                            : cellDialogue 
-                              ? `#${dialogueIndex}: ${cellDialogue.speaker} - "${cellDialogue.message.slice(0, 30)}..."` 
-                              : undefined
+                          isEndFarmerCell
+                            ? '🧑‍🌾 End Farmer'
+                            : cellCharacter 
+                              ? `${cellCharacter.emoji} ${cellCharacter.name}` 
+                              : cellDialogue 
+                                ? `#${dialogueIndex}: ${cellDialogue.speaker} - "${cellDialogue.message.slice(0, 30)}..."` 
+                                : undefined
                         }
                       >
-                        {/* Show character emoji if placed here */}
-                        {cellCharacter ? (
+                        {/* Show end farmer emoji if placed here */}
+                        {isEndFarmerCell ? (
+                          <span className="text-sm">🧑‍🌾</span>
+                        ) : cellCharacter ? (
                           <span className="text-sm">{cellCharacter.emoji}</span>
                         ) : (
                           <span className="text-white">{cell !== '#' && cell !== ' ' ? cell : ''}</span>
@@ -865,10 +931,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 max-h-[400px] overflow-y-auto">
-                {/* Built-in End Farmer info */}
-                <div className="p-2 rounded bg-amber-50 border border-amber-200 text-xs">
-                  <span className="font-medium">🧑‍🌾 End Farmer</span> - Built-in character at end tiles
-                </div>
+                {/* End Farmer is now placed separately via the main panel */}
                 
                 {characters.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-2">

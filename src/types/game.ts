@@ -80,6 +80,7 @@ export interface Maze {
   currencyCost?: number; // optional currency cost to unlock special mazes
   characters?: MazeCharacter[]; // placed characters in the maze
   dialogues?: DialogueTrigger[]; // optional dialogue triggers
+  endFarmerPosition?: { x: number; y: number }; // explicit position for the end farmer (if not set, no farmer is shown)
   endConditions?: {
     requiredDialogues?: string[]; // Dialogues that must be completed before end cell triggers level complete
   };
