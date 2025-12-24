@@ -322,11 +322,18 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
 
   // Cow uses GLB model with animation
   if (animalType === 'cow') {
+    const HEAD_OFFSET = 0.48; // Must match GameLogic.ts getAnimalCollisionOffsets
+    
     return (
       <group position={position}>
         <group ref={cowGroupRef} position={[0, 0.15, 0]}>
           <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.3, 0]} />
         </group>
+        {/* Debug: collision head point - green sphere shows where collision is checked */}
+        <mesh position={[0, 0.1, -HEAD_OFFSET]}>
+          <sphereGeometry args={[0.08, 8, 8]} />
+          <meshBasicMaterial color="#00ff00" transparent opacity={0.8} />
+        </mesh>
       </group>
     );
   }
