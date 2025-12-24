@@ -132,9 +132,6 @@ const Index = () => {
               </p>
             </div>
 
-            {/* How to Play Panel */}
-            <HowToPlayPanel />
-
             {/* Animal Selection */}
             <div className="space-y-4">
               <h2 className="font-display text-2xl font-bold text-foreground text-center">
