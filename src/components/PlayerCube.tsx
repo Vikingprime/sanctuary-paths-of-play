@@ -360,19 +360,19 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
               <sphereGeometry args={[0.15, 8, 8]} />
               <meshBasicMaterial color="#00ffff" depthTest={false} depthWrite={false} />
             </mesh>
-            {/* Center (blue) */}
+            {/* Center (blue) - increased radius */}
             <mesh position={[0, DEBUG_Y, 0]} renderOrder={999}>
-              <sphereGeometry args={[0.12, 8, 8]} />
+              <sphereGeometry args={[0.15, 8, 8]} />
               <meshBasicMaterial color="#0000ff" depthTest={false} depthWrite={false} />
             </mesh>
-            {/* Spine point toward tail (magenta) */}
+            {/* Spine point toward tail (magenta) - increased radius */}
             <mesh position={[0, DEBUG_Y, SPINE_POINTS[0]]} renderOrder={999}>
-              <sphereGeometry args={[0.10, 8, 8]} />
+              <sphereGeometry args={[0.15, 8, 8]} />
               <meshBasicMaterial color="#ff00ff" depthTest={false} depthWrite={false} />
             </mesh>
-            {/* Tail (red) */}
+            {/* Tail (red) - increased radius */}
             <mesh position={[0, DEBUG_Y, -TAIL_OFFSET]} renderOrder={999}>
-              <sphereGeometry args={[0.12, 8, 8]} />
+              <sphereGeometry args={[0.15, 8, 8]} />
               <meshBasicMaterial color="#ff0000" depthTest={false} depthWrite={false} />
             </mesh>
           </group>
