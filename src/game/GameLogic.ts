@@ -204,7 +204,8 @@ export function checkCharacterCollision(
   y: number,
   characters: CharacterPosition[],
   playerRadius: number = GameConfig.PLAYER_RADIUS,
-  useRotationRadius: boolean = false
+  useRotationRadius: boolean = false,
+  debugLabel?: string
 ): boolean {
   for (const char of characters) {
     // Characters are rendered at grid position + 0.5 (center of cell)
@@ -218,6 +219,12 @@ export function checkCharacterCollision(
       ? char.rotationRadius 
       : char.radius;
     const collisionDist = playerRadius + effectiveRadius;
+    
+    // Debug logging for stations
+    if (char.isStation && dist < 1.5 && debugLabel) {
+      console.log(`[${debugLabel}] Station collision check: dist=${dist.toFixed(3)}, threshold=${collisionDist.toFixed(3)}, collides=${dist < collisionDist}`);
+    }
+    
     if (dist < collisionDist) {
       return true;
     }
@@ -242,9 +249,16 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): {
       // Pig's snout extends forward - keep small gap from characters
       return { head: 0.22, tail: 0.20, pointRadius: 0.10 };
     case 'cow':
-      // Cow has horns that extend forward AND sideways, plus a long neck and wide body
-      // Reduced collision sizes to allow easier navigation around obstacles
-      return { head: 0.30, tail: 0.30, pointRadius: 0.15, hornWidth: 0.18, neckLength: 0.15, bodyWidth: 0.20 };
+      // Cow has a long snout - head point must be at the very front of the face
+      // snoutTip is the furthest forward point for collision
+      return { 
+        head: 0.55, // Extended to reach actual snout tip
+        tail: 0.30, 
+        pointRadius: 0.12, 
+        hornWidth: 0.18, 
+        neckLength: 0.25, 
+        bodyWidth: 0.20 
+      };
     case 'bird':
       // Chicken - larger negative head offset allows beak to get much closer
       return { head: -0.35, tail: 0.001, pointRadius: 0.001 };
@@ -276,10 +290,10 @@ export function checkCharacterCollisionMultiPoint(
   const tailX = x - Math.sin(rotation) * offsets.tail;
   const tailY = y + Math.cos(rotation) * offsets.tail;
   
-  // Check center, head, tail
-  if (checkCharacterCollision(x, y, characters, offsets.pointRadius, useRotationRadius) ||
-      checkCharacterCollision(headX, headY, characters, offsets.pointRadius, useRotationRadius) ||
-      checkCharacterCollision(tailX, tailY, characters, offsets.pointRadius, useRotationRadius)) {
+  // Check center, head, tail with debug labels
+  if (checkCharacterCollision(x, y, characters, offsets.pointRadius, useRotationRadius, 'CENTER') ||
+      checkCharacterCollision(headX, headY, characters, offsets.pointRadius, useRotationRadius, 'HEAD') ||
+      checkCharacterCollision(tailX, tailY, characters, offsets.pointRadius, useRotationRadius, 'TAIL')) {
     return true;
   }
   
