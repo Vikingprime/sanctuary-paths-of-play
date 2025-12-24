@@ -250,10 +250,11 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): {
       return { head: 0.22, tail: 0.20, pointRadius: 0.10 };
     case 'cow':
       // Cow collision - spine points from head to tail
+      // Increased rear radii to prevent getting trapped in walls
       return { 
         head: 0.95,
         tail: 0.45,
-        pointRadius: 0.12,
+        pointRadius: 0.15, // Increased from 0.12 to cover gaps better
         neckLength: 0.50,
         upperNeckLength: 0.72,
         // Spine points between center and neck/tail
@@ -411,10 +412,25 @@ export function calculateMovement(
   const hasCollision = (x: number, y: number, rot: number) => 
     hasWallOrRockCollision(x, y) || hasCharacterCollision(x, y, rot);
 
+  // Check if we're ALREADY stuck (current position has collision)
+  const alreadyStuck = hasWallOrRockCollision(currentState.x, currentState.y);
+  
   let newX = currentState.x + moveX;
   let newY = currentState.y + moveY;
 
-  // Simple collision handling - if new position collides, try axis-aligned movement, else stay put
+  // UNSTICK LOGIC: If already stuck and moving forward, allow movement if it reduces collision
+  // This prevents the player from getting permanently trapped
+  if (alreadyStuck && input.forward) {
+    // Allow forward movement even if new position also collides - we're trying to escape
+    const newPosCollides = hasWallOrRockCollision(newX, newY);
+    if (!newPosCollides) {
+      // New position is clear - allow move (escape from wall)
+      return { x: newX, y: newY, rotation: newRotation };
+    }
+    // Still colliding but moving forward - try axis movement to escape
+  }
+
+  // Normal collision handling - if new position collides, try axis-aligned movement
   if (hasCollision(newX, newY, newRotation)) {
     // Try moving along just X axis
     const canMoveX = !hasCollision(currentState.x + moveX, currentState.y, newRotation);
@@ -427,14 +443,23 @@ export function calculateMovement(
     } else if (canMoveY && !canMoveX) {
       newX = currentState.x;
       newY = currentState.y + moveY;
+    } else if (alreadyStuck && (canMoveX || canMoveY)) {
+      // If stuck and at least one axis can move, take it
+      if (canMoveX) {
+        newX = currentState.x + moveX;
+        newY = currentState.y;
+      } else {
+        newX = currentState.x;
+        newY = currentState.y + moveY;
+      }
     } else {
-      // Both blocked or both free but diagonal blocked - stay put
+      // Both blocked - stay put
       newX = currentState.x;
       newY = currentState.y;
     }
   }
   
-  // Final safety check - if still colliding, revert
+  // Final safety check - if still colliding with character, revert
   if (hasCharacterCollision(newX, newY, newRotation)) {
     newX = currentState.x;
     newY = currentState.y;
