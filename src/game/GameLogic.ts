@@ -880,46 +880,13 @@ export function calculateMovement(
               // PERSIST side sign - only set on first contact, keep stable while touching same collider
               // This prevents oscillation when cross is near zero
               if (headOnSideSign === 0) {
-                // First contact - determine preferred direction based on cross product
-                let preferredSign = cross >= 0 ? 1 : -1;
-                // Add hysteresis: if cross is very small, default to +1
+                // First contact - pick a side and stick with it
+                headOnSideSign = cross >= 0 ? 1 : -1;
+                // Add hysteresis: if cross is very small, pick based on slight randomness to avoid deadlock
                 if (Math.abs(cross) < 0.01) {
-                  preferredSign = 1;
+                  headOnSideSign = 1; // Default to consistent direction when head-on
                 }
-                
-                // CRITICAL: Validate the preferred direction doesn't lead into a wall
-                // Check if sliding in the preferred direction would hit a wall
-                const testTangentX = naturalTangentX * preferredSign;
-                const testTangentY = naturalTangentY * preferredSign;
-                const testMoveX = testTangentX * 0.3; // Test small movement in that direction
-                const testMoveY = testTangentY * 0.3;
-                const testX = newX + testMoveX;
-                const testY = newY + testMoveY;
-                
-                // Check if this direction hits a wall
-                const preferredHitsWall = checkCollision(maze, testX, testY, capsule.radius + SKIN_WIDTH);
-                
-                if (preferredHitsWall) {
-                  // Preferred direction leads to wall - try the opposite
-                  const oppositeSign = -preferredSign;
-                  const oppositeTestX = newX + naturalTangentX * oppositeSign * 0.3;
-                  const oppositeTestY = newY + naturalTangentY * oppositeSign * 0.3;
-                  const oppositeHitsWall = checkCollision(maze, oppositeTestX, oppositeTestY, capsule.radius + SKIN_WIDTH);
-                  
-                  if (!oppositeHitsWall) {
-                    // Opposite direction is clear - use it
-                    headOnSideSign = oppositeSign;
-                    console.log('[SLIDE] Preferred direction blocked by wall, using opposite:', headOnSideSign);
-                  } else {
-                    // Both directions blocked - use preferred anyway (will get stuck)
-                    headOnSideSign = preferredSign;
-                    console.log('[SLIDE] Both directions blocked, using preferred:', headOnSideSign);
-                  }
-                } else {
-                  // Preferred direction is clear
-                  headOnSideSign = preferredSign;
-                  console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
-                }
+                console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
               }
               
               const tangentX = naturalTangentX * headOnSideSign;
