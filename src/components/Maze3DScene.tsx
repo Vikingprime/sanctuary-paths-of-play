@@ -653,7 +653,7 @@ const PowerUp = ({ position }: { position: [number, number, number] }) => {
 };
 
 const MapStation = ({ position, showCollisionDebug = true }: { position: [number, number, number]; showCollisionDebug?: boolean }) => {
-  const COLLISION_RADIUS = 0.32; // Must match STATION_COLLISION_RADIUS
+  const COLLISION_RADIUS = 0.26; // Must match STATION_COLLISION_RADIUS
   
   return (
     <group position={position}>
@@ -1216,8 +1216,8 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 
   // Generate character positions for collision (all placed characters + map stations)
   const CHARACTER_COLLISION_RADIUS = 0.4; // Moderate radius - multi-point collision handles the rest
-  const STATION_COLLISION_RADIUS = 0.32; // Tower visual is 0.20, this ensures snout doesn't clip
-  const STATION_ROTATION_RADIUS = 0.25; // Slightly smaller for rotation
+  const STATION_COLLISION_RADIUS = 0.26; // Reduced for easier navigation
+  const STATION_ROTATION_RADIUS = 0.22; // Slightly smaller for rotation
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
     
