@@ -474,8 +474,41 @@ export function calculateMovement(
   }
   desiredRotation = ((desiredRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   
-  // ROTATION: Allow unless it causes DEEPER penetration into characters
-  // Check current penetration vs new penetration
+  // Collision helpers
+  const hasWallOrRockCollision = (x: number, y: number) => 
+    checkCollision(maze, x, y) || checkRockCollision(x, y, rocks);
+  
+  const hasCharacterCollision = (x: number, y: number, rot: number) => 
+    checkCharacterCollisionMultiPoint(x, y, rot, characters, animalType);
+  
+  // Helper to check if ANY collision point overlaps a wall
+  const offsets = getAnimalCollisionOffsets(animalType);
+  
+  const hasAnyPointInWall = (x: number, y: number, rot: number): boolean => {
+    const points = getCollisionPointsForAnimal(x, y, rot, offsets);
+    for (const point of points) {
+      const pen = getWallPenetration(maze, point.x, point.y, point.radius);
+      if (pen && pen.depth > 0.01) return true;
+    }
+    return false;
+  };
+  
+  // Count how many collision points are penetrating walls
+  const countPenetratingPoints = (x: number, y: number, rot: number): number => {
+    const points = getCollisionPointsForAnimal(x, y, rot, offsets);
+    let count = 0;
+    for (const point of points) {
+      const pen = getWallPenetration(maze, point.x, point.y, point.radius);
+      if (pen && pen.depth > 0.01) count++;
+    }
+    return count;
+  };
+  
+  // ROTATION: Check if rotation would cause MORE points to be in walls
+  const currentWallPenCount = countPenetratingPoints(currentState.x, currentState.y, currentState.rotation);
+  const newWallPenCount = countPenetratingPoints(currentState.x, currentState.y, desiredRotation);
+  
+  // Also check character collision
   const currentCharCollision = checkCharacterCollisionMultiPoint(
     currentState.x, currentState.y, currentState.rotation, characters, animalType, true
   );
@@ -483,10 +516,12 @@ export function calculateMovement(
     currentState.x, currentState.y, desiredRotation, characters, animalType, true
   );
   
-  // Allow rotation if: no collision, or already colliding but new rotation doesn't make it worse
-  const newRotation = (!newCharCollision || (currentCharCollision && newCharCollision)) 
-    ? desiredRotation 
-    : currentState.rotation;
+  // Allow rotation if it doesn't make things worse (fewer or equal penetrating points)
+  const rotationMakesWallWorse = newWallPenCount > currentWallPenCount;
+  const rotationMakesCharWorse = !currentCharCollision && newCharCollision;
+  const newRotation = (rotationMakesWallWorse || rotationMakesCharWorse) 
+    ? currentState.rotation 
+    : desiredRotation;
 
   // Calculate movement vector
   let moveX = 0;
@@ -503,54 +538,53 @@ export function calculateMovement(
 
   const hasInput = input.forward || input.backward || input.rotateLeft || input.rotateRight;
   
-  // Collision helpers
-  const hasWallOrRockCollision = (x: number, y: number) => 
-    checkCollision(maze, x, y) || checkRockCollision(x, y, rocks);
-  
-  const hasCharacterCollision = (x: number, y: number, rot: number) => 
-    checkCharacterCollisionMultiPoint(x, y, rot, characters, animalType);
-  
-  let newX = currentState.x + moveX;
-  let newY = currentState.y + moveY;
-  
   // ========================================
-  // DEPENETRATION: Push out of walls first
+  // DEPENETRATION: ALWAYS push out of walls
   // ========================================
-  const offsets = getAnimalCollisionOffsets(animalType);
   const collisionPoints = getCollisionPointsForAnimal(currentState.x, currentState.y, newRotation, offsets);
   
   let depenetrationX = 0;
   let depenetrationY = 0;
+  let totalDepth = 0;
   
   for (const point of collisionPoints) {
     const pen = getWallPenetration(maze, point.x, point.y, point.radius);
     if (pen) {
-      depenetrationX += pen.penetration.x * 0.5; // Damped push-out
-      depenetrationY += pen.penetration.y * 0.5;
+      // Use full push-out, not damped - we need to escape!
+      depenetrationX += pen.penetration.x;
+      depenetrationY += pen.penetration.y;
+      totalDepth += pen.depth;
     }
   }
   
-  // Apply depenetration
-  if (depenetrationX !== 0 || depenetrationY !== 0) {
-    newX = currentState.x + depenetrationX;
-    newY = currentState.y + depenetrationY;
-    
-    // If depenetration position is clear, use it
-    if (!hasWallOrRockCollision(newX, newY)) {
-      // Continue with movement from depenetrated position
-      newX += moveX;
-      newY += moveY;
+  // Start from current position
+  let newX = currentState.x;
+  let newY = currentState.y;
+  
+  // Apply depenetration FIRST if we're stuck in walls
+  if (totalDepth > 0) {
+    // Normalize and scale - push out by at least the max depth, more aggressively
+    const penLen = Math.sqrt(depenetrationX * depenetrationX + depenetrationY * depenetrationY);
+    if (penLen > 0.001) {
+      const pushScale = Math.max(totalDepth * 1.5, 0.05); // Aggressive push
+      newX += (depenetrationX / penLen) * pushScale;
+      newY += (depenetrationY / penLen) * pushScale;
     }
   }
+  
+  // Now try to apply movement from (potentially depenetrated) position
+  const targetX = newX + moveX;
+  const targetY = newY + moveY;
   
   // ========================================
   // SLIDING COLLISION
   // ========================================
-  if (hasWallOrRockCollision(newX, newY) && (moveX !== 0 || moveY !== 0)) {
-    // Find collision normal by checking which direction is blocked
+  // Check if target position (with movement) would collide
+  if (hasWallOrRockCollision(targetX, targetY) && (moveX !== 0 || moveY !== 0)) {
+    // Find collision normal by checking which direction is blocked from current safe position
     const testDist = 0.1;
-    const blockedX = hasWallOrRockCollision(currentState.x + Math.sign(moveX) * testDist, currentState.y);
-    const blockedY = hasWallOrRockCollision(currentState.x, currentState.y + Math.sign(moveY) * testDist);
+    const blockedX = hasWallOrRockCollision(newX + Math.sign(moveX) * testDist, newY);
+    const blockedY = hasWallOrRockCollision(newX, newY + Math.sign(moveY) * testDist);
     
     let normalX = 0;
     let normalY = 0;
@@ -568,33 +602,32 @@ export function calculateMovement(
     if (normalX !== 0 || normalY !== 0) {
       // Project movement onto tangent for sliding
       const slide = getSlideVector(moveX, moveY, normalX, normalY);
-      const slideX = currentState.x + slide.x;
-      const slideY = currentState.y + slide.y;
+      const slideX = newX + slide.x;
+      const slideY = newY + slide.y;
       
-      if (!hasWallOrRockCollision(slideX, slideY)) {
+      if (!hasWallOrRockCollision(slideX, slideY) && !hasAnyPointInWall(slideX, slideY, newRotation)) {
         newX = slideX;
         newY = slideY;
       } else {
         // Sliding also blocked - try axis-aligned movement
-        const canMoveX = !hasWallOrRockCollision(currentState.x + moveX, currentState.y);
-        const canMoveY = !hasWallOrRockCollision(currentState.x, currentState.y + moveY);
+        const canMoveX = !hasWallOrRockCollision(newX + moveX, newY) && !hasAnyPointInWall(newX + moveX, newY, newRotation);
+        const canMoveY = !hasWallOrRockCollision(newX, newY + moveY) && !hasAnyPointInWall(newX, newY + moveY, newRotation);
         
         if (canMoveX && !canMoveY) {
-          newX = currentState.x + moveX;
-          newY = currentState.y;
+          newX = newX + moveX;
         } else if (canMoveY && !canMoveX) {
-          newX = currentState.x;
-          newY = currentState.y + moveY;
-        } else {
-          newX = currentState.x;
-          newY = currentState.y;
+          newY = newY + moveY;
         }
+        // else: stay at depenetrated position (newX, newY already set)
       }
-    } else {
-      newX = currentState.x;
-      newY = currentState.y;
     }
+    // If no normal found, keep at depenetrated position
+  } else if (!hasWallOrRockCollision(targetX, targetY) && !hasAnyPointInWall(targetX, targetY, newRotation)) {
+    // Clear path - apply full movement
+    newX = targetX;
+    newY = targetY;
   }
+  // else: stay at depenetrated position
   
   // ========================================
   // CHARACTER COLLISION (simple block)
