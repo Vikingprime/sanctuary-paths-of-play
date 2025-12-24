@@ -933,14 +933,9 @@ export function calculateMovement(
               finalPos: { x: slideResult.x.toFixed(3), y: slideResult.y.toFixed(3) }
             });
             
-            // Check if the slide made meaningful progress beyond just the push-away
-            const slideProgressX = slideResult.x - pushedX;
-            const slideProgressY = slideResult.y - pushedY;
-            const slideProgressMag = Math.sqrt(slideProgressX * slideProgressX + slideProgressY * slideProgressY);
-            const madeProgress = slideProgressMag > 0.005; // Meaningful progress threshold
-            
-            // If still blocked after push-away with no meaningful slide progress, apply rotation nudge
-            if (slideResult.blocked && !madeProgress) {
+            // Always increment stuck counter when blocked, regardless of tiny progress
+            // This handles corner cases where player ping-pongs between obstacles
+            if (slideResult.blocked) {
               // Increment stuck counter
               slideBlockedCounter++;
               
