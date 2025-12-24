@@ -144,9 +144,9 @@ export const GameHUD = ({
             ✕ Quit
           </button>
           
-          {/* Corn optimization toggles - only in debug mode, hidden on mobile */}
+          {/* Corn optimization toggles - only in debug mode */}
           {debugMode && (
-            <div className="hidden md:flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
               {onToggleShadowOpt && (
                 <button
                   onClick={onToggleShadowOpt}
@@ -212,9 +212,9 @@ export const GameHUD = ({
         </div>
       </div>
 
-      {/* Full Performance Profiler Panel - only in debug mode, hidden on mobile */}
+      {/* Full Performance Profiler Panel - only in debug mode */}
       {debugMode && performanceInfo && (
-        <div className="hidden md:block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[200px]">
+        <div className="block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[200px]">
           <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">PERF PROFILER</div>
           
           {/* Frame timing */}

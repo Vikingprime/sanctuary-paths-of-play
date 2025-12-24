@@ -1477,8 +1477,8 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
       {/* FPS Display - only in debug mode */}
       {props.debugMode && <FPSDisplay fps={fps} />}
       
-      {/* Cull Stats Overlay - only in debug mode, hidden on mobile */}
-      {props.debugMode && !isMobile && cullStats && props.cornOptimizationSettings?.enableDistanceCulling && (
+      {/* Cull Stats Overlay - only in debug mode */}
+      {props.debugMode && cullStats && props.cornOptimizationSettings?.enableDistanceCulling && (
         <div style={{
           position: 'fixed',
           bottom: '80px',
