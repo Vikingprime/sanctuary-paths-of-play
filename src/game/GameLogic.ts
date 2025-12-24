@@ -320,11 +320,12 @@ const ROTATION_STEP = 0.02;           // ~1.15 degrees per step for rotation swe
 const SWEEP_STEPS = 12;               // Binary search steps for swept collision
 const MAX_DEPENETRATION = 0.03;       // Maximum push per frame
 const OVERLAP_EPSILON = 0.001;        // Overlap threshold
-const TOWER_SLIDE_BOOST = 1.4;        // Tangent boost for towers/characters (1.2-1.5)
-const POLE_ASSIST_STRENGTH = 0.45;    // Head-on pole assist (0.25-0.45 of speed)
-const HEAD_ON_THRESHOLD = -0.6;       // dot(desiredDir, normal) threshold for head-on detection
-const HEAD_ON_SLIDE_RATIO = 0.1;      // If slide < this * move, consider it head-on stuck
-const ASSIST_RAMP_TIME = 0.15;        // Time in seconds to ramp assist to full strength (0.1-0.2s)
+const TOWER_SLIDE_BOOST = 1.5;        // Tangent boost for towers/characters (1.2-1.5)
+const POLE_ASSIST_STRENGTH = 0.55;    // Head-on pole assist (increased for faster response)
+const HEAD_ON_THRESHOLD = -0.4;       // Looser threshold - trigger assist at more angles
+const HEAD_ON_SLIDE_RATIO = 0.25;     // If slide < this * move, consider it stuck (more generous)
+const ASSIST_RAMP_TIME = 0.08;        // Faster ramp (80ms) for near-instant response
+const MIN_ASSIST_FACTOR = 0.5;        // Start ramp at 50% instead of 0% for immediate motion
 
 // Collision types
 export type ColliderType = 'wall' | 'tower' | 'rock' | 'character';
@@ -869,8 +870,8 @@ export function calculateMovement(
             // If mostly pushing into obstacle AND almost no tangential slide
             const isHeadOn = intoFactor < HEAD_ON_THRESHOLD && slideMag < HEAD_ON_SLIDE_RATIO * moveLen;
             
-            // RAMP ASSIST: Smooth ramp from 0 to full over ASSIST_RAMP_TIME (removes snap)
-            const rampFactor = Math.min(1, slidingContactTime / ASSIST_RAMP_TIME);
+            // RAMP ASSIST: Start at MIN_ASSIST_FACTOR, ramp to full over ASSIST_RAMP_TIME
+            const rampFactor = MIN_ASSIST_FACTOR + (1 - MIN_ASSIST_FACTOR) * Math.min(1, slidingContactTime / ASSIST_RAMP_TIME);
             
             if (isHeadOn && moveLen > 0.001) {
               // HEAD-ON CASE: Force continuous tangent move IMMEDIATELY
