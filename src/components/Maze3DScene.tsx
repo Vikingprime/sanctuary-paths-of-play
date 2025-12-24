@@ -196,13 +196,28 @@ const mat = new ShaderMaterial({
           pathColor = mix(pathColor, pathDark, shadows * 0.4);
           pathColor = mix(pathColor, pathDark * 0.85, (1.0 - fineVar) * 0.12);
           
-          // PATH ROCKS
+          // PATH ROCKS - use elliptical shapes with rotation for organic look
+          float rockAngle1 = hash2(floor(worldUV * 1.8)) * 6.28;
+          vec2 rockCenter1 = fract(worldUV * 1.8) - 0.5;
+          vec2 rotated1 = vec2(
+            rockCenter1.x * cos(rockAngle1) - rockCenter1.y * sin(rockAngle1),
+            rockCenter1.x * sin(rockAngle1) + rockCenter1.y * cos(rockAngle1)
+          );
           float largeRockNoise = hash(floor(worldUV * 1.8));
-          float largeRockShape = length((fract(worldUV * 1.8) - 0.5) * vec2(1.0 + hash2(floor(worldUV * 1.8)) * 0.5, 1.0));
+          float largeRockShape = length(rotated1 * vec2(1.0, 0.6 + hash2(floor(worldUV * 1.8)) * 0.4));
           float largeRocks = smoothstep(0.18, 0.12, largeRockShape) * step(0.92, largeRockNoise);
+          
+          float rockAngle2 = hash3(floor(worldUV * 3.5 + 20.0)) * 6.28;
+          vec2 rockCenter2 = fract(worldUV * 3.5 + 20.0) - 0.5;
+          vec2 rotated2 = vec2(
+            rockCenter2.x * cos(rockAngle2) - rockCenter2.y * sin(rockAngle2),
+            rockCenter2.x * sin(rockAngle2) + rockCenter2.y * cos(rockAngle2)
+          );
           float medRockNoise = hash(floor(worldUV * 3.5 + 20.0));
-          float medRockShape = length((fract(worldUV * 3.5 + 20.0) - 0.5) * vec2(1.0, 1.0 + hash3(floor(worldUV * 3.5 + 20.0)) * 0.4));
+          float medRockShape = length(rotated2 * vec2(1.0, 0.7 + hash2(floor(worldUV * 3.5 + 20.0)) * 0.3));
           float medRocks = smoothstep(0.15, 0.08, medRockShape) * step(0.88, medRockNoise);
+          
+          // Small rocks - circular is fine at this scale
           float smallNoise = hash(floor(worldUV * 8.0 + 40.0));
           float smallShape = length(fract(worldUV * 8.0 + 40.0) - 0.5);
           float smallRocks = smoothstep(0.12, 0.06, smallShape) * step(0.82, smallNoise);
@@ -227,11 +242,17 @@ const mat = new ShaderMaterial({
           vec3 dirtColor = mix(pathDark, pathBase, noise(worldUV * 2.0 + 500.0) * 0.6);
           grassAreaColor = mix(grassAreaColor, dirtColor, dirtPatchMask * 0.65); // Stronger dirt mix
           
-          // Add more visible rocks/pebbles in grass areas
+          // Add more visible rocks/pebbles in grass areas - with rotation for organic shapes
+          float grassRockAngle = hash3(floor(worldUV * 3.5 + 80.0)) * 6.28;
+          vec2 grassRockCenter = fract(worldUV * 3.5 + 80.0) - 0.5;
+          vec2 grassRotated = vec2(
+            grassRockCenter.x * cos(grassRockAngle) - grassRockCenter.y * sin(grassRockAngle),
+            grassRockCenter.x * sin(grassRockAngle) + grassRockCenter.y * cos(grassRockAngle)
+          );
           float grassRockNoise = hash(floor(worldUV * 3.5 + 80.0));
-          float grassRockShape = length(fract(worldUV * 3.5 + 80.0) - 0.5);
-          float grassRocks = smoothstep(0.16, 0.08, grassRockShape) * step(0.78, grassRockNoise); // More rocks
-          // Smaller pebbles too
+          float grassRockShape = length(grassRotated * vec2(1.0, 0.65));
+          float grassRocks = smoothstep(0.16, 0.08, grassRockShape) * step(0.78, grassRockNoise);
+          // Smaller pebbles - circular is fine
           float pebbleNoise = hash(floor(worldUV * 7.0 + 120.0));
           float pebbleShape = length(fract(worldUV * 7.0 + 120.0) - 0.5);
           float pebbles = smoothstep(0.12, 0.06, pebbleShape) * step(0.82, pebbleNoise);
@@ -670,21 +691,12 @@ const MapStation = ({ position, showCollisionDebug = true }: { position: [number
         <meshStandardMaterial color="#DEB887" />
       </mesh>
       
-      {/* Debug visualization */}
+      {/* Debug collision ring only */}
       {showCollisionDebug && (
-        <>
-          {/* Collision ring at ground level */}
-          <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[COLLISION_RADIUS - 0.02, COLLISION_RADIUS + 0.02, 32]} />
-            <meshBasicMaterial color="#ff0000" transparent opacity={0.7} side={2} />
-          </mesh>
-          
-          {/* Tower base bottom marker (cyan ring at y=0) */}
-          <mesh position={[0, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1001}>
-            <ringGeometry args={[0.18, 0.22, 32]} />
-            <meshBasicMaterial color="#00ffff" transparent opacity={0.8} depthTest={false} depthWrite={false} side={2} />
-          </mesh>
-        </>
+        <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[COLLISION_RADIUS - 0.02, COLLISION_RADIUS + 0.02, 32]} />
+          <meshBasicMaterial color="#ff0000" transparent opacity={0.7} side={2} />
+        </mesh>
       )}
     </group>
   );

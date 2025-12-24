@@ -268,7 +268,7 @@ function getAnimalCapsule(animalType?: AnimalType): CapsuleCollider {
     case 'bird':
       return {
         startOffset: -0.05,
-        endOffset: 0.05,
+        endOffset: 0.18,   // Extended forward to prevent head entering obstacles
         radius: 0.08
       };
     default:
