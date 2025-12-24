@@ -325,7 +325,7 @@ export const GameHUD = ({
       )}
 
       {/* Controls hint */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+      <div className="absolute bottom-4 left-4">
         <div className="bg-card/80 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg text-xs text-muted-foreground">
           <span className="hidden md:inline">Use Arrow Keys or WASD to move • Q/E to rotate</span>
           <span className="md:hidden">Use on-screen controls to move</span>
