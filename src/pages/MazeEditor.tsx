@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Download, Trash2, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Save, Upload, FileDown, RotateCcw, Check } from 'lucide-react';
+import { Copy, Download, Trash2, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Save, Upload, FileDown, RotateCcw, Check, ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMazeStorage, createGrid, gridToLayout } from '@/hooks/useMazeStorage';
 import { Maze } from '@/types/game';
@@ -116,6 +116,7 @@ const MazeEditor: React.FC = () => {
     resetToDefault,
     exportAllMazes,
     importMazes,
+    reorderMazes,
     isLoaded 
   } = useMazeStorage();
   
@@ -571,6 +572,22 @@ const MazeEditor: React.FC = () => {
     event.target.value = '';
   }, [importMazes, loadedMazeId, loadMaze]);
 
+  // Move maze up/down in list
+  const handleMoveMaze = useCallback((mazeId: number, direction: 'up' | 'down') => {
+    const currentMazes = getAllMazes();
+    const currentOrder = currentMazes.map(m => m.id);
+    const currentIndex = currentOrder.indexOf(mazeId);
+    if (currentIndex === -1) return;
+    
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= currentOrder.length) return;
+    
+    // Swap
+    const newOrder = [...currentOrder];
+    [newOrder[currentIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[currentIndex]];
+    reorderMazes(newOrder);
+  }, [getAllMazes, reorderMazes]);
+
   const generateSchema = useCallback(() => {
     const gridStrings = grid.map(row => row.join('').replace(/D/g, ' '));
     
@@ -745,7 +762,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
-                {allMazes.map(maze => (
+                {allMazes.map((maze, index) => (
                   <div 
                     key={maze.id}
                     className={`p-2 rounded-lg border cursor-pointer transition-colors ${
@@ -755,23 +772,44 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     }`}
                     onClick={() => loadMaze(maze.id, false)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1 min-w-0 flex-1">
+                        {/* Reorder buttons */}
+                        <div className="flex flex-col" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-4 w-4 p-0 hover:bg-muted"
+                            disabled={index === 0}
+                            onClick={(e) => { e.stopPropagation(); handleMoveMaze(maze.id, 'up'); }}
+                          >
+                            <ChevronUp className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-4 w-4 p-0 hover:bg-muted"
+                            disabled={index === allMazes.length - 1}
+                            onClick={(e) => { e.stopPropagation(); handleMoveMaze(maze.id, 'down'); }}
+                          >
+                            <ChevronDown className="w-3 h-3" />
+                          </Button>
+                        </div>
                         <span className="text-sm font-medium truncate">{maze.name}</span>
                         {isCustomized(maze.id) && (
-                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded">edited</span>
+                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded shrink-0">edited</span>
                         )}
                       </div>
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                        className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0"
                         onClick={(e) => handleDeleteMazeById(maze.id, maze.name, e)}
                       >
                         <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground ml-5">
                       ID: {maze.id} • {maze.difficulty}
                     </div>
                   </div>
