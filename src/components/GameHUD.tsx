@@ -42,6 +42,11 @@ interface GameHUDProps {
   lowPixelRatio?: boolean;
   onTogglePixelRatio?: () => void;
   performanceInfo?: PerformanceInfo;
+  // Camera and collision debug toggles
+  topDownCamera?: boolean;
+  onToggleTopDownCamera?: () => void;
+  showCollisionDebug?: boolean;
+  onToggleCollisionDebug?: () => void;
 }
 
 export const GameHUD = ({
@@ -66,6 +71,10 @@ export const GameHUD = ({
   lowPixelRatio = false,
   onTogglePixelRatio,
   performanceInfo,
+  topDownCamera = false,
+  onToggleTopDownCamera,
+  showCollisionDebug = true,
+  onToggleCollisionDebug,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -205,6 +214,30 @@ export const GameHUD = ({
                   title="Pixel ratio (low = better performance)"
                 >
                   🖼️ {lowPixelRatio ? '0.5x' : '1x'}
+                </button>
+              )}
+              {onToggleTopDownCamera && (
+                <button
+                  onClick={onToggleTopDownCamera}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    topDownCamera ? 'text-cyan-500' : 'text-green-500'
+                  )}
+                  title="Toggle camera view"
+                >
+                  📷 {topDownCamera ? 'Top' : 'Normal'}
+                </button>
+              )}
+              {onToggleCollisionDebug && (
+                <button
+                  onClick={onToggleCollisionDebug}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    showCollisionDebug ? 'text-green-500' : 'text-red-500'
+                  )}
+                  title="Show collision debug spheres"
+                >
+                  🔴 {showCollisionDebug ? 'On' : 'Off'}
                 </button>
               )}
             </div>

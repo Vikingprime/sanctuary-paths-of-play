@@ -18,6 +18,7 @@ interface PlayerCubeProps {
   rotation?: number; // Y-axis rotation in radians
   isMovingRef?: MutableRefObject<boolean>; // Ref for real-time movement state
   enableSound?: boolean; // Whether to play spawn sounds (false during preview)
+  showCollisionDebug?: boolean; // Whether to show collision debug spheres
 }
 
 // Preload models
@@ -32,7 +33,7 @@ const animalColors: Record<AnimalType, string | string[]> = {
   bird: '#FFD700', // Yellow/Gold
 };
 
-export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, enableSound = true }: PlayerCubeProps) => {
+export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, enableSound = true, showCollisionDebug = true }: PlayerCubeProps) => {
   const innerGroupRef = useRef<any>(null);
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
@@ -337,43 +338,45 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
         </group>
         
         {/* Debug collision points - rotate with cow using rotation prop */}
-        <group rotation={[0, rotation, 0]}>
-          {/* Head (green) - snout tip */}
-          <mesh position={[0, DEBUG_Y, HEAD_OFFSET]} renderOrder={999}>
-            <sphereGeometry args={[0.12, 8, 8]} />
-            <meshBasicMaterial color="#00ff00" depthTest={false} depthWrite={false} />
-          </mesh>
-          {/* Upper Neck (lime) */}
-          <mesh position={[0, DEBUG_Y, UPPER_NECK_OFFSET]} renderOrder={999}>
-            <sphereGeometry args={[0.15, 8, 8]} />
-            <meshBasicMaterial color="#88ff00" depthTest={false} depthWrite={false} />
-          </mesh>
-          {/* Lower Neck (yellow) */}
-          <mesh position={[0, DEBUG_Y, NECK_OFFSET]} renderOrder={999}>
-            <sphereGeometry args={[0.15, 8, 8]} />
-            <meshBasicMaterial color="#ffff00" depthTest={false} depthWrite={false} />
-          </mesh>
-          {/* Spine point toward head (cyan) */}
-          <mesh position={[0, DEBUG_Y, SPINE_POINTS[1]]} renderOrder={999}>
-            <sphereGeometry args={[0.15, 8, 8]} />
-            <meshBasicMaterial color="#00ffff" depthTest={false} depthWrite={false} />
-          </mesh>
-          {/* Center (blue) */}
-          <mesh position={[0, DEBUG_Y, 0]} renderOrder={999}>
-            <sphereGeometry args={[0.12, 8, 8]} />
-            <meshBasicMaterial color="#0000ff" depthTest={false} depthWrite={false} />
-          </mesh>
-          {/* Spine point toward tail (magenta) */}
-          <mesh position={[0, DEBUG_Y, SPINE_POINTS[0]]} renderOrder={999}>
-            <sphereGeometry args={[0.10, 8, 8]} />
-            <meshBasicMaterial color="#ff00ff" depthTest={false} depthWrite={false} />
-          </mesh>
-          {/* Tail (red) */}
-          <mesh position={[0, DEBUG_Y, -TAIL_OFFSET]} renderOrder={999}>
-            <sphereGeometry args={[0.12, 8, 8]} />
-            <meshBasicMaterial color="#ff0000" depthTest={false} depthWrite={false} />
-          </mesh>
-        </group>
+        {showCollisionDebug && (
+          <group rotation={[0, rotation, 0]}>
+            {/* Head (green) - snout tip */}
+            <mesh position={[0, DEBUG_Y, HEAD_OFFSET]} renderOrder={999}>
+              <sphereGeometry args={[0.12, 8, 8]} />
+              <meshBasicMaterial color="#00ff00" depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Upper Neck (lime) */}
+            <mesh position={[0, DEBUG_Y, UPPER_NECK_OFFSET]} renderOrder={999}>
+              <sphereGeometry args={[0.15, 8, 8]} />
+              <meshBasicMaterial color="#88ff00" depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Lower Neck (yellow) */}
+            <mesh position={[0, DEBUG_Y, NECK_OFFSET]} renderOrder={999}>
+              <sphereGeometry args={[0.15, 8, 8]} />
+              <meshBasicMaterial color="#ffff00" depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Spine point toward head (cyan) */}
+            <mesh position={[0, DEBUG_Y, SPINE_POINTS[1]]} renderOrder={999}>
+              <sphereGeometry args={[0.15, 8, 8]} />
+              <meshBasicMaterial color="#00ffff" depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Center (blue) */}
+            <mesh position={[0, DEBUG_Y, 0]} renderOrder={999}>
+              <sphereGeometry args={[0.12, 8, 8]} />
+              <meshBasicMaterial color="#0000ff" depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Spine point toward tail (magenta) */}
+            <mesh position={[0, DEBUG_Y, SPINE_POINTS[0]]} renderOrder={999}>
+              <sphereGeometry args={[0.10, 8, 8]} />
+              <meshBasicMaterial color="#ff00ff" depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Tail (red) */}
+            <mesh position={[0, DEBUG_Y, -TAIL_OFFSET]} renderOrder={999}>
+              <sphereGeometry args={[0.12, 8, 8]} />
+              <meshBasicMaterial color="#ff0000" depthTest={false} depthWrite={false} />
+            </mesh>
+          </group>
+        )}
       </group>
     );
   }

@@ -94,6 +94,9 @@ export const MazeGame3D = ({
   const [dynamicFogEnabled, setDynamicFogEnabled] = useState(true);
   const [edgeCornCullEnabled, setEdgeCornCullEnabled] = useState(true); // Enabled for performance
   const [lowPixelRatio, setLowPixelRatio] = useState(false);
+  // Debug toggles
+  const [topDownCamera, setTopDownCamera] = useState(false);
+  const [showCollisionDebug, setShowCollisionDebug] = useState(true);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
   const rotationIntensityRef = useRef(0);
@@ -746,6 +749,8 @@ export const MazeGame3D = ({
           enableDynamicFog: dynamicFogEnabled,
           enableEdgeCornCulling: edgeCornCullEnabled,
         }}
+        topDownCamera={topDownCamera}
+        showCollisionDebug={showCollisionDebug}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -785,6 +790,10 @@ export const MazeGame3D = ({
           lowPixelRatio={lowPixelRatio}
           onTogglePixelRatio={() => setLowPixelRatio(prev => !prev)}
           performanceInfo={rendererInfo}
+          topDownCamera={topDownCamera}
+          onToggleTopDownCamera={() => setTopDownCamera(prev => !prev)}
+          showCollisionDebug={showCollisionDebug}
+          onToggleCollisionDebug={() => setShowCollisionDebug(prev => !prev)}
         />
       )}
 
