@@ -901,21 +901,8 @@ export function calculateMovement(
               slideY = boostedSlideY + tangentY * assistMag;
               slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
               
-              // NEW: Apply rotation nudge instead of just translation
-              // When head-on collision with character, rotate the player toward the gap
-              // This "turns the head" rather than "shifting the body"
-              const ROTATION_NUDGE_STRENGTH = 0.08; // Radians per frame when head-on
-              const headOnness = 1 - Math.abs(cross) / moveLen; // 1.0 = perfectly head-on, 0.0 = tangent
-              if (headOnness > 0.7) {
-                // Apply rotation in the direction of the chosen side
-                const rotationNudge = ROTATION_NUDGE_STRENGTH * headOnSideSign * headOnness;
-                newRotation += rotationNudge;
-                console.log('[SLIDE] Rotation nudge applied:', {
-                  headOnness: headOnness.toFixed(3),
-                  rotationNudge: rotationNudge.toFixed(4),
-                  newRotation: newRotation.toFixed(3)
-                });
-              }
+              // Store headOnSideSign for later rotation nudge when blocked
+              // (rotation is applied after checking if slide was blocked)
               
               console.log('[SLIDE] TOWER/CHAR assist applied:', {
                 cross: cross.toFixed(4),
@@ -951,14 +938,23 @@ export function calculateMovement(
               finalPos: { x: slideResult.x.toFixed(3), y: slideResult.y.toFixed(3) }
             });
             
-            // If still blocked after push-away, force the tangent slide directly
+            // If still blocked after push-away, apply rotation nudge to steer around obstacle
             if (slideResult.blocked && (slideResult.x === pushedX && slideResult.y === pushedY)) {
-              // Second sweep made no progress - apply slide directly with overlap resolution
-              const forcedX = pushedX + slideX;
-              const forcedY = pushedY + slideY;
-              console.log('[SLIDE] Forcing slide directly:', { forcedX: forcedX.toFixed(3), forcedY: forcedY.toFixed(3) });
-              newX = forcedX;
-              newY = forcedY;
+              // Second sweep made no progress - APPLY ROTATION to turn toward gap
+              // This "turns the head" instead of forcing a blocked translation
+              const ROTATION_NUDGE_STRENGTH = 0.12; // Radians per frame when blocked
+              const rotationNudge = ROTATION_NUDGE_STRENGTH * headOnSideSign;
+              newRotation += rotationNudge;
+              console.log('[SLIDE] Rotation nudge (blocked slide):', {
+                sideSign: headOnSideSign,
+                rotationNudge: rotationNudge.toFixed(4),
+                newRotation: newRotation.toFixed(3)
+              });
+              
+              // Don't force translation - let the rotation guide the player
+              // Just stay at pushed position (slightly away from collider)
+              newX = pushedX;
+              newY = pushedY;
             } else {
               newX = slideResult.x;
               newY = slideResult.y;
