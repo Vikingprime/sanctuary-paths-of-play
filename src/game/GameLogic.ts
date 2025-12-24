@@ -954,11 +954,10 @@ export function calculateMovement(
               // Increase nudge strength gradually the longer we're stuck
               const stuckMultiplier = Math.min(slideBlockedCounter / 5, 3); // Ramps up to 3x over 15 frames
               
-              // When moving backward, flip the rotation direction
-              // (rotating left when going forward swings your front left,
-              //  but when going backward, you want to swing your back left, so flip)
+              // Don't flip for backward - the headOnSideSign already captures which side has the gap
+              // based on movement direction relative to the obstacle normal
               const isMovingBackward = input.backward && !input.forward;
-              const directionMultiplier = isMovingBackward ? -1 : 1;
+              const directionMultiplier = 1; // Same rotation direction regardless of forward/backward
               
               const rotationNudge = ROTATION_NUDGE_STRENGTH * (1 + stuckMultiplier) * headOnSideSign * directionMultiplier;
               newRotation += rotationNudge;
