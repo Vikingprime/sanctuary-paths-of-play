@@ -1217,7 +1217,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
       });
     });
     
-    // Add map station towers as collision objects
+    // Add map station towers as collision objects (marked as stations - only block movement, not rotation)
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
         if (cell.isStation) {
@@ -1225,6 +1225,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
             x: x, // Grid position (collision check adds 0.5 for center)
             y: y,
             radius: STATION_COLLISION_RADIUS,
+            isStation: true, // Stations only block movement, not rotation
           });
         }
       });

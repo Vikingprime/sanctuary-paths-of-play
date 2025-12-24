@@ -191,6 +191,7 @@ export interface CharacterPosition {
   x: number;  // Grid x position (character is at x + 0.5)
   y: number;  // Grid y position (character is at y + 0.5)
   radius: number;
+  isStation?: boolean; // If true, this is a map station (blocks movement but not rotation)
 }
 
 /**
@@ -310,8 +311,10 @@ export function calculateMovement(
   desiredRotation = ((desiredRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   
   // Check if rotation would cause character collision - if so, don't rotate
+  // Only check against actual characters, not stations (stations only block movement)
+  const charactersOnly = characters.filter(c => !c.isStation);
   const rotationCausesCollision = checkCharacterCollisionMultiPoint(
-    currentState.x, currentState.y, desiredRotation, characters, animalType
+    currentState.x, currentState.y, desiredRotation, charactersOnly, animalType
   );
   const newRotation = rotationCausesCollision ? currentState.rotation : desiredRotation;
 
