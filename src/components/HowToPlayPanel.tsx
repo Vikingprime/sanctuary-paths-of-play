@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronUp, Hand, MessageSquare, MapPin } from 'lucide-react';
+import gameplayDemo from '@/assets/gameplay-demo.png';
 
 interface HowToPlayPanelProps {
   defaultExpanded?: boolean;
@@ -100,32 +101,40 @@ export const HowToPlayPanel = ({ defaultExpanded = false }: HowToPlayPanelProps)
   );
 };
 
-// Animated swipe demo
+// Animated swipe demo with gameplay screenshot
 const SwipeDemoAnimation = () => {
   return (
-    <div className="relative w-32 h-32">
+    <div className="relative w-32 h-40">
       {/* Phone outline */}
-      <div className="absolute inset-0 border-2 border-primary/30 rounded-2xl bg-background/50" />
-      
-      {/* Animal emoji in center */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-3xl">
-        🐷
+      <div className="absolute inset-0 border-2 border-primary/30 rounded-2xl bg-background/50 overflow-hidden">
+        {/* Cropped gameplay image - showing middle section */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url(${gameplayDemo})`,
+            backgroundSize: '200%',
+            backgroundPosition: 'center 55%',
+          }}
+        />
+        {/* Gradient overlays to fade top and bottom */}
+        <div className="absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-background/90 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-background/90 to-transparent" />
       </div>
       
       {/* Animated finger with swipe trail */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="animate-swipe-demo absolute w-8 h-8 flex items-center justify-center">
-          <div className="text-2xl">👆</div>
+          <div className="text-2xl drop-shadow-lg">👆</div>
         </div>
         {/* Swipe trail */}
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 128 128">
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 128 160">
           <path
-            d="M 64 100 Q 64 64 64 40"
+            d="M 64 130 Q 64 80 64 50"
             stroke="hsl(var(--primary))"
             strokeWidth="3"
             fill="none"
             strokeLinecap="round"
-            strokeDasharray="60"
+            strokeDasharray="80"
             className="animate-swipe-trail"
           />
         </svg>
