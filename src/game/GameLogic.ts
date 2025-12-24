@@ -917,9 +917,10 @@ export function calculateMovement(
           
           // Apply slide via second sweep (same frame, continuous motion)
           if (Math.abs(slideX) > 0.0001 || Math.abs(slideY) > 0.0001) {
-            // CRITICAL FIX: Push slightly away from surface FIRST before sliding
-            // This prevents the second sweep from immediately hitting the same collider
-            const pushAwayDist = 0.02; // Small push away from the surface
+            // Push away from surface BEFORE sliding (only for characters/towers, not walls)
+            // Walls don't need push-away as they have high friction and don't cause sticking
+            const shouldPushAway = hitType === 'character' || hitType === 'tower';
+            const pushAwayDist = shouldPushAway ? 0.02 : 0;
             const pushedX = newX + nx * pushAwayDist;
             const pushedY = newY + ny * pushAwayDist;
             
