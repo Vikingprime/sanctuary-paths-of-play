@@ -659,7 +659,7 @@ const MapStation = ({ position, showCollisionDebug = true }: { position: [number
   
   return (
     <group position={position}>
-      {/* Tower base */}
+      {/* Tower base - height=1, positioned at y=0.5 means bottom is at y=0 */}
       <mesh position={[0, 0.5, 0]}>
         <cylinderGeometry args={[0.15, 0.2, 1, 8]} />
         <meshStandardMaterial color="#8B4513" />
@@ -670,12 +670,21 @@ const MapStation = ({ position, showCollisionDebug = true }: { position: [number
         <meshStandardMaterial color="#DEB887" />
       </mesh>
       
-      {/* Debug collision ring */}
+      {/* Debug visualization */}
       {showCollisionDebug && (
-        <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[COLLISION_RADIUS - 0.02, COLLISION_RADIUS + 0.02, 32]} />
-          <meshBasicMaterial color="#ff0000" transparent opacity={0.7} side={2} />
-        </mesh>
+        <>
+          {/* Collision ring at ground level */}
+          <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[COLLISION_RADIUS - 0.02, COLLISION_RADIUS + 0.02, 32]} />
+            <meshBasicMaterial color="#ff0000" transparent opacity={0.7} side={2} />
+          </mesh>
+          
+          {/* Tower base bottom marker (cyan ring at y=0) */}
+          <mesh position={[0, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1001}>
+            <ringGeometry args={[0.18, 0.22, 32]} />
+            <meshBasicMaterial color="#00ffff" transparent opacity={0.8} depthTest={false} depthWrite={false} side={2} />
+          </mesh>
+        </>
       )}
     </group>
   );
