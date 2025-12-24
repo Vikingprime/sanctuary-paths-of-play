@@ -7,7 +7,7 @@ import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
-import { getCharacterScale } from '@/game/CharacterConfig';
+import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
 
 // Extended performance info type
 export interface PerformanceInfo {
@@ -692,8 +692,9 @@ const CharacterRenderer = ({
   const modelPath = `/models/${modelFile}`;
   const { scene, animations } = useGLTF(modelPath);
   
-  // Get character scale from centralized config
+  // Get character scale and Y offset from centralized config
   const characterScale = getCharacterScale(modelFile);
+  const characterYOffset = getCharacterYOffset(modelFile);
   
   // Clone the scene using SkeletonUtils for skinned meshes
   const model = useMemo(() => {
@@ -755,7 +756,7 @@ const CharacterRenderer = ({
   });
 
   return (
-    <group position={[position.x + 0.5, 0, position.y + 0.5]}>
+    <group position={[position.x + 0.5, characterYOffset, position.y + 0.5]}>
       <group ref={groupRef}>
         <primitive object={model} scale={characterScale} />
       </group>

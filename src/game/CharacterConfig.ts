@@ -11,29 +11,36 @@ export interface CharacterModelConfig {
 }
 
 export const CharacterConfig: Record<string, CharacterModelConfig> = {
-  // Main characters
+  // Main characters - yOffset adjusts vertical position so feet touch ground
   'Farmer.glb': {
     scale: 0.55,
+    yOffset: -0.05, // Slight adjustment to ground feet
   },
   'Animated_Woman.glb': {
     scale: 0.20, // Model is much larger than Farmer
+    yOffset: -0.08, // Adjust to ground feet
   },
   
   // Animals
   'Cow.glb': {
     scale: 0.4,
+    yOffset: 0,
   },
   'Pig.glb': {
     scale: 0.35,
+    yOffset: 0,
   },
   'Hen.glb': {
     scale: 0.25,
+    yOffset: 0,
   },
   'Hen_idle.glb': {
     scale: 0.25,
+    yOffset: 0,
   },
   'Hen_walk.glb': {
     scale: 0.25,
+    yOffset: 0,
   },
 } as const;
 
