@@ -6,10 +6,27 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Download, Trash2, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Save, Upload, FileDown, RotateCcw, Check, ChevronUp, ChevronDown } from 'lucide-react';
+import { Copy, Download, Trash2, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Save, Upload, FileDown, RotateCcw, Check, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMazeStorage, createGrid, gridToLayout } from '@/hooks/useMazeStorage';
 import { Maze } from '@/types/game';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -99,6 +116,85 @@ const AVAILABLE_ANIMATIONS = [
   'point',
   'celebrate',
 ];
+
+// Sortable maze item component for drag-and-drop
+interface SortableMazeItemProps {
+  maze: Maze;
+  isSelected: boolean;
+  isCustomized: boolean;
+  onSelect: () => void;
+  onDelete: (e: React.MouseEvent) => void;
+}
+
+const SortableMazeItem: React.FC<SortableMazeItemProps> = ({
+  maze,
+  isSelected,
+  isCustomized,
+  onSelect,
+  onDelete,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: maze.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`p-2 rounded-lg border cursor-pointer transition-colors ${
+        isSelected
+          ? 'bg-primary/10 border-primary'
+          : 'hover:bg-muted border-transparent'
+      } ${isDragging ? 'shadow-lg z-50' : ''}`}
+      onClick={onSelect}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {/* Drag handle */}
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="w-3 h-3 text-muted-foreground" />
+          </div>
+          <span className="text-sm font-medium truncate">{maze.name}</span>
+          {isCustomized && (
+            <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded shrink-0">
+              edited
+            </span>
+          )}
+        </div>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(e);
+          }}
+        >
+          <Trash2 className="w-3 h-3" />
+        </Button>
+      </div>
+      <div className="text-xs text-muted-foreground ml-7">
+        ID: {maze.id} • {maze.difficulty}
+      </div>
+    </div>
+  );
+};
 
 const MazeEditor: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -572,20 +668,32 @@ const MazeEditor: React.FC = () => {
     event.target.value = '';
   }, [importMazes, loadedMazeId, loadMaze]);
 
-  // Move maze up/down in list
-  const handleMoveMaze = useCallback((mazeId: number, direction: 'up' | 'down') => {
-    const currentMazes = getAllMazes();
-    const currentOrder = currentMazes.map(m => m.id);
-    const currentIndex = currentOrder.indexOf(mazeId);
-    if (currentIndex === -1) return;
+  // DnD sensors for drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag end for reordering
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
     
-    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (newIndex < 0 || newIndex >= currentOrder.length) return;
-    
-    // Swap
-    const newOrder = [...currentOrder];
-    [newOrder[currentIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[currentIndex]];
-    reorderMazes(newOrder);
+    if (over && active.id !== over.id) {
+      const currentMazes = getAllMazes();
+      const oldIndex = currentMazes.findIndex(m => m.id === active.id);
+      const newIndex = currentMazes.findIndex(m => m.id === over.id);
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = arrayMove(currentMazes.map(m => m.id), oldIndex, newIndex);
+        reorderMazes(newOrder);
+      }
+    }
   }, [getAllMazes, reorderMazes]);
 
   const generateSchema = useCallback(() => {
@@ -762,58 +870,27 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
-                {allMazes.map((maze, index) => (
-                  <div 
-                    key={maze.id}
-                    className={`p-2 rounded-lg border cursor-pointer transition-colors ${
-                      loadedMazeId === maze.id 
-                        ? 'bg-primary/10 border-primary' 
-                        : 'hover:bg-muted border-transparent'
-                    }`}
-                    onClick={() => loadMaze(maze.id, false)}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={allMazes.map(m => m.id)}
+                    strategy={verticalListSortingStrategy}
                   >
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="flex items-center gap-1 min-w-0 flex-1">
-                        {/* Reorder buttons */}
-                        <div className="flex flex-col" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-4 w-4 p-0 hover:bg-muted"
-                            disabled={index === 0}
-                            onClick={(e) => { e.stopPropagation(); handleMoveMaze(maze.id, 'up'); }}
-                          >
-                            <ChevronUp className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-4 w-4 p-0 hover:bg-muted"
-                            disabled={index === allMazes.length - 1}
-                            onClick={(e) => { e.stopPropagation(); handleMoveMaze(maze.id, 'down'); }}
-                          >
-                            <ChevronDown className="w-3 h-3" />
-                          </Button>
-                        </div>
-                        <span className="text-sm font-medium truncate">{maze.name}</span>
-                        {isCustomized(maze.id) && (
-                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded shrink-0">edited</span>
-                        )}
-                      </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0"
-                        onClick={(e) => handleDeleteMazeById(maze.id, maze.name, e)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="text-xs text-muted-foreground ml-5">
-                      ID: {maze.id} • {maze.difficulty}
-                    </div>
-                  </div>
-                ))}
+                    {allMazes.map((maze) => (
+                      <SortableMazeItem
+                        key={maze.id}
+                        maze={maze}
+                        isSelected={loadedMazeId === maze.id}
+                        isCustomized={isCustomized(maze.id)}
+                        onSelect={() => loadMaze(maze.id, false)}
+                        onDelete={(e) => handleDeleteMazeById(maze.id, maze.name, e)}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
                 
                 {/* Import/Export buttons */}
                 <div className="pt-4 border-t space-y-2">
