@@ -230,8 +230,8 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): { head: number; tai
       // Cow has horns that extend forward more
       return { head: 0.42, tail: 0.35, pointRadius: 0.12 };
     case 'bird':
-      // Chicken - negative head offset moves collision point behind center, allowing beak to get closer
-      return { head: -0.2, tail: 0.001, pointRadius: 0.001 };
+      // Chicken - larger negative head offset allows beak to get much closer
+      return { head: -0.35, tail: 0.001, pointRadius: 0.001 };
     default:
       return { head: 0.30, tail: 0.25, pointRadius: 0.10 };
   }
