@@ -894,9 +894,7 @@ export function calculateMovement(
               // Update tangent for consistency
               lastSlideTangent = { x: tangentX * headOnSideSign, y: tangentY * headOnSideSign };
             } else {
-              // NORMAL SLIDING CASE (not perfectly head-on)
-              // Reset head-on side sign since we have natural slide
-              headOnSideSign = 0;
+              // NORMAL SLIDING CASE - but still ensure we don't get stuck
               
               // Compute new tangent from current slide direction
               let newTangentX = 0;
@@ -906,17 +904,24 @@ export function calculateMovement(
                 newTangentX = slideX / slideMag;
                 newTangentY = slideY / slideMag;
               } else {
+                // No natural slide - use perpendicular tangent
                 const cross = moveX * ny - moveY * nx;
                 const sign = cross >= 0 ? 1 : -1;
                 newTangentX = naturalTangentX * sign;
                 newTangentY = naturalTangentY * sign;
               }
               
-              // Persist and smooth tangent while in contact
+              // Persist tangent - only reset headOnSideSign if we have STRONG natural slide
+              if (slideMag > moveLen * 0.5) {
+                // Good natural slide - can reset head-on mode
+                headOnSideSign = 0;
+              }
+              
+              // Smooth tangent interpolation
               if (lastSlideTangent.x === 0 && lastSlideTangent.y === 0) {
                 lastSlideTangent = { x: newTangentX, y: newTangentY };
               } else {
-                const lerpFactor = 0.15;
+                const lerpFactor = 0.2;  // Slightly faster lerp
                 let smoothX = lastSlideTangent.x + (newTangentX - lastSlideTangent.x) * lerpFactor;
                 let smoothY = lastSlideTangent.y + (newTangentY - lastSlideTangent.y) * lerpFactor;
                 const smoothMag = Math.sqrt(smoothX * smoothX + smoothY * smoothY);
@@ -927,9 +932,12 @@ export function calculateMovement(
                 lastSlideTangent = { x: smoothX, y: smoothY };
               }
               
-              // Continuous assist based on how stuck we are (with ramp for smooth start)
+              // ALWAYS apply assist when slide is weak (catches all "stuck" angles)
               const stuckFactor = Math.max(0, 1 - slideMag / (moveLen + 0.001));
-              const assistAmount = moveLen * POLE_ASSIST_STRENGTH * stuckFactor * rampFactor;
+              // Minimum assist even when stuckFactor is low to prevent any sticking
+              const minAssist = 0.3;  // Always at least 30% assist strength
+              const effectiveStuckFactor = Math.max(minAssist, stuckFactor);
+              const assistAmount = moveLen * POLE_ASSIST_STRENGTH * effectiveStuckFactor * rampFactor;
               
               slideX = slideX * TOWER_SLIDE_BOOST + lastSlideTangent.x * assistAmount;
               slideY = slideY * TOWER_SLIDE_BOOST + lastSlideTangent.y * assistAmount;
