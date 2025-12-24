@@ -243,8 +243,8 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): {
       return { head: 0.22, tail: 0.20, pointRadius: 0.10 };
     case 'cow':
       // Cow has horns that extend forward AND sideways, plus a long neck and wide body
-      // Larger pointRadius to match visual head/body size
-      return { head: 0.35, tail: 0.35, pointRadius: 0.22, hornWidth: 0.25, neckLength: 0.18, bodyWidth: 0.28 };
+      // Reduced collision sizes to allow easier navigation around obstacles
+      return { head: 0.30, tail: 0.30, pointRadius: 0.15, hornWidth: 0.18, neckLength: 0.15, bodyWidth: 0.20 };
     case 'bird':
       // Chicken - larger negative head offset allows beak to get much closer
       return { head: -0.35, tail: 0.001, pointRadius: 0.001 };
