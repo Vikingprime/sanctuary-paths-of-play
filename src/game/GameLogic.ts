@@ -849,9 +849,16 @@ export function calculateMovement(
           // Compute base slide: remove component into surface
           let slideX = moveX - nx * dotIntoSurface;
           let slideY = moveY - ny * dotIntoSurface;
+          
+          // Apply friction: walls get 50% slide speed, towers/rocks get full
+          const hitType = sweepResult.hitType;
+          const slideFriction = (hitType === 'wall' || hitType === 'rock') ? 0.5 : 1.0;
+          slideX *= slideFriction;
+          slideY *= slideFriction;
+          
           let slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
           
-          console.log('[SLIDE] isSlideable:', isSlideable, 'baseSlide:', { x: slideX.toFixed(4), y: slideY.toFixed(4), mag: slideMag.toFixed(4) });
+          console.log('[SLIDE] isSlideable:', isSlideable, 'friction:', slideFriction, 'baseSlide:', { x: slideX.toFixed(4), y: slideY.toFixed(4), mag: slideMag.toFixed(4) });
           
           // Create a unique key for this collider based on hit position/normal
           const colliderKey = `${Math.round(nx * 100)}_${Math.round(ny * 100)}`;
