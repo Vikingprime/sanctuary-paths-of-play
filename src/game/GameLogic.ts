@@ -467,7 +467,7 @@ export function calculateMovement(
     hasWallOrRockCollision(x, y) || hasCharacterCollision(x, y, rot);
 
   // Helper to find nearest character and calculate tangent slide vector for circular obstacles
-  // Only returns a slide vector if player is actually close enough to be colliding
+  // Slides in the direction the player is trying to go, at reduced speed
   const getCircularSlideVector = (x: number, y: number, desiredMoveX: number, desiredMoveY: number): { slideX: number; slideY: number } | null => {
     let nearestChar: CharacterPosition | null = null;
     let nearestDist = Infinity;
@@ -482,8 +482,7 @@ export function calculateMovement(
       }
     }
     
-    // Only apply circular slide if very close to a character (within collision range)
-    // Use the character's radius + a small buffer
+    // Only apply circular slide if very close to a character
     const collisionThreshold = nearestChar ? (nearestChar.radius || 0.4) + 0.5 : 0.9;
     if (nearestChar && nearestDist < collisionThreshold) {
       const charX = nearestChar.x + 0.5;
@@ -499,7 +498,7 @@ export function calculateMovement(
         const radialX = toPlayerX / toPlayerLen;
         const radialY = toPlayerY / toPlayerLen;
         
-        // Tangent vectors (perpendicular to radial) - two options: clockwise and counter-clockwise
+        // Tangent vectors (perpendicular to radial)
         const tangent1X = -radialY;
         const tangent1Y = radialX;
         const tangent2X = radialY;
@@ -509,27 +508,20 @@ export function calculateMovement(
         const dot1 = desiredMoveX * tangent1X + desiredMoveY * tangent1Y;
         const dot2 = desiredMoveX * tangent2X + desiredMoveY * tangent2Y;
         
-        // Get the magnitude of desired movement for full-speed sliding
-        const moveLen = Math.sqrt(desiredMoveX * desiredMoveX + desiredMoveY * desiredMoveY);
+        // Use the actual projection amount (slower when hitting at angle)
+        // Apply a speed reduction factor for smoother sliding
+        const slideSpeedFactor = 0.5;
         
-        // Choose the tangent that aligns better with desired movement, but use FULL speed
-        // When hitting head-on (both dots near zero), pick consistent direction based on position
-        if (Math.abs(dot1) < 0.01 && Math.abs(dot2) < 0.01) {
-          // Head-on collision - pick direction based on which side of character we're on
-          // Use cross product to determine consistent side
-          const cross = desiredMoveX * toPlayerY - desiredMoveY * toPlayerX;
-          if (cross >= 0) {
-            return { slideX: tangent1X * moveLen, slideY: tangent1Y * moveLen };
-          } else {
-            return { slideX: tangent2X * moveLen, slideY: tangent2Y * moveLen };
-          }
-        } else if (Math.abs(dot1) >= Math.abs(dot2)) {
-          const sign = dot1 > 0 ? 1 : -1;
-          return { slideX: tangent1X * moveLen * sign, slideY: tangent1Y * moveLen * sign };
+        // Choose the tangent that aligns better with desired movement
+        if (Math.abs(dot1) >= Math.abs(dot2) && Math.abs(dot1) > 0.001) {
+          // Use the actual dot product value (not full speed)
+          return { slideX: tangent1X * dot1 * slideSpeedFactor, slideY: tangent1Y * dot1 * slideSpeedFactor };
         } else if (Math.abs(dot2) > 0.001) {
-          const sign = dot2 > 0 ? 1 : -1;
-          return { slideX: tangent2X * moveLen * sign, slideY: tangent2Y * moveLen * sign };
+          return { slideX: tangent2X * dot2 * slideSpeedFactor, slideY: tangent2Y * dot2 * slideSpeedFactor };
         }
+        
+        // Head-on collision (both dots near zero) - no slide, just block
+        return null;
       }
     }
     return null;
