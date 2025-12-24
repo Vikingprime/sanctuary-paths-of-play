@@ -503,13 +503,16 @@ export function calculateMovement(
     return { x: totalX, y: totalY, depth: maxDepth };
   };
   
-  // Check if ANY collision point would hit a wall - this is the key fix!
+  // Check if ANY collision point would hit a wall OR character
   // Must check all collision spheres, not just center point
   const hasAnyCollisionPointBlocked = (x: number, y: number, rot: number): boolean => {
     // First check center (fast path)
     if (hasWallOrRockCollision(x, y)) return true;
     
-    // Check all collision points
+    // Check character collision (includes stations like the map tower)
+    if (hasCharacterCollision(x, y, rot)) return true;
+    
+    // Check all collision points against walls
     const points = getCollisionPointsForAnimal(x, y, rot, offsets);
     for (const point of points) {
       // Check if this point's position is in a wall cell
