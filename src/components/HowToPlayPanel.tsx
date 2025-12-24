@@ -93,6 +93,11 @@ export const HowToPlayPanel = ({ defaultExpanded = false }: HowToPlayPanelProps)
                 title="Use Your Ability"
                 description="Each animal has a special ability - use it wisely!"
               />
+              <TipCard
+                icon="🚀"
+                title="Collect Powerups"
+                description="Grab powerups to increase movement speed and finish faster!"
+              />
             </div>
           </div>
         </div>
