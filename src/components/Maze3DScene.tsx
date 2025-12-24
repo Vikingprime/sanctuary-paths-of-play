@@ -652,17 +652,29 @@ const PowerUp = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-const MapStation = ({ position }: { position: [number, number, number] }) => {
+const MapStation = ({ position, showCollisionDebug = true }: { position: [number, number, number]; showCollisionDebug?: boolean }) => {
+  const COLLISION_RADIUS = 0.32; // Must match STATION_COLLISION_RADIUS
+  
   return (
     <group position={position}>
+      {/* Tower base */}
       <mesh position={[0, 0.5, 0]}>
         <cylinderGeometry args={[0.15, 0.2, 1, 8]} />
         <meshStandardMaterial color="#8B4513" />
       </mesh>
+      {/* Tower sign */}
       <mesh position={[0, 1.1, 0]}>
         <boxGeometry args={[0.4, 0.4, 0.05]} />
         <meshStandardMaterial color="#DEB887" />
       </mesh>
+      
+      {/* Debug collision ring */}
+      {showCollisionDebug && (
+        <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[COLLISION_RADIUS - 0.02, COLLISION_RADIUS + 0.02, 32]} />
+          <meshBasicMaterial color="#ff0000" transparent opacity={0.7} side={2} />
+        </mesh>
+      )}
     </group>
   );
 };
