@@ -235,15 +235,16 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): {
   pointRadius: number;
   hornWidth?: number; // For cow - distance horns extend sideways from head
   neckLength?: number; // For cow - distance from center to neck checkpoint
+  bodyWidth?: number; // For cow - distance sides extend from center
 } {
   switch (animalType) {
     case 'pig':
       // Pig's snout extends forward - keep small gap from characters
       return { head: 0.22, tail: 0.20, pointRadius: 0.10 };
     case 'cow':
-      // Cow has horns that extend forward AND sideways, plus a long neck
+      // Cow has horns that extend forward AND sideways, plus a long neck and wide body
       // Larger pointRadius to match visual head/body size
-      return { head: 0.35, tail: 0.35, pointRadius: 0.22, hornWidth: 0.25, neckLength: 0.18 };
+      return { head: 0.35, tail: 0.35, pointRadius: 0.22, hornWidth: 0.25, neckLength: 0.18, bodyWidth: 0.28 };
     case 'bird':
       // Chicken - larger negative head offset allows beak to get much closer
       return { head: -0.35, tail: 0.001, pointRadius: 0.001 };
@@ -293,11 +294,25 @@ export function checkCharacterCollisionMultiPoint(
     }
   }
   
-  if (offsets.hornWidth) {
-    // Horn positions are perpendicular to facing direction
-    const perpX = Math.cos(rotation); // Perpendicular direction
-    const perpY = Math.sin(rotation);
+  // Perpendicular direction for side checks
+  const perpX = Math.cos(rotation);
+  const perpY = Math.sin(rotation);
+  
+  // For cow, check body side positions (left and right of center)
+  if (offsets.bodyWidth) {
+    const leftSideX = x - perpX * offsets.bodyWidth;
+    const leftSideY = y - perpY * offsets.bodyWidth;
+    const rightSideX = x + perpX * offsets.bodyWidth;
+    const rightSideY = y + perpY * offsets.bodyWidth;
     
+    if (checkCharacterCollision(leftSideX, leftSideY, characters, offsets.pointRadius, useRotationRadius) ||
+        checkCharacterCollision(rightSideX, rightSideY, characters, offsets.pointRadius, useRotationRadius)) {
+      return true;
+    }
+  }
+  
+  if (offsets.hornWidth) {
+    // Horn positions are perpendicular to facing direction at head
     const leftHornX = headX - perpX * offsets.hornWidth;
     const leftHornY = headY - perpY * offsets.hornWidth;
     const rightHornX = headX + perpX * offsets.hornWidth;
@@ -415,6 +430,37 @@ export function calculateMovement(
   const hasCollision = (x: number, y: number, rot: number) => 
     hasWallOrRockCollision(x, y) || hasCharacterCollision(x, y, rot);
 
+  // Helper to find nearest station and calculate push direction
+  const getStationPushVector = (x: number, y: number): { pushX: number; pushY: number } | null => {
+    let nearestStation: CharacterPosition | null = null;
+    let nearestDist = Infinity;
+    
+    for (const char of characters) {
+      if (!char.isStation) continue;
+      const charX = char.x + 0.5;
+      const charZ = char.y + 0.5;
+      const dist = Math.sqrt((x - charX) ** 2 + (y - charZ) ** 2);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestStation = char;
+      }
+    }
+    
+    if (nearestStation && nearestDist < 1.0) {
+      const charX = nearestStation.x + 0.5;
+      const charZ = nearestStation.y + 0.5;
+      const dx = x - charX;
+      const dy = y - charZ;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len > 0.01) {
+        // Normalize and scale push force
+        const pushStrength = 0.08 * deltaTime * 60; // Consistent across frame rates
+        return { pushX: (dx / len) * pushStrength, pushY: (dy / len) * pushStrength };
+      }
+    }
+    return null;
+  };
+
   // Try combined movement first
   let newX = currentState.x + moveX;
   let newY = currentState.y + moveY;
@@ -428,9 +474,23 @@ export function calculateMovement(
       newX = currentState.x;
       newY = currentState.y + moveY;
     } else {
-      // Can't move at all
-      newX = currentState.x;
-      newY = currentState.y;
+      // Can't move normally - apply bounce/push away from station
+      const push = getStationPushVector(currentState.x, currentState.y);
+      if (push) {
+        const pushedX = currentState.x + push.pushX;
+        const pushedY = currentState.y + push.pushY;
+        // Only apply push if it doesn't cause wall collision
+        if (!hasWallOrRockCollision(pushedX, pushedY)) {
+          newX = pushedX;
+          newY = pushedY;
+        } else {
+          newX = currentState.x;
+          newY = currentState.y;
+        }
+      } else {
+        newX = currentState.x;
+        newY = currentState.y;
+      }
     }
   }
 
