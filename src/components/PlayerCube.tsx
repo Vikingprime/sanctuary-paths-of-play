@@ -313,15 +313,19 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   // Pig uses GLB model
   if (animalType === 'pig') {
     // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
-    const CAPSULE_START = -0.18;
-    const CAPSULE_END = 0.20;
+    // Extended to cover snout (front) and rear (back) fully
+    const CAPSULE_START = -0.25;  // Extended back for rear/tail
+    const CAPSULE_END = 0.35;     // Extended forward for snout
     const CAPSULE_RADIUS = 0.12;
     const DEBUG_Y = 0.3;
+    
+    // FIX: Raise pig model so feet touch ground at y=0
+    const PIG_Y_OFFSET = 0.05;
     
     return (
       <group position={position}>
         <group ref={innerGroupRef}>
-          <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, -0.25, 0]} />
+          <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, PIG_Y_OFFSET, 0]} />
         </group>
         
         {/* Debug capsule collider */}
