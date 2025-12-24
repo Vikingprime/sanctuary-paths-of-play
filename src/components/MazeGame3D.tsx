@@ -441,14 +441,27 @@ export const MazeGame3D = ({
     const checkProximity = () => {
       const playerX = playerStateRef.current.x;
       const playerY = playerStateRef.current.y;
-      const STATION_RADIUS = 1.0; // 1 meter radius
+      const playerRot = playerStateRef.current.rotation;
+      const STATION_RADIUS = 1.2; // Slightly larger radius for head reach
+      
+      // Calculate head position based on animal type
+      // Cow head offset is 0.65 forward
+      const headOffset = animalType === 'cow' ? 0.65 : animalType === 'pig' ? 0.22 : 0.15;
+      const headX = playerX + Math.sin(playerRot) * headOffset;
+      const headY = playerY - Math.cos(playerRot) * headOffset;
       
       let nearStation = false;
       for (const station of stationPositions.current) {
-        const dx = playerX - station.x;
-        const dy = playerY - station.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance <= STATION_RADIUS) {
+        // Check if head OR center is near station
+        const dxHead = headX - station.x;
+        const dyHead = headY - station.y;
+        const distanceHead = Math.sqrt(dxHead * dxHead + dyHead * dyHead);
+        
+        const dxCenter = playerX - station.x;
+        const dyCenter = playerY - station.y;
+        const distanceCenter = Math.sqrt(dxCenter * dxCenter + dyCenter * dyCenter);
+        
+        if (distanceHead <= STATION_RADIUS || distanceCenter <= STATION_RADIUS) {
           nearStation = true;
           break;
         }
