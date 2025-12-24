@@ -82,8 +82,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        cells: [{ x: 16, y: 12 }, { x: 17, y: 12 }, { x: 16, y: 13 }, { x: 17, y: 13 }], // All end cells
-        speakerPosition: { x: 14, y: 11 }, // Where farmer stands - in the path before end
+        cells: [{ x: 16, y: 12 }, { x: 17, y: 12 }, { x: 16, y: 13 }, { x: 17, y: 13 }],
+        speakerCharacterId: 'endFarmer',
       },
     ],
     endConditions: {
@@ -127,8 +127,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        cells: [{ x: 26, y: 34 }, { x: 27, y: 34 }, { x: 26, y: 35 }, { x: 27, y: 35 }], // All end cells (EE at rows 34-35)
-        speakerPosition: { x: 24, y: 34 }, // Where farmer stands - in the path before end
+        cells: [{ x: 26, y: 34 }, { x: 27, y: 34 }, { x: 26, y: 35 }, { x: 27, y: 35 }],
+        speakerCharacterId: 'endFarmer', // Camera should look at the actual farmer position
       },
     ],
     endConditions: {
@@ -193,8 +193,8 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        cells: [{ x: 11, y: 13 }], // Single end cell
-        speakerPosition: { x: 9, y: 13 }, // Where farmer stands - in path before end
+        cells: [{ x: 11, y: 13 }],
+        speakerCharacterId: 'endFarmer',
       },
     ],
     endConditions: {
