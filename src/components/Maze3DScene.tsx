@@ -1272,7 +1272,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
   // Generate character positions for collision (all placed characters + map stations)
-  const CHARACTER_COLLISION_RADIUS = 0.25;
+  const CHARACTER_COLLISION_RADIUS = 0.1;
   const STATION_COLLISION_RADIUS = 0.12; // Tiny - barely perceptible
   const STATION_ROTATION_RADIUS = 0.10; // Even smaller for rotation
   const characterPositions = useMemo<CharacterPosition[]>(() => {
