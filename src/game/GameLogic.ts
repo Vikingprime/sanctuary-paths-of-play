@@ -315,15 +315,16 @@ function getCapsuleEndpoints(
 // ============================================
 // TUNING CONSTANTS (easy to tweak)
 // ============================================
-const SKIN_WIDTH = 0.03;              // Gap to prevent sticking (0.02-0.05)
+const SKIN_WIDTH = 0.05;              // Gap to prevent sticking (0.03-0.06)
 const ROTATION_STEP = 0.02;           // ~1.15 degrees per step for rotation sweep
 const SWEEP_STEPS = 12;               // Binary search steps for swept collision
 const MAX_DEPENETRATION = 0.03;       // Maximum push per frame
 const OVERLAP_EPSILON = 0.001;        // Overlap threshold
 const TOWER_SLIDE_BOOST = 1.4;        // Tangent boost for towers/characters (1.2-1.5)
-const POLE_ASSIST_STRENGTH = 0.40;    // Head-on pole assist (0.25-0.45 of speed)
+const POLE_ASSIST_STRENGTH = 0.45;    // Head-on pole assist (0.25-0.45 of speed)
 const HEAD_ON_THRESHOLD = -0.6;       // dot(desiredDir, normal) threshold for head-on detection
 const HEAD_ON_SLIDE_RATIO = 0.1;      // If slide < this * move, consider it head-on stuck
+const ASSIST_RAMP_TIME = 0.15;        // Time in seconds to ramp assist to full strength (0.1-0.2s)
 
 // Collision types
 export type ColliderType = 'wall' | 'tower' | 'rock' | 'character';
@@ -341,7 +342,8 @@ let unstuckCooldown = 0;
 let lastSafeTransform = { x: 0, y: 0, rotation: 0 };
 let lastSlideTangent = { x: 0, y: 0 };  // Track consistent tangent direction
 let headOnSideSign = 0;                 // Persistent side sign for head-on pole unstick (+1 or -1)
-let slidingContactTime = 0;              // How long we've been in sliding contact
+let slidingContactTime = 0;             // How long we've been in sliding contact
+let lastContactColliderKey = '';        // Track which collider we're contacting for cast offset
 
 /**
  * Check if a capsule overlaps any static collider (walls, rocks, characters)
@@ -811,7 +813,8 @@ export function calculateMovement(
       newY = sweepResult.y;
       slidingContactTime = 0;
       lastSlideTangent = { x: 0, y: 0 };
-      headOnSideSign = 0;  // Reset head-on side sign when contact ends
+      headOnSideSign = 0;
+      lastContactColliderKey = '';  // Reset contact tracking
     } else {
       // Blocked - move to safe contact point
       newX = sweepResult.x;
@@ -838,8 +841,19 @@ export function calculateMovement(
           let slideY = moveY - ny * dotIntoSurface;
           let slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
           
-          // Track contact time for smooth transitions
-          slidingContactTime += deltaTime;
+          // Create a unique key for this collider based on hit position/normal
+          const colliderKey = `${Math.round(nx * 100)}_${Math.round(ny * 100)}`;
+          const isSameCollider = colliderKey === lastContactColliderKey;
+          
+          // IMMEDIATE RESPONSE: Start sliding from FIRST FRAME of contact (no stuck gating)
+          // Track contact time for ramp, but apply assist immediately
+          if (!isSameCollider) {
+            // New collider - reset contact time but apply assist immediately
+            slidingContactTime = deltaTime;  // Start at deltaTime, not 0
+            lastContactColliderKey = colliderKey;
+          } else {
+            slidingContactTime += deltaTime;
+          }
           
           if (isSlideable) {
             const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
@@ -855,23 +869,23 @@ export function calculateMovement(
             // If mostly pushing into obstacle AND almost no tangential slide
             const isHeadOn = intoFactor < HEAD_ON_THRESHOLD && slideMag < HEAD_ON_SLIDE_RATIO * moveLen;
             
+            // RAMP ASSIST: Smooth ramp from 0 to full over ASSIST_RAMP_TIME (removes snap)
+            const rampFactor = Math.min(1, slidingContactTime / ASSIST_RAMP_TIME);
+            
             if (isHeadOn && moveLen > 0.001) {
-              // HEAD-ON CASE: Force continuous tangent move
-              // Tangent = perpendicular to normal (cross(up, normal) in 2D = (-ny, nx))
+              // HEAD-ON CASE: Force continuous tangent move IMMEDIATELY
               const tangentX = naturalTangentX;
               const tangentY = naturalTangentY;
               
               // Choose side sign ONCE on first contact, store until contact ends
               if (headOnSideSign === 0) {
-                // Use cross product to determine which side: cross(desiredDir, normal)
                 const crossZ = desiredDirX * ny - desiredDirY * nx;
                 headOnSideSign = crossZ >= 0 ? 1 : -1;
-                // If exactly zero, default to +1
                 if (crossZ === 0) headOnSideSign = 1;
               }
               
-              // Apply continuous assist every frame (not bursts)
-              const assistSpeed = moveLen * POLE_ASSIST_STRENGTH;
+              // Apply ramped assist every frame (immediate but smooth ramp-in)
+              const assistSpeed = moveLen * POLE_ASSIST_STRENGTH * rampFactor;
               slideX = tangentX * headOnSideSign * assistSpeed;
               slideY = tangentY * headOnSideSign * assistSpeed;
               slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
@@ -912,9 +926,9 @@ export function calculateMovement(
                 lastSlideTangent = { x: smoothX, y: smoothY };
               }
               
-              // Continuous assist based on how stuck we are
+              // Continuous assist based on how stuck we are (with ramp for smooth start)
               const stuckFactor = Math.max(0, 1 - slideMag / (moveLen + 0.001));
-              const assistAmount = moveLen * POLE_ASSIST_STRENGTH * stuckFactor;
+              const assistAmount = moveLen * POLE_ASSIST_STRENGTH * stuckFactor * rampFactor;
               
               slideX = slideX * TOWER_SLIDE_BOOST + lastSlideTangent.x * assistAmount;
               slideY = slideY * TOWER_SLIDE_BOOST + lastSlideTangent.y * assistAmount;
@@ -939,7 +953,8 @@ export function calculateMovement(
     // No movement input - reset sliding state
     slidingContactTime = 0;
     lastSlideTangent = { x: 0, y: 0 };
-    headOnSideSign = 0;  // Reset head-on side sign when no input
+    headOnSideSign = 0;
+    lastContactColliderKey = '';  // Reset contact tracking
   }
 
   // ========================================
