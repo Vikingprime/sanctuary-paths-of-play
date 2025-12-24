@@ -407,44 +407,7 @@ export function calculateMovement(
     return checkCharacterCollisionMultiPoint(x, y, rot, characters, animalType);
   };
   
-  // Check if position is inside a character collision zone using actual collision points
-  // Only push out if we're ACTUALLY colliding (not just near)
-  const getPenetration = (px: number, py: number, rot: number): { pushX: number; pushY: number } | null => {
-    // Only activate if actual collision points are overlapping
-    if (!checkCharacterCollisionMultiPoint(px, py, rot, characters, animalType)) {
-      return null; // Not actually colliding, don't push
-    }
-    
-    // Find nearest character to push away from
-    for (const char of characters) {
-      const charX = char.x + 0.5;
-      const charZ = char.y + 0.5;
-      const dx = px - charX;
-      const dy = py - charZ;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 0.01) {
-        // Very gentle push away from character
-        const pushStrength = 0.01; // Minimal push
-        return { pushX: (dx / dist) * pushStrength, pushY: (dy / dist) * pushStrength };
-      }
-    }
-    return null;
-  };
-  
-  // FIRST: If we're currently colliding, push us out immediately
-  const penetration = getPenetration(currentState.x, currentState.y, currentState.rotation);
-  if (penetration) {
-    const pushedX = currentState.x + penetration.pushX;
-    const pushedY = currentState.y + penetration.pushY;
-    const pushDist = Math.sqrt(penetration.pushX ** 2 + penetration.pushY ** 2);
-    console.log(`PUSH: strength=${pushDist.toFixed(4)}`);
-    if (!hasWallOrRockCollision(pushedX, pushedY)) {
-      // Push out and return - no other movement this frame
-      return { x: pushedX, y: pushedY, rotation: newRotation };
-    }
-  }
-  
-  // Combined collision check
+  // Combined collision check (no sliding/push logic - just block movement)
   const hasCollision = (x: number, y: number, rot: number) => 
     hasWallOrRockCollision(x, y) || hasCharacterCollision(x, y, rot);
 
