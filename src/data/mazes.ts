@@ -36,7 +36,7 @@ export const mazes: Maze[] = [
         emoji: '🧑‍🌾',
         model: 'Farmer.glb',
         animation: 'wave',
-        position: { x: 12, y: 13 },
+        position: { x: 13, y: 14 },
       }
     ],
     dialogues: [
@@ -92,7 +92,7 @@ export const mazes: Maze[] = [
         emoji: '🧑‍🌾',
         model: 'Farmer.glb',
         animation: 'wave',
-        position: { x: 16, y: 12 },
+        position: { x: 17, y: 13 },
       }
     ],
     dialogues: [
@@ -147,7 +147,7 @@ export const mazes: Maze[] = [
         emoji: '🧑‍🌾',
         model: 'Farmer.glb',
         animation: 'wave',
-        position: { x: 26, y: 34 },
+        position: { x: 27, y: 35 },
       }
     ],
     dialogues: [
@@ -272,7 +272,7 @@ export const mazes: Maze[] = [
         emoji: '🧑‍🌾',
         model: 'Farmer.glb',
         animation: 'wave',
-        position: { x: 4, y: 6 },
+        position: { x: 5, y: 6 },
       }
     ],
     dialogues: [
@@ -348,7 +348,7 @@ export const mazes: Maze[] = [
         emoji: '🧑‍🌾',
         model: 'Farmer.glb',
         animation: 'wave',
-        position: { x: 12, y: 12 },
+        position: { x: 13, y: 13 },
       }
     ],
     dialogues: [
