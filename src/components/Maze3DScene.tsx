@@ -1010,6 +1010,8 @@ const OverShoulderCameraController = ({
   }, [restartKey]);
   
   // Camera settings - over-the-shoulder view balanced for all animals
+  const DEBUG_OVERHEAD_VIEW = true; // TEMP: Set to true for overhead debug view
+  
   const CAMERA_DISTANCE_START = 0.4;
   const CAMERA_DISTANCE_NORMAL = 2.0;
   const CAMERA_HEIGHT_START = 1.8;
@@ -1099,8 +1101,14 @@ const OverShoulderCameraController = ({
     currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
     
     // Apply to camera
-    camera.position.copy(currentPosition.current);
-    camera.lookAt(currentLookAt.current);
+    if (DEBUG_OVERHEAD_VIEW) {
+      // Overhead debug view - look straight down at player
+      camera.position.set(playerX, 5, playerZ);
+      camera.lookAt(playerX, 0, playerZ);
+    } else {
+      camera.position.copy(currentPosition.current);
+      camera.lookAt(currentLookAt.current);
+    }
   });
 
   return null;
