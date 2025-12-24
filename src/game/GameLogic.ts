@@ -443,8 +443,8 @@ export function calculateMovement(
       const dy = py - charZ;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 0.01) {
-        // Gentle push away from character
-        const pushStrength = 0.03; // Much gentler push
+        // Very gentle push away from character
+        const pushStrength = 0.01; // Minimal push
         return { pushX: (dx / dist) * pushStrength, pushY: (dy / dist) * pushStrength };
       }
     }
@@ -456,6 +456,8 @@ export function calculateMovement(
   if (penetration) {
     const pushedX = currentState.x + penetration.pushX;
     const pushedY = currentState.y + penetration.pushY;
+    const pushDist = Math.sqrt(penetration.pushX ** 2 + penetration.pushY ** 2);
+    console.log(`PUSH: strength=${pushDist.toFixed(4)}`);
     if (!hasWallOrRockCollision(pushedX, pushedY)) {
       // Push out and return - no other movement this frame
       return { x: pushedX, y: pushedY, rotation: newRotation };
@@ -549,7 +551,7 @@ export function calculateMovement(
     const circularSlide = getCircularSlideVector(currentState.x, currentState.y, moveX, moveY);
     if (circularSlide) {
       // Cap the slide speed to prevent fast bouncing
-      const maxSlideSpeed = 0.02;
+      const maxSlideSpeed = 0.008;
       const slideMag = Math.sqrt(circularSlide.slideX ** 2 + circularSlide.slideY ** 2);
       let cappedSlideX = circularSlide.slideX;
       let cappedSlideY = circularSlide.slideY;
@@ -563,6 +565,8 @@ export function calculateMovement(
       let slideY = currentState.y + cappedSlideY;
       
       if (!hasCollision(slideX, slideY, newRotation)) {
+        const slideDist = Math.sqrt(cappedSlideX ** 2 + cappedSlideY ** 2);
+        console.log(`SLIDE: speed=${slideDist.toFixed(4)}`);
         newX = slideX;
         newY = slideY;
         usedCircularSlide = true;
