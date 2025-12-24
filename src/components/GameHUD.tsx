@@ -45,6 +45,8 @@ interface GameHUDProps {
   // Camera and collision debug toggles
   topDownCamera?: boolean;
   onToggleTopDownCamera?: () => void;
+  groundLevelCamera?: boolean;
+  onToggleGroundLevelCamera?: () => void;
   showCollisionDebug?: boolean;
   onToggleCollisionDebug?: () => void;
 }
@@ -73,6 +75,8 @@ export const GameHUD = ({
   performanceInfo,
   topDownCamera = false,
   onToggleTopDownCamera,
+  groundLevelCamera = false,
+  onToggleGroundLevelCamera,
   showCollisionDebug = true,
   onToggleCollisionDebug,
 }: GameHUDProps) => {
@@ -226,6 +230,18 @@ export const GameHUD = ({
                   title="Toggle camera view"
                 >
                   📷 {topDownCamera ? 'Top' : 'Normal'}
+                </button>
+              )}
+              {onToggleGroundLevelCamera && (
+                <button
+                  onClick={onToggleGroundLevelCamera}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    groundLevelCamera ? 'text-orange-500' : 'text-green-500'
+                  )}
+                  title="Ground level camera (debug height)"
+                >
+                  👁️ {groundLevelCamera ? 'Ground' : 'Normal'}
                 </button>
               )}
               {onToggleCollisionDebug && (
