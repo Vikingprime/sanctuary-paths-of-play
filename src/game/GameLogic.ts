@@ -443,8 +443,8 @@ export function calculateMovement(
       const dy = py - charZ;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 0.01) {
-        // Push away from character
-        const pushStrength = 0.15;
+        // Gentle push away from character
+        const pushStrength = 0.03; // Much gentler push
         return { pushX: (dx / dist) * pushStrength, pushY: (dy / dist) * pushStrength };
       }
     }
