@@ -322,7 +322,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
 
   // Cow uses GLB model with animation
   if (animalType === 'cow') {
-    const HEAD_OFFSET = 0.48; // Must match GameLogic.ts getAnimalCollisionOffsets
+    const HEAD_OFFSET = 0.65; // Must match GameLogic.ts getAnimalCollisionOffsets
     
     return (
       <group position={position}>
