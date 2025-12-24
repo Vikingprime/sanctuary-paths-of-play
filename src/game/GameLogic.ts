@@ -564,9 +564,12 @@ export function calculateMovement(
       let slideX = currentState.x + cappedSlideX;
       let slideY = currentState.y + cappedSlideY;
       
-      if (!hasCollision(slideX, slideY, newRotation)) {
-        const slideDist = Math.sqrt(cappedSlideX ** 2 + cappedSlideY ** 2);
-        console.log(`SLIDE: speed=${slideDist.toFixed(4)}`);
+      // Check if slide destination is valid
+      const slideCollides = hasCollision(slideX, slideY, newRotation);
+      const slideDist = Math.sqrt(cappedSlideX ** 2 + cappedSlideY ** 2);
+      console.log(`SLIDE CHECK: pos=(${slideX.toFixed(2)}, ${slideY.toFixed(2)}), collides=${slideCollides}, speed=${slideDist.toFixed(4)}`);
+      
+      if (!slideCollides) {
         newX = slideX;
         newY = slideY;
         usedCircularSlide = true;
