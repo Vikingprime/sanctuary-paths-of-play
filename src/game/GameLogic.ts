@@ -512,7 +512,7 @@ export function calculateMovement(
     return null;
   };
 
-  // Helper for push away (when completely stuck)
+  // Helper for push away (when inside collision zone)
   const getCharacterPushVector = (x: number, y: number): { pushX: number; pushY: number } | null => {
     for (const char of characters) {
       const charX = char.x + 0.5;
@@ -520,8 +520,11 @@ export function calculateMovement(
       const dx = x - charX;
       const dy = y - charZ;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 1.0 && dist > 0.01) {
-        const pushStrength = 0.08 * deltaTime * 60;
+      const minDist = (char.radius || 0.4) + 0.15; // Minimum safe distance
+      if (dist < minDist && dist > 0.01) {
+        // Strong push proportional to how deep inside we are
+        const penetration = minDist - dist;
+        const pushStrength = Math.max(0.1, penetration * 2) * deltaTime * 60;
         return { pushX: (dx / dist) * pushStrength, pushY: (dy / dist) * pushStrength };
       }
     }
@@ -594,10 +597,21 @@ export function calculateMovement(
     }
   }
   
+  // CRITICAL: Always push away from characters if inside collision zone
+  // This prevents phasing through even with rapid movement
+  const pushVector = getCharacterPushVector(newX, newY);
+  if (pushVector) {
+    const pushedX = newX + pushVector.pushX;
+    const pushedY = newY + pushVector.pushY;
+    // Only apply push if it doesn't put us in a wall
+    if (!hasWallOrRockCollision(pushedX, pushedY)) {
+      newX = pushedX;
+      newY = pushedY;
+    }
+  }
 
   return { x: newX, y: newY, rotation: newRotation };
 }
-
 // ============================================
 // CELL INTERACTIONS
 // ============================================
