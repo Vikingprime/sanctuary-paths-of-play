@@ -427,26 +427,32 @@ export function calculateMovement(
     return checkCharacterCollisionMultiPoint(x, y, rot, characters, animalType);
   };
   
-  // Check if position is inside a character collision zone and get push-out vector
-  const getPenetration = (px: number, py: number): { pushX: number; pushY: number } | null => {
+  // Check if position is inside a character collision zone using actual collision points
+  // Only push out if we're ACTUALLY colliding (not just near)
+  const getPenetration = (px: number, py: number, rot: number): { pushX: number; pushY: number } | null => {
+    // Only activate if actual collision points are overlapping
+    if (!checkCharacterCollisionMultiPoint(px, py, rot, characters, animalType)) {
+      return null; // Not actually colliding, don't push
+    }
+    
+    // Find nearest character to push away from
     for (const char of characters) {
       const charX = char.x + 0.5;
       const charZ = char.y + 0.5;
       const dx = px - charX;
       const dy = py - charZ;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      const minDist = (char.radius || 0.4) + 0.3; // Safe distance from center
-      if (dist < minDist && dist > 0.01) {
-        // We're inside - calculate push direction
-        const pushStrength = (minDist - dist) + 0.05; // Push out completely + buffer
+      if (dist > 0.01) {
+        // Push away from character
+        const pushStrength = 0.15;
         return { pushX: (dx / dist) * pushStrength, pushY: (dy / dist) * pushStrength };
       }
     }
     return null;
   };
   
-  // FIRST: If we're currently penetrating, push us out immediately
-  const penetration = getPenetration(currentState.x, currentState.y);
+  // FIRST: If we're currently colliding, push us out immediately
+  const penetration = getPenetration(currentState.x, currentState.y, currentState.rotation);
   if (penetration) {
     const pushedX = currentState.x + penetration.pushX;
     const pushedY = currentState.y + penetration.pushY;
@@ -596,8 +602,8 @@ export function calculateMovement(
     }
   }
   
-  // BACKUP: Check if final position is still penetrating (shouldn't happen but safety net)
-  const finalPenetration = getPenetration(newX, newY);
+  // BACKUP: Check if final position is still colliding (shouldn't happen but safety net)
+  const finalPenetration = getPenetration(newX, newY, newRotation);
   if (finalPenetration) {
     // We're still inside after movement - revert to current position
     newX = currentState.x;
