@@ -319,9 +319,9 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     const CAPSULE_RADIUS = 0.15;  // Slightly larger radius
     const DEBUG_Y = 0.3;
     
-    // The pig model's origin appears to be at its feet/base
-    // Set to 0 so feet touch ground at y=0
-    const PIG_Y_OFFSET = 0;
+    // The pig GLB model's origin is above feet (at body center)
+    // We need a NEGATIVE offset to lower the model so feet touch y=0
+    const PIG_Y_OFFSET = -0.25;
     
     return (
       <group position={position}>
@@ -363,10 +363,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     const HEAD_RADIUS = 0.15;
     const DEBUG_Y = 0.5;
     
-    // Cow model grounded at y=0
+    // Cow GLB model's origin is above feet - needs negative offset to ground
+    const COW_Y_OFFSET = -0.15;
+    
     return (
       <group position={position}>
-        <group ref={cowGroupRef} position={[0, 0, 0]}>
+        <group ref={cowGroupRef} position={[0, COW_Y_OFFSET, 0]}>
           <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, 0, 0]} />
         </group>
         
@@ -407,9 +409,9 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   const CAPSULE_RADIUS = 0.08;
   const DEBUG_Y = 0.2;
   
-  // The chicken model's origin appears to be at its feet/base (visible at -0.25)
-  // Set to 0 so feet touch ground at y=0
-  const CHICKEN_Y_OFFSET = 0;
+  // The chicken GLB model's origin is above feet (at body center)
+  // We need a NEGATIVE offset to lower the model so feet touch y=0
+  const CHICKEN_Y_OFFSET = -0.25;
   
   return (
     <group position={position}>
