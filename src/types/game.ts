@@ -68,6 +68,15 @@ export interface DialogueTrigger {
   speakerCharacterId?: string; // ID of placed character to zoom camera to
 }
 
+export interface IntroDialogue {
+  characterId?: string; // ID of a placed character to focus on
+  speaker: string;
+  speakerEmoji: string;
+  message: string;
+  characterPosition?: { x: number; y: number }; // Manual position if no characterId
+  characterModel?: string; // Manual model if no characterId
+}
+
 export interface Maze {
   id: number;
   name: string;
@@ -80,6 +89,7 @@ export interface Maze {
   currencyCost?: number; // optional currency cost to unlock special mazes
   characters?: MazeCharacter[]; // placed characters in the maze
   dialogues?: DialogueTrigger[]; // optional dialogue triggers
+  introDialogues?: IntroDialogue[]; // optional intro sequence before maze starts
   endConditions?: {
     requiredDialogues?: string[]; // Dialogues that must be completed before end cell triggers level complete
   };

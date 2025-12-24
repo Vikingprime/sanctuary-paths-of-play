@@ -5,6 +5,7 @@ import { MazePreview } from './MazePreview';
 import { MiniMap } from './MiniMap';
 import { GameHUD } from './GameHUD';
 import { MobileControls } from './MobileControls';
+import { MazeIntroSequence } from './MazeIntroSequence';
 import { Button } from '@/components/ui/button';
 import { Confetti } from '@/components/Confetti';
 import { animals } from '@/data/animals';
@@ -71,6 +72,7 @@ export const MazeGame3D = ({
   const pausedTimeRef = useRef<number>(0); // Accumulated paused time
   const [previewTimeLeft, setPreviewTimeLeft] = useState(debugMode ? 0 : maze.previewTime);
   const [isPreviewing, setIsPreviewing] = useState(!debugMode);
+  const [isShowingIntro, setIsShowingIntro] = useState(!debugMode && (maze.introDialogues?.length ?? 0) > 0);
   const [sceneReady, setSceneReady] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [mapStationAvailable, setMapStationAvailable] = useState(false);
@@ -677,6 +679,18 @@ export const MazeGame3D = ({
           </div>
         </div>
       </>
+    );
+  }
+
+  // Show intro sequence if maze has intro dialogues
+  if (isShowingIntro && maze.introDialogues && maze.introDialogues.length > 0) {
+    return (
+      <MazeIntroSequence
+        maze={maze}
+        introDialogues={maze.introDialogues}
+        onComplete={() => setIsShowingIntro(false)}
+        isMuted={isMuted}
+      />
     );
   }
 
