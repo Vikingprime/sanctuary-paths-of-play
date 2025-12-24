@@ -444,6 +444,7 @@ export function calculateMovement(
     hasWallOrRockCollision(x, y) || hasCharacterCollision(x, y, rot);
 
   // Helper to find nearest character and calculate tangent slide vector for circular obstacles
+  // Only returns a slide vector if player is actually close enough to be colliding
   const getCircularSlideVector = (x: number, y: number, desiredMoveX: number, desiredMoveY: number): { slideX: number; slideY: number } | null => {
     let nearestChar: CharacterPosition | null = null;
     let nearestDist = Infinity;
@@ -458,7 +459,10 @@ export function calculateMovement(
       }
     }
     
-    if (nearestChar && nearestDist < 1.5) {
+    // Only apply circular slide if very close to a character (within collision range)
+    // Use the character's radius + a small buffer
+    const collisionThreshold = nearestChar ? (nearestChar.radius || 0.4) + 0.5 : 0.9;
+    if (nearestChar && nearestDist < collisionThreshold) {
       const charX = nearestChar.x + 0.5;
       const charZ = nearestChar.y + 0.5;
       
