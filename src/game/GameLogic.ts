@@ -906,8 +906,14 @@ export function calculateMovement(
           
           // Apply slide via second sweep (same frame, continuous motion)
           if (Math.abs(slideX) > 0.0001 || Math.abs(slideY) > 0.0001) {
+            // CRITICAL FIX: Push slightly away from surface FIRST before sliding
+            // This prevents the second sweep from immediately hitting the same collider
+            const pushAwayDist = 0.02; // Small push away from the surface
+            const pushedX = newX + nx * pushAwayDist;
+            const pushedY = newY + ny * pushAwayDist;
+            
             const slideResult = sweepTranslation(
-              newX, newY, slideX, slideY, newRotation,
+              pushedX, pushedY, slideX, slideY, newRotation,
               capsule, maze, rocks, characters, animalType
             );
             
@@ -917,12 +923,23 @@ export function calculateMovement(
             };
             console.log('[SLIDE] Second sweep result:', {
               blocked: slideResult.blocked,
+              pushedAway: pushAwayDist,
               slideApplied,
               finalPos: { x: slideResult.x.toFixed(3), y: slideResult.y.toFixed(3) }
             });
             
-            newX = slideResult.x;
-            newY = slideResult.y;
+            // If still blocked after push-away, force the tangent slide directly
+            if (slideResult.blocked && (slideResult.x === pushedX && slideResult.y === pushedY)) {
+              // Second sweep made no progress - apply slide directly with overlap resolution
+              const forcedX = pushedX + slideX;
+              const forcedY = pushedY + slideY;
+              console.log('[SLIDE] Forcing slide directly:', { forcedX: forcedX.toFixed(3), forcedY: forcedY.toFixed(3) });
+              newX = forcedX;
+              newY = forcedY;
+            } else {
+              newX = slideResult.x;
+              newY = slideResult.y;
+            }
           } else {
             console.log('[SLIDE] Slide too small, not applied');
           }
