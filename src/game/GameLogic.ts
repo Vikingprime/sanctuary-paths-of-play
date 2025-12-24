@@ -845,15 +845,15 @@ export function calculateMovement(
         
         // Only slide if pushing into surface
         if (dotIntoSurface < 0) {
-          const isSlideable = sweepResult.hitType === 'tower' || sweepResult.hitType === 'character';
+          const isSlideable = sweepResult.hitType === 'tower' || sweepResult.hitType === 'character' || sweepResult.hitType === 'rock';
           
           // Compute base slide: remove component into surface
           let slideX = moveX - nx * dotIntoSurface;
           let slideY = moveY - ny * dotIntoSurface;
           
-          // Apply friction: walls/rocks get 25% slide speed, towers get full
+          // Apply friction: walls get 25% slide speed, rocks/towers/characters get full
           const hitType = sweepResult.hitType;
-          const slideFriction = (hitType === 'wall' || hitType === 'rock') ? 0.25 : 1.0;
+          const slideFriction = (hitType === 'wall') ? 0.25 : 1.0;
           slideX *= slideFriction;
           slideY *= slideFriction;
           
