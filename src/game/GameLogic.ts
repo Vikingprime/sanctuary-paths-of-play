@@ -859,89 +859,57 @@ export function calculateMovement(
           if (isSlideable) {
             const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
             
-            // Normalize desired direction
-            const desiredDirX = moveLen > 0.001 ? moveX / moveLen : 0;
-            const desiredDirY = moveLen > 0.001 ? moveY / moveLen : 0;
-            
-            // Compute "into" factor: how directly we're pushing into the obstacle
-            const intoFactor = desiredDirX * nx + desiredDirY * ny;
-            
-            // DETERMINISTIC HEAD-ON POLE UNSTICK RULE
-            // If mostly pushing into obstacle AND almost no tangential slide
-            const isHeadOn = intoFactor < HEAD_ON_THRESHOLD && slideMag < HEAD_ON_SLIDE_RATIO * moveLen;
-            
-            // RAMP ASSIST: Start at MIN_ASSIST_FACTOR, ramp to full over ASSIST_RAMP_TIME
-            const rampFactor = MIN_ASSIST_FACTOR + (1 - MIN_ASSIST_FACTOR) * Math.min(1, slidingContactTime / ASSIST_RAMP_TIME);
-            
-            if (isHeadOn && moveLen > 0.001) {
-              // HEAD-ON CASE: Force continuous tangent move IMMEDIATELY
-              const tangentX = naturalTangentX;
-              const tangentY = naturalTangentY;
+            if (moveLen > 0.001) {
+              // UNIFIED POLE/CHARACTER SLIDING - NO DEAD ZONES
+              // Always apply strong tangent assist immediately, regardless of angle
               
-              // Choose side sign ONCE on first contact, store until contact ends
+              // Determine tangent direction (perpendicular to normal)
+              // Choose consistent side based on movement direction
+              const cross = moveX * ny - moveY * nx;
+              
+              // Set side sign on first contact OR if not set
               if (headOnSideSign === 0) {
-                const crossZ = desiredDirX * ny - desiredDirY * nx;
-                headOnSideSign = crossZ >= 0 ? 1 : -1;
-                if (crossZ === 0) headOnSideSign = 1;
+                headOnSideSign = cross >= 0 ? 1 : -1;
+                if (cross === 0) headOnSideSign = 1;
               }
               
-              // Apply ramped assist every frame (immediate but smooth ramp-in)
-              const assistSpeed = moveLen * POLE_ASSIST_STRENGTH * rampFactor;
-              slideX = tangentX * headOnSideSign * assistSpeed;
-              slideY = tangentY * headOnSideSign * assistSpeed;
-              slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
+              // Tangent is perpendicular to hit normal
+              const tangentX = naturalTangentX * headOnSideSign;
+              const tangentY = naturalTangentY * headOnSideSign;
               
-              // Update tangent for consistency
-              lastSlideTangent = { x: tangentX * headOnSideSign, y: tangentY * headOnSideSign };
-            } else {
-              // NORMAL SLIDING CASE - but still ensure we don't get stuck
-              
-              // Compute new tangent from current slide direction
-              let newTangentX = 0;
-              let newTangentY = 0;
-              
-              if (slideMag > 0.001) {
-                newTangentX = slideX / slideMag;
-                newTangentY = slideY / slideMag;
-              } else {
-                // No natural slide - use perpendicular tangent
-                const cross = moveX * ny - moveY * nx;
-                const sign = cross >= 0 ? 1 : -1;
-                newTangentX = naturalTangentX * sign;
-                newTangentY = naturalTangentY * sign;
-              }
-              
-              // Persist tangent - only reset headOnSideSign if we have STRONG natural slide
-              if (slideMag > moveLen * 0.5) {
-                // Good natural slide - can reset head-on mode
-                headOnSideSign = 0;
-              }
-              
-              // Smooth tangent interpolation
+              // Smooth tangent tracking
               if (lastSlideTangent.x === 0 && lastSlideTangent.y === 0) {
-                lastSlideTangent = { x: newTangentX, y: newTangentY };
+                lastSlideTangent = { x: tangentX, y: tangentY };
               } else {
-                const lerpFactor = 0.2;  // Slightly faster lerp
-                let smoothX = lastSlideTangent.x + (newTangentX - lastSlideTangent.x) * lerpFactor;
-                let smoothY = lastSlideTangent.y + (newTangentY - lastSlideTangent.y) * lerpFactor;
+                const lerpFactor = 0.25;
+                let smoothX = lastSlideTangent.x + (tangentX - lastSlideTangent.x) * lerpFactor;
+                let smoothY = lastSlideTangent.y + (tangentY - lastSlideTangent.y) * lerpFactor;
                 const smoothMag = Math.sqrt(smoothX * smoothX + smoothY * smoothY);
                 if (smoothMag > 0.001) {
-                  smoothX /= smoothMag;
-                  smoothY /= smoothMag;
+                  lastSlideTangent = { x: smoothX / smoothMag, y: smoothY / smoothMag };
                 }
-                lastSlideTangent = { x: smoothX, y: smoothY };
               }
               
-              // ALWAYS apply assist when slide is weak (catches all "stuck" angles)
-              const stuckFactor = Math.max(0, 1 - slideMag / (moveLen + 0.001));
-              // Minimum assist even when stuckFactor is low to prevent any sticking
-              const minAssist = 0.3;  // Always at least 30% assist strength
-              const effectiveStuckFactor = Math.max(minAssist, stuckFactor);
-              const assistAmount = moveLen * POLE_ASSIST_STRENGTH * effectiveStuckFactor * rampFactor;
+              // IMMEDIATE FULL ASSIST - no ramp delay, no angle-based reduction
+              // Natural slide (with boost) + strong tangent assist
+              const naturalSlideX = slideX * TOWER_SLIDE_BOOST;
+              const naturalSlideY = slideY * TOWER_SLIDE_BOOST;
               
-              slideX = slideX * TOWER_SLIDE_BOOST + lastSlideTangent.x * assistAmount;
-              slideY = slideY * TOWER_SLIDE_BOOST + lastSlideTangent.y * assistAmount;
+              // Always add tangent assist - stronger when natural slide is weak
+              const slideRatio = slideMag / moveLen;
+              const assistStrength = POLE_ASSIST_STRENGTH * (1 - slideRatio * 0.5); // 100% to 50% based on natural slide
+              const assistX = lastSlideTangent.x * moveLen * assistStrength;
+              const assistY = lastSlideTangent.y * moveLen * assistStrength;
+              
+              slideX = naturalSlideX + assistX;
+              slideY = naturalSlideY + assistY;
               slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
+              
+              // Only reset side sign when we've clearly passed the obstacle
+              // (strong natural slide in direction away from tangent)
+              if (slideMag > moveLen * 0.8) {
+                headOnSideSign = 0;
+              }
             }
           }
           // Walls/rocks: use natural slide, no boost or assist
