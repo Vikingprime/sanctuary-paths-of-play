@@ -224,8 +224,8 @@ export function checkCharacterCollision(
 function getAnimalCollisionOffsets(animalType?: AnimalType): { head: number; tail: number; pointRadius: number } {
   switch (animalType) {
     case 'pig':
-      // Pig's snout is short and low - use smaller forward offset
-      return { head: 0.15, tail: 0.20, pointRadius: 0.10 };
+      // Pig's snout extends forward - keep small gap from characters
+      return { head: 0.22, tail: 0.20, pointRadius: 0.10 };
     case 'cow':
       // Cow has horns that extend forward more
       return { head: 0.42, tail: 0.35, pointRadius: 0.12 };
