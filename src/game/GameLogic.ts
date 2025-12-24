@@ -821,6 +821,13 @@ export function calculateMovement(
       newX = sweepResult.x;
       newY = sweepResult.y;
       
+      console.log('[COLLISION] Blocked!', {
+        hitType: sweepResult.hitType,
+        normal: sweepResult.normal,
+        moveInput: { x: moveX.toFixed(4), y: moveY.toFixed(4) },
+        stoppedAt: { x: newX.toFixed(3), y: newY.toFixed(3) }
+      });
+      
       // TRUE PER-FRAME SLIDING (no jerks, no discrete corrections)
       if (sweepResult.normal) {
         const nx = sweepResult.normal.x;
@@ -833,6 +840,8 @@ export function calculateMovement(
         // Dot product of desired movement with collision normal
         const dotIntoSurface = moveX * nx + moveY * ny;
         
+        console.log('[SLIDE] dotIntoSurface:', dotIntoSurface.toFixed(4));
+        
         // Only slide if pushing into surface
         if (dotIntoSurface < 0) {
           const isSlideable = sweepResult.hitType === 'tower' || sweepResult.hitType === 'character';
@@ -842,15 +851,14 @@ export function calculateMovement(
           let slideY = moveY - ny * dotIntoSurface;
           let slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
           
+          console.log('[SLIDE] isSlideable:', isSlideable, 'baseSlide:', { x: slideX.toFixed(4), y: slideY.toFixed(4), mag: slideMag.toFixed(4) });
+          
           // Create a unique key for this collider based on hit position/normal
           const colliderKey = `${Math.round(nx * 100)}_${Math.round(ny * 100)}`;
           const isSameCollider = colliderKey === lastContactColliderKey;
           
-          // IMMEDIATE RESPONSE: Start sliding from FIRST FRAME of contact (no stuck gating)
-          // Track contact time for ramp, but apply assist immediately
           if (!isSameCollider) {
-            // New collider - reset contact time but apply assist immediately
-            slidingContactTime = deltaTime;  // Start at deltaTime, not 0
+            slidingContactTime = deltaTime;
             lastContactColliderKey = colliderKey;
           } else {
             slidingContactTime += deltaTime;
@@ -860,30 +868,30 @@ export function calculateMovement(
             const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
             
             if (moveLen > 0.001) {
-              // SIMPLE IMMEDIATE POLE SLIDING
-              // Tangent = perpendicular to hit normal (-ny, nx)
-              // Choose side based on which way player is trying to go
               const cross = moveX * ny - moveY * nx;
               const sideSign = cross >= 0 ? 1 : -1;
               
-              // Direct tangent - no lerping, no state, just immediate direction
               const tangentX = naturalTangentX * sideSign;
               const tangentY = naturalTangentY * sideSign;
               
-              // Combine: natural slide projection + strong tangent push
-              // Natural slide already has the surface-parallel component
               const boostedSlideX = slideX * TOWER_SLIDE_BOOST;
               const boostedSlideY = slideY * TOWER_SLIDE_BOOST;
               
-              // Add tangent assist - ALWAYS strong, immediately
               const assistMag = moveLen * POLE_ASSIST_STRENGTH;
               
               slideX = boostedSlideX + tangentX * assistMag;
               slideY = boostedSlideY + tangentY * assistMag;
               slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
+              
+              console.log('[SLIDE] TOWER/CHAR assist applied:', {
+                cross: cross.toFixed(4),
+                sideSign,
+                tangent: { x: tangentX.toFixed(4), y: tangentY.toFixed(4) },
+                assistMag: assistMag.toFixed(4),
+                finalSlide: { x: slideX.toFixed(4), y: slideY.toFixed(4), mag: slideMag.toFixed(4) }
+              });
             }
           }
-          // Walls/rocks: use natural slide, no boost or assist
           
           // Apply slide via second sweep (same frame, continuous motion)
           if (Math.abs(slideX) > 0.0001 || Math.abs(slideY) > 0.0001) {
@@ -891,10 +899,27 @@ export function calculateMovement(
               newX, newY, slideX, slideY, newRotation,
               capsule, maze, rocks, characters, animalType
             );
+            
+            const slideApplied = {
+              dx: (slideResult.x - newX).toFixed(4),
+              dy: (slideResult.y - newY).toFixed(4)
+            };
+            console.log('[SLIDE] Second sweep result:', {
+              blocked: slideResult.blocked,
+              slideApplied,
+              finalPos: { x: slideResult.x.toFixed(3), y: slideResult.y.toFixed(3) }
+            });
+            
             newX = slideResult.x;
             newY = slideResult.y;
+          } else {
+            console.log('[SLIDE] Slide too small, not applied');
           }
+        } else {
+          console.log('[SLIDE] Not pushing into surface, no slide');
         }
+      } else {
+        console.log('[COLLISION] No normal returned!');
       }
     }
   } else {
