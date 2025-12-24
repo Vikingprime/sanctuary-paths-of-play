@@ -860,56 +860,27 @@ export function calculateMovement(
             const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
             
             if (moveLen > 0.001) {
-              // UNIFIED POLE/CHARACTER SLIDING - NO DEAD ZONES
-              // Always apply strong tangent assist immediately, regardless of angle
-              
-              // Determine tangent direction (perpendicular to normal)
-              // Choose consistent side based on movement direction
+              // SIMPLE IMMEDIATE POLE SLIDING
+              // Tangent = perpendicular to hit normal (-ny, nx)
+              // Choose side based on which way player is trying to go
               const cross = moveX * ny - moveY * nx;
+              const sideSign = cross >= 0 ? 1 : -1;
               
-              // Set side sign on first contact OR if not set
-              if (headOnSideSign === 0) {
-                headOnSideSign = cross >= 0 ? 1 : -1;
-                if (cross === 0) headOnSideSign = 1;
-              }
+              // Direct tangent - no lerping, no state, just immediate direction
+              const tangentX = naturalTangentX * sideSign;
+              const tangentY = naturalTangentY * sideSign;
               
-              // Tangent is perpendicular to hit normal
-              const tangentX = naturalTangentX * headOnSideSign;
-              const tangentY = naturalTangentY * headOnSideSign;
+              // Combine: natural slide projection + strong tangent push
+              // Natural slide already has the surface-parallel component
+              const boostedSlideX = slideX * TOWER_SLIDE_BOOST;
+              const boostedSlideY = slideY * TOWER_SLIDE_BOOST;
               
-              // Smooth tangent tracking
-              if (lastSlideTangent.x === 0 && lastSlideTangent.y === 0) {
-                lastSlideTangent = { x: tangentX, y: tangentY };
-              } else {
-                const lerpFactor = 0.25;
-                let smoothX = lastSlideTangent.x + (tangentX - lastSlideTangent.x) * lerpFactor;
-                let smoothY = lastSlideTangent.y + (tangentY - lastSlideTangent.y) * lerpFactor;
-                const smoothMag = Math.sqrt(smoothX * smoothX + smoothY * smoothY);
-                if (smoothMag > 0.001) {
-                  lastSlideTangent = { x: smoothX / smoothMag, y: smoothY / smoothMag };
-                }
-              }
+              // Add tangent assist - ALWAYS strong, immediately
+              const assistMag = moveLen * POLE_ASSIST_STRENGTH;
               
-              // IMMEDIATE FULL ASSIST - no ramp delay, no angle-based reduction
-              // Natural slide (with boost) + strong tangent assist
-              const naturalSlideX = slideX * TOWER_SLIDE_BOOST;
-              const naturalSlideY = slideY * TOWER_SLIDE_BOOST;
-              
-              // Always add tangent assist - stronger when natural slide is weak
-              const slideRatio = slideMag / moveLen;
-              const assistStrength = POLE_ASSIST_STRENGTH * (1 - slideRatio * 0.5); // 100% to 50% based on natural slide
-              const assistX = lastSlideTangent.x * moveLen * assistStrength;
-              const assistY = lastSlideTangent.y * moveLen * assistStrength;
-              
-              slideX = naturalSlideX + assistX;
-              slideY = naturalSlideY + assistY;
+              slideX = boostedSlideX + tangentX * assistMag;
+              slideY = boostedSlideY + tangentY * assistMag;
               slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
-              
-              // Only reset side sign when we've clearly passed the obstacle
-              // (strong natural slide in direction away from tangent)
-              if (slideMag > moveLen * 0.8) {
-                headOnSideSign = 0;
-              }
             }
           }
           // Walls/rocks: use natural slide, no boost or assist
