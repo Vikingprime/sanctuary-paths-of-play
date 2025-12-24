@@ -889,7 +889,7 @@ export function calculateMovement(
                 console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
               }
               
-              const tangentX = naturalTangentX * headOnSideSign;
+            const tangentX = naturalTangentX * headOnSideSign;
               const tangentY = naturalTangentY * headOnSideSign;
               
               const boostedSlideX = slideX * TOWER_SLIDE_BOOST;
@@ -900,6 +900,22 @@ export function calculateMovement(
               slideX = boostedSlideX + tangentX * assistMag;
               slideY = boostedSlideY + tangentY * assistMag;
               slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
+              
+              // NEW: Apply rotation nudge instead of just translation
+              // When head-on collision with character, rotate the player toward the gap
+              // This "turns the head" rather than "shifting the body"
+              const ROTATION_NUDGE_STRENGTH = 0.08; // Radians per frame when head-on
+              const headOnness = 1 - Math.abs(cross) / moveLen; // 1.0 = perfectly head-on, 0.0 = tangent
+              if (headOnness > 0.7) {
+                // Apply rotation in the direction of the chosen side
+                const rotationNudge = ROTATION_NUDGE_STRENGTH * headOnSideSign * headOnness;
+                newRotation += rotationNudge;
+                console.log('[SLIDE] Rotation nudge applied:', {
+                  headOnness: headOnness.toFixed(3),
+                  rotationNudge: rotationNudge.toFixed(4),
+                  newRotation: newRotation.toFixed(3)
+                });
+              }
               
               console.log('[SLIDE] TOWER/CHAR assist applied:', {
                 cross: cross.toFixed(4),
