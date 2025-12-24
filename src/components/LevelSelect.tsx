@@ -5,7 +5,6 @@ import { SaveData } from '@/types/save';
 import { Button } from '@/components/ui/button';
 import { cn, formatTime } from '@/lib/utils';
 import { Lock, Pencil } from 'lucide-react';
-import { mazes as allMazes } from '@/data/mazes';
 
 interface LevelSelectProps {
   mazes: Maze[];
@@ -22,11 +21,6 @@ const medalEmoji: Record<string, string> = {
   bronze: '🥉',
 };
 
-const getMazeName = (mazeId: number): string => {
-  const maze = allMazes.find(m => m.id === mazeId);
-  return maze?.name || `Maze ${mazeId}`;
-};
-
 export const LevelSelect = ({ 
   mazes, 
   onSelect, 
@@ -38,6 +32,12 @@ export const LevelSelect = ({
   const navigate = useNavigate();
   const [unlockedStatus, setUnlockedStatus] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
+
+  // Helper to get maze name from props
+  const getMazeName = (mazeId: number): string => {
+    const maze = mazes.find(m => m.id === mazeId);
+    return maze?.name || `Maze ${mazeId}`;
+  };
 
   useEffect(() => {
     const checkUnlocks = async () => {
