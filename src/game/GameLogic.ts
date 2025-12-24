@@ -872,25 +872,25 @@ export function calculateMovement(
             slidingContactTime += deltaTime;
           }
           
+          // Calculate headOnSideSign for ALL blocked collisions (not just slideable)
+          // This is needed for the rotation nudge when stuck
+          const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
+          if (moveLen > 0.001 && headOnSideSign === 0) {
+            const cross = moveX * ny - moveY * nx;
+            // First contact - pick a side and stick with it
+            headOnSideSign = cross >= 0 ? 1 : -1;
+            // Add hysteresis: if cross is very small, pick based on slight randomness to avoid deadlock
+            if (Math.abs(cross) < 0.01) {
+              headOnSideSign = 1; // Default to consistent direction when head-on
+            }
+            console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
+          }
+          
           if (isSlideable) {
-            const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
-            
             if (moveLen > 0.001) {
               const cross = moveX * ny - moveY * nx;
               
-              // PERSIST side sign - only set on first contact, keep stable while touching same collider
-              // This prevents oscillation when cross is near zero
-              if (headOnSideSign === 0) {
-                // First contact - pick a side and stick with it
-                headOnSideSign = cross >= 0 ? 1 : -1;
-                // Add hysteresis: if cross is very small, pick based on slight randomness to avoid deadlock
-                if (Math.abs(cross) < 0.01) {
-                  headOnSideSign = 1; // Default to consistent direction when head-on
-                }
-                console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
-              }
-              
-            const tangentX = naturalTangentX * headOnSideSign;
+              const tangentX = naturalTangentX * headOnSideSign;
               const tangentY = naturalTangentY * headOnSideSign;
               
               const boostedSlideX = slideX * TOWER_SLIDE_BOOST;
