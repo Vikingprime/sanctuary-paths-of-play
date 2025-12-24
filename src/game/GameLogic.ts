@@ -548,35 +548,29 @@ export function calculateMovement(
     // First try circular sliding around characters (smooth tangent movement)
     const circularSlide = getCircularSlideVector(currentState.x, currentState.y, moveX, moveY);
     if (circularSlide) {
-      // Try full slide first
-      let slideX = currentState.x + circularSlide.slideX;
-      let slideY = currentState.y + circularSlide.slideY;
+      // Cap the slide speed to prevent fast bouncing
+      const maxSlideSpeed = 0.02;
+      const slideMag = Math.sqrt(circularSlide.slideX ** 2 + circularSlide.slideY ** 2);
+      let cappedSlideX = circularSlide.slideX;
+      let cappedSlideY = circularSlide.slideY;
+      if (slideMag > maxSlideSpeed) {
+        cappedSlideX = (circularSlide.slideX / slideMag) * maxSlideSpeed;
+        cappedSlideY = (circularSlide.slideY / slideMag) * maxSlideSpeed;
+      }
+      
+      // Try capped slide
+      let slideX = currentState.x + cappedSlideX;
+      let slideY = currentState.y + cappedSlideY;
       
       if (!hasCollision(slideX, slideY, newRotation)) {
         newX = slideX;
         newY = slideY;
         usedCircularSlide = true;
       } else {
-        // Full slide blocked - try progressively smaller slides
-        let foundValidSlide = false;
-        for (let factor = 0.75; factor >= 0.25; factor -= 0.25) {
-          slideX = currentState.x + circularSlide.slideX * factor;
-          slideY = currentState.y + circularSlide.slideY * factor;
-          if (!hasCollision(slideX, slideY, newRotation)) {
-            newX = slideX;
-            newY = slideY;
-            usedCircularSlide = true;
-            foundValidSlide = true;
-            break;
-          }
-        }
-        
-        if (!foundValidSlide) {
-          // All slides blocked - stay put
-          newX = currentState.x;
-          newY = currentState.y;
-          usedCircularSlide = true;
-        }
+        // Slide blocked - stay put
+        newX = currentState.x;
+        newY = currentState.y;
+        usedCircularSlide = true;
       }
     } else {
       // No character nearby, use axis-aligned wall sliding
