@@ -316,8 +316,33 @@ export function calculateMovement(
     checkRockCollision(x, y, rocks);
   
   // Helper for character collision (uses multi-point: head, center, tail)
-  const hasCharacterCollision = (x: number, y: number, rot: number) =>
-    checkCharacterCollisionMultiPoint(x, y, rot, characters);
+  // But allow movement if it increases distance from the character (escape when stuck)
+  const hasCharacterCollision = (x: number, y: number, rot: number) => {
+    // First check if new position collides
+    const wouldCollide = checkCharacterCollisionMultiPoint(x, y, rot, characters);
+    if (!wouldCollide) return false;
+    
+    // If we would collide, check if we're already colliding (stuck)
+    const alreadyColliding = checkCharacterCollisionMultiPoint(
+      currentState.x, currentState.y, currentState.rotation, characters
+    );
+    
+    // If already stuck, allow movement that increases distance from any character
+    if (alreadyColliding) {
+      for (const char of characters) {
+        const charX = char.x + 0.5;
+        const charZ = char.y + 0.5;
+        const currentDist = Math.sqrt((currentState.x - charX) ** 2 + (currentState.y - charZ) ** 2);
+        const newDist = Math.sqrt((x - charX) ** 2 + (y - charZ) ** 2);
+        // If moving away from this character, allow it
+        if (newDist > currentDist + 0.01) {
+          return false; // Allow this movement
+        }
+      }
+    }
+    
+    return true; // Block movement
+  };
   
   // Combined collision check
   const hasCollision = (x: number, y: number, rot: number) => 
