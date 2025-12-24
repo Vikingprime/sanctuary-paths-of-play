@@ -110,14 +110,12 @@ export const MazeGame3D = ({
     if (dialogue.speakerCharacterId) {
       // Special case: 'endFarmer' refers to the built-in end farmer
       if (dialogue.speakerCharacterId === 'endFarmer') {
-        // Find end cell position
-        for (let y = 0; y < maze.grid.length; y++) {
-          for (let x = 0; x < maze.grid[y].length; x++) {
-            if (maze.grid[y][x].isEnd) {
-              return { x, y };
-            }
-          }
+        // Use explicit endFarmerPosition if set
+        if (maze.endFarmerPosition) {
+          return { x: maze.endFarmerPosition.x, y: maze.endFarmerPosition.y };
         }
+        // Fallback: no farmer shown if position not set
+        return null;
       }
       
       // Look up character in maze.characters array
