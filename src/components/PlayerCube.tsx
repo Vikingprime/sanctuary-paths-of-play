@@ -323,11 +323,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   // Cow uses GLB model with animation
   if (animalType === 'cow') {
     // Debug collision points - must match GameLogic.ts getAnimalCollisionOffsets
-    const HEAD_OFFSET = 0.45;
-    const TAIL_OFFSET = 0.22;
-    const NECK_OFFSET = 0.18;
+    const HEAD_OFFSET = 0.70; // Extended to snout
+    const TAIL_OFFSET = 0.45; // Extended to actual tail
+    const NECK_OFFSET = 0.35; // Moved forward
     const BODY_WIDTH = 0.14;
-    const HORN_WIDTH = 0.12;
+    const HORN_WIDTH = 0.20; // Wider for horns
     const DEBUG_Y = 0.5; // Raised high for visibility
     
     return (
