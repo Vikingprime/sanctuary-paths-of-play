@@ -850,9 +850,9 @@ export function calculateMovement(
           let slideX = moveX - nx * dotIntoSurface;
           let slideY = moveY - ny * dotIntoSurface;
           
-          // Apply friction: walls get 50% slide speed, towers/rocks get full
+          // Apply friction: walls/rocks get 25% slide speed, towers get full
           const hitType = sweepResult.hitType;
-          const slideFriction = (hitType === 'wall' || hitType === 'rock') ? 0.5 : 1.0;
+          const slideFriction = (hitType === 'wall' || hitType === 'rock') ? 0.25 : 1.0;
           slideX *= slideFriction;
           slideY *= slideFriction;
           
