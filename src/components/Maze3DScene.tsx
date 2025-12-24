@@ -1201,8 +1201,9 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
-  // Generate character positions for collision (all placed characters)
+  // Generate character positions for collision (all placed characters + map stations)
   const CHARACTER_COLLISION_RADIUS = 0.4; // Moderate radius - multi-point collision handles the rest
+  const STATION_COLLISION_RADIUS = 0.25; // MapStation tower cylinder radius
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
     
@@ -1212,6 +1213,19 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
         x: char.position.x,
         y: char.position.y,
         radius: CHARACTER_COLLISION_RADIUS,
+      });
+    });
+    
+    // Add map station towers as collision objects
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell.isStation) {
+          positions.push({
+            x: x, // Grid position (collision check adds 0.5 for center)
+            y: y,
+            radius: STATION_COLLISION_RADIUS,
+          });
+        }
       });
     });
     
