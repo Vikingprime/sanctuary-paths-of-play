@@ -112,8 +112,8 @@ const SwipeDemoAnimation = () => {
           className="absolute inset-0"
           style={{
             backgroundImage: `url(${gameplayDemo})`,
-            backgroundSize: '200%',
-            backgroundPosition: 'center 55%',
+            backgroundSize: '120%',
+            backgroundPosition: 'center 50%',
           }}
         />
         {/* Gradient overlays to fade top and bottom */}
