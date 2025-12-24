@@ -943,10 +943,18 @@ export function calculateMovement(
               // Second sweep made no progress - APPLY ROTATION to turn toward gap
               // This "turns the head" instead of forcing a blocked translation
               const ROTATION_NUDGE_STRENGTH = 0.12; // Radians per frame when blocked
-              const rotationNudge = ROTATION_NUDGE_STRENGTH * headOnSideSign;
+              
+              // When moving backward, flip the rotation direction
+              // (rotating left when going forward swings your front left,
+              //  but when going backward, you want to swing your back left, so flip)
+              const isMovingBackward = input.backward && !input.forward;
+              const directionMultiplier = isMovingBackward ? -1 : 1;
+              
+              const rotationNudge = ROTATION_NUDGE_STRENGTH * headOnSideSign * directionMultiplier;
               newRotation += rotationNudge;
               console.log('[SLIDE] Rotation nudge (blocked slide):', {
                 sideSign: headOnSideSign,
+                isBackward: isMovingBackward,
                 rotationNudge: rotationNudge.toFixed(4),
                 newRotation: newRotation.toFixed(3)
               });
