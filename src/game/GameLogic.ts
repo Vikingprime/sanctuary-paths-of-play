@@ -100,9 +100,9 @@ export function generateRockPositions(maze: Maze): RockPosition[] {
     return x - Math.floor(x);
   };
 
-  const ROCK_SIZE_MIN = 0.04;  // Very small rocks
-  const ROCK_SIZE_MAX = 0.10;  // Max size reduced further
-  const ROCK_EDGE_INSET = 0.08; // Very close to wall edge
+  const ROCK_SIZE_MIN = 0.06;  // Slightly bigger rocks
+  const ROCK_SIZE_MAX = 0.14;  // Max size increased
+  const ROCK_EDGE_INSET = 0.04; // Closer to wall edge (more into corn)
   const ROCK_SPACING = 0.5; // Minimum distance between rocks
   const MIN_PLACEMENT_CHANCE = 0.10; // Chance of placing a rock
 
