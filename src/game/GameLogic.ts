@@ -321,7 +321,9 @@ const SWEEP_STEPS = 12;               // Binary search steps for swept collision
 const MAX_DEPENETRATION = 0.03;       // Maximum push per frame
 const OVERLAP_EPSILON = 0.001;        // Overlap threshold
 const TOWER_SLIDE_BOOST = 1.4;        // Tangent boost for towers/characters (1.2-1.5)
-const POLE_ASSIST_STRENGTH = 0.35;    // Head-on pole assist (0.2-0.35 of speed)
+const POLE_ASSIST_STRENGTH = 0.40;    // Head-on pole assist (0.25-0.45 of speed)
+const HEAD_ON_THRESHOLD = -0.6;       // dot(desiredDir, normal) threshold for head-on detection
+const HEAD_ON_SLIDE_RATIO = 0.1;      // If slide < this * move, consider it head-on stuck
 
 // Collision types
 export type ColliderType = 'wall' | 'tower' | 'rock' | 'character';
@@ -338,6 +340,7 @@ let stuckTimer = 0;
 let unstuckCooldown = 0;
 let lastSafeTransform = { x: 0, y: 0, rotation: 0 };
 let lastSlideTangent = { x: 0, y: 0 };  // Track consistent tangent direction
+let headOnSideSign = 0;                 // Persistent side sign for head-on pole unstick (+1 or -1)
 let slidingContactTime = 0;              // How long we've been in sliding contact
 
 /**
@@ -808,6 +811,7 @@ export function calculateMovement(
       newY = sweepResult.y;
       slidingContactTime = 0;
       lastSlideTangent = { x: 0, y: 0 };
+      headOnSideSign = 0;  // Reset head-on side sign when contact ends
     } else {
       // Blocked - move to safe contact point
       newX = sweepResult.x;
@@ -838,52 +842,84 @@ export function calculateMovement(
           slidingContactTime += deltaTime;
           
           if (isSlideable) {
-            // PERSISTENT TANGENT + CONTINUOUS ASSIST (no threshold-based kicks)
             const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
             
-            // Compute new tangent from current slide direction
-            let newTangentX = 0;
-            let newTangentY = 0;
+            // Normalize desired direction
+            const desiredDirX = moveLen > 0.001 ? moveX / moveLen : 0;
+            const desiredDirY = moveLen > 0.001 ? moveY / moveLen : 0;
             
-            if (slideMag > 0.001) {
-              // Use natural slide direction as tangent
-              newTangentX = slideX / slideMag;
-              newTangentY = slideY / slideMag;
-            } else {
-              // Slide near zero - use natural tangent with consistent handedness
-              const cross = moveX * ny - moveY * nx;
-              const sign = cross >= 0 ? 1 : -1;
-              newTangentX = naturalTangentX * sign;
-              newTangentY = naturalTangentY * sign;
-            }
+            // Compute "into" factor: how directly we're pushing into the obstacle
+            const intoFactor = desiredDirX * nx + desiredDirY * ny;
             
-            // Persist and smooth tangent while in contact (prevents bursts/snaps)
-            if (lastSlideTangent.x === 0 && lastSlideTangent.y === 0) {
-              // First frame of contact - initialize tangent
-              lastSlideTangent = { x: newTangentX, y: newTangentY };
-            } else {
-              // SMOOTH INTERPOLATION: lerp(lastTangent, newTangent, 0.15)
-              const lerpFactor = 0.15;
-              let smoothX = lastSlideTangent.x + (newTangentX - lastSlideTangent.x) * lerpFactor;
-              let smoothY = lastSlideTangent.y + (newTangentY - lastSlideTangent.y) * lerpFactor;
-              // Normalize the smoothed tangent
-              const smoothMag = Math.sqrt(smoothX * smoothX + smoothY * smoothY);
-              if (smoothMag > 0.001) {
-                smoothX /= smoothMag;
-                smoothY /= smoothMag;
+            // DETERMINISTIC HEAD-ON POLE UNSTICK RULE
+            // If mostly pushing into obstacle AND almost no tangential slide
+            const isHeadOn = intoFactor < HEAD_ON_THRESHOLD && slideMag < HEAD_ON_SLIDE_RATIO * moveLen;
+            
+            if (isHeadOn && moveLen > 0.001) {
+              // HEAD-ON CASE: Force continuous tangent move
+              // Tangent = perpendicular to normal (cross(up, normal) in 2D = (-ny, nx))
+              const tangentX = naturalTangentX;
+              const tangentY = naturalTangentY;
+              
+              // Choose side sign ONCE on first contact, store until contact ends
+              if (headOnSideSign === 0) {
+                // Use cross product to determine which side: cross(desiredDir, normal)
+                const crossZ = desiredDirX * ny - desiredDirY * nx;
+                headOnSideSign = crossZ >= 0 ? 1 : -1;
+                // If exactly zero, default to +1
+                if (crossZ === 0) headOnSideSign = 1;
               }
-              lastSlideTangent = { x: smoothX, y: smoothY };
+              
+              // Apply continuous assist every frame (not bursts)
+              const assistSpeed = moveLen * POLE_ASSIST_STRENGTH;
+              slideX = tangentX * headOnSideSign * assistSpeed;
+              slideY = tangentY * headOnSideSign * assistSpeed;
+              slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
+              
+              // Update tangent for consistency
+              lastSlideTangent = { x: tangentX * headOnSideSign, y: tangentY * headOnSideSign };
+            } else {
+              // NORMAL SLIDING CASE (not perfectly head-on)
+              // Reset head-on side sign since we have natural slide
+              headOnSideSign = 0;
+              
+              // Compute new tangent from current slide direction
+              let newTangentX = 0;
+              let newTangentY = 0;
+              
+              if (slideMag > 0.001) {
+                newTangentX = slideX / slideMag;
+                newTangentY = slideY / slideMag;
+              } else {
+                const cross = moveX * ny - moveY * nx;
+                const sign = cross >= 0 ? 1 : -1;
+                newTangentX = naturalTangentX * sign;
+                newTangentY = naturalTangentY * sign;
+              }
+              
+              // Persist and smooth tangent while in contact
+              if (lastSlideTangent.x === 0 && lastSlideTangent.y === 0) {
+                lastSlideTangent = { x: newTangentX, y: newTangentY };
+              } else {
+                const lerpFactor = 0.15;
+                let smoothX = lastSlideTangent.x + (newTangentX - lastSlideTangent.x) * lerpFactor;
+                let smoothY = lastSlideTangent.y + (newTangentY - lastSlideTangent.y) * lerpFactor;
+                const smoothMag = Math.sqrt(smoothX * smoothX + smoothY * smoothY);
+                if (smoothMag > 0.001) {
+                  smoothX /= smoothMag;
+                  smoothY /= smoothMag;
+                }
+                lastSlideTangent = { x: smoothX, y: smoothY };
+              }
+              
+              // Continuous assist based on how stuck we are
+              const stuckFactor = Math.max(0, 1 - slideMag / (moveLen + 0.001));
+              const assistAmount = moveLen * POLE_ASSIST_STRENGTH * stuckFactor;
+              
+              slideX = slideX * TOWER_SLIDE_BOOST + lastSlideTangent.x * assistAmount;
+              slideY = slideY * TOWER_SLIDE_BOOST + lastSlideTangent.y * assistAmount;
+              slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
             }
-            
-            // CONTINUOUS ASSIST: Apply every frame when pushing into obstacle
-            // No threshold - always blend in assist based on how "stuck" we are
-            const stuckFactor = Math.max(0, 1 - slideMag / (moveLen + 0.001));
-            const assistAmount = moveLen * POLE_ASSIST_STRENGTH * stuckFactor;
-            
-            // Combine natural slide with continuous assist
-            slideX = slideX * TOWER_SLIDE_BOOST + lastSlideTangent.x * assistAmount;
-            slideY = slideY * TOWER_SLIDE_BOOST + lastSlideTangent.y * assistAmount;
-            slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
           }
           // Walls/rocks: use natural slide, no boost or assist
           
@@ -903,6 +939,7 @@ export function calculateMovement(
     // No movement input - reset sliding state
     slidingContactTime = 0;
     lastSlideTangent = { x: 0, y: 0 };
+    headOnSideSign = 0;  // Reset head-on side sign when no input
   }
 
   // ========================================
