@@ -117,9 +117,9 @@ export const LevelSelect = ({
           Navigate through the cornfield and find the exit!
         </p>
         
-        {/* How to Play Panel */}
+        {/* How to Play Panel - expanded by default if no completed mazes */}
         <div className="max-w-md mx-auto mb-4">
-          <HowToPlayPanel />
+          <HowToPlayPanel defaultExpanded={Object.keys(save.levels).length === 0} />
         </div>
         
         <Button variant="ghost" onClick={onBack} className="mb-2">
