@@ -515,19 +515,19 @@ const Ground = ({ maze, rocks, playerStateRef }: { maze: Maze; rocks: RockPositi
   
   return (
     <group>
-      {/* Textured ground */}
+      {/* Textured ground at y=0 */}
       <mesh 
         rotation={[-Math.PI / 2, 0, 0]} 
-        position={[centerX, 0.001, centerZ]}
+        position={[centerX, 0, centerZ]}
       >
         <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
         <GroundMaterial maze={maze} />
       </mesh>
       
-      {/* Shadow receiving plane on top */}
+      {/* Shadow receiving plane slightly above to avoid z-fighting */}
       <mesh 
         rotation={[-Math.PI / 2, 0, 0]} 
-        position={[centerX, 0.002, centerZ]}
+        position={[centerX, 0.001, centerZ]}
         receiveShadow
       >
         <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
