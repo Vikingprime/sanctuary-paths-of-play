@@ -230,8 +230,8 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): { head: number; tai
       // Cow has horns that extend forward more
       return { head: 0.42, tail: 0.35, pointRadius: 0.12 };
     case 'bird':
-      // Chicken's beak extends forward visually - match collision to visual
-      return { head: 0.18, tail: 0.02, pointRadius: 0.02 };
+      // Chicken is small - reduced head offset to allow closer approach
+      return { head: 0.06, tail: 0.02, pointRadius: 0.02 };
     default:
       return { head: 0.30, tail: 0.25, pointRadius: 0.10 };
   }
