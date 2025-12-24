@@ -883,10 +883,12 @@ export function calculateMovement(
               if (headOnSideSign === 0) {
                 // First contact - pick a side and stick with it
                 headOnSideSign = cross >= 0 ? 1 : -1;
-                // Add hysteresis: if cross is very small, pick based on slight randomness to avoid deadlock
+                // Add hysteresis: if cross is very small, default to right turn (positive rotation)
+                // This gives a consistent escape direction for head-on collisions
                 if (Math.abs(cross) < 0.01) {
-                  headOnSideSign = 1; // Default to consistent direction when head-on
+                  headOnSideSign = 1; // Default right turn when head-on
                 }
+                slideBlockedCounter = 0; // Reset blocked counter on new contact
                 console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
               }
               
@@ -945,8 +947,8 @@ export function calculateMovement(
               slideBlockedCounter++;
               
               // If stuck for too many frames on same side, flip the side
-              const FLIP_THRESHOLD = 15; // Flip after ~15 frames of being stuck
-              if (slideBlockedCounter > FLIP_THRESHOLD && headOnSideSign !== 0) {
+              const FLIP_THRESHOLD = 10; // Flip after ~10 frames of being stuck (faster response)
+              if (slideBlockedCounter >= FLIP_THRESHOLD && headOnSideSign !== 0) {
                 headOnSideSign = -headOnSideSign;
                 slideBlockedCounter = 0; // Reset counter after flip
                 console.log('[SLIDE] Flipping side after being stuck:', headOnSideSign);
