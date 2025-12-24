@@ -1204,7 +1204,8 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 
   // Generate character positions for collision (all placed characters + map stations)
   const CHARACTER_COLLISION_RADIUS = 0.4; // Moderate radius - multi-point collision handles the rest
-  const STATION_COLLISION_RADIUS = 0.45; // MapStation tower - larger to prevent cow clipping through
+  const STATION_COLLISION_RADIUS = 0.45; // MapStation tower - for movement blocking
+  const STATION_ROTATION_RADIUS = 0.2; // Smaller radius for rotation checks - allows turning at edge
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
     
@@ -1217,7 +1218,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
       });
     });
     
-    // Add map station towers as collision objects (marked as stations - only block movement, not rotation)
+    // Add map station towers as collision objects (with smaller rotation radius)
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
         if (cell.isStation) {
@@ -1225,7 +1226,8 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
             x: x, // Grid position (collision check adds 0.5 for center)
             y: y,
             radius: STATION_COLLISION_RADIUS,
-            isStation: true, // Stations only block movement, not rotation
+            rotationRadius: STATION_ROTATION_RADIUS, // Smaller radius allows turning at edge
+            isStation: true,
           });
         }
       });

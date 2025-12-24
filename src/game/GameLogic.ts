@@ -191,17 +191,20 @@ export interface CharacterPosition {
   x: number;  // Grid x position (character is at x + 0.5)
   y: number;  // Grid y position (character is at y + 0.5)
   radius: number;
-  isStation?: boolean; // If true, this is a map station (blocks movement but not rotation)
+  rotationRadius?: number; // Optional smaller radius for rotation checks (allows turning near object)
+  isStation?: boolean; // If true, this is a map station
 }
 
 /**
  * Check if position collides with any character (simple circle check)
+ * @param useRotationRadius - if true, use the smaller rotationRadius for collision (for rotation checks)
  */
 export function checkCharacterCollision(
   x: number,
   y: number,
   characters: CharacterPosition[],
-  playerRadius: number = GameConfig.PLAYER_RADIUS
+  playerRadius: number = GameConfig.PLAYER_RADIUS,
+  useRotationRadius: boolean = false
 ): boolean {
   for (const char of characters) {
     // Characters are rendered at grid position + 0.5 (center of cell)
@@ -210,7 +213,11 @@ export function checkCharacterCollision(
     const dx = x - charX;
     const dy = y - charZ;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const collisionDist = playerRadius + char.radius;
+    // Use rotation radius if specified and available, otherwise use normal radius
+    const effectiveRadius = useRotationRadius && char.rotationRadius !== undefined 
+      ? char.rotationRadius 
+      : char.radius;
+    const collisionDist = playerRadius + effectiveRadius;
     if (dist < collisionDist) {
       return true;
     }
@@ -241,13 +248,15 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): { head: number; tai
 /**
  * Check character collision using multiple sample points (head, center, tail)
  * This accounts for the animal model extending beyond center point
+ * @param useRotationRadius - if true, use smaller rotation radius for collision checks
  */
 export function checkCharacterCollisionMultiPoint(
   x: number,
   y: number,
   rotation: number,
   characters: CharacterPosition[],
-  animalType?: AnimalType
+  animalType?: AnimalType,
+  useRotationRadius: boolean = false
 ): boolean {
   const offsets = getAnimalCollisionOffsets(animalType);
   
@@ -260,9 +269,9 @@ export function checkCharacterCollisionMultiPoint(
   const tailY = y + Math.cos(rotation) * offsets.tail;
   
   // Check all three points
-  return checkCharacterCollision(x, y, characters, offsets.pointRadius) ||
-         checkCharacterCollision(headX, headY, characters, offsets.pointRadius) ||
-         checkCharacterCollision(tailX, tailY, characters, offsets.pointRadius);
+  return checkCharacterCollision(x, y, characters, offsets.pointRadius, useRotationRadius) ||
+         checkCharacterCollision(headX, headY, characters, offsets.pointRadius, useRotationRadius) ||
+         checkCharacterCollision(tailX, tailY, characters, offsets.pointRadius, useRotationRadius);
 }
 
 // ============================================
@@ -311,10 +320,9 @@ export function calculateMovement(
   desiredRotation = ((desiredRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   
   // Check if rotation would cause character collision - if so, don't rotate
-  // Only check against actual characters, not stations (stations only block movement)
-  const charactersOnly = characters.filter(c => !c.isStation);
+  // Use rotation radius for stations (smaller, allows turning when at edge)
   const rotationCausesCollision = checkCharacterCollisionMultiPoint(
-    currentState.x, currentState.y, desiredRotation, charactersOnly, animalType
+    currentState.x, currentState.y, desiredRotation, characters, animalType, true
   );
   const newRotation = rotationCausesCollision ? currentState.rotation : desiredRotation;
 
