@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AnimalType, Maze, MedalType } from '@/types/game';
 import { animals } from '@/data/animals';
-import { mazes } from '@/data/mazes';
+import { useMazeStorage } from '@/hooks/useMazeStorage';
 import { AnimalCard } from '@/components/AnimalCard';
 import { LevelSelect } from '@/components/LevelSelect';
 import { MazeGame3D } from '@/components/MazeGame3D';
@@ -17,10 +17,14 @@ type GameScreen = 'home' | 'levels' | 'playing';
 
 const Index = () => {
   const { save, loading, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
+  const { getAllMazes, isLoaded: mazesLoaded } = useMazeStorage();
   const [screen, setScreen] = useState<GameScreen>('home');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
   const [mealProgress, setMealProgress] = useState(35);
+
+  // Get mazes from storage
+  const mazes = mazesLoaded ? getAllMazes() : [];
 
   // Sync selected animal from save
   useEffect(() => {
