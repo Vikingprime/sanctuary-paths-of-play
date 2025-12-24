@@ -940,7 +940,7 @@ export function calculateMovement(
               slideBlockedCounter++;
               
               // If stuck for too many frames on same side, flip the side
-              const FLIP_THRESHOLD = 10; // Flip after ~10 frames of being stuck (faster response)
+              const FLIP_THRESHOLD = 30; // Flip after ~30 frames (give rotation time to work)
               if (slideBlockedCounter >= FLIP_THRESHOLD && headOnSideSign !== 0) {
                 headOnSideSign = -headOnSideSign;
                 slideBlockedCounter = 0; // Reset counter after flip
@@ -949,10 +949,10 @@ export function calculateMovement(
               
               // Second sweep made no progress - APPLY ROTATION to turn toward gap
               // This "turns the head" instead of forcing a blocked translation
-              const ROTATION_NUDGE_STRENGTH = 0.04; // Radians per frame when blocked (gentler)
+              const ROTATION_NUDGE_STRENGTH = 0.06; // Radians per frame when blocked (slightly stronger)
               
               // Increase nudge strength gradually the longer we're stuck
-              const stuckMultiplier = Math.min(slideBlockedCounter / 5, 3); // Ramps up to 3x over 15 frames
+              const stuckMultiplier = Math.min(slideBlockedCounter / 10, 2); // Ramps up to 3x over 20 frames
               
               // Don't flip for backward - the headOnSideSign already captures which side has the gap
               // based on movement direction relative to the obstacle normal
