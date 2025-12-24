@@ -528,20 +528,6 @@ export function calculateMovement(
     return null;
   };
   
-  // Safety check: ensure movement doesn't push player closer to a character when colliding
-  const wouldMoveCloserToCharacter = (fromX: number, fromY: number, toX: number, toY: number): boolean => {
-    for (const char of characters) {
-      const charX = char.x + 0.5;
-      const charZ = char.y + 0.5;
-      const currentDist = Math.sqrt((fromX - charX) ** 2 + (fromY - charZ) ** 2);
-      const newDist = Math.sqrt((toX - charX) ** 2 + (toY - charZ) ** 2);
-      // If we're close to this character and would move closer, block it
-      if (currentDist < 1.0 && newDist < currentDist - 0.001) {
-        return true;
-      }
-    }
-    return false;
-  };
   let newX = currentState.x + moveX;
   let newY = currentState.y + moveY;
   let usedCircularSlide = false;
@@ -608,13 +594,6 @@ export function calculateMovement(
     }
   }
   
-  // Final safety check: only apply when circular slide wasn't used
-  // This prevents the safety check from fighting with tangent sliding
-  if (!usedCircularSlide && wouldMoveCloserToCharacter(currentState.x, currentState.y, newX, newY)) {
-    // Just stop - don't push, which causes vibration
-    newX = currentState.x;
-    newY = currentState.y;
-  }
 
   return { x: newX, y: newY, rotation: newRotation };
 }
