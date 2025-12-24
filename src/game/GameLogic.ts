@@ -251,11 +251,11 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): {
     case 'cow':
       // Cow collision - extended to cover full body length including snout
       return { 
-        head: 0.95, // Extended far to actual snout tip
-        tail: 0.45, // Extended to actual tail
-        pointRadius: 0.10, // Collision point radius
-        hornWidth: 0.25, // Wider for horns
-        neckLength: 0.50, // Between head and body
+        head: 0.95,
+        tail: 0.45,
+        pointRadius: 0.06, // Smaller collision radius
+        hornWidth: 0.08, // Tiny horns - barely perceptible
+        neckLength: 0.50,
         bodyWidth: 0.14 
       };
     case 'bird':
