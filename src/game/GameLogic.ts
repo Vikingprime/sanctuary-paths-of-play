@@ -546,17 +546,35 @@ export function calculateMovement(
     // First try circular sliding around characters (smooth tangent movement)
     const circularSlide = getCircularSlideVector(currentState.x, currentState.y, moveX, moveY);
     if (circularSlide) {
-      const slideX = currentState.x + circularSlide.slideX;
-      const slideY = currentState.y + circularSlide.slideY;
+      // Try full slide first
+      let slideX = currentState.x + circularSlide.slideX;
+      let slideY = currentState.y + circularSlide.slideY;
+      
       if (!hasCollision(slideX, slideY, newRotation)) {
         newX = slideX;
         newY = slideY;
         usedCircularSlide = true;
       } else {
-        // Circular slide blocked - just stop, don't vibrate with fallbacks
-        newX = currentState.x;
-        newY = currentState.y;
-        usedCircularSlide = true; // Mark as handled to skip safety check
+        // Full slide blocked - try progressively smaller slides
+        let foundValidSlide = false;
+        for (let factor = 0.75; factor >= 0.25; factor -= 0.25) {
+          slideX = currentState.x + circularSlide.slideX * factor;
+          slideY = currentState.y + circularSlide.slideY * factor;
+          if (!hasCollision(slideX, slideY, newRotation)) {
+            newX = slideX;
+            newY = slideY;
+            usedCircularSlide = true;
+            foundValidSlide = true;
+            break;
+          }
+        }
+        
+        if (!foundValidSlide) {
+          // All slides blocked - stay put
+          newX = currentState.x;
+          newY = currentState.y;
+          usedCircularSlide = true;
+        }
       }
     } else {
       // No character nearby, use axis-aligned wall sliding
