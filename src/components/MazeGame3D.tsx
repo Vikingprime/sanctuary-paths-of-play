@@ -96,7 +96,7 @@ export const MazeGame3D = ({
   const [lowPixelRatio, setLowPixelRatio] = useState(false);
   // Debug toggles
   const [topDownCamera, setTopDownCamera] = useState(false);
-  const [showCollisionDebug, setShowCollisionDebug] = useState(true);
+  const [showCollisionDebug, setShowCollisionDebug] = useState(debugMode);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
   const rotationIntensityRef = useRef(0);
