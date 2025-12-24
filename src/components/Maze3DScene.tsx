@@ -49,6 +49,8 @@ interface Maze3DSceneProps {
   debugMode?: boolean;
   restartKey?: number; // Increment to force camera reset
   dialogueTarget?: DialogueTarget | null; // Active dialogue speaker position for cutscene camera
+  topDownCamera?: boolean; // Toggle between normal and top-down camera
+  showCollisionDebug?: boolean; // Show collision debug spheres
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -867,6 +869,7 @@ const RefBasedPlayer = ({
   isMuted,
   rocks,
   characters,
+  showCollisionDebug = true,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
@@ -880,6 +883,7 @@ const RefBasedPlayer = ({
   isMuted?: boolean;
   rocks: RockPosition[];
   characters: CharacterPosition[];
+  showCollisionDebug?: boolean;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef(0);
@@ -968,6 +972,7 @@ const RefBasedPlayer = ({
         rotation={0}
         isMovingRef={isMovingRef}
         enableSound={!isPaused && !isMuted}
+        showCollisionDebug={showCollisionDebug}
       />
     </group>
   );
@@ -977,9 +982,11 @@ const RefBasedPlayer = ({
 const OverShoulderCameraController = ({ 
   playerStateRef,
   restartKey,
+  topDownCamera = false,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
+  topDownCamera?: boolean;
 }) => {
   const { camera } = useThree();
   
@@ -1010,7 +1017,7 @@ const OverShoulderCameraController = ({
   }, [restartKey]);
   
   // Camera settings - over-the-shoulder view balanced for all animals
-  const DEBUG_OVERHEAD_VIEW = true; // TEMP: Set to true for overhead debug view
+  const DEBUG_OVERHEAD_VIEW = topDownCamera; // Use prop for toggle
   
   const CAMERA_DISTANCE_START = 0.4;
   const CAMERA_DISTANCE_NORMAL = 2.0;
@@ -1208,7 +1215,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -1420,6 +1427,7 @@ return (
         <OverShoulderCameraController 
           playerStateRef={playerStateRef}
           restartKey={restartKey}
+          topDownCamera={topDownCamera}
         />
       )}
     </>
