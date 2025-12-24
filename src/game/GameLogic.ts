@@ -251,7 +251,7 @@ function getAnimalCollisionOffsets(animalType?: AnimalType): {
     case 'cow':
       // Cow collision - head point at actual snout tip, small radii
       return { 
-        head: 0.48, // Positioned at snout tip
+        head: 0.65, // Positioned at snout tip (verified with debug view)
         tail: 0.30, 
         pointRadius: 0.08, // Small radius - position matters more
         hornWidth: 0.18, 
