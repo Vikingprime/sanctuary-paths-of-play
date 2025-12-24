@@ -261,9 +261,9 @@ function getAnimalCapsule(animalType?: AnimalType): CapsuleCollider {
       };
     case 'pig':
       return {
-        startOffset: -0.25,  // Extended back for rear/tail
-        endOffset: 0.35,     // Extended forward for snout
-        radius: 0.12
+        startOffset: -0.30,  // Extended back for rear/tail
+        endOffset: 0.55,     // Extended far forward for snout
+        radius: 0.15         // Slightly larger radius
       };
     case 'bird':
       return {
