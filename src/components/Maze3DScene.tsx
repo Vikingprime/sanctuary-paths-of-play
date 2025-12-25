@@ -1112,7 +1112,7 @@ const OverShoulderCameraController = ({
     if (isCameraInCorn) {
       cameraInCornCounter.current++;
     } else {
-      cameraInCornCounter.current = Math.max(0, cameraInCornCounter.current - 2); // Faster decay when not in corn
+      cameraInCornCounter.current = Math.max(0, cameraInCornCounter.current - 5); // Fast decay when leaving corn
     }
     
     // If camera has been in corn for a while, smoothly pull back to start distance
