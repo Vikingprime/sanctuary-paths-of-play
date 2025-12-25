@@ -1045,10 +1045,6 @@ const OverShoulderCameraController = ({
   const currentDistance = useRef(0.4); // Start very close
   const lastRestartKey = useRef(restartKey);
   
-  // Track if camera is in corn (wall) and needs to pull back
-  const cameraInCornCounter = useRef(0);
-  const isRecoveringFromCorn = useRef(false); // Hysteresis: once recovering, keep going
-  
   // Reset camera state when restartKey changes
   useEffect(() => {
     if (restartKey !== lastRestartKey.current) {
@@ -1057,8 +1053,6 @@ const OverShoulderCameraController = ({
       hasPlayerMoved.current = false;
       initialPlayerPos.current = null;
       currentDistance.current = 0.4;
-      cameraInCornCounter.current = 0;
-      isRecoveringFromCorn.current = false;
     }
   }, [restartKey]);
   
@@ -1095,49 +1089,34 @@ const OverShoulderCameraController = ({
       }
     }
     
-    // Check if camera position would be inside a wall (corn)
+    // Check if camera at FULL zoom-out distance would be inside a wall (corn)
     const camCheckRot = smoothRotation.current || playerRotation;
-    const potentialCamX = playerX - Math.sin(camCheckRot) * currentDistance.current;
-    const potentialCamZ = playerZ + Math.cos(camCheckRot) * currentDistance.current;
+    const fullZoomCamX = playerX - Math.sin(camCheckRot) * CAMERA_DISTANCE_NORMAL;
+    const fullZoomCamZ = playerZ + Math.cos(camCheckRot) * CAMERA_DISTANCE_NORMAL;
     
     // Camera position is in same coordinate system as player (grid coords)
-    // Just floor to get cell index
     const mazeWidth = maze.grid[0]?.length || 1;
     const mazeHeight = maze.grid.length;
-    const camGridX = Math.floor(potentialCamX);
-    const camGridZ = Math.floor(potentialCamZ);
+    const camGridX = Math.floor(fullZoomCamX);
+    const camGridZ = Math.floor(fullZoomCamZ);
     
-    // Check if camera is in a wall cell
-    const isCameraInCorn = camGridX >= 0 && camGridX < mazeWidth && 
-                           camGridZ >= 0 && camGridZ < mazeHeight &&
-                           maze.grid[camGridZ]?.[camGridX]?.isWall === true;
+    // Check if full zoom-out position is in a wall cell
+    const wouldFullZoomBeInCorn = camGridX >= 0 && camGridX < mazeWidth && 
+                                   camGridZ >= 0 && camGridZ < mazeHeight &&
+                                   maze.grid[camGridZ]?.[camGridX]?.isWall === true;
     
-    if (isCameraInCorn && !isRecoveringFromCorn.current) {
-      cameraInCornCounter.current++;
-    } else {
-      cameraInCornCounter.current = Math.max(0, cameraInCornCounter.current - 5); // Fast decay when leaving corn
-    }
+    // Camera zoom logic:
+    // - If full zoom position is clear, zoom out to normal
+    // - If full zoom position is in corn, pull back to start distance
+    const ZOOM_SPEED = 0.05;
     
-    // If camera has been in corn for a while, smoothly pull back to start distance
-    const CORN_PULLBACK_THRESHOLD = 5; // frames before we start pulling back (quick trigger)
-    const CORN_PULLBACK_SPEED = 0.04; // How fast to pull back
-    const CORN_RECOVERY_SPEED = 0.06; // Faster recovery when leaving corn
-    const RECOVERY_COMPLETE_THRESHOLD = CAMERA_DISTANCE_NORMAL * 0.95; // When to consider recovery done
-    
-    if (cameraInCornCounter.current > CORN_PULLBACK_THRESHOLD && !isRecoveringFromCorn.current) {
-      // Pull camera back toward start distance
-      currentDistance.current += (CAMERA_DISTANCE_START - currentDistance.current) * CORN_PULLBACK_SPEED;
-    } else if (hasPlayerMoved.current && currentDistance.current < CAMERA_DISTANCE_NORMAL) {
-      // Start or continue recovery - once started, ignore corn until fully recovered
-      if (currentDistance.current < CAMERA_DISTANCE_NORMAL * 0.7) {
-        isRecoveringFromCorn.current = true;
-      }
-      const zoomSpeed = isRecoveringFromCorn.current ? CORN_RECOVERY_SPEED : DISTANCE_ZOOM_SPEED;
-      currentDistance.current += (CAMERA_DISTANCE_NORMAL - currentDistance.current) * zoomSpeed;
-      
-      // Check if recovery is complete
-      if (currentDistance.current >= RECOVERY_COMPLETE_THRESHOLD) {
-        isRecoveringFromCorn.current = false;
+    if (hasPlayerMoved.current) {
+      if (wouldFullZoomBeInCorn) {
+        // Full zoom would be in corn - pull camera close
+        currentDistance.current += (CAMERA_DISTANCE_START - currentDistance.current) * ZOOM_SPEED;
+      } else {
+        // Full zoom is clear - zoom out to normal
+        currentDistance.current += (CAMERA_DISTANCE_NORMAL - currentDistance.current) * ZOOM_SPEED;
       }
     }
     
