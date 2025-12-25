@@ -942,23 +942,28 @@ export function calculateMovement(
                 // Increment stuck counter
                 slideBlockedCounter++;
                 
-                // If stuck for too many frames on same side, flip the side
-                const FLIP_THRESHOLD = 30; // Flip after ~30 frames (give rotation time to work)
-                if (slideBlockedCounter >= FLIP_THRESHOLD && headOnSideSign !== 0) {
-                  headOnSideSign = -headOnSideSign;
-                  slideBlockedCounter = 0; // Reset counter after flip
-                  console.log('[SLIDE] Flipping side after being stuck:', headOnSideSign);
-                }
-                
                 // Second sweep made no progress - APPLY ROTATION to turn toward gap
                 // This "turns the head" instead of forcing a blocked translation
                 const ROTATION_NUDGE_STRENGTH = 0.06; // Radians per frame when blocked
                 
-                // Increase nudge strength gradually the longer we're stuck
-                const stuckMultiplier = Math.min(slideBlockedCounter / 10, 2);
+                // Increase nudge strength the longer we're stuck (max 3x after 30 frames)
+                const stuckMultiplier = Math.min(slideBlockedCounter / 10, 3);
                 
                 const rotationNudge = ROTATION_NUDGE_STRENGTH * (1 + stuckMultiplier) * headOnSideSign;
                 newRotation += rotationNudge;
+                
+                // If VERY stuck (60+ frames), also force some translation in the slide direction
+                // This helps escape corners where rotation alone isn't enough
+                if (slideBlockedCounter >= 60) {
+                  const forcePush = 0.02;
+                  newX = pushedX + slideX * forcePush;
+                  newY = pushedY + slideY * forcePush;
+                  console.log('[SLIDE] Force push applied after 60 frames stuck');
+                } else {
+                  newX = pushedX;
+                  newY = pushedY;
+                }
+                
                 console.log('[SLIDE] Rotation nudge (blocked slide):', {
                   sideSign: headOnSideSign,
                   blockedFrames: slideBlockedCounter,
@@ -966,11 +971,11 @@ export function calculateMovement(
                   rotationNudge: rotationNudge.toFixed(4),
                   newRotation: newRotation.toFixed(3)
                 });
+              } else {
+                // Wall collision - just stay at pushed position
+                newX = pushedX;
+                newY = pushedY;
               }
-              
-              // Stay at pushed position (slightly away from collider)
-              newX = pushedX;
-              newY = pushedY;
             } else {
               // Slide succeeded - reset blocked counter
               slideBlockedCounter = 0;
