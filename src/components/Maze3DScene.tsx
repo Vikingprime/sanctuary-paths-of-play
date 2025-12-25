@@ -1117,14 +1117,17 @@ const OverShoulderCameraController = ({
     
     // If camera has been in corn for a while, smoothly pull back to start distance
     const CORN_PULLBACK_THRESHOLD = 10; // frames before we start pulling back
-    const CORN_PULLBACK_SPEED = 0.03; // How fast to pull back (slow/gentle)
+    const CORN_PULLBACK_SPEED = 0.04; // How fast to pull back
+    const CORN_RECOVERY_SPEED = 0.06; // Faster recovery when leaving corn
     
     if (cameraInCornCounter.current > CORN_PULLBACK_THRESHOLD) {
       // Pull camera back toward start distance
       currentDistance.current += (CAMERA_DISTANCE_START - currentDistance.current) * CORN_PULLBACK_SPEED;
     } else if (hasPlayerMoved.current && currentDistance.current < CAMERA_DISTANCE_NORMAL) {
-      // Normal zoom out after player moves
-      currentDistance.current += (CAMERA_DISTANCE_NORMAL - currentDistance.current) * DISTANCE_ZOOM_SPEED;
+      // Normal zoom out after player moves - use faster speed if recovering from corn pullback
+      const isRecoveringFromCorn = currentDistance.current < CAMERA_DISTANCE_NORMAL * 0.8;
+      const zoomSpeed = isRecoveringFromCorn ? CORN_RECOVERY_SPEED : DISTANCE_ZOOM_SPEED;
+      currentDistance.current += (CAMERA_DISTANCE_NORMAL - currentDistance.current) * zoomSpeed;
     }
     
     // Calculate current height based on distance progress
