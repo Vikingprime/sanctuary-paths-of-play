@@ -1017,11 +1017,13 @@ const RefBasedPlayer = ({
 // Simple over-the-shoulder camera with smooth follow - reads from ref each frame
 const OverShoulderCameraController = ({ 
   playerStateRef,
+  maze,
   restartKey,
   topDownCamera = false,
   groundLevelCamera = false,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
+  maze: Maze;
   restartKey?: number;
   topDownCamera?: boolean;
   groundLevelCamera?: boolean;
@@ -1042,6 +1044,9 @@ const OverShoulderCameraController = ({
   const hasPlayerMoved = useRef(false);
   const currentDistance = useRef(0.4); // Start very close
   const lastRestartKey = useRef(restartKey);
+  
+  // Track if camera is in corn (wall) and needs to pull back
+  const cameraInCornCounter = useRef(0);
   
   // Reset camera state when restartKey changes
   useEffect(() => {
@@ -1087,8 +1092,37 @@ const OverShoulderCameraController = ({
       }
     }
     
-    // Smoothly zoom camera out after player moves
-    if (hasPlayerMoved.current && currentDistance.current < CAMERA_DISTANCE_NORMAL) {
+    // Check if camera position would be inside a wall (corn)
+    const camCheckRot = smoothRotation.current || playerRotation;
+    const potentialCamX = playerX - Math.sin(camCheckRot) * currentDistance.current;
+    const potentialCamZ = playerZ + Math.cos(camCheckRot) * currentDistance.current;
+    
+    // Convert camera world position to grid coordinates
+    const mazeWidth = maze.grid[0]?.length || 1;
+    const mazeHeight = maze.grid.length;
+    const camGridX = Math.floor(potentialCamX + mazeWidth / 2);
+    const camGridZ = Math.floor(potentialCamZ + mazeHeight / 2);
+    
+    // Check if camera is in a wall cell
+    const isCameraInCorn = camGridX >= 0 && camGridX < mazeWidth && 
+                           camGridZ >= 0 && camGridZ < mazeHeight &&
+                           maze.grid[camGridZ]?.[camGridX]?.isWall === true;
+    
+    if (isCameraInCorn) {
+      cameraInCornCounter.current++;
+    } else {
+      cameraInCornCounter.current = Math.max(0, cameraInCornCounter.current - 2); // Faster decay when not in corn
+    }
+    
+    // If camera has been in corn for a while, smoothly pull back to start distance
+    const CORN_PULLBACK_THRESHOLD = 10; // frames before we start pulling back
+    const CORN_PULLBACK_SPEED = 0.03; // How fast to pull back (slow/gentle)
+    
+    if (cameraInCornCounter.current > CORN_PULLBACK_THRESHOLD) {
+      // Pull camera back toward start distance
+      currentDistance.current += (CAMERA_DISTANCE_START - currentDistance.current) * CORN_PULLBACK_SPEED;
+    } else if (hasPlayerMoved.current && currentDistance.current < CAMERA_DISTANCE_NORMAL) {
+      // Normal zoom out after player moves
       currentDistance.current += (CAMERA_DISTANCE_NORMAL - currentDistance.current) * DISTANCE_ZOOM_SPEED;
     }
     
@@ -1474,6 +1508,7 @@ return (
       ) : (
         <OverShoulderCameraController 
           playerStateRef={playerStateRef}
+          maze={maze}
           restartKey={restartKey}
           topDownCamera={topDownCamera}
           groundLevelCamera={groundLevelCamera}
