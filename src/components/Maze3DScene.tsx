@@ -1047,6 +1047,7 @@ const OverShoulderCameraController = ({
   
   // Track if camera is in corn (wall) and needs to pull back
   const cameraInCornCounter = useRef(0);
+  const isRecoveringFromCorn = useRef(false); // Hysteresis: once recovering, keep going
   
   // Reset camera state when restartKey changes
   useEffect(() => {
@@ -1056,6 +1057,8 @@ const OverShoulderCameraController = ({
       hasPlayerMoved.current = false;
       initialPlayerPos.current = null;
       currentDistance.current = 0.4;
+      cameraInCornCounter.current = 0;
+      isRecoveringFromCorn.current = false;
     }
   }, [restartKey]);
   
@@ -1109,7 +1112,7 @@ const OverShoulderCameraController = ({
                            camGridZ >= 0 && camGridZ < mazeHeight &&
                            maze.grid[camGridZ]?.[camGridX]?.isWall === true;
     
-    if (isCameraInCorn) {
+    if (isCameraInCorn && !isRecoveringFromCorn.current) {
       cameraInCornCounter.current++;
     } else {
       cameraInCornCounter.current = Math.max(0, cameraInCornCounter.current - 5); // Fast decay when leaving corn
@@ -1119,15 +1122,23 @@ const OverShoulderCameraController = ({
     const CORN_PULLBACK_THRESHOLD = 5; // frames before we start pulling back (quick trigger)
     const CORN_PULLBACK_SPEED = 0.04; // How fast to pull back
     const CORN_RECOVERY_SPEED = 0.06; // Faster recovery when leaving corn
+    const RECOVERY_COMPLETE_THRESHOLD = CAMERA_DISTANCE_NORMAL * 0.95; // When to consider recovery done
     
-    if (cameraInCornCounter.current > CORN_PULLBACK_THRESHOLD) {
+    if (cameraInCornCounter.current > CORN_PULLBACK_THRESHOLD && !isRecoveringFromCorn.current) {
       // Pull camera back toward start distance
       currentDistance.current += (CAMERA_DISTANCE_START - currentDistance.current) * CORN_PULLBACK_SPEED;
     } else if (hasPlayerMoved.current && currentDistance.current < CAMERA_DISTANCE_NORMAL) {
-      // Normal zoom out after player moves - use faster speed if recovering from corn pullback
-      const isRecoveringFromCorn = currentDistance.current < CAMERA_DISTANCE_NORMAL * 0.8;
-      const zoomSpeed = isRecoveringFromCorn ? CORN_RECOVERY_SPEED : DISTANCE_ZOOM_SPEED;
+      // Start or continue recovery - once started, ignore corn until fully recovered
+      if (currentDistance.current < CAMERA_DISTANCE_NORMAL * 0.7) {
+        isRecoveringFromCorn.current = true;
+      }
+      const zoomSpeed = isRecoveringFromCorn.current ? CORN_RECOVERY_SPEED : DISTANCE_ZOOM_SPEED;
       currentDistance.current += (CAMERA_DISTANCE_NORMAL - currentDistance.current) * zoomSpeed;
+      
+      // Check if recovery is complete
+      if (currentDistance.current >= RECOVERY_COMPLETE_THRESHOLD) {
+        isRecoveringFromCorn.current = false;
+      }
     }
     
     // Calculate current height based on distance progress
