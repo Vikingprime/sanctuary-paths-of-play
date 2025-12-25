@@ -1097,11 +1097,12 @@ const OverShoulderCameraController = ({
     const potentialCamX = playerX - Math.sin(camCheckRot) * currentDistance.current;
     const potentialCamZ = playerZ + Math.cos(camCheckRot) * currentDistance.current;
     
-    // Convert camera world position to grid coordinates
+    // Camera position is in same coordinate system as player (grid coords)
+    // Just floor to get cell index
     const mazeWidth = maze.grid[0]?.length || 1;
     const mazeHeight = maze.grid.length;
-    const camGridX = Math.floor(potentialCamX + mazeWidth / 2);
-    const camGridZ = Math.floor(potentialCamZ + mazeHeight / 2);
+    const camGridX = Math.floor(potentialCamX);
+    const camGridZ = Math.floor(potentialCamZ);
     
     // Check if camera is in a wall cell
     const isCameraInCorn = camGridX >= 0 && camGridX < mazeWidth && 
