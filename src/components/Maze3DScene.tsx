@@ -1116,7 +1116,7 @@ const OverShoulderCameraController = ({
     }
     
     // If camera has been in corn for a while, smoothly pull back to start distance
-    const CORN_PULLBACK_THRESHOLD = 10; // frames before we start pulling back
+    const CORN_PULLBACK_THRESHOLD = 5; // frames before we start pulling back (quick trigger)
     const CORN_PULLBACK_SPEED = 0.04; // How fast to pull back
     const CORN_RECOVERY_SPEED = 0.06; // Faster recovery when leaving corn
     
