@@ -1017,13 +1017,11 @@ const RefBasedPlayer = ({
 // Simple over-the-shoulder camera with smooth follow - reads from ref each frame
 const OverShoulderCameraController = ({ 
   playerStateRef,
-  maze,
   restartKey,
   topDownCamera = false,
   groundLevelCamera = false,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
-  maze: Maze;
   restartKey?: number;
   topDownCamera?: boolean;
   groundLevelCamera?: boolean;
@@ -1089,35 +1087,9 @@ const OverShoulderCameraController = ({
       }
     }
     
-    // Check if camera at FULL zoom-out distance would be inside a wall (corn)
-    const camCheckRot = smoothRotation.current || playerRotation;
-    const fullZoomCamX = playerX - Math.sin(camCheckRot) * CAMERA_DISTANCE_NORMAL;
-    const fullZoomCamZ = playerZ + Math.cos(camCheckRot) * CAMERA_DISTANCE_NORMAL;
-    
-    // Camera position is in same coordinate system as player (grid coords)
-    const mazeWidth = maze.grid[0]?.length || 1;
-    const mazeHeight = maze.grid.length;
-    const camGridX = Math.floor(fullZoomCamX);
-    const camGridZ = Math.floor(fullZoomCamZ);
-    
-    // Check if full zoom-out position is in a wall cell
-    const wouldFullZoomBeInCorn = camGridX >= 0 && camGridX < mazeWidth && 
-                                   camGridZ >= 0 && camGridZ < mazeHeight &&
-                                   maze.grid[camGridZ]?.[camGridX]?.isWall === true;
-    
-    // Camera zoom logic:
-    // - If full zoom position is clear, zoom out to normal
-    // - If full zoom position is in corn, pull back to start distance
-    const ZOOM_SPEED = 0.05;
-    
-    if (hasPlayerMoved.current) {
-      if (wouldFullZoomBeInCorn) {
-        // Full zoom would be in corn - pull camera close
-        currentDistance.current += (CAMERA_DISTANCE_START - currentDistance.current) * ZOOM_SPEED;
-      } else {
-        // Full zoom is clear - zoom out to normal
-        currentDistance.current += (CAMERA_DISTANCE_NORMAL - currentDistance.current) * ZOOM_SPEED;
-      }
+    // Smoothly zoom camera out after player moves
+    if (hasPlayerMoved.current && currentDistance.current < CAMERA_DISTANCE_NORMAL) {
+      currentDistance.current += (CAMERA_DISTANCE_NORMAL - currentDistance.current) * DISTANCE_ZOOM_SPEED;
     }
     
     // Calculate current height based on distance progress
@@ -1502,7 +1474,6 @@ return (
       ) : (
         <OverShoulderCameraController 
           playerStateRef={playerStateRef}
-          maze={maze}
           restartKey={restartKey}
           topDownCamera={topDownCamera}
           groundLevelCamera={groundLevelCamera}
