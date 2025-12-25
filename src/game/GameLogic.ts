@@ -346,7 +346,6 @@ let headOnSideSign = 0;                 // Persistent side sign for head-on pole
 let slidingContactTime = 0;             // How long we've been in sliding contact
 let lastContactColliderKey = '';        // Track which collider we're contacting for cast offset
 let slideBlockedCounter = 0;            // Count consecutive frames where slide is blocked
-let framesSinceCharacterCollision = 999; // Track frames since last character collision
 
 /**
  * Check if a capsule overlaps any static collider (walls, rocks, characters)
@@ -823,11 +822,6 @@ export function calculateMovement(
       newX = sweepResult.x;
       newY = sweepResult.y;
       
-      // Track character collisions for rotation nudge gating
-      if (sweepResult.hitType === 'character') {
-        framesSinceCharacterCollision = 0;
-      }
-      
       console.log('[COLLISION] Blocked!', {
         hitType: sweepResult.hitType,
         normal: sweepResult.normal,
@@ -945,44 +939,36 @@ export function calculateMovement(
               // Increment stuck counter
               slideBlockedCounter++;
               
-              // Only apply rotation nudge if we've hit a character recently (within 60 frames)
-              // This prevents jerky behavior when only sliding against walls
-              const CHAR_COLLISION_GRACE_FRAMES = 60;
-              const shouldApplyRotationNudge = framesSinceCharacterCollision < CHAR_COLLISION_GRACE_FRAMES;
-              
-              if (shouldApplyRotationNudge) {
-                // If stuck for too many frames on same side, flip the side
-                const FLIP_THRESHOLD = 30; // Flip after ~30 frames (give rotation time to work)
-                if (slideBlockedCounter >= FLIP_THRESHOLD && headOnSideSign !== 0) {
-                  headOnSideSign = -headOnSideSign;
-                  slideBlockedCounter = 0; // Reset counter after flip
-                  console.log('[SLIDE] Flipping side after being stuck:', headOnSideSign);
-                }
-                
-                // Second sweep made no progress - APPLY ROTATION to turn toward gap
-                // This "turns the head" instead of forcing a blocked translation
-                const ROTATION_NUDGE_STRENGTH = 0.06; // Radians per frame when blocked (slightly stronger)
-                
-                // Increase nudge strength gradually the longer we're stuck
-                const stuckMultiplier = Math.min(slideBlockedCounter / 10, 2); // Ramps up to 3x over 20 frames
-                
-                // Don't flip for backward - the headOnSideSign already captures which side has the gap
-                // based on movement direction relative to the obstacle normal
-                const isMovingBackward = input.backward && !input.forward;
-                const directionMultiplier = 1; // Same rotation direction regardless of forward/backward
-                
-                const rotationNudge = ROTATION_NUDGE_STRENGTH * (1 + stuckMultiplier) * headOnSideSign * directionMultiplier;
-                newRotation += rotationNudge;
-                console.log('[SLIDE] Rotation nudge (blocked slide):', {
-                  sideSign: headOnSideSign,
-                  isBackward: isMovingBackward,
-                  blockedFrames: slideBlockedCounter,
-                  framesSinceChar: framesSinceCharacterCollision,
-                  stuckMultiplier: stuckMultiplier.toFixed(2),
-                  rotationNudge: rotationNudge.toFixed(4),
-                  newRotation: newRotation.toFixed(3)
-                });
+              // If stuck for too many frames on same side, flip the side
+              const FLIP_THRESHOLD = 30; // Flip after ~30 frames (give rotation time to work)
+              if (slideBlockedCounter >= FLIP_THRESHOLD && headOnSideSign !== 0) {
+                headOnSideSign = -headOnSideSign;
+                slideBlockedCounter = 0; // Reset counter after flip
+                console.log('[SLIDE] Flipping side after being stuck:', headOnSideSign);
               }
+              
+              // Second sweep made no progress - APPLY ROTATION to turn toward gap
+              // This "turns the head" instead of forcing a blocked translation
+              const ROTATION_NUDGE_STRENGTH = 0.06; // Radians per frame when blocked (slightly stronger)
+              
+              // Increase nudge strength gradually the longer we're stuck
+              const stuckMultiplier = Math.min(slideBlockedCounter / 10, 2); // Ramps up to 3x over 20 frames
+              
+              // Don't flip for backward - the headOnSideSign already captures which side has the gap
+              // based on movement direction relative to the obstacle normal
+              const isMovingBackward = input.backward && !input.forward;
+              const directionMultiplier = 1; // Same rotation direction regardless of forward/backward
+              
+              const rotationNudge = ROTATION_NUDGE_STRENGTH * (1 + stuckMultiplier) * headOnSideSign * directionMultiplier;
+              newRotation += rotationNudge;
+              console.log('[SLIDE] Rotation nudge (blocked slide):', {
+                sideSign: headOnSideSign,
+                isBackward: isMovingBackward,
+                blockedFrames: slideBlockedCounter,
+                stuckMultiplier: stuckMultiplier.toFixed(2),
+                rotationNudge: rotationNudge.toFixed(4),
+                newRotation: newRotation.toFixed(3)
+              });
               
               // Don't force translation - let the rotation guide the player
               // Just stay at pushed position (slightly away from collider)
@@ -1011,12 +997,6 @@ export function calculateMovement(
     headOnSideSign = 0;
     slideBlockedCounter = 0;  // Reset blocked counter
     lastContactColliderKey = '';  // Reset contact tracking
-    framesSinceCharacterCollision = 999;  // Reset character collision tracking
-  }
-  
-  // Increment frames since character collision (capped at 999)
-  if (framesSinceCharacterCollision < 999) {
-    framesSinceCharacterCollision++;
   }
 
   // ========================================
