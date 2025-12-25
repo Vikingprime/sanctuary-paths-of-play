@@ -936,14 +936,12 @@ export function calculateMovement(
             // Always increment stuck counter when blocked, regardless of tiny progress
             // This handles corner cases where player ping-pongs between obstacles
             if (slideResult.blocked) {
-              // Only apply rotation nudge for characters/towers (things you can squeeze past)
-              // Walls don't need rotation nudge - just slide along them
-              if (hitType === 'tower' || hitType === 'character') {
-                // Increment stuck counter
-                slideBlockedCounter++;
-                
-                // Second sweep made no progress - APPLY ROTATION to turn toward gap
-                // This "turns the head" instead of forcing a blocked translation
+              // Increment stuck counter for ANY blocked slide
+              slideBlockedCounter++;
+              
+              // Apply rotation nudge to help escape - works for all obstacle types
+              // when stuck for more than a few frames
+              if (slideBlockedCounter >= 3 && headOnSideSign !== 0) {
                 const ROTATION_NUDGE_STRENGTH = 0.06; // Radians per frame when blocked
                 
                 // Increase nudge strength the longer we're stuck (max 3x after 30 frames)
@@ -952,27 +950,23 @@ export function calculateMovement(
                 const rotationNudge = ROTATION_NUDGE_STRENGTH * (1 + stuckMultiplier) * headOnSideSign;
                 newRotation += rotationNudge;
                 
-                // If VERY stuck (60+ frames), also force some translation in the slide direction
-                // This helps escape corners where rotation alone isn't enough
-                if (slideBlockedCounter >= 60) {
-                  const forcePush = 0.02;
-                  newX = pushedX + slideX * forcePush;
-                  newY = pushedY + slideY * forcePush;
-                  console.log('[SLIDE] Force push applied after 60 frames stuck');
-                } else {
-                  newX = pushedX;
-                  newY = pushedY;
-                }
-                
                 console.log('[SLIDE] Rotation nudge (blocked slide):', {
+                  hitType,
                   sideSign: headOnSideSign,
                   blockedFrames: slideBlockedCounter,
                   stuckMultiplier: stuckMultiplier.toFixed(2),
                   rotationNudge: rotationNudge.toFixed(4),
                   newRotation: newRotation.toFixed(3)
                 });
+              }
+              
+              // If VERY stuck (60+ frames), also force some translation in the slide direction
+              if (slideBlockedCounter >= 60) {
+                const forcePush = 0.02;
+                newX = pushedX + slideX * forcePush;
+                newY = pushedY + slideY * forcePush;
+                console.log('[SLIDE] Force push applied after 60 frames stuck');
               } else {
-                // Wall collision - just stay at pushed position
                 newX = pushedX;
                 newY = pushedY;
               }
