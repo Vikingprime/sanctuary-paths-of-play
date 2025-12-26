@@ -161,9 +161,10 @@ const generateEdgeTransforms = (
         const stalkSeed = baseSeed + edgeIdx * 1000 + col;
         
         // Position based on which edge - push stalks to actual cell edge
+        // WIDENED: Reduced edgeOffset from 0.45 to 0.35 to push corn back, making paths feel wider
         let offsetX = 0;
         let offsetZ = 0;
-        const edgeOffset = 0.45; // Fixed offset to position at cell edge (not center)
+        const edgeOffset = 0.35; // Reduced from 0.45 to widen paths
         const colOffset = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING;
         
         switch (edge) {
@@ -210,7 +211,7 @@ const generateWallTransforms = (
 ): WallTransformData[] => {
   const transforms: WallTransformData[] = [];
   const dummy = new Object3D();
-  const edgeZone = 0.35; // Distance from center where edge stalks are (don't place depth stalks here)
+  const edgeZone = 0.25; // Reduced from 0.35 to push depth stalks back, widening paths
   
   positions.forEach((wallPos) => {
     const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset;

@@ -364,13 +364,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
 
   // Cow uses GLB model with animation
   if (animalType === 'cow') {
-    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule (scaled 1.575x for new model size)
-    const CAPSULE_START = -0.63;  // Tail end offset
-    const CAPSULE_END = 1.34;     // Head/neck end offset
-    const CAPSULE_RADIUS = 0.28;  // Body radius
-    const HEAD_OFFSET = 1.50;     // Extra head sphere
-    const HEAD_RADIUS = 0.24;
-    const DEBUG_Y = 0.6;
+    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule (increased for larger cow)
+    const CAPSULE_START = -0.80;  // Tail end offset (increased)
+    const CAPSULE_END = 1.60;     // Head/neck end offset (increased)
+    const CAPSULE_RADIUS = 0.38;  // Body radius (increased)
+    const HEAD_OFFSET = 1.80;     // Extra head sphere (increased)
+    const HEAD_RADIUS = 0.32;     // Head radius (increased)
+    const DEBUG_Y = 0.65;
     
     // Use the cow scale from our constants
     const cowScale = ANIMAL_SCALES.cow;
