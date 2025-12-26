@@ -22,12 +22,12 @@ const measureModelHeight = (scene: any, name: string): number => {
   return size.y;
 };
 
-// Scale factors - visually tuned for target ratios relative to corn
-// Target: Cow 0.63, Pig 0.38, Chicken 0.19 relative to corn
+// Scale factors - calculated from measured in-game heights
+// Corn height: 357.11, targets: Cow 0.63, Pig 0.38, Chicken 0.19
 const ANIMAL_SCALES = {
-  chicken: 0.003,   // Smallest - 0.19 relative
-  pig: 0.012,       // Medium - 0.38 relative  
-  cow: 0.08,        // Largest animal - 0.63 relative (must be shorter than woman 0.68)
+  chicken: 0.930112,   // 67.85 / 72.95 raw
+  pig: 1.376710,       // 135.70 / 98.57 raw
+  cow: 49.051240,      // 224.98 / 4.59 raw
 } as const;
 
 // Play chicken sound on spawn
