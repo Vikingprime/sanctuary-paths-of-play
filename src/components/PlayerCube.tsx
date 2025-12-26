@@ -320,12 +320,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
 
   // Pig uses GLB model
   if (animalType === 'pig') {
-    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
-    // Extended significantly to cover snout (front) and rear (back) fully
-    const CAPSULE_START = -0.30;  // Extended back for rear/tail
-    const CAPSULE_END = 0.55;     // Extended far forward for snout
-    const CAPSULE_RADIUS = 0.15;  // Slightly larger radius
-    const DEBUG_Y = 0.3;
+    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule (scaled 2x for new model size)
+    const CAPSULE_START = -0.60;  // Extended back for rear/tail
+    const CAPSULE_END = 1.10;     // Extended far forward for snout
+    const CAPSULE_RADIUS = 0.30;  // Larger radius
+    const DEBUG_Y = 0.5;
     
     // FIX: Raise pig model so feet touch ground at y=0
     const PIG_Y_OFFSET = 0.05;
@@ -365,13 +364,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
 
   // Cow uses GLB model with animation
   if (animalType === 'cow') {
-    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
-    const CAPSULE_START = -0.40;  // Tail end offset
-    const CAPSULE_END = 0.85;     // Head/neck end offset
-    const CAPSULE_RADIUS = 0.18;  // Body radius
-    const HEAD_OFFSET = 0.95;     // Extra head sphere
-    const HEAD_RADIUS = 0.15;
-    const DEBUG_Y = 0.5;
+    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule (scaled 1.575x for new model size)
+    const CAPSULE_START = -0.63;  // Tail end offset
+    const CAPSULE_END = 1.34;     // Head/neck end offset
+    const CAPSULE_RADIUS = 0.28;  // Body radius
+    const HEAD_OFFSET = 1.50;     // Extra head sphere
+    const HEAD_RADIUS = 0.24;
+    const DEBUG_Y = 0.6;
     
     // Use the cow scale from our constants
     const cowScale = ANIMAL_SCALES.cow;
@@ -413,11 +412,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   }
 
   // Bird/Chicken uses GLB model
-  // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
-  const CAPSULE_START = -0.05;
-  const CAPSULE_END = 0.18;  // Extended forward to match GameLogic.ts
-  const CAPSULE_RADIUS = 0.08;
-  const DEBUG_Y = 0.2;
+  // Debug capsule collider - matches GameLogic.ts getAnimalCapsule (scaled 0.475x for new model size)
+  const CAPSULE_START = -0.024;
+  const CAPSULE_END = 0.085;
+  const CAPSULE_RADIUS = 0.038;
+  const DEBUG_Y = 0.1;
   
   // FIX: The chicken model's origin is at its body center, not feet.
   // We need a positive Y offset to raise the model so feet touch ground.
