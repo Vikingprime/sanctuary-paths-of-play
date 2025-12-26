@@ -104,18 +104,47 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     return clone;
   }, [cowScene]);
   
-  // Measure raw model heights once on mount
+  // Measure and calculate correct scales based on corn height
   useEffect(() => {
-    const pigHeight = measureModelHeight(pigScene, 'Pig');
-    const cowHeight = measureModelHeight(cowScene, 'Cow');
-    const henHeight = measureModelHeight(henWalkScene, 'Hen');
+    const pigRaw = measureModelHeight(pigScene, 'Pig');
+    const cowRaw = measureModelHeight(cowScene, 'Cow');
+    const henRaw = measureModelHeight(henWalkScene, 'Hen');
     
-    // Calculate required scales to achieve target heights
-    const pigScale = TARGET_HEIGHTS.pig / pigHeight;
-    const cowScale = TARGET_HEIGHTS.cow / cowHeight;
-    const chickenScale = TARGET_HEIGHTS.chicken / henHeight;
+    // Current scales being applied
+    const pigCurrent = ANIMAL_SCALES.pig;
+    const cowCurrent = ANIMAL_SCALES.cow;
+    const henCurrent = ANIMAL_SCALES.chicken;
     
-    console.log(`[CALCULATED SCALES] pig: ${pigScale.toFixed(6)}, cow: ${cowScale.toFixed(6)}, chicken: ${chickenScale.toFixed(6)}`);
+    // Current in-game heights
+    const pigInGame = pigRaw * pigCurrent;
+    const cowInGame = cowRaw * cowCurrent;
+    const henInGame = henRaw * henCurrent;
+    
+    console.log(`%c=== PLAYER ANIMAL IN-GAME HEIGHTS ===`, 'color: #ff9900; font-weight: bold');
+    console.log(`Pig: raw=${pigRaw.toFixed(4)}, scale=${pigCurrent}, IN-GAME=${pigInGame.toFixed(4)}`);
+    console.log(`Cow: raw=${cowRaw.toFixed(4)}, scale=${cowCurrent}, IN-GAME=${cowInGame.toFixed(4)}`);
+    console.log(`Hen: raw=${henRaw.toFixed(4)}, scale=${henCurrent}, IN-GAME=${henInGame.toFixed(4)}`);
+    
+    // Wait for corn measurement then calculate required scales
+    setTimeout(() => {
+      const cornHeight = (window as any).__CORN_FINAL_HEIGHT__ || 1;
+      console.log(`%c=== SCALE CALCULATION (corn height: ${cornHeight.toFixed(4)}) ===`, 'color: #ff00ff; font-weight: bold');
+      
+      // Target in-game heights
+      const targetCow = cornHeight * 0.63;
+      const targetPig = cornHeight * 0.38;
+      const targetHen = cornHeight * 0.19;
+      
+      // Required scales = target_height / raw_height
+      const neededCowScale = targetCow / cowRaw;
+      const neededPigScale = targetPig / pigRaw;
+      const neededHenScale = targetHen / henRaw;
+      
+      console.log(`To achieve targets:`);
+      console.log(`  Cow: current in-game=${cowInGame.toFixed(4)}, target=${targetCow.toFixed(4)}, NEED SCALE: ${neededCowScale.toFixed(6)}`);
+      console.log(`  Pig: current in-game=${pigInGame.toFixed(4)}, target=${targetPig.toFixed(4)}, NEED SCALE: ${neededPigScale.toFixed(6)}`);
+      console.log(`  Hen: current in-game=${henInGame.toFixed(4)}, target=${targetHen.toFixed(4)}, NEED SCALE: ${neededHenScale.toFixed(6)}`);
+    }, 500);
   }, [pigScene, cowScene, henWalkScene]);
   
   // Set up animation mixers and actions

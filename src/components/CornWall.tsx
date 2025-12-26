@@ -342,20 +342,28 @@ export const InstancedWalls = ({
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
   const { scene, camera } = useThree();
   
-  // Measure corn once
+  // Measure corn final in-game height
   useEffect(() => {
     const box = new Box3().setFromObject(gltfScene);
     const rawSize = new Vector3();
     box.getSize(rawSize);
-    // Corn is scaled with baseScale=100, heightMultiplier=1.8, so final height = rawHeight * 180
-    const finalCornHeight = rawSize.y * 100 * 1.8;
-    console.log(`[CORN INSTANCED MEASURE] Corn.glb: raw height = ${rawSize.y.toFixed(4)}, with scale 180 -> final height = ${finalCornHeight.toFixed(2)}`);
-    console.log(`[CORN INSTANCED MEASURE] To get target heights relative to corn:`);
-    console.log(`  Cow (0.63): needs final height ${(finalCornHeight * 0.63).toFixed(2)}`);
-    console.log(`  Woman (0.68): needs final height ${(finalCornHeight * 0.68).toFixed(2)}`);
-    console.log(`  Farmer (0.72): needs final height ${(finalCornHeight * 0.72).toFixed(2)}`);
-    console.log(`  Pig (0.38): needs final height ${(finalCornHeight * 0.38).toFixed(2)}`);
-    console.log(`  Chicken (0.19): needs final height ${(finalCornHeight * 0.19).toFixed(2)}`);
+    // Corn is scaled with baseScale=100, heightMultiplier=1.8, heightVariation avg ~1.0
+    const CORN_SCALE = 100 * 1.8; // = 180
+    const finalCornHeight = rawSize.y * CORN_SCALE;
+    
+    console.log(`%c=== CORN IN-GAME HEIGHT ===`, 'color: #00ff00; font-weight: bold');
+    console.log(`Corn raw model height: ${rawSize.y.toFixed(6)}`);
+    console.log(`Corn scale applied: ${CORN_SCALE}`);
+    console.log(`%cCORN FINAL IN-GAME HEIGHT: ${finalCornHeight.toFixed(4)}`, 'color: #00ff00; font-weight: bold');
+    console.log(`\nTarget heights (relative to corn ${finalCornHeight.toFixed(2)}):`);
+    console.log(`  Chicken (0.19): ${(finalCornHeight * 0.19).toFixed(4)}`);
+    console.log(`  Pig (0.38): ${(finalCornHeight * 0.38).toFixed(4)}`);
+    console.log(`  Cow (0.63): ${(finalCornHeight * 0.63).toFixed(4)}`);
+    console.log(`  Woman (0.68): ${(finalCornHeight * 0.68).toFixed(4)}`);
+    console.log(`  Farmer (0.72): ${(finalCornHeight * 0.72).toFixed(4)}`);
+    
+    // Store for global access
+    (window as any).__CORN_FINAL_HEIGHT__ = finalCornHeight;
   }, [gltfScene]);
   
   // Load corn texture for billboards

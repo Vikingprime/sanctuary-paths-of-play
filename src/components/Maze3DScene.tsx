@@ -755,12 +755,24 @@ const CharacterRenderer = ({
     return clone;
   }, [scene]);
   
-  // Measure raw model height once
+  // Measure and log in-game height
   useEffect(() => {
     const box = new Box3().setFromObject(scene);
     const size = new Vector3();
     box.getSize(size);
-    console.log(`[NPC MODEL MEASURE] ${modelFile}: raw height = ${size.y.toFixed(4)}, applied scale = ${characterScale}, final height = ${(size.y * characterScale).toFixed(4)}`);
+    const inGameHeight = size.y * characterScale;
+    
+    console.log(`%c=== NPC IN-GAME HEIGHT: ${modelFile} ===`, 'color: #00ffff; font-weight: bold');
+    console.log(`Raw height: ${size.y.toFixed(6)}, Scale: ${characterScale}, IN-GAME: ${inGameHeight.toFixed(4)}`);
+    
+    // Calculate needed scale
+    setTimeout(() => {
+      const cornHeight = (window as any).__CORN_FINAL_HEIGHT__ || 1;
+      const targetRatio = modelFile.includes('Woman') ? 0.68 : 0.72; // Woman or Farmer
+      const targetHeight = cornHeight * targetRatio;
+      const neededScale = targetHeight / size.y;
+      console.log(`  ${modelFile}: target=${targetHeight.toFixed(4)} (${targetRatio} of corn), NEED SCALE: ${neededScale.toFixed(6)}`);
+    }, 500);
   }, [scene, modelFile, characterScale]);
   
   // Set up animation mixer
