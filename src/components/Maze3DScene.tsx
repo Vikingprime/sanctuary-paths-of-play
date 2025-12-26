@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Box3 } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
@@ -754,6 +754,14 @@ const CharacterRenderer = ({
     });
     return clone;
   }, [scene]);
+  
+  // Measure raw model height once
+  useEffect(() => {
+    const box = new Box3().setFromObject(scene);
+    const size = new Vector3();
+    box.getSize(size);
+    console.log(`[NPC MODEL MEASURE] ${modelFile}: raw height = ${size.y.toFixed(4)}, applied scale = ${characterScale}, final height = ${(size.y * characterScale).toFixed(4)}`);
+  }, [scene, modelFile, characterScale]);
   
   // Set up animation mixer
   useEffect(() => {

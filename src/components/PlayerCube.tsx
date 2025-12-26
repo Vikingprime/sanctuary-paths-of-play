@@ -1,15 +1,34 @@
 import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Clone } from '@react-three/drei';
-import { AnimationMixer, LoopRepeat, LoopOnce } from 'three';
+import { AnimationMixer, LoopRepeat, LoopOnce, Box3, Vector3 } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
 
-// Scale factors - increased for better visibility relative to corn
+// Target heights relative to corn stalk (1.0 unit = corn height)
+// From user specs: Chicken 0.19, Pig 0.38, Cow 0.63, Woman 0.68, Man/Farmer 0.72, Cornstalk 1.00
+const TARGET_HEIGHTS = {
+  chicken: 0.19,
+  pig: 0.38,
+  cow: 0.63,
+} as const;
+
+// Helper to measure actual model height at scale 1.0
+const measureModelHeight = (scene: any, name: string): number => {
+  const box = new Box3().setFromObject(scene);
+  const size = new Vector3();
+  box.getSize(size);
+  console.log(`[MODEL MEASURE] ${name}: raw height = ${size.y.toFixed(4)}, width = ${size.x.toFixed(4)}, depth = ${size.z.toFixed(4)}`);
+  return size.y;
+};
+
+// Scale factors - adjusted based on visual comparison
+// Woman at scale 0.55 appears shorter than cow at 0.63, but should be taller
+// Reducing cow scale to make cow 0.63 and woman 0.68 relative
 const ANIMAL_SCALES = {
-  chicken: 0.008,   // 2x larger
-  pig: 0.032,       // 2x larger
-  cow: 0.63,        // 2x larger
+  chicken: 0.006,   // Adjusted
+  pig: 0.024,       // Adjusted
+  cow: 0.40,        // Reduced from 0.63 to make cow shorter than woman
 } as const;
 
 // Play chicken sound on spawn
@@ -85,6 +104,20 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     });
     return clone;
   }, [cowScene]);
+  
+  // Measure raw model heights once on mount
+  useEffect(() => {
+    const pigHeight = measureModelHeight(pigScene, 'Pig');
+    const cowHeight = measureModelHeight(cowScene, 'Cow');
+    const henHeight = measureModelHeight(henWalkScene, 'Hen');
+    
+    // Calculate required scales to achieve target heights
+    const pigScale = TARGET_HEIGHTS.pig / pigHeight;
+    const cowScale = TARGET_HEIGHTS.cow / cowHeight;
+    const chickenScale = TARGET_HEIGHTS.chicken / henHeight;
+    
+    console.log(`[CALCULATED SCALES] pig: ${pigScale.toFixed(6)}, cow: ${cowScale.toFixed(6)}, chicken: ${chickenScale.toFixed(6)}`);
+  }, [pigScene, cowScene, henWalkScene]);
   
   // Set up animation mixers and actions
   const cowMixerRef = useRef<AnimationMixer | null>(null);
