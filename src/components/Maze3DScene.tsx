@@ -1058,12 +1058,12 @@ const OverShoulderCameraController = ({
   const DEBUG_OVERHEAD_VIEW = topDownCamera; // Use prop for toggle
   
   const CAMERA_DISTANCE_START = 0.4;
-  const CAMERA_DISTANCE_NORMAL = 2.5;  // Pulled back more for larger cow
-  const CAMERA_HEIGHT_START = 2.2;     // Raised for larger cow
-  const CAMERA_HEIGHT_NORMAL = 3.0;    // Raised for larger cow
+  const CAMERA_DISTANCE_NORMAL = 3.0;  // Pulled back more for larger cow
+  const CAMERA_HEIGHT_START = 2.5;     // Raised higher
+  const CAMERA_HEIGHT_NORMAL = 3.5;    // Raised higher
   const LOOK_AHEAD = 1.3;
-  const LOOK_HEIGHT_START = 0.3;       // Raised for larger cow
-  const LOOK_HEIGHT_NORMAL = 0.8;      // Raised for larger cow
+  const LOOK_HEIGHT_START = 0.5;       // Raised
+  const LOOK_HEIGHT_NORMAL = 1.0;      // Raised
   const POSITION_SMOOTHING = 0.15;
   const ROTATION_SMOOTHING = 0.12;
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
@@ -1182,9 +1182,9 @@ const CutsceneCameraController = ({
 }) => {
   const { camera } = useThree();
   
-  const CAMERA_HEIGHT = 1.4;  // Raised for larger cow
-  const LOOK_HEIGHT = 1.2;   // Look at farmer's chest/face level (raised)
-  const ZOOM_DISTANCE = 2.2; // Pulled back more for larger cow
+  const CAMERA_HEIGHT = 1.8;  // Raised higher to see characters
+  const LOOK_HEIGHT = 1.5;   // Look at farmer's face level
+  const ZOOM_DISTANCE = 2.8; // Pulled back more to frame both characters
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
