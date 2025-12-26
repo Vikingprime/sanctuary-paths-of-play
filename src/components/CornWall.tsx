@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader, CylinderGeometry, BackSide } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader, CylinderGeometry, BackSide, Box3 } from 'three';
 import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
@@ -26,6 +26,14 @@ const seededRandom = (seed: number): number => {
 export const CornWall = ({ position, size = [1, 3, 1] }: CornWallProps) => {
   const { scene } = useGLTF('/models/Corn.glb');
   const clonedScene = useMemo(() => scene.clone(), [scene]);
+  
+  // Measure corn raw height once
+  useEffect(() => {
+    const box = new Box3().setFromObject(scene);
+    const rawSize = new Vector3();
+    box.getSize(rawSize);
+    console.log(`[CORN MODEL MEASURE] Corn.glb: raw height = ${rawSize.y.toFixed(4)} (this is the reference height for 1.0 unit)`);
+  }, [scene]);
   
   return (
     <group position={position}>
@@ -333,6 +341,22 @@ export const InstancedWalls = ({
   const createdRef = useRef(false);
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
   const { scene, camera } = useThree();
+  
+  // Measure corn once
+  useEffect(() => {
+    const box = new Box3().setFromObject(gltfScene);
+    const rawSize = new Vector3();
+    box.getSize(rawSize);
+    // Corn is scaled with baseScale=100, heightMultiplier=1.8, so final height = rawHeight * 180
+    const finalCornHeight = rawSize.y * 100 * 1.8;
+    console.log(`[CORN INSTANCED MEASURE] Corn.glb: raw height = ${rawSize.y.toFixed(4)}, with scale 180 -> final height = ${finalCornHeight.toFixed(2)}`);
+    console.log(`[CORN INSTANCED MEASURE] To get target heights relative to corn:`);
+    console.log(`  Cow (0.63): needs final height ${(finalCornHeight * 0.63).toFixed(2)}`);
+    console.log(`  Woman (0.68): needs final height ${(finalCornHeight * 0.68).toFixed(2)}`);
+    console.log(`  Farmer (0.72): needs final height ${(finalCornHeight * 0.72).toFixed(2)}`);
+    console.log(`  Pig (0.38): needs final height ${(finalCornHeight * 0.38).toFixed(2)}`);
+    console.log(`  Chicken (0.19): needs final height ${(finalCornHeight * 0.19).toFixed(2)}`);
+  }, [gltfScene]);
   
   // Load corn texture for billboards
   const cornTex = useTexture(cornTexture);
