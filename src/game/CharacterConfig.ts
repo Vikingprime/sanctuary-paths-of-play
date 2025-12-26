@@ -15,12 +15,12 @@ export interface CharacterModelConfig {
 export const CharacterConfig: Record<string, CharacterModelConfig> = {
   // Main characters - yOffset adjusts vertical position so feet touch ground
   'Farmer.glb': {
-    scale: 0.50,   // Farmer should be tallest (0.72 relative to corn)
-    yOffset: -0.1,
+    scale: 141.0,   // 257.12 / 1.8235 - Farmer 0.72 relative to corn
+    yOffset: 0,
   },
   'Animated_Woman.glb': {
-    scale: 0.47,   // Woman should be 0.68 relative to corn (slightly shorter than farmer)
-    yOffset: -0.1,
+    scale: 46.62,   // 242.84 / 5.2083 - Woman 0.68 relative to corn
+    yOffset: 0,
   },
   
   // Animals - scales relative to corn stalk height (1.0)

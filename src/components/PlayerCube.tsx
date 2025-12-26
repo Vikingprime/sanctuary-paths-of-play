@@ -22,13 +22,13 @@ const measureModelHeight = (scene: any, name: string): number => {
   return size.y;
 };
 
-// Scale factors - adjusted based on visual comparison
-// Woman at scale 0.55 appears shorter than cow at 0.63, but should be taller
-// Reducing cow scale to make cow 0.63 and woman 0.68 relative
+// Scale factors - calculated from measured heights to achieve target heights
+// Target: Cow 0.63, Pig 0.38, Chicken 0.19 relative to corn (357.11 final height)
+// Formula: scale = (target_ratio * corn_final_height) / raw_model_height
 const ANIMAL_SCALES = {
-  chicken: 0.006,   // Adjusted
-  pig: 0.024,       // Adjusted
-  cow: 0.40,        // Reduced from 0.63 to make cow shorter than woman
+  chicken: 0.930,   // 67.85 / 72.95
+  pig: 1.377,       // 135.70 / 98.57
+  cow: 49.05,       // 224.98 / 4.59
 } as const;
 
 // Play chicken sound on spawn
