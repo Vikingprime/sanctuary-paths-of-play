@@ -378,7 +378,11 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Stella',
         speakerEmoji: '🧑',
         message: 'Say hi to Sanctuary Sam for me!',
-        cells: [{ x: 14, y: 3 }, { x: 15, y: 3 }, { x: 14, y: 4 }, { x: 15, y: 4 }],
+        cells: [
+          { x: 12, y: 3 }, { x: 13, y: 3 }, { x: 14, y: 3 }, { x: 15, y: 3 },
+          { x: 12, y: 4 }, { x: 13, y: 4 }, { x: 14, y: 4 }, { x: 15, y: 4 },
+          { x: 12, y: 5 }, { x: 13, y: 5 }, { x: 14, y: 5 }, { x: 15, y: 5 },
+        ],
         speakerCharacterId: 'char_stella',
         characterAnimation: 'idle',
       },
@@ -390,7 +394,11 @@ export const mazes: Maze[] = [
         messages: [
           { speaker: 'Sanctuary Sam', speakerEmoji: '👨‍🌾', message: "I've been looking for you!" }
         ],
-        cells: [{ x: 10, y: 14 }, { x: 11, y: 14 }, { x: 10, y: 15 }, { x: 11, y: 15 }],
+        cells: [
+          { x: 8, y: 13 }, { x: 9, y: 13 }, { x: 10, y: 13 }, { x: 11, y: 13 },
+          { x: 8, y: 14 }, { x: 9, y: 14 }, { x: 10, y: 14 }, { x: 11, y: 14 },
+          { x: 8, y: 15 }, { x: 9, y: 15 }, { x: 10, y: 15 }, { x: 11, y: 15 },
+        ],
         speakerCharacterId: 'sanctuary_sam',
         characterAnimation: 'idle',
       },
