@@ -250,26 +250,28 @@ export interface CapsuleCollider {
  * Get capsule collider for animal type
  */
 function getAnimalCapsule(animalType?: AnimalType): CapsuleCollider {
+  // Capsule sizes scaled to match new animal model sizes:
+  // Cow: ~1.575x larger, Pig: ~2x larger, Chicken: ~0.475x smaller
   switch (animalType) {
     case 'cow':
       return {
-        startOffset: -0.40,  // Tail end
-        endOffset: 0.85,     // Head/neck end  
-        radius: 0.18,        // Body radius
-        headOffset: 0.95,    // Extra head sphere
-        headRadius: 0.15
+        startOffset: -0.63,  // Tail end (was -0.40, scaled 1.575x)
+        endOffset: 1.34,     // Head/neck end (was 0.85, scaled 1.575x)
+        radius: 0.28,        // Body radius (was 0.18, scaled 1.575x)
+        headOffset: 1.50,    // Extra head sphere (was 0.95, scaled 1.575x)
+        headRadius: 0.24     // (was 0.15, scaled 1.575x)
       };
     case 'pig':
       return {
-        startOffset: -0.30,  // Extended back for rear/tail
-        endOffset: 0.55,     // Extended far forward for snout
-        radius: 0.15         // Slightly larger radius
+        startOffset: -0.60,  // Extended back for rear/tail (was -0.30, scaled 2x)
+        endOffset: 1.10,     // Extended far forward for snout (was 0.55, scaled 2x)
+        radius: 0.30         // Slightly larger radius (was 0.15, scaled 2x)
       };
     case 'bird':
       return {
-        startOffset: -0.05,
-        endOffset: 0.18,   // Extended forward to prevent head entering obstacles
-        radius: 0.08
+        startOffset: -0.024, // (was -0.05, scaled 0.475x)
+        endOffset: 0.085,    // Extended forward (was 0.18, scaled 0.475x)
+        radius: 0.038        // (was 0.08, scaled 0.475x)
       };
     default:
       return {
