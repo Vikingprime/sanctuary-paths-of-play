@@ -5,12 +5,11 @@ import { AnimationMixer, LoopRepeat, LoopOnce } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
 
-// Scale factors relative to corn stalk height (1.0 unit)
-// These are the base scales that make each model the correct size relative to corn
+// Scale factors - increased for better visibility relative to corn
 const ANIMAL_SCALES = {
-  chicken: 0.0038,  // Target height 0.19 relative to corn
-  pig: 0.016,       // Target height 0.38 relative to corn
-  cow: 0.315,       // Target height 0.63 relative to corn
+  chicken: 0.008,   // 2x larger
+  pig: 0.032,       // 2x larger
+  cow: 0.63,        // 2x larger
 } as const;
 
 // Play chicken sound on spawn
