@@ -5,6 +5,14 @@ import { AnimationMixer, LoopRepeat, LoopOnce } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
 
+// Scale factors relative to corn stalk height (1.0 unit)
+// These are the base scales that make each model the correct size relative to corn
+const ANIMAL_SCALES = {
+  chicken: 0.0038,  // Target height 0.19 relative to corn
+  pig: 0.016,       // Target height 0.38 relative to corn
+  cow: 0.315,       // Target height 0.63 relative to corn
+} as const;
+
 // Play chicken sound on spawn
 const playChickenSound = () => {
   const audio = new Audio('/sounds/chicken.mp3');
@@ -322,10 +330,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     // FIX: Raise pig model so feet touch ground at y=0
     const PIG_Y_OFFSET = 0.05;
     
+    // Use the pig scale from our constants
+    const pigScale = ANIMAL_SCALES.pig;
+    
     return (
       <group position={position}>
         <group ref={innerGroupRef}>
-          <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, PIG_Y_OFFSET, 0]} />
+          <primitive object={clonedPigScene} scale={[pigScale, pigScale, pigScale]} position={[0, PIG_Y_OFFSET, 0]} />
         </group>
         
         {/* Debug capsule collider */}
@@ -362,10 +373,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     const HEAD_RADIUS = 0.15;
     const DEBUG_Y = 0.5;
     
+    // Use the cow scale from our constants
+    const cowScale = ANIMAL_SCALES.cow;
+    
     return (
       <group position={position}>
         <group ref={cowGroupRef} position={[0, 0.15, 0]}>
-          <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.3, 0]} />
+          <primitive object={clonedCowScene} scale={[cowScale, cowScale, cowScale]} position={[0, -0.3, 0]} />
         </group>
         
         {/* Debug capsule collider - rotate with cow using rotation prop */}
@@ -410,10 +424,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   // At scale 0.008, the model's visual half-height is roughly 0.15-0.2 units.
   const CHICKEN_Y_OFFSET = 0.15;
   
+  // Use the chicken scale from our constants
+  const chickenScale = ANIMAL_SCALES.chicken;
+  
   return (
     <group position={position}>
       <group ref={innerGroupRef}>
-        <primitive object={clonedHenScene} scale={[0.008, 0.008, 0.008]} position={[0, CHICKEN_Y_OFFSET, 0]} />
+        <primitive object={clonedHenScene} scale={[chickenScale, chickenScale, chickenScale]} position={[0, CHICKEN_Y_OFFSET, 0]} />
       </group>
       
       {/* Debug grounding visualization */}
