@@ -3,6 +3,7 @@ import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, Bu
 import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
+import { getFadedCells } from './LOSCornFader';
 
 // LOD distance tiers
 const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
@@ -15,9 +16,7 @@ const CULL_DISTANCE = 14; // Hard cull at 14m where fog is dense
 const FADE_START = 10;  // Start fading corn at 10m from player
 const FADE_END = 14;    // Fully transparent at 14m from player
 
-// Camera-based fade thresholds (near-camera bubble to keep small characters visible)
-const CAMERA_FADE_START = 1.5;  // Start fading corn at 1.5m from camera
-const CAMERA_FADE_END = 1.0;    // Fully transparent at 1.0m from camera
+// Note: Near-camera bubble fade removed - replaced by LOS-based corn fading in LOSCornFader.tsx
 
 interface CornWallProps {
   position: [number, number, number];
@@ -82,8 +81,8 @@ const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
 
 
 // Helper to add distance-based opacity fading to a material using onBeforeCompile
-// Fades corn based on distance from player AND distance from camera (near-camera bubble)
-const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }, cameraPosRef?: { value: Vector3 }): Material => {
+// Fades corn based on distance from player (LOS-based fading is handled separately via matrix scaling)
+const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }): Material => {
   const mat = material as any;
   
   // Enable transparency for fading
@@ -94,7 +93,6 @@ const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }, c
   
   // Store uniform reference
   mat.userData.playerPos = playerPosRef;
-  if (cameraPosRef) mat.userData.cameraPos = cameraPosRef;
   
   const originalOnBeforeCompile = mat.onBeforeCompile;
   
@@ -103,17 +101,10 @@ const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }, c
       originalOnBeforeCompile(shader);
     }
     
-    // Add uniforms for player and camera position
+    // Add uniforms for player position
     shader.uniforms.playerPos = playerPosRef;
     shader.uniforms.fadeStart = { value: FADE_START };
     shader.uniforms.fadeEnd = { value: FADE_END };
-    
-    // Camera fade uniforms (near-camera bubble to keep small characters visible)
-    if (cameraPosRef) {
-      shader.uniforms.cameraPos = cameraPosRef;
-      shader.uniforms.cameraFadeStart = { value: CAMERA_FADE_START };
-      shader.uniforms.cameraFadeEnd = { value: CAMERA_FADE_END };
-    }
     
     // Inject varying for world position in vertex shader
     shader.vertexShader = shader.vertexShader.replace(
@@ -133,47 +124,23 @@ const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }, c
     );
     
     // Inject uniforms and varying in fragment shader
-    const uniformDeclarations = cameraPosRef ? `
-      uniform vec3 playerPos;
-      uniform float fadeStart;
-      uniform float fadeEnd;
-      uniform vec3 cameraPos;
-      uniform float cameraFadeStart;
-      uniform float cameraFadeEnd;
-      varying vec3 vWorldPos;` : `
-      uniform vec3 playerPos;
-      uniform float fadeStart;
-      uniform float fadeEnd;
-      varying vec3 vWorldPos;`;
-    
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
       `#include <common>
-      ${uniformDeclarations}`
+      uniform vec3 playerPos;
+      uniform float fadeStart;
+      uniform float fadeEnd;
+      varying vec3 vWorldPos;`
     );
     
     // Apply distance-based opacity fade at end of fragment shader
-    // Both player distance (far fog) and camera distance (near bubble) affect fade
-    const fadeLogic = cameraPosRef ? `
-      float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
-      float playerFade = 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer);
-      
-      // Near-camera fade: fade out corn that's too close to camera (bubble effect)
-      float distToCamera = distance(vWorldPos, cameraPos);
-      float cameraFade = smoothstep(cameraFadeEnd, cameraFadeStart, distToCamera);
-      
-      // Combine both fades: corn fades if far from player OR close to camera
-      gl_FragColor.a *= playerFade * cameraFade;
-      if (gl_FragColor.a < 0.01) discard;` : `
-      float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
-      float fadeFactor = 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer);
-      gl_FragColor.a *= fadeFactor;
-      if (gl_FragColor.a < 0.01) discard;`;
-    
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
-      ${fadeLogic}`
+      float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
+      float fadeFactor = 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer);
+      gl_FragColor.a *= fadeFactor;
+      if (gl_FragColor.a < 0.01) discard;`
     );
   };
   
@@ -181,14 +148,13 @@ const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }, c
   return material;
 };
 
-// Helper to optimize material for performance (fix transparency/overdraw issues)
-// Now also adds distance fade (player and camera-based)
-const optimizeMaterial = (material: Material, playerPosRef?: { value: Vector3 }, cameraPosRef?: { value: Vector3 }): Material => {
+// Helper to optimize material for performance
+const optimizeMaterial = (material: Material, playerPosRef?: { value: Vector3 }): Material => {
   const mat = material as any;
   
-  // If we have a player position ref, add distance fade (enables transparency)
+  // If we have a player position ref, add distance fade
   if (playerPosRef) {
-    addDistanceFade(material, playerPosRef, cameraPosRef);
+    addDistanceFade(material, playerPosRef);
   } else {
     // Legacy path without fade
     if ('transparent' in mat) {
@@ -490,6 +456,12 @@ export const InstancedWalls = ({
   const BACK_CULL_DOT_THRESHOLD = -0.707; // cos(135°) - corn behind this angle gets culled
   
   // Distance culling (fog is now handled by scene's FogExp2)
+  // LOS fade matrix cache - pre-allocate to avoid GC
+  const scaledMatrixRef = useRef(new Matrix4());
+  const tempScaleRef = useRef(new Vector3());
+  const tempPosRef = useRef(new Vector3());
+  const tempQuatRef = useRef(new Quaternion());
+  
   useFrame(() => {
     // Update player position uniform for shader-based opacity fade
     const px = playerPositionRef?.current?.x ?? 0;
@@ -498,6 +470,10 @@ export const InstancedWalls = ({
     
     // Update camera position uniform for near-camera bubble fade
     cameraPosUniform.value.copy(camera.position);
+    
+    // Get LOS faded cells (cells blocking line-of-sight to character)
+    const fadedCells = getFadedCells();
+    const hasLOSFade = fadedCells.size > 0;
     
     // Skip ALL culling if distance culling is disabled
     if (!optimizationSettings.enableDistanceCulling) return;
@@ -518,7 +494,8 @@ export const InstancedWalls = ({
     const camDz = camForward.z - lastCamDirRef.current.z;
     const directionChanged = camDx * camDx + camDz * camDz >= ROTATION_THRESHOLD * ROTATION_THRESHOLD;
     
-    const shouldUpdate = positionChanged || directionChanged || lastUpdatePosRef.current.x === -999;
+    // Always update if there are LOS faded cells (for smooth animation)
+    const shouldUpdate = positionChanged || directionChanged || lastUpdatePosRef.current.x === -999 || hasLOSFade;
     
     if (!shouldUpdate) return;
     lastUpdatePosRef.current = { x: px, z: pz };
@@ -543,7 +520,32 @@ export const InstancedWalls = ({
       return dot > BACK_CULL_DOT_THRESHOLD; // Keep if not directly behind
     };
     
-    // Cull edge corn (GLTF) - hard distance culling (opacity fade handled by material)
+    // Helper to apply LOS fade scale to a matrix
+    // Returns the possibly-scaled matrix
+    const applyLOSFade = (originalMatrix: Matrix4, centerX: number, centerZ: number): Matrix4 => {
+      if (!hasLOSFade) return originalMatrix;
+      
+      // Get the cell this corn belongs to
+      const cellX = Math.floor(centerX);
+      const cellZ = Math.floor(centerZ);
+      const cellKey = `${cellX},${cellZ}`;
+      const fadeOpacity = fadedCells.get(cellKey);
+      
+      if (fadeOpacity === undefined || fadeOpacity >= 0.99) {
+        return originalMatrix;
+      }
+      
+      // Decompose the matrix, scale down, recompose
+      originalMatrix.decompose(tempPosRef.current, tempQuatRef.current, tempScaleRef.current);
+      
+      // Scale down based on fade opacity (0.15 opacity = 0.15 scale)
+      tempScaleRef.current.multiplyScalar(fadeOpacity);
+      
+      scaledMatrixRef.current.compose(tempPosRef.current, tempQuatRef.current, tempScaleRef.current);
+      return scaledMatrixRef.current;
+    };
+    
+    // Cull edge corn (GLTF) - hard distance culling + LOS fade
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
       
@@ -553,8 +555,9 @@ export const InstancedWalls = ({
         
         // Distance cull AND camera-direction cull
         if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
+          const matrix = applyLOSFade(t.matrix, t.centerX, t.centerZ);
           for (const mesh of edgeMeshesRef.current) {
-            mesh.setMatrixAt(edgeCount, t.matrix);
+            mesh.setMatrixAt(edgeCount, matrix);
           }
           edgeCount++;
         }
@@ -566,7 +569,7 @@ export const InstancedWalls = ({
       }
     }
     
-    // Cull cheap corn (interior/boundary) - hard distance culling
+    // Cull cheap corn (interior/boundary) - hard distance culling + LOS fade
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
       const transforms = cheapTransformsRef.current;
       
@@ -576,7 +579,8 @@ export const InstancedWalls = ({
         
         // Distance cull AND camera-direction cull
         if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
-          cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
+          const matrix = applyLOSFade(t.matrix, t.centerX, t.centerZ);
+          cheapMeshRef.current.setMatrixAt(cheapCount, matrix);
           cheapCount++;
         }
       }
@@ -630,8 +634,8 @@ export const InstancedWalls = ({
         }
         
         const optimizedMaterial = Array.isArray(mesh.material) 
-          ? mesh.material.map(m => optimizeMaterial(m.clone(), playerPosUniform, cameraPosUniform))
-          : optimizeMaterial(mesh.material.clone(), playerPosUniform, cameraPosUniform);
+          ? mesh.material.map(m => optimizeMaterial(m.clone(), playerPosUniform))
+          : optimizeMaterial(mesh.material.clone(), playerPosUniform);
         
         const meshData = {
           geometry: mesh.geometry.clone(),

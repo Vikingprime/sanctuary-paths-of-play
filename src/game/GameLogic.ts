@@ -726,9 +726,7 @@ export function calculateMovement(
     ? GameConfig.BOOSTED_MOVE_SPEED
     : GameConfig.BASE_MOVE_SPEED;
 
-  const rotationSpeed = animalType === 'bird' 
-    ? GameConfig.ROTATION_SPEED_BIRD 
-    : GameConfig.ROTATION_SPEED;
+  const rotationSpeed = GameConfig.ROTATION_SPEED;
 
   // ========================================
   // STEP 1: RESOLVE ANY EXISTING OVERLAP
