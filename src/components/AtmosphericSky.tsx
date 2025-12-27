@@ -53,8 +53,8 @@ export const AtmosphericSky = ({
   });
 
   return (
-    <mesh renderOrder={-1000}>
-      <sphereGeometry args={[500, 32, 32]} />
+    <mesh renderOrder={-1000} frustumCulled={false}>
+      <sphereGeometry args={[500, 64, 64]} />
       <shaderMaterial
         ref={materialRef}
         uniforms={uniforms}
@@ -177,7 +177,6 @@ export const AtmosphericSky = ({
         `}
         side={BackSide}
         depthWrite={false}
-        depthTest={false}
         fog={false}
       />
     </mesh>
