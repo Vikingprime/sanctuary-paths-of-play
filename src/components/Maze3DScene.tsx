@@ -1189,7 +1189,7 @@ const OverShoulderCameraController = ({
   const DEBUG_OVERHEAD_VIEW = topDownCamera; // Use prop for toggle
   
   const CAMERA_DISTANCE_START = 0.4;
-  const CAMERA_DISTANCE_NORMAL = 0.8;
+  const CAMERA_DISTANCE_NORMAL = 2.0;
   const CAMERA_HEIGHT_START = 1.8;
   const CAMERA_HEIGHT_NORMAL = 2.4;
   const LOOK_AHEAD = 1.3;
