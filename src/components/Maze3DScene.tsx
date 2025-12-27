@@ -1163,16 +1163,20 @@ interface AutopushConfig {
 
 const DEFAULT_AUTOPUSH: AutopushConfig = {
   enabled: true,
-  minDist: 1.2,         // Min distance to push camera
-  padding: 0.2,         // Reduced padding (was 0.5)
-  pushLerp: 0.35,       // Fast push-in
-  relaxLerp: 0.06,      // Very slow relax-out (prevents pumping)
-  headHeight: 0.5,      // Animal head height
+  minDist: 2.2,         // Min distance to push camera (never closer than this)
+  padding: 0.3,         // Padding before corn
+  pushLerp: 0.25,       // Moderate push-in (was 0.35)
+  relaxLerp: 0.04,      // Very slow relax-out (prevents pumping)
+  headHeight: 1.2,      // Raised ray origin to cow head height (avoids ground/body hits)
   rayCount: 3,          // Use 3 rays for stability
-  raySpread: 0.15,      // ~8.5 degrees spread for side rays
-  holdTimeMs: 200,      // Keep pushed-in for 200ms after ray clears
-  minPushDelta: 0.05,   // Reduced for testing (was 0.6)
+  raySpread: 0.12,      // ~7 degrees spread for side rays
+  holdTimeMs: 250,      // Keep pushed-in for 250ms after ray clears
+  minPushDelta: 0.25,   // Ignore grazing hits (was 0.6, too strict; 0.05 too loose)
 };
+
+// Zoom speed limits (units per second)
+const AUTOPUSH_ZOOM_IN_SPEED = 2.0;  // Max zoom-in speed
+const AUTOPUSH_ZOOM_OUT_SPEED = 1.0; // Max zoom-out speed
 
 // Simple over-the-shoulder camera with smooth follow - reads from ref each frame
 const OverShoulderCameraController = ({ 
@@ -1210,6 +1214,7 @@ const OverShoulderCameraController = ({
   // Autopush state - scalar-based distance easing
   const currentAutopushDist = useRef<number | null>(null);
   const lastHitTime = useRef<number>(0); // Timestamp of last hit for hysteresis
+  const lastFrameTime = useRef<number>(performance.now()); // For speed limiting
   const raycaster = useRef(new Raycaster());
   const rayOrigin = useRef(new Vector3());
   const rayDir = useRef(new Vector3());
@@ -1318,27 +1323,39 @@ const OverShoulderCameraController = ({
       rayDir.current.copy(targetPos.current).sub(headPos).normalize();
       const rayLength = headPos.distanceTo(targetPos.current);
       
-      // Collect foliage meshes for raycasting (InstancedMesh + regular Mesh)
-      const foliageMeshes: Object3D[] = [];
+      // Collect ONLY corn blockers for raycasting - exclude ground, player, cow, etc.
+      // Look for meshes with 'corn' or 'wall' in their name/userData
+      const cameraBlockers: Object3D[] = [];
       foliageGroupRef.current.traverse((child) => {
-        if ((child as Mesh).isMesh || (child as InstancedMesh).isInstancedMesh) {
-          foliageMeshes.push(child);
+        const mesh = child as Mesh;
+        if (mesh.isMesh || (child as InstancedMesh).isInstancedMesh) {
+          // Only include objects that are explicitly camera blockers (corn stalks, walls)
+          const name = child.name?.toLowerCase() || '';
+          const isCornBlocker = name.includes('corn') || 
+                                name.includes('stalk') || 
+                                name.includes('wall') ||
+                                child.userData?.isCameraBlocker === true;
+          if (isCornBlocker) {
+            cameraBlockers.push(child);
+          }
         }
       });
       
       // Perform raycasts (1 or 3 rays)
       let closestHitDist = rayLength;
+      let hitObjectName = '';
       
       const performRaycast = (direction: Vector3) => {
         rayOrigin.current.copy(headPos);
         raycaster.current.set(rayOrigin.current, direction);
         raycaster.current.far = rayLength;
         
-        const intersects = raycaster.current.intersectObjects(foliageMeshes, false);
+        const intersects = raycaster.current.intersectObjects(cameraBlockers, false);
         if (intersects.length > 0) {
           const hitDist = intersects[0].distance;
           if (hitDist < closestHitDist) {
             closestHitDist = hitDist;
+            hitObjectName = intersects[0].object.name || 'unnamed';
           }
         }
       };
@@ -1391,9 +1408,11 @@ const OverShoulderCameraController = ({
       if (now - debugLogRef.lastLog > 500) {
         debugLogRef.lastLog = now;
         console.log('[AUTOPUSH]', {
-          meshCount: foliageMeshes.length,
+          blockerCount: cameraBlockers.length,
+          rayOriginY: headPos.y.toFixed(2),
           desiredDist: rayLength.toFixed(2),
           hitDist: hasHit ? hitDist.toFixed(2) : 'none',
+          hitObject: hasHit ? hitObjectName : 'none',
           pushedDist: pushedDist.toFixed(2),
           delta: delta.toFixed(2),
           minPushDelta: autopush.minPushDelta,
@@ -1437,15 +1456,34 @@ const OverShoulderCameraController = ({
         currentAutopushDist.current = desiredDistForAutopush;
       }
       
-      // Scalar-based distance easing with asymmetric damping
+      // Scalar-based distance easing with speed limits
       const currAutoDist = currentAutopushDist.current;
+      
+      // Calculate delta time for speed limiting
+      const deltaTime = Math.min((now - lastFrameTime.current) / 1000, 0.1); // Cap at 100ms
+      lastFrameTime.current = now;
       
       // Determine if we're pushing in or relaxing out
       const isPushingIn = targetDist < currAutoDist;
       const lerpSpeed = isPushingIn ? autopush.pushLerp : autopush.relaxLerp;
       
-      // Ease toward target distance
-      currentAutopushDist.current = currAutoDist + (targetDist - currAutoDist) * lerpSpeed;
+      // Calculate desired change
+      let desiredChange = (targetDist - currAutoDist) * lerpSpeed;
+      
+      // Apply speed limits (units per second * deltaTime = max change this frame)
+      const maxZoomIn = AUTOPUSH_ZOOM_IN_SPEED * deltaTime;
+      const maxZoomOut = AUTOPUSH_ZOOM_OUT_SPEED * deltaTime;
+      
+      if (desiredChange < 0) {
+        // Zooming in (distance decreasing)
+        desiredChange = Math.max(desiredChange, -maxZoomIn);
+      } else {
+        // Zooming out (distance increasing)
+        desiredChange = Math.min(desiredChange, maxZoomOut);
+      }
+      
+      // Apply the speed-limited change
+      currentAutopushDist.current = currAutoDist + desiredChange;
       
       // Clamp to valid range
       currentAutopushDist.current = Math.max(autopush.minDist, Math.min(currentAutopushDist.current, desiredDistForAutopush));
