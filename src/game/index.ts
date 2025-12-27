@@ -16,6 +16,7 @@ export { GameConfig } from './GameConfig';
 export {
   findStartPosition,
   findStartRotation,
+  findBestFacingDirection,
   findEndPosition,
   getCell,
   isWall,

@@ -105,6 +105,68 @@ export function findStartRotation(maze: Maze): number {
 }
 
 /**
+ * Find the best facing direction for any character at a given position
+ * Returns rotation.y value to apply directly to a Three.js group (faces +Z by default)
+ * 
+ * Raycasts in 24 directions to find the most open path
+ */
+export function findBestFacingDirection(maze: Maze, posX: number, posY: number): number {
+  // Raycast in 24 directions (every 15 degrees) to find the clearest path
+  const numDirections = 24;
+  const checkDistance = 2.0; // How far to check (2 cells away for NPCs)
+  const stepSize = 0.1;
+  
+  let bestAngle = 0;
+  let bestClearance = -1;
+  
+  for (let i = 0; i < numDirections; i++) {
+    const angle = (i / numDirections) * Math.PI * 2; // 0 to 2π
+    
+    // Direction vector for this angle
+    // angle 0 = facing +X, angle π/2 = facing +Z
+    const dirX = Math.cos(angle);
+    const dirZ = Math.sin(angle);
+    
+    // Find clearance in this direction
+    let clearance = 0;
+    for (let dist = stepSize; dist <= checkDistance; dist += stepSize) {
+      const checkX = posX + dirX * dist;
+      const checkZ = posY + dirZ * dist;
+      
+      const gridX = Math.floor(checkX);
+      const gridZ = Math.floor(checkZ);
+      
+      if (isWall(maze, gridX, gridZ)) {
+        break;
+      }
+      clearance = dist;
+    }
+    
+    if (clearance > bestClearance) {
+      bestClearance = clearance;
+      bestAngle = angle;
+    }
+  }
+  
+  // Convert to Three.js rotation.y
+  // Model faces +Z by default
+  // angle 0 = facing +X → rotation.y = -π/2
+  // angle π/2 = facing +Z → rotation.y = 0
+  // angle π = facing -X → rotation.y = π/2
+  // angle 3π/2 = facing -Z → rotation.y = π
+  // Formula: rotation.y = π/2 - angle
+  // But we want atan2 style: rotation.y = atan2(dirX, dirZ)
+  // Which gives us: rotation.y = angle - π/2 (adjusted for Three.js where +Z is forward)
+  
+  // For Three.js group.rotation.y where model faces +Z:
+  // To face direction (cos(angle), sin(angle)), we use atan2(cos(angle), sin(angle))
+  // But simpler: rotation.y = -angle + π/2 makes model face the direction
+  const rotationY = -bestAngle + Math.PI / 2;
+  
+  return rotationY;
+}
+
+/**
  * Find the end position in a maze
  */
 export function findEndPosition(maze: Maze): { x: number; y: number } | null {
