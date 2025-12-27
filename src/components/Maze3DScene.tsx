@@ -1401,13 +1401,13 @@ return (
     <>
       
       {/* Lighting - 8am morning sunlight */}
-      <ambientLight intensity={0.9} color="#FFF8F0" />
+      <ambientLight intensity={1.2} color="#C8C0B0" />
       
       {/* Main sun light - follows player for consistent shadows */}
       <directionalLight
         ref={lightRef}
         position={[15, 35, 15]}
-        intensity={3.5}
+        intensity={3.0}
         color="#FFFDF5"
         castShadow
         shadow-mapSize={[2048, 2048]}
@@ -1423,15 +1423,15 @@ return (
         <object3D attach="target" />
       </directionalLight>
       
-      {/* Fill light from opposite side */}
+      {/* Fill light from opposite side - matches fog tint */}
       <directionalLight
         position={[-15, 15, -10]}
-        intensity={0.45}
-        color="#D8E8FF"
+        intensity={0.6}
+        color="#C8C0B0"
       />
       
-      {/* Hemisphere light for natural sky/ground color */}
-      <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
+      {/* Hemisphere light - ground color MUST match fog for proper blending */}
+      <hemisphereLight args={['#A8C8E8', '#B8B0A0', 0.8]} />
       
       {/* Scene background color - must match fog color for seamless blend */}
       <color attach="background" args={['#B8B0A0']} />
