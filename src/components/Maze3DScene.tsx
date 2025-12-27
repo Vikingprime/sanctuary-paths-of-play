@@ -930,7 +930,7 @@ const RefBasedPlayer = ({
   showCollisionDebug?: boolean;
 }) => {
   const groupRef = useRef<any>(null);
-  const smoothRotation = useRef(0);
+  const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
   const smoothPositionX = useRef(0);
   const smoothPositionZ = useRef(0);
   const positionInitialized = useRef(false);
@@ -976,10 +976,13 @@ const RefBasedPlayer = ({
       isMovingRef.current = false;
     }
     
-    // Initialize smooth position on first frame
+    // Initialize smooth position and rotation on first frame
     if (!positionInitialized.current) {
       smoothPositionX.current = playerStateRef.current.x;
       smoothPositionZ.current = playerStateRef.current.y;
+      // Initialize rotation to match the actual starting rotation
+      const initialRotation = -playerStateRef.current.rotation + Math.PI;
+      smoothRotation.current = initialRotation;
       positionInitialized.current = true;
     }
     
@@ -994,12 +997,12 @@ const RefBasedPlayer = ({
     
     // Smooth rotation with fixed lerp factor (not delta-dependent)
     const targetRotation = -playerStateRef.current.rotation + Math.PI;
-    let rotDiff = targetRotation - smoothRotation.current;
+    let rotDiff = targetRotation - (smoothRotation.current ?? targetRotation);
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
     
     // Fixed lerp factor for consistent rotation smoothing
-    smoothRotation.current += rotDiff * 0.15;
+    smoothRotation.current = (smoothRotation.current ?? targetRotation) + rotDiff * 0.15;
     
     // Normalize rotation
     if (smoothRotation.current > Math.PI * 2) smoothRotation.current -= Math.PI * 2;
