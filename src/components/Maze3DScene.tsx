@@ -96,9 +96,9 @@ const mat = new ShaderMaterial({
         rockLight: { value: new Color('#C4B090') },
         rockMid: { value: new Color('#A08060') },
         rockDark: { value: new Color('#705540') },
-        // Fog uniforms - synced with scene fog for consistency
-        fogColor: { value: new Color('#D8C8B8') },
-        fogDensity: { value: 0.35 },  // High density to fully obscure at cull distance
+        // Fog uniforms - synced with scene fog for consistency (matches horizon color exactly)
+        fogColor: { value: new Color('#E8D8C8') },
+        fogDensity: { value: 0.035 },  // Low density for soft natural falloff
       },
       fog: true,
       vertexShader: `
@@ -1447,11 +1447,11 @@ return (
       />
       
       {/* === SKY-FOG GLUE === */}
-      {/* Background color as fallback - matches horizon */}
+      {/* Background/horizon color - fog MUST match exactly for corn to vanish into it */}
       <color attach="background" args={['#E8D8C8']} />
       
-      {/* Very dense fog to completely obscure corn at cull distance */}
-      <fogExp2 attach="fog" args={['#D8C8B8', 0.35]} />
+      {/* FogExp2 with low density for soft natural falloff - color matches horizon exactly */}
+      <fogExp2 attach="fog" args={['#E8D8C8', 0.035]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
