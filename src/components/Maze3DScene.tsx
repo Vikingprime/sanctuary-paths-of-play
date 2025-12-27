@@ -1358,15 +1358,15 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     }
   });
 
-  // Sky gradient shader material - Ghibli-style soft blue to peach
+  // Sky gradient shader material
   const skyMaterial = useMemo(() => {
     return new ShaderMaterial({
       uniforms: {
-        topColor: { value: new Color('#A8D8EA') },      // Soft Ghibli blue
-        horizonColor: { value: new Color('#FAD0C4') },  // Warm peach/cream
-        bottomColor: { value: new Color('#E8D0C0') },   // Matches fog
+        topColor: { value: new Color('#8BA4C7') },      // Soft cornflower blue
+        horizonColor: { value: new Color('#E8D8C8') },  // Warm peach/cream
+        bottomColor: { value: new Color('#D8C8B8') },   // Matches fog
         offset: { value: 0.4 },
-        exponent: { value: 0.5 },
+        exponent: { value: 0.6 },
       },
       vertexShader: `
         varying vec3 vWorldPosition;
@@ -1447,11 +1447,11 @@ return (
       />
       
       {/* === SKY-FOG GLUE === */}
-      {/* Background color as fallback - matches horizon peach */}
-      <color attach="background" args={['#FAD0C4']} />
+      {/* Background color as fallback - matches horizon */}
+      <color attach="background" args={['#E8D8C8']} />
       
-      {/* Linear fog: starts 12 units away (keep Clara crisp), ends at 35 (before camera far=40) */}
-      <fog attach="fog" args={['#E8D0C0', 12, 35]} />
+      {/* Denser fog to hide corn culling in distance */}
+      <fogExp2 attach="fog" args={['#D8C8B8', 0.12]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
@@ -1642,7 +1642,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
         frameloop="always"
         performance={{ min: 0.1 }}
       >
-        <PerspectiveCamera makeDefault fov={60} near={0.1} far={40} />
+        <PerspectiveCamera makeDefault fov={60} near={0.1} far={100} />
         <Scene {...props} onCullStats={setCullStats} />
         <FPSTracker onFpsUpdate={setFps} />
         <RendererInfoTracker onRendererInfo={props.onRendererInfo} />
