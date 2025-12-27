@@ -4,7 +4,8 @@ import {
   MeshBasicMaterial, 
   BackSide, 
   Mesh,
-  SphereGeometry
+  SphereGeometry,
+  PerspectiveCamera
 } from 'three';
 
 interface AtmosphericSkyProps {
@@ -18,8 +19,7 @@ interface AtmosphericSkyProps {
 }
 
 /**
- * Atmospheric sky dome - VISIBILITY DEBUG
- * Using MeshBasicMaterial with magenta to prove it renders
+ * Atmospheric sky dome - sized to camera far plane
  */
 export const AtmosphericSky = (_props: AtmosphericSkyProps) => {
   const { scene, camera } = useThree();
@@ -27,13 +27,16 @@ export const AtmosphericSky = (_props: AtmosphericSkyProps) => {
   const addedRef = useRef(false);
 
   useEffect(() => {
-    // Only add once
     if (addedRef.current) return;
     addedRef.current = true;
     
-    console.log('[AtmosphericSky] Creating MAGENTA debug dome...');
+    // Get camera far plane - use 0.95 of it so we're inside the frustum
+    const perspCam = camera as PerspectiveCamera;
+    const radius = (perspCam.far || 1000) * 0.95;
     
-    // Simplest possible material - MeshBasicMaterial with magenta
+    console.log('[AtmosphericSky] Camera far:', perspCam.far, 'Using radius:', radius);
+    
+    // Simple magenta material for debug
     const skyMaterial = new MeshBasicMaterial({
       color: 0xff00ff, // MAGENTA
       side: BackSide,
@@ -42,39 +45,29 @@ export const AtmosphericSky = (_props: AtmosphericSkyProps) => {
       fog: false,
     });
 
-    // Create sphere geometry
-    const skyGeometry = new SphereGeometry(1, 32, 16);
+    // Create sphere with radius based on camera far plane
+    const skyGeometry = new SphereGeometry(radius, 32, 16);
     const skyMesh = new Mesh(skyGeometry, skyMaterial);
-    
-    // Make it HUGE
-    skyMesh.scale.setScalar(10000);
     
     // Critical settings
     skyMesh.frustumCulled = false;
     skyMesh.renderOrder = -1000;
-    skyMesh.name = 'DEBUG_SKY_DOME';
+    skyMesh.name = 'SKY_DOME';
     
-    // Position at camera initially
+    // Start at camera position
     skyMesh.position.copy(camera.position);
     
     skyMeshRef.current = skyMesh;
     scene.add(skyMesh);
     
-    console.log('[AtmosphericSky] Dome added:', {
-      position: skyMesh.position.toArray(),
-      scale: skyMesh.scale.toArray(),
-      visible: skyMesh.visible,
-      inScene: scene.children.includes(skyMesh)
-    });
+    console.log('[AtmosphericSky] Dome added with radius:', radius);
 
-    // Don't remove on cleanup - persist across rerenders
     return () => {
-      // Intentionally NOT removing to prevent rerender issues
-      console.log('[AtmosphericSky] Cleanup called but NOT removing dome');
+      console.log('[AtmosphericSky] Cleanup - NOT removing');
     };
   }, [scene, camera]);
 
-  // Every frame: keep dome centered on camera
+  // Keep dome centered on camera every frame
   useFrame(() => {
     if (skyMeshRef.current) {
       skyMeshRef.current.position.copy(camera.position);
