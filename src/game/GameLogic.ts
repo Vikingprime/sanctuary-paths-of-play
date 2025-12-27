@@ -908,10 +908,11 @@ export function calculateMovement(
           
           if (wantsRight || wantsLeft) {
             // User is pressing a rotation key - compute the world-space lateral direction
-            // Right = perpendicular to facing direction (90 degrees clockwise)
-            const lateralDirSign = wantsRight ? 1 : -1;
-            const lateralWorldX = Math.cos(newRotation) * lateralDirSign;
-            const lateralWorldY = Math.sin(newRotation) * lateralDirSign;
+            // Forward is (sin(rotation), -cos(rotation))
+            // Right (90° clockwise) = (-cos(rotation), -sin(rotation))
+            // Left (90° counter-clockwise) = (cos(rotation), sin(rotation))
+            const lateralWorldX = wantsRight ? -Math.cos(newRotation) : Math.cos(newRotation);
+            const lateralWorldY = wantsRight ? -Math.sin(newRotation) : Math.sin(newRotation);
             
             // Remove the component of lateral direction that goes INTO the wall
             const lateralDotNormal = lateralWorldX * nx + lateralWorldY * ny;
