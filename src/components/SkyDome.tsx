@@ -27,22 +27,25 @@ export const SkyDome = () => {
     const ctx = canvas.getContext('2d')!;
 
     // Vertical gradient from top to horizon
+    // The gradient maps to the sphere: 0 = top (zenith), 1 = bottom (nadir)
+    // We want the fog-colored band to be MUCH larger so fogged objects blend seamlessly
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
     
     // Top: soft pleasant blue sky
     gradient.addColorStop(0, '#6BA3D6');
     
     // Upper-mid: lighter blue transitioning to warmer
-    gradient.addColorStop(0.25, '#8BB8E0');
+    gradient.addColorStop(0.15, '#8BB8E0');
     
-    // Mid: pale warm sky
-    gradient.addColorStop(0.5, '#B5C8D8');
+    // Mid: pale warm sky - transition starts earlier
+    gradient.addColorStop(0.3, '#B5C8D8');
     
-    // Lower-mid: transitioning to fog color
-    gradient.addColorStop(0.7, '#B0B5A8');
+    // Lower-mid: transitioning to fog color - starts much earlier
+    gradient.addColorStop(0.45, '#B0B5A8');
     
-    // Horizon band: EXACT fog color for seamless blend
-    gradient.addColorStop(0.85, FOG_COLOR_HEX);
+    // Horizon band: EXACT fog color - covers most of lower hemisphere
+    // Start fog color at 0.55 (was 0.85) so it covers ~45% of view
+    gradient.addColorStop(0.55, FOG_COLOR_HEX);
     gradient.addColorStop(1.0, FOG_COLOR_HEX);
 
     // Fill background with gradient
