@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { 
-  ShaderMaterial, 
+  MeshBasicMaterial, 
   BackSide, 
   Mesh,
   SphereGeometry
@@ -18,62 +18,63 @@ interface AtmosphericSkyProps {
 }
 
 /**
- * Atmospheric sky dome - DEBUG VERSION
- * First prove it renders with magenta, then add gradient
+ * Atmospheric sky dome - VISIBILITY DEBUG
+ * Using MeshBasicMaterial with magenta to prove it renders
  */
-export const AtmosphericSky = ({
-  zenithColor = '#6BA8DC',
-  midColor = '#A8B8C4',
-  horizonColor = '#B8B0A0',
-}: AtmosphericSkyProps) => {
+export const AtmosphericSky = (_props: AtmosphericSkyProps) => {
   const { scene, camera } = useThree();
   const skyMeshRef = useRef<Mesh | null>(null);
+  const addedRef = useRef(false);
 
   useEffect(() => {
-    console.log('[AtmosphericSky] Creating sky dome...');
+    // Only add once
+    if (addedRef.current) return;
+    addedRef.current = true;
     
-    // Create sky material - MAGENTA TEST
-    const skyMaterial = new ShaderMaterial({
-      vertexShader: `
-        void main() {
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        void main() {
-          // CONSTANT MAGENTA - proves mesh is rendering
-          gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);
-        }
-      `,
+    console.log('[AtmosphericSky] Creating MAGENTA debug dome...');
+    
+    // Simplest possible material - MeshBasicMaterial with magenta
+    const skyMaterial = new MeshBasicMaterial({
+      color: 0xff00ff, // MAGENTA
       side: BackSide,
       depthTest: false,
       depthWrite: false,
       fog: false,
-      toneMapped: false,
     });
 
-    // Create sky dome geometry - large enough to encompass scene
-    const skyGeometry = new SphereGeometry(1000, 32, 32);
+    // Create sphere geometry
+    const skyGeometry = new SphereGeometry(1, 32, 16);
     const skyMesh = new Mesh(skyGeometry, skyMaterial);
-    skyMesh.renderOrder = -1000;
+    
+    // Make it HUGE
+    skyMesh.scale.setScalar(10000);
+    
+    // Critical settings
     skyMesh.frustumCulled = false;
-    skyMesh.name = 'AtmosphericSkyDome';
+    skyMesh.renderOrder = -1000;
+    skyMesh.name = 'DEBUG_SKY_DOME';
+    
+    // Position at camera initially
+    skyMesh.position.copy(camera.position);
     
     skyMeshRef.current = skyMesh;
     scene.add(skyMesh);
     
-    console.log('[AtmosphericSky] Sky dome added to scene:', skyMesh);
-    console.log('[AtmosphericSky] Scene children count:', scene.children.length);
+    console.log('[AtmosphericSky] Dome added:', {
+      position: skyMesh.position.toArray(),
+      scale: skyMesh.scale.toArray(),
+      visible: skyMesh.visible,
+      inScene: scene.children.includes(skyMesh)
+    });
 
+    // Don't remove on cleanup - persist across rerenders
     return () => {
-      console.log('[AtmosphericSky] Removing sky dome...');
-      scene.remove(skyMesh);
-      skyGeometry.dispose();
-      skyMaterial.dispose();
+      // Intentionally NOT removing to prevent rerender issues
+      console.log('[AtmosphericSky] Cleanup called but NOT removing dome');
     };
-  }, [scene]);
+  }, [scene, camera]);
 
-  // Keep sky centered on camera
+  // Every frame: keep dome centered on camera
   useFrame(() => {
     if (skyMeshRef.current) {
       skyMeshRef.current.position.copy(camera.position);
