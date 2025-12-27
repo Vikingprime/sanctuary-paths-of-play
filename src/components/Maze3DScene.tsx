@@ -1704,7 +1704,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
         frameloop="always"
         performance={{ min: 0.1 }}
       >
-        <PerspectiveCamera makeDefault fov={60} near={0.1} far={100} />
+        <PerspectiveCamera makeDefault fov={60} near={0.1} far={200} />
         <Scene {...props} onCullStats={setCullStats} />
         <FPSTracker onFpsUpdate={setFps} />
         <RendererInfoTracker onRendererInfo={props.onRendererInfo} />
