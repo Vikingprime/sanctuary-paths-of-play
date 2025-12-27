@@ -29,6 +29,10 @@ export const AtmosphericSky = ({
   const skyMeshRef = useRef<Mesh | null>(null);
 
   useEffect(() => {
+    // Set scene.background to horizon/fog color as fallback
+    const horizonBg = new Color(horizonColor);
+    scene.background = horizonBg;
+    
     // Create gradient texture on canvas
     const canvas = document.createElement('canvas');
     canvas.width = 512;
