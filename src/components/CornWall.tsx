@@ -8,8 +8,8 @@ import cornTexture from '@/assets/corn-texture.png';
 const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
 const LOD_CHEAP_DISTANCE = 16;          // Cheap material 6-16m, hidden beyond 16m
 
-// Hard cull distance - must be well within fog for seamless hiding
-const CULL_DISTANCE = 10; // Hard cull at 10m - fog at 0.28 gives ~94% obscured
+// Hard cull distance - fog should obscure corn before this distance
+const CULL_DISTANCE = 14; // Hard cull at 14m where fog is dense
 
 interface CornWallProps {
   position: [number, number, number];
