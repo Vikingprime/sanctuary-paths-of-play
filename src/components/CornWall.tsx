@@ -100,6 +100,11 @@ const optimizeMaterial = (material: Material): Material => {
     mat.side = FrontSide;
   }
   
+  // CRITICAL: Ensure fog is enabled for proper scene integration
+  if ('fog' in mat) {
+    mat.fog = true;
+  }
+  
   mat.needsUpdate = true;
   return material;
 };
@@ -542,6 +547,7 @@ export const InstancedWalls = ({
       depthWrite: true,
       depthTest: true,
       side: FrontSide,
+      fog: true, // CRITICAL: Enable fog for proper scene integration
     });
     
     // Low-poly LOD corn: thicker stalk + larger drooping leaves
@@ -627,6 +633,7 @@ export const InstancedWalls = ({
       color: new Color(0.2, 0.45, 0.15),
       side: DoubleSide, // See leaves from both sides
       depthWrite: true,
+      fog: true, // CRITICAL: Enable fog for proper scene integration
     });
     
     // Use all meshes from the model (stalk + leaves + corn cobs)
