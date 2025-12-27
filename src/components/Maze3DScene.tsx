@@ -9,7 +9,6 @@ import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
 import { findStartRotation } from '@/game/MazeUtils';
-import { calculateFadeFactor, FOG_FADE_CONSTANTS } from './FogFadeMaterial';
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
@@ -304,15 +303,9 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
   const lastUpdateRef = useRef({ x: -999, z: -999, dirX: 0, dirZ: -1 });
   const initializedRef = useRef(false);
   
-  const { geometry, material, rockTransforms, baseScales } = useMemo(() => {
+  const { geometry, material, rockTransforms } = useMemo(() => {
     const geo = new DodecahedronGeometry(1, 0);
-    // Use transparent material for fog fade
-    const mat = new MeshStandardMaterial({ 
-      color: "#7A6350", 
-      roughness: 0.9,
-      transparent: true,
-      opacity: 1,
-    });
+    const mat = new MeshStandardMaterial({ color: "#7A6350", roughness: 0.9 });
     
     const seededRandom = (seed: number) => {
       const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
@@ -320,7 +313,6 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     };
     
     const transforms: { matrix: any; x: number; z: number }[] = [];
-    const scales: { x: number; y: number; z: number }[] = [];
     const tempObject = new Object3D();
     
     rocks.forEach((rock) => {
@@ -329,19 +321,14 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
       const seed = Math.floor(rock.x * 1000 + rock.z);
       const rotation = seededRandom(seed + 4) * Math.PI * 2;
       
-      const scaleX = visualScale * 1.2;
-      const scaleY = visualScale * 0.5;
-      const scaleZ = visualScale;
-      
       tempObject.position.set(rock.x, visualScale * 0.25, rock.z);
       tempObject.rotation.set(0, rotation, 0);
-      tempObject.scale.set(scaleX, scaleY, scaleZ);
+      tempObject.scale.set(visualScale * 1.2, visualScale * 0.5, visualScale);
       tempObject.updateMatrix();
       transforms.push({ matrix: tempObject.matrix.clone(), x: rock.x, z: rock.z });
-      scales.push({ x: scaleX, y: scaleY, z: scaleZ });
     });
     
-    return { geometry: geo, material: mat, rockTransforms: transforms, baseScales: scales };
+    return { geometry: geo, material: mat, rockTransforms: transforms };
   }, [rocks]);
   
   // Initialize all rocks on mount
@@ -356,7 +343,7 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     initializedRef.current = true;
   }, [rockTransforms]);
   
-  // Distance culling with fade - applies scale fade for smooth transition
+  // Distance-only culling - no camera direction culling (prevents rocks from disappearing on turn)
   useFrame(() => {
     if (!meshRef.current || !playerStateRef || !initializedRef.current) return;
     
@@ -373,29 +360,15 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     
     const cullDistSq = ROCK_CULL_DISTANCE * ROCK_CULL_DISTANCE;
     let visibleCount = 0;
-    const tempObject = new Object3D();
     
+    // Two-pass: first count visible, then set matrices
     for (let i = 0; i < rockTransforms.length; i++) {
       const t = rockTransforms[i];
       const distSq = (px - t.x) ** 2 + (pz - t.z) ** 2;
       
       if (distSq < cullDistSq) {
-        const distance = Math.sqrt(distSq);
-        const fadeFactor = calculateFadeFactor(distance);
-        
-        if (fadeFactor > 0.01) {
-          // Apply fade via scale
-          const scale = baseScales[i];
-          tempObject.position.set(t.x, scale.y * 0.5 * fadeFactor, t.z);
-          tempObject.scale.set(
-            scale.x * fadeFactor,
-            scale.y * fadeFactor,
-            scale.z * fadeFactor
-          );
-          tempObject.updateMatrix();
-          meshRef.current.setMatrixAt(visibleCount, tempObject.matrix);
-          visibleCount++;
-        }
+        meshRef.current.setMatrixAt(visibleCount, t.matrix);
+        visibleCount++;
       }
     }
     
@@ -498,37 +471,19 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     return positions;
   }, [maze]);
   
-  // Pre-clone all scenes once and store base scales
-  const { clonedScenes, baseScales } = useMemo(() => {
-    const scenes = allGrassData.map((tuft) => {
+  // Pre-clone all scenes once
+  const clonedScenes = useMemo(() => {
+    return allGrassData.map((tuft) => {
       const scene = (tuft.type === 1 ? grass231 : grass232).scene.clone();
       scene.position.set(tuft.x, 0, tuft.z);
       scene.rotation.set(0, tuft.rotation, 0);
       const s = tuft.scale * 0.04;
       scene.scale.set(s, s, s);
-      
-      // Make materials transparent for fade effect
-      scene.traverse((child: Object3D) => {
-        if ((child as Mesh).isMesh) {
-          const mesh = child as Mesh;
-          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-          mats.forEach(mat => {
-            (mat as any).transparent = true;
-            (mat as any).opacity = 1;
-          });
-        }
-      });
-      
       return scene;
     });
-    const scales = allGrassData.map(tuft => tuft.scale * 0.04);
-    return { clonedScenes: scenes, baseScales: scales };
   }, [allGrassData, grass231, grass232]);
   
-  // Store fade factors for each grass tuft
-  const fadeFactorsRef = useRef<number[]>([]);
-  
-  // Update visible grass based on player distance + camera direction with fade
+  // Update visible grass based on player distance + camera direction
   useFrame(() => {
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
@@ -553,8 +508,6 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     const nearDistSq = GRASS_NEAR_DISTANCE * GRASS_NEAR_DISTANCE;
     
     const visible: number[] = [];
-    const fadeFactors: number[] = [];
-    
     for (let i = 0; i < allGrassData.length; i++) {
       const g = allGrassData[i];
       const distSq = (g.x - px) ** 2 + (g.z - pz) ** 2;
@@ -570,27 +523,10 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
         if (dot <= GRASS_BACK_CULL_DOT) continue;
       }
       
-      // Calculate fade factor
-      const distance = Math.sqrt(distSq);
-      const fadeFactor = calculateFadeFactor(distance);
-      
-      if (fadeFactor > 0.01) {
-        visible.push(i);
-        fadeFactors.push(fadeFactor);
-      }
-    }
-    
-    // Apply fade by scaling - update cloned scenes directly
-    for (let vi = 0; vi < visible.length; vi++) {
-      const i = visible[vi];
-      const fadeFactor = fadeFactors[vi];
-      const baseScale = baseScales[i];
-      const scaledSize = baseScale * fadeFactor;
-      clonedScenes[i].scale.set(scaledSize, scaledSize, scaledSize);
+      visible.push(i);
     }
     
     // Only update if changed
-    fadeFactorsRef.current = fadeFactors;
     if (visible.length !== visibleRef.current.length || 
         visible.some((v, idx) => visibleRef.current[idx] !== v)) {
       visibleRef.current = visible;
@@ -834,21 +770,10 @@ const CharacterRenderer = ({
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        // Make materials transparent for fade support
-        if (child.material) {
-          const mats = Array.isArray(child.material) ? child.material : [child.material];
-          mats.forEach((mat: Material) => {
-            (mat as any).transparent = true;
-            (mat as any).opacity = 1;
-          });
-        }
       }
     });
     return clone;
   }, [scene]);
-  
-  // Track original opacity for fade
-  const baseOpacityRef = useRef(1);
   
   // Set up animation mixer
   useEffect(() => {
@@ -896,24 +821,6 @@ const CharacterRenderer = ({
         const dz = playerZ - charZ;
         const angle = Math.atan2(dx, dz);
         groupRef.current.rotation.y = angle;
-      }
-      
-      // Apply fog fade based on distance from player
-      if (playerStateRef) {
-        const charX = position.x + 0.5;
-        const charZ = position.y + 0.5;
-        const playerX = playerStateRef.current.x;
-        const playerZ = playerStateRef.current.y;
-        
-        const dx = playerX - charX;
-        const dz = playerZ - charZ;
-        const distance = Math.sqrt(dx * dx + dz * dz);
-        const fadeFactor = calculateFadeFactor(distance);
-        
-        // Apply scale-based fade for smoother transition
-        const baseScale = characterScale;
-        groupRef.current.scale.setScalar(baseScale * fadeFactor);
-        groupRef.current.visible = fadeFactor > 0.01;
       }
     }
     
