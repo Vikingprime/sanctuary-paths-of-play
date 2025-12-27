@@ -1157,17 +1157,21 @@ interface AutopushConfig {
   headHeight: number;   // Height of target (animal head)
   rayCount: 3 | 1;      // 1 for single ray, 3 for left/center/right
   raySpread: number;    // Spread angle for side rays (radians)
+  holdTimeMs: number;   // Hysteresis: hold pushed-in state for this many ms after ray clears
+  minPushDelta: number; // Ignore micro-hits: only push if distance reduction > this
 }
 
 const DEFAULT_AUTOPUSH: AutopushConfig = {
   enabled: true,
-  minDist: 0.8,         // Very close minimum
-  padding: 0.3,         // Small padding before corn
+  minDist: 2.5,         // Min distance to push camera (was 0.8, now more conservative)
+  padding: 0.5,         // Padding before corn
   pushLerp: 0.35,       // Fast push-in
-  relaxLerp: 0.08,      // Slow relax-out (prevents pumping)
+  relaxLerp: 0.06,      // Very slow relax-out (prevents pumping)
   headHeight: 0.5,      // Animal head height
   rayCount: 3,          // Use 3 rays for stability
   raySpread: 0.15,      // ~8.5 degrees spread for side rays
+  holdTimeMs: 200,      // Keep pushed-in for 200ms after ray clears
+  minPushDelta: 0.6,    // Ignore grazing hits that reduce distance by less than 0.6 units
 };
 
 // Simple over-the-shoulder camera with smooth follow - reads from ref each frame
@@ -1203,8 +1207,9 @@ const OverShoulderCameraController = ({
   const currentDistance = useRef(0.4); // Start very close
   const lastRestartKey = useRef(restartKey);
   
-  // Autopush state
+  // Autopush state - scalar-based distance easing
   const currentAutopushDist = useRef<number | null>(null);
+  const lastHitTime = useRef<number>(0); // Timestamp of last hit for hysteresis
   const raycaster = useRef(new Raycaster());
   const rayOrigin = useRef(new Vector3());
   const rayDir = useRef(new Vector3());
@@ -1364,27 +1369,60 @@ const OverShoulderCameraController = ({
         performRaycast(tempVec.current);
       }
       
-      // Determine blocked distance
-      let blockedDist = rayLength;
+      // Get current time for hysteresis
+      const now = performance.now();
+      
+      // Determine blocked distance with micro-hit filtering and hysteresis
+      let targetDist = rayLength; // Default: no blocking, use full distance
+      const desiredDistForAutopush = rayLength;
+      
       if (closestHitDist < rayLength) {
-        blockedDist = Math.max(
+        // We have a hit - calculate potential blocked distance
+        const potentialBlockedDist = Math.max(
           closestHitDist - autopush.padding,
           autopush.minDist
         );
-        blockedDist = Math.min(blockedDist, rayLength);
+        
+        // Micro-hit filtering: only accept if distance reduction is significant
+        const distanceReduction = desiredDistForAutopush - potentialBlockedDist;
+        if (distanceReduction > autopush.minPushDelta) {
+          // Significant hit - push in
+          targetDist = potentialBlockedDist;
+          lastHitTime.current = now; // Record hit time for hysteresis
+        } else {
+          // Grazing hit - ignore, but check hysteresis
+          const timeSinceHit = now - lastHitTime.current;
+          if (timeSinceHit < autopush.holdTimeMs && currentAutopushDist.current !== null) {
+            // Still in hysteresis hold period - maintain current pushed distance
+            targetDist = currentAutopushDist.current;
+          }
+        }
+      } else {
+        // No hit - check hysteresis before relaxing
+        const timeSinceHit = now - lastHitTime.current;
+        if (timeSinceHit < autopush.holdTimeMs && currentAutopushDist.current !== null) {
+          // Still in hysteresis hold period - maintain current pushed distance
+          targetDist = currentAutopushDist.current;
+        }
       }
       
       // Initialize autopush distance on first frame
       if (currentAutopushDist.current === null) {
-        currentAutopushDist.current = blockedDist;
+        currentAutopushDist.current = desiredDistForAutopush;
       }
       
-      // Asymmetric damping: fast push-in, slow relax-out
-      const targetDist = blockedDist;
+      // Scalar-based distance easing with asymmetric damping
       const currAutoDist = currentAutopushDist.current;
       
-      const lerpSpeed = targetDist < currAutoDist ? autopush.pushLerp : autopush.relaxLerp;
+      // Determine if we're pushing in or relaxing out
+      const isPushingIn = targetDist < currAutoDist;
+      const lerpSpeed = isPushingIn ? autopush.pushLerp : autopush.relaxLerp;
+      
+      // Ease toward target distance
       currentAutopushDist.current = currAutoDist + (targetDist - currAutoDist) * lerpSpeed;
+      
+      // Clamp to valid range
+      currentAutopushDist.current = Math.max(autopush.minDist, Math.min(currentAutopushDist.current, desiredDistForAutopush));
       
       // Apply autopush: position camera at the smoothed distance
       finalTargetPos.copy(headPos).add(
