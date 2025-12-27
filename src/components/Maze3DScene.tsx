@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, BackSide, DoubleSide } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
@@ -96,9 +96,9 @@ const mat = new ShaderMaterial({
         rockLight: { value: new Color('#C4B090') },
         rockMid: { value: new Color('#A08060') },
         rockDark: { value: new Color('#705540') },
-        // Fog uniforms - synced with scene fog for consistency (matches horizon color exactly)
-        fogColor: { value: new Color('#E8D8C8') },
-        fogDensity: { value: 0.2 },  // Higher density to obscure corn before cull distance
+        // Fog uniforms
+        fogColor: { value: new Color('#5a6b55') },
+        fogDensity: { value: 0.145 },  // Fog tuned for 16m corn cull distance
       },
       fog: true,
       vertexShader: `
@@ -1358,66 +1358,18 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     }
   });
 
-  // Sky gradient shader material
-  const skyMaterial = useMemo(() => {
-    return new ShaderMaterial({
-      uniforms: {
-        topColor: { value: new Color('#8BA4C7') },      // Soft cornflower blue
-        horizonColor: { value: new Color('#E8D8C8') },  // Warm peach/cream
-        bottomColor: { value: new Color('#D8C8B8') },   // Matches fog
-        offset: { value: 0.4 },
-        exponent: { value: 0.6 },
-      },
-      vertexShader: `
-        varying vec3 vWorldPosition;
-        void main() {
-          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-          vWorldPosition = worldPosition.xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 topColor;
-        uniform vec3 horizonColor;
-        uniform vec3 bottomColor;
-        uniform float offset;
-        uniform float exponent;
-        varying vec3 vWorldPosition;
-        void main() {
-          float h = normalize(vWorldPosition).y;
-          // Above horizon: blend from horizon to sky
-          if (h > 0.0) {
-            float t = pow(max(h, 0.0), exponent);
-            gl_FragColor = vec4(mix(horizonColor, topColor, t), 1.0);
-          } else {
-            // Below horizon: blend to bottom color (for ground reflection)
-            gl_FragColor = vec4(mix(horizonColor, bottomColor, min(-h * 2.0, 1.0)), 1.0);
-          }
-        }
-      `,
-      side: BackSide,
-      depthWrite: false,
-    });
-  }, []);
-
 return (
     <>
-      {/* === GRADIENT SKY DOME === */}
-      <mesh scale={[80, 80, 80]}>
-        <sphereGeometry args={[1, 32, 16]} />
-        <primitive object={skyMaterial} attach="material" />
-      </mesh>
       
-      {/* === GHIBLI LIGHTING MIX === */}
-      {/* Hemisphere light - stronger for softer shadows with subtle purple/blue tint in shadows */}
-      <hemisphereLight args={['#A8C0E0', '#8B9F7A', 1.1]} />
+      {/* Lighting - 8am morning sunlight */}
+      <ambientLight intensity={0.9} color="#FFF8F0" />
       
-      {/* Main sun light - warm amber/golden hour tone, lower angle (30-45 deg) */}
+      {/* Main sun light - follows player for consistent shadows */}
       <directionalLight
         ref={lightRef}
-        position={[20, 18, 15]}
-        intensity={3.2}
-        color="#FFD8A0"
+        position={[15, 35, 15]}
+        intensity={3.5}
+        color="#FFFDF5"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={1}
@@ -1426,32 +1378,26 @@ return (
         shadow-camera-right={25}
         shadow-camera-top={25}
         shadow-camera-bottom={-25}
-        shadow-bias={-0.0003}
-        shadow-radius={4}
+        shadow-bias={-0.0005}
+        shadow-radius={2}
       >
         <object3D attach="target" />
       </directionalLight>
       
-      {/* Fill light from opposite side - cool sky blue for shadow fill */}
+      {/* Fill light from opposite side */}
       <directionalLight
-        position={[-18, 10, -12]}
-        intensity={0.8}
-        color="#B0C8E8"
+        position={[-15, 15, -10]}
+        intensity={0.45}
+        color="#D8E8FF"
       />
       
-      {/* Subtle back rim light for character pop - golden */}
-      <directionalLight
-        position={[-5, 6, -25]}
-        intensity={0.4}
-        color="#FFE0B0"
-      />
+      {/* Hemisphere light for natural sky/ground color */}
+      <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
+      {/* Atmospheric background - desaturated to match fog */}
+      <color attach="background" args={['#5a6b55']} />
       
-      {/* === SKY-FOG GLUE === */}
-      {/* Background/horizon color - fog MUST match exactly for corn to vanish into it */}
-      <color attach="background" args={['#E8D8C8']} />
-      
-      {/* FogExp2 with higher density to obscure corn before cull distance */}
-      <fogExp2 attach="fog" args={['#E8D8C8', 0.2]} />
+      {/* Exponential fog */}
+      <fogExp2 attach="fog" args={['#5a6b55', 0.145]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
