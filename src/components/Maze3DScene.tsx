@@ -1176,9 +1176,9 @@ const OverShoulderCameraController = ({
       const cornZ = 2.5;
       camera.position.set(cornX + 1.5, 0.1, cornZ + 1.5); // Slightly offset from corn
       
-      // Look up at 70 degrees (from horizontal)
-      const lookDistance = 5; // horizontal distance to look target
-      const lookHeight = Math.tan(70 * Math.PI / 180) * lookDistance; // ~13.7 units up
+      // Look up at 45 degrees (from horizontal)
+      const lookDistance = 3; // horizontal distance to look target
+      const lookHeight = Math.tan(45 * Math.PI / 180) * lookDistance; // ~3 units up
       camera.lookAt(cornX, lookHeight, cornZ);
     } else if (groundLevelCamera) {
       // Ground level debug view - camera at ground level, looking at player from side
@@ -1311,14 +1311,27 @@ const CornBoundingBoxDebug = () => {
     // Force update world matrix
     groupRef.current.updateMatrixWorld(true);
     
-    // Compute world bounding box
-    const box = new Box3().setFromObject(groupRef.current);
+    // Compute bounding box from ONLY visible mesh geometry (not armatures/bones)
+    const box = new Box3();
+    groupRef.current.traverse((child) => {
+      if ((child as any).isMesh) {
+        const mesh = child as any;
+        mesh.geometry.computeBoundingBox();
+        if (mesh.geometry.boundingBox) {
+          const meshBox = mesh.geometry.boundingBox.clone();
+          meshBox.applyMatrix4(mesh.matrixWorld);
+          box.expandByPoint(meshBox.min);
+          box.expandByPoint(meshBox.max);
+        }
+      }
+    });
+    
     const size = new Vector3();
     const center = new Vector3();
     box.getSize(size);
     box.getCenter(center);
     
-    console.log('%c=== CORN BOUNDING BOX DEBUG ===', 'color: #ff00ff; font-weight: bold; font-size: 14px');
+    console.log('%c=== CORN BOUNDING BOX DEBUG (MESH ONLY) ===', 'color: #ff00ff; font-weight: bold; font-size: 14px');
     console.log('World bounding box size:', { x: size.x.toFixed(4), y: size.y.toFixed(4), z: size.z.toFixed(4) });
     console.log('World bounding box center:', { x: center.x.toFixed(4), y: center.y.toFixed(4), z: center.z.toFixed(4) });
     console.log('Box min:', { x: box.min.x.toFixed(4), y: box.min.y.toFixed(4), z: box.min.z.toFixed(4) });
