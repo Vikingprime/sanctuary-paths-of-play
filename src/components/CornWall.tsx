@@ -8,10 +8,8 @@ import cornTexture from '@/assets/corn-texture.png';
 const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
 const LOD_CHEAP_DISTANCE = 16;          // Cheap material 6-16m, hidden beyond 16m
 
-// Default cull distance - must be SHORTER than fog obscuring distance
-// Corn should disappear while still mostly fogged so no pop-in visible
-// At fog density 0.20, objects at 10m are ~87% fogged
-const DEFAULT_CULL_DISTANCE = 10;
+// Hard cull distance - fog should obscure corn before this distance
+const CULL_DISTANCE = 14; // Hard cull at 14m where fog is dense
 
 interface CornWallProps {
   position: [number, number, number];
@@ -55,7 +53,7 @@ export interface CornOptimizationSettings {
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   shadowRadius: 8,
-  cullDistance: 10, // Must match DEFAULT_CULL_DISTANCE - shorter than fog obscure distance
+  cullDistance: 18,
   lodDistance: 6,
   farMaterialDistance: 5,
   enableShadowOptimization: true,
@@ -100,11 +98,6 @@ const optimizeMaterial = (material: Material): Material => {
   // CRITICAL: Always use FrontSide to reduce overdraw - NO DoubleSide
   if ('side' in mat) {
     mat.side = FrontSide;
-  }
-  
-  // CRITICAL: Ensure fog is enabled for proper scene integration
-  if ('fog' in mat) {
-    mat.fog = true;
   }
   
   mat.needsUpdate = true;
@@ -376,9 +369,8 @@ export const InstancedWalls = ({
   const ROTATION_THRESHOLD = 0.1; // ~5.7 degrees of rotation triggers update
   const cullDebugRef = useRef(0); // Debug counter
   
-  // Distance threshold for hard culling - use settings value or default
-  const cullDistance = optimizationSettings?.cullDistance ?? DEFAULT_CULL_DISTANCE;
-  const CULL_DISTANCE_SQ = cullDistance * cullDistance;
+  // Distance threshold for hard culling - fog should fully obscure at this distance
+  const CULL_DISTANCE_SQ = CULL_DISTANCE * CULL_DISTANCE;
   
   // Camera direction culling - cull back 90 degrees (keep front 270 degrees)
   const BACK_CULL_DOT_THRESHOLD = -0.707; // cos(135°) - corn behind this angle gets culled
@@ -550,7 +542,6 @@ export const InstancedWalls = ({
       depthWrite: true,
       depthTest: true,
       side: FrontSide,
-      fog: true, // CRITICAL: Enable fog for proper scene integration
     });
     
     // Low-poly LOD corn: thicker stalk + larger drooping leaves
@@ -636,7 +627,6 @@ export const InstancedWalls = ({
       color: new Color(0.2, 0.45, 0.15),
       side: DoubleSide, // See leaves from both sides
       depthWrite: true,
-      fog: true, // CRITICAL: Enable fog for proper scene integration
     });
     
     // Use all meshes from the model (stalk + leaves + corn cobs)

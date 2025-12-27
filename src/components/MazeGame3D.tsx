@@ -740,7 +740,7 @@ export const MazeGame3D = ({
         })() : null}
         cornOptimizationSettings={{
           shadowRadius: 8,
-          cullDistance: 14, // Independent of fog - fog should obscure before this
+          cullDistance: 18,
           lodDistance: 6,
           farMaterialDistance: 5,
           enableShadowOptimization: shadowOptEnabled,

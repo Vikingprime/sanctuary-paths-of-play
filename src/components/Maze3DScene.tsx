@@ -9,7 +9,6 @@ import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
 import { findStartRotation } from '@/game/MazeUtils';
-import { SkyDome } from './SkyDome';
 
 // Extended performance info type
 export interface PerformanceInfo {
@@ -1401,13 +1400,13 @@ return (
     <>
       
       {/* Lighting - 8am morning sunlight */}
-      <ambientLight intensity={1.2} color="#C8C0B0" />
+      <ambientLight intensity={0.9} color="#FFF8F0" />
       
       {/* Main sun light - follows player for consistent shadows */}
       <directionalLight
         ref={lightRef}
         position={[15, 35, 15]}
-        intensity={3.0}
+        intensity={3.5}
         color="#FFFDF5"
         castShadow
         shadow-mapSize={[2048, 2048]}
@@ -1423,24 +1422,23 @@ return (
         <object3D attach="target" />
       </directionalLight>
       
-      {/* Fill light from opposite side - matches fog tint */}
+      {/* Fill light from opposite side */}
       <directionalLight
         position={[-15, 15, -10]}
-        intensity={0.6}
-        color="#C8C0B0"
+        intensity={0.45}
+        color="#D8E8FF"
       />
       
-      {/* Hemisphere light - ground color MUST match fog for proper blending */}
-      <hemisphereLight args={['#A8C8E8', '#B8B0A0', 0.8]} />
+      {/* Hemisphere light for natural sky/ground color */}
+      <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
-      {/* Scene background color - must match fog color for seamless blend */}
+      {/* Background color MUST match fog color exactly for seamless horizon blending
+          This is the key fix: distant corn fades into this color, not into a mismatched sky */}
       <color attach="background" args={['#B8B0A0']} />
       
-      {/* Sky dome - gradient sky with horizon matching fog color exactly */}
-      <SkyDome />
-      
-      {/* Exponential fog - density 0.20 for ~87% obscuring at 10m (cull distance) */}
-      <fogExp2 attach="fog" args={['#B8B0A0', 0.20]} />
+      {/* Exponential fog - warm neutral tone matching background
+          Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
+      <fogExp2 attach="fog" args={['#B8B0A0', 0.14]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
@@ -1534,30 +1532,11 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
   const lastUpdate = useRef(0);
   const frameTimesRef = useRef<number[]>([]);
   const lastFrameTime = useRef(performance.now());
-  const lastFogLog = useRef(0);
   
   useFrame(() => {
     const now = performance.now();
     const frameTime = now - lastFrameTime.current;
     lastFrameTime.current = now;
-    
-    // DEBUG: Log fog state once per second
-    if (now - lastFogLog.current > 1000) {
-      lastFogLog.current = now;
-      const fog = scene.fog as any;
-      if (fog) {
-        console.log('[FOG DEBUG]', {
-          type: fog.isFogExp2 ? 'FogExp2' : 'Fog',
-          color: fog.color?.getHexString?.(),
-          density: fog.density,
-          near: fog.near,
-          far: fog.far,
-          sceneUuid: scene.uuid,
-        });
-      } else {
-        console.log('[FOG DEBUG] scene.fog is NULL!', { sceneUuid: scene.uuid });
-      }
-    }
     
     // Keep last 30 frame times for averaging
     frameTimesRef.current.push(frameTime);
