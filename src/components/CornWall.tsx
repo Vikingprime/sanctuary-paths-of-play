@@ -3,7 +3,7 @@ import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, Bu
 import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
-import { getFadedCells } from './LOSCornFader';
+import { getLOSOpacityTexture, getLOSTextureDimensions, initLOSTexture } from './LOSCornFader';
 
 // LOD distance tiers
 const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
@@ -80,8 +80,8 @@ const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.25, 0.42, 0.
 const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
 
 
-// Helper to add distance-based opacity fading to a material using onBeforeCompile
-// Fades corn based on distance from player (LOS-based fading is handled separately via matrix scaling)
+// Helper to add distance-based opacity fading + LOS fading to a material using onBeforeCompile
+// Fades corn based on distance from player AND samples LOS opacity texture for per-cell fading
 const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }): Material => {
   const mat = material as any;
   
@@ -105,6 +105,14 @@ const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }): 
     shader.uniforms.playerPos = playerPosRef;
     shader.uniforms.fadeStart = { value: FADE_START };
     shader.uniforms.fadeEnd = { value: FADE_END };
+    
+    // LOS opacity texture uniform - will be set dynamically
+    shader.uniforms.losOpacityMap = { value: null };
+    shader.uniforms.mazeWidth = { value: 1.0 };
+    shader.uniforms.mazeHeight = { value: 1.0 };
+    
+    // Store shader reference for later uniform updates
+    mat.userData.shader = shader;
     
     // Inject varying for world position in vertex shader
     shader.vertexShader = shader.vertexShader.replace(
@@ -130,16 +138,26 @@ const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }): 
       uniform vec3 playerPos;
       uniform float fadeStart;
       uniform float fadeEnd;
+      uniform sampler2D losOpacityMap;
+      uniform float mazeWidth;
+      uniform float mazeHeight;
       varying vec3 vWorldPos;`
     );
     
-    // Apply distance-based opacity fade at end of fragment shader
+    // Apply distance-based opacity fade + LOS opacity fade at end of fragment shader
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
+      // Distance-based fade (far fog)
       float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
-      float fadeFactor = 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer);
-      gl_FragColor.a *= fadeFactor;
+      float distFade = 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer);
+      
+      // LOS-based fade (sample opacity texture by cell position)
+      vec2 cellUV = vWorldPos.xz / vec2(mazeWidth, mazeHeight);
+      float losOpacity = texture2D(losOpacityMap, cellUV).r;
+      
+      // Combine both fades
+      gl_FragColor.a *= distFade * losOpacity;
       if (gl_FragColor.a < 0.01) discard;`
     );
   };
@@ -456,11 +474,7 @@ export const InstancedWalls = ({
   const BACK_CULL_DOT_THRESHOLD = -0.707; // cos(135°) - corn behind this angle gets culled
   
   // Distance culling (fog is now handled by scene's FogExp2)
-  // LOS fade matrix cache - pre-allocate to avoid GC
-  const scaledMatrixRef = useRef(new Matrix4());
-  const tempScaleRef = useRef(new Vector3());
-  const tempPosRef = useRef(new Vector3());
-  const tempQuatRef = useRef(new Quaternion());
+  // LOS opacity fading is handled via texture in the shader
   
   useFrame(() => {
     // Update player position uniform for shader-based opacity fade
@@ -468,12 +482,25 @@ export const InstancedWalls = ({
     const pz = playerPositionRef?.current?.y ?? 0;
     playerPosUniform.value.set(px, 0, pz);
     
-    // Update camera position uniform for near-camera bubble fade
+    // Update camera position uniform
     cameraPosUniform.value.copy(camera.position);
     
-    // Get LOS faded cells (cells blocking line-of-sight to character)
-    const fadedCells = getFadedCells();
-    const hasLOSFade = fadedCells.size > 0;
+    // Update LOS opacity texture in all edge mesh materials
+    const losTexture = getLOSOpacityTexture();
+    const losDims = getLOSTextureDimensions();
+    if (losTexture && edgeMeshesRef.current.length > 0) {
+      for (const mesh of edgeMeshesRef.current) {
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const mat of materials) {
+          const shader = (mat as any).userData?.shader;
+          if (shader?.uniforms) {
+            shader.uniforms.losOpacityMap.value = losTexture;
+            shader.uniforms.mazeWidth.value = losDims.width;
+            shader.uniforms.mazeHeight.value = losDims.height;
+          }
+        }
+      }
+    }
     
     // Skip ALL culling if distance culling is disabled
     if (!optimizationSettings.enableDistanceCulling) return;
@@ -494,8 +521,7 @@ export const InstancedWalls = ({
     const camDz = camForward.z - lastCamDirRef.current.z;
     const directionChanged = camDx * camDx + camDz * camDz >= ROTATION_THRESHOLD * ROTATION_THRESHOLD;
     
-    // Always update if there are LOS faded cells (for smooth animation)
-    const shouldUpdate = positionChanged || directionChanged || lastUpdatePosRef.current.x === -999 || hasLOSFade;
+    const shouldUpdate = positionChanged || directionChanged || lastUpdatePosRef.current.x === -999;
     
     if (!shouldUpdate) return;
     lastUpdatePosRef.current = { x: px, z: pz };
@@ -520,32 +546,7 @@ export const InstancedWalls = ({
       return dot > BACK_CULL_DOT_THRESHOLD; // Keep if not directly behind
     };
     
-    // Helper to apply LOS fade scale to a matrix
-    // Returns the possibly-scaled matrix
-    const applyLOSFade = (originalMatrix: Matrix4, centerX: number, centerZ: number): Matrix4 => {
-      if (!hasLOSFade) return originalMatrix;
-      
-      // Get the cell this corn belongs to
-      const cellX = Math.floor(centerX);
-      const cellZ = Math.floor(centerZ);
-      const cellKey = `${cellX},${cellZ}`;
-      const fadeOpacity = fadedCells.get(cellKey);
-      
-      if (fadeOpacity === undefined || fadeOpacity >= 0.99) {
-        return originalMatrix;
-      }
-      
-      // Decompose the matrix, scale down, recompose
-      originalMatrix.decompose(tempPosRef.current, tempQuatRef.current, tempScaleRef.current);
-      
-      // Scale down based on fade opacity (0.15 opacity = 0.15 scale)
-      tempScaleRef.current.multiplyScalar(fadeOpacity);
-      
-      scaledMatrixRef.current.compose(tempPosRef.current, tempQuatRef.current, tempScaleRef.current);
-      return scaledMatrixRef.current;
-    };
-    
-    // Cull edge corn (GLTF) - hard distance culling + LOS fade
+    // Cull edge corn (GLTF) - hard distance culling
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
       
@@ -555,9 +556,8 @@ export const InstancedWalls = ({
         
         // Distance cull AND camera-direction cull
         if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
-          const matrix = applyLOSFade(t.matrix, t.centerX, t.centerZ);
           for (const mesh of edgeMeshesRef.current) {
-            mesh.setMatrixAt(edgeCount, matrix);
+            mesh.setMatrixAt(edgeCount, t.matrix);
           }
           edgeCount++;
         }
@@ -569,7 +569,7 @@ export const InstancedWalls = ({
       }
     }
     
-    // Cull cheap corn (interior/boundary) - hard distance culling + LOS fade
+    // Cull cheap corn (interior/boundary) - hard distance culling
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
       const transforms = cheapTransformsRef.current;
       
@@ -579,8 +579,7 @@ export const InstancedWalls = ({
         
         // Distance cull AND camera-direction cull
         if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
-          const matrix = applyLOSFade(t.matrix, t.centerX, t.centerZ);
-          cheapMeshRef.current.setMatrixAt(cheapCount, matrix);
+          cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
           cheapCount++;
         }
       }

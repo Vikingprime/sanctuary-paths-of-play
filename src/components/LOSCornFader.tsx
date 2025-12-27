@@ -3,14 +3,16 @@
  * 
  * After camera autopush, casts rays to the character to detect blocking corn.
  * Fades only the corn chunks that actually occlude the character.
+ * 
+ * Uses a DataTexture to communicate per-cell opacity to the corn shader.
  */
 
-import { useRef, useMemo, MutableRefObject } from 'react';
+import { useRef, useMemo, MutableRefObject, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Vector3, Raycaster, Object3D, Group, Mesh } from 'three';
+import { Vector3, Raycaster, Object3D, Group, Mesh, DataTexture, RGBAFormat, UnsignedByteType, NearestFilter, ClampToEdgeWrapping } from 'three';
 import { PlayerState } from '@/game/GameLogic';
 import { getCharacterHeight } from '@/game/CharacterConfig';
-import { AnimalType } from '@/types/game';
+import { AnimalType, Maze } from '@/types/game';
 
 // LOS fade configuration
 const LOS_CONFIG = {
@@ -18,10 +20,10 @@ const LOS_CONFIG = {
   raySpread: 0.25,                // Horizontal spread for side rays (world units)
   occlusionThreshold: 2,          // Number of rays that must hit to trigger fade (2 of 3)
   maxOccluders: 8,                // Max number of cells to fade at once
-  fadeInDuration: 100,            // ms to fade to transparent
-  fadeOutDuration: 400,           // ms to fade back to opaque
+  fadeInDuration: 120,            // ms to fade to transparent
+  fadeOutDuration: 350,           // ms to fade back to opaque
   holdDuration: 200,              // ms to hold fade before starting fade out
-  fadedOpacity: 0.15,             // Target opacity when faded (not fully invisible)
+  fadedOpacity: 0.12,             // Target opacity when faded (nearly invisible but not zero)
 };
 
 // Track fade state for each occluding cell
@@ -32,34 +34,80 @@ interface CellFadeState {
   opacity: number;              // Current opacity (1 = fully visible, 0 = fully transparent)
   targetOpacity: number;        // Target opacity
   lastHitTime: number;          // Timestamp of last ray hit
-  fadeStartTime: number;        // When current fade started
 }
 
-// Global fade state map - shared across frames
+// Global opacity texture - shared with corn shader
+let opacityTexture: DataTexture | null = null;
+let opacityData: Uint8Array | null = null;
+let textureWidth = 0;
+let textureHeight = 0;
+
+// Cell fade states
 const cellFadeStates = new Map<string, CellFadeState>();
 
-// Export the fade states so CornWall can read them
-export function getCellFadeOpacity(cellX: number, cellZ: number): number {
-  const key = `${cellX},${cellZ}`;
-  const state = cellFadeStates.get(key);
-  return state?.opacity ?? 1.0;
+// Get the opacity texture for use in corn shader
+export function getLOSOpacityTexture(): DataTexture | null {
+  return opacityTexture;
 }
 
-// Get all faded cells for shader uniform updates
-export function getFadedCells(): Map<string, number> {
-  const result = new Map<string, number>();
-  cellFadeStates.forEach((state, key) => {
-    if (state.opacity < 0.99) {
-      result.set(key, state.opacity);
-    }
-  });
-  return result;
+// Get texture dimensions
+export function getLOSTextureDimensions(): { width: number; height: number } {
+  return { width: textureWidth, height: textureHeight };
+}
+
+// Initialize the opacity texture for a given maze size
+export function initLOSTexture(mazeWidth: number, mazeHeight: number): DataTexture {
+  // Only recreate if size changed
+  if (opacityTexture && textureWidth === mazeWidth && textureHeight === mazeHeight) {
+    return opacityTexture;
+  }
+  
+  textureWidth = mazeWidth;
+  textureHeight = mazeHeight;
+  
+  // Create RGBA data array - 4 bytes per pixel, but we only use R channel for opacity
+  opacityData = new Uint8Array(mazeWidth * mazeHeight * 4);
+  
+  // Initialize all cells to fully opaque (255)
+  for (let i = 0; i < mazeWidth * mazeHeight; i++) {
+    opacityData[i * 4] = 255;     // R = opacity
+    opacityData[i * 4 + 1] = 255; // G (unused)
+    opacityData[i * 4 + 2] = 255; // B (unused)
+    opacityData[i * 4 + 3] = 255; // A (unused)
+  }
+  
+  opacityTexture = new DataTexture(opacityData, mazeWidth, mazeHeight, RGBAFormat, UnsignedByteType);
+  opacityTexture.minFilter = NearestFilter;
+  opacityTexture.magFilter = NearestFilter;
+  opacityTexture.wrapS = ClampToEdgeWrapping;
+  opacityTexture.wrapT = ClampToEdgeWrapping;
+  opacityTexture.needsUpdate = true;
+  
+  return opacityTexture;
+}
+
+// Update a cell's opacity in the texture
+function updateCellOpacity(cellX: number, cellZ: number, opacity: number) {
+  if (!opacityData || cellX < 0 || cellX >= textureWidth || cellZ < 0 || cellZ >= textureHeight) {
+    return;
+  }
+  
+  const idx = (cellZ * textureWidth + cellX) * 4;
+  opacityData[idx] = Math.round(opacity * 255); // Store opacity in R channel
+}
+
+// Mark texture as needing update
+function markTextureNeedsUpdate() {
+  if (opacityTexture) {
+    opacityTexture.needsUpdate = true;
+  }
 }
 
 interface LOSCornFaderProps {
   playerStateRef: MutableRefObject<PlayerState>;
   foliageGroupRef: React.RefObject<Group>;
   animalType: AnimalType;
+  maze: Maze;
   enabled?: boolean;
 }
 
@@ -67,14 +115,21 @@ export const LOSCornFader = ({
   playerStateRef,
   foliageGroupRef,
   animalType,
+  maze,
   enabled = true,
 }: LOSCornFaderProps) => {
   const { camera } = useThree();
   
+  // Initialize texture on mount/maze change
+  useEffect(() => {
+    const mazeWidth = maze.grid[0]?.length ?? 1;
+    const mazeHeight = maze.grid.length ?? 1;
+    initLOSTexture(mazeWidth, mazeHeight);
+  }, [maze]);
+  
   // Raycaster for LOS checks
   const raycaster = useRef(new Raycaster());
   const rayOrigin = useRef(new Vector3());
-  const rayDir = useRef(new Vector3());
   const rightVec = useRef(new Vector3());
   
   // Get character height for focus point calculation
@@ -85,9 +140,10 @@ export const LOSCornFader = ({
   // Reusable vectors
   const focusPoint = useRef(new Vector3());
   const camPos = useRef(new Vector3());
+  const rayDir = useRef(new Vector3());
   
   useFrame(() => {
-    if (!enabled || !foliageGroupRef?.current) return;
+    if (!enabled || !foliageGroupRef?.current || !opacityTexture) return;
     
     const now = performance.now();
     const playerX = playerStateRef.current.x;
@@ -164,7 +220,6 @@ export const LOSCornFader = ({
               opacity: 1.0,
               targetOpacity: 1.0,
               lastHitTime: now,
-              fadeStartTime: now,
             };
             cellFadeStates.set(cellKey, state);
           }
@@ -177,7 +232,10 @@ export const LOSCornFader = ({
     // Determine if we're occluded (enough rays hit)
     const isOccluded = raysHit >= LOS_CONFIG.occlusionThreshold;
     
-    // Update fade states
+    // Track if any opacity changed
+    let textureChanged = false;
+    
+    // Update fade states and texture
     cellFadeStates.forEach((state, key) => {
       const wasHitThisFrame = hitCellsThisFrame.has(key);
       const timeSinceHit = now - state.lastHitTime;
@@ -190,9 +248,9 @@ export const LOSCornFader = ({
         // No longer blocking and hold expired - fade back to opaque
         state.targetOpacity = 1.0;
       }
-      // else: in hold period, keep current target
       
       // Animate opacity toward target
+      const prevOpacity = state.opacity;
       if (Math.abs(state.opacity - state.targetOpacity) > 0.001) {
         const duration = state.targetOpacity < state.opacity 
           ? LOS_CONFIG.fadeInDuration 
@@ -206,26 +264,24 @@ export const LOSCornFader = ({
         }
       }
       
+      // Update texture if opacity changed
+      if (Math.abs(state.opacity - prevOpacity) > 0.001) {
+        updateCellOpacity(state.x, state.z, state.opacity);
+        textureChanged = true;
+      }
+      
       // Clean up fully opaque cells that haven't been hit recently
       if (state.opacity >= 0.99 && timeSinceHit > 1000) {
+        // Reset texture cell to full opacity before removing
+        updateCellOpacity(state.x, state.z, 1.0);
+        textureChanged = true;
         cellFadeStates.delete(key);
       }
     });
     
-    // Cap number of tracked occluders
-    if (cellFadeStates.size > LOS_CONFIG.maxOccluders * 2) {
-      // Remove oldest entries
-      const entries = Array.from(cellFadeStates.entries())
-        .sort((a, b) => a[1].lastHitTime - b[1].lastHitTime);
-      
-      while (cellFadeStates.size > LOS_CONFIG.maxOccluders) {
-        const oldest = entries.shift();
-        if (oldest && oldest[1].opacity >= 0.99) {
-          cellFadeStates.delete(oldest[0]);
-        } else {
-          break; // Don't remove cells that are still fading
-        }
-      }
+    // Only mark texture for GPU upload if something changed
+    if (textureChanged) {
+      markTextureNeedsUpdate();
     }
   });
   
