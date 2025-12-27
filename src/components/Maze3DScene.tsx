@@ -1323,23 +1323,35 @@ const OverShoulderCameraController = ({
       rayDir.current.copy(targetPos.current).sub(headPos).normalize();
       const rayLength = headPos.distanceTo(targetPos.current);
       
-      // Collect ONLY corn blockers for raycasting - exclude ground, player, cow, etc.
-      // Look for meshes with 'corn' or 'wall' in their name/userData
+      // Collect ALL meshes from the foliage group (which contains only corn)
+      // The foliageGroupRef points directly to the corn walls group, so all children are blockers
       const cameraBlockers: Object3D[] = [];
       foliageGroupRef.current.traverse((child) => {
-        const mesh = child as Mesh;
-        if (mesh.isMesh || (child as InstancedMesh).isInstancedMesh) {
-          // Only include objects that are explicitly camera blockers (corn stalks, walls)
-          const name = child.name?.toLowerCase() || '';
-          const isCornBlocker = name.includes('corn') || 
-                                name.includes('stalk') || 
-                                name.includes('wall') ||
-                                child.userData?.isCameraBlocker === true;
-          if (isCornBlocker) {
-            cameraBlockers.push(child);
-          }
+        if ((child as Mesh).isMesh || (child as InstancedMesh).isInstancedMesh) {
+          cameraBlockers.push(child);
         }
       });
+      
+      // Debug: also collect scene objects for comparison (throttled log only)
+      const debugLogRef = (window as any).__autopushDebugLog || { lastLog: 0, lastSceneLog: 0 };
+      (window as any).__autopushDebugLog = debugLogRef;
+      
+      // One-time debug: log what's in foliageGroupRef
+      if (!debugLogRef.loggedFoliageContents) {
+        debugLogRef.loggedFoliageContents = true;
+        const meshNames: string[] = [];
+        foliageGroupRef.current.traverse((child) => {
+          if ((child as Mesh).isMesh || (child as InstancedMesh).isInstancedMesh) {
+            meshNames.push(`${child.name || 'unnamed'} (${child.type})`);
+          }
+        });
+        console.log('[AUTOPUSH DEBUG] foliageGroupRef contents:', {
+          groupName: foliageGroupRef.current.name,
+          childCount: foliageGroupRef.current.children.length,
+          meshCount: meshNames.length,
+          meshNames: meshNames.slice(0, 10), // First 10
+        });
+      }
       
       // Perform raycasts (1 or 3 rays)
       let closestHitDist = rayLength;
@@ -1388,10 +1400,6 @@ const OverShoulderCameraController = ({
       
       // Get current time for hysteresis
       const now = performance.now();
-      
-      // Debug logging (throttled)
-      const debugLogRef = (window as any).__autopushDebugLog || { lastLog: 0 };
-      (window as any).__autopushDebugLog = debugLogRef;
       
       // Determine blocked distance with micro-hit filtering and hysteresis
       let targetDist = rayLength; // Default: no blocking, use full distance
