@@ -10,7 +10,7 @@ import { PlayerState, MovementInput, calculateMovement, generateRockPositions, R
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight } from '@/game/CharacterConfig';
 import { findStartRotation } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
-import { LOSCornFader, getFadedCells } from './LOSCornFader';
+import { LOSCornFader } from './LOSCornFader';
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
@@ -1951,6 +1951,7 @@ return (
             playerStateRef={playerStateRef}
             foliageGroupRef={foliageGroupRef}
             animalType={animalType}
+            maze={maze}
           />
         </>
       )}
