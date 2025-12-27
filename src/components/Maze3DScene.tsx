@@ -1439,8 +1439,8 @@ return (
       {/* Sky dome - gradient sky with horizon matching fog color exactly */}
       <SkyDome />
       
-      {/* Linear fog - near=2, far=12 for proper obscuring */}
-      <fog attach="fog" args={['#B8B0A0', 2, 12]} />
+      {/* Linear fog - near=8, far=40 for subtle distance fade */}
+      <fog attach="fog" args={['#B8B0A0', 8, 40]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
