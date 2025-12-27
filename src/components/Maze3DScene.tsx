@@ -1439,8 +1439,8 @@ return (
       {/* Sky dome - gradient sky with horizon matching fog color exactly */}
       <SkyDome />
       
-      {/* Exponential fog - TEST: Higher density to verify corn obscuring */}
-      <fogExp2 attach="fog" args={['#B8B0A0', 0.25]} />
+      {/* Linear fog - near=2, far=12 for proper obscuring */}
+      <fog attach="fog" args={['#B8B0A0', 2, 12]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
