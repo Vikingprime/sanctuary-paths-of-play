@@ -77,11 +77,6 @@ const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
 const optimizeMaterial = (material: Material): Material => {
   const mat = material as any;
   
-  // CRITICAL: Enable fog so corn blends with scene fog
-  if ('fog' in mat) {
-    mat.fog = true;
-  }
-  
   // CRITICAL: Disable transparency for opaque rendering - NO transparent=true allowed
   if ('transparent' in mat) {
     mat.transparent = false;
@@ -189,7 +184,7 @@ const generateEdgeTransforms = (
         const baseScale = 100;
         const heightMultiplier = 0.9;
         const widthMultiplier = 0.7;
-        const heightVariation = 1.25 + seededRandom(stalkSeed + 3) * 0.05; // Variance: 1.25-1.30
+        const heightVariation = 0.94 + seededRandom(stalkSeed + 3) * 0.12; // Reduced variance: 0.94-1.06
         const widthScale = baseScale * heightVariation * widthMultiplier;
         const heightScale = baseScale * heightVariation * heightMultiplier;
         
@@ -250,7 +245,7 @@ const generateWallTransforms = (
         const baseScale = 100;
         const heightMultiplier = 0.9;
         const widthMultiplier = 0.7;
-        const heightVariation = 1.25 + seededRandom(stalkSeed + 3) * 0.05; // Variance: 1.25-1.30
+        const heightVariation = 0.94 + seededRandom(stalkSeed + 3) * 0.12; // Reduced variance: 0.94-1.06
         const widthScale = baseScale * heightVariation * widthMultiplier;
         const heightScale = baseScale * heightVariation * heightMultiplier;
         
@@ -310,7 +305,7 @@ const generateBoundaryTransforms = (
         const baseScale = 100;
         const heightMultiplier = 0.9;
         const widthMultiplier = 0.7;
-        const heightVariation = 1.25 + seededRandom(stalkSeed + 3) * 0.05; // Variance: 1.25-1.30
+        const heightVariation = 0.94 + seededRandom(stalkSeed + 3) * 0.12; // Reduced variance: 0.94-1.06
         const widthScale = baseScale * heightVariation * widthMultiplier;
         const heightScale = baseScale * heightVariation * heightMultiplier;
         dummy.position.set(posX, 0, posZ);
@@ -547,7 +542,6 @@ export const InstancedWalls = ({
       depthWrite: true,
       depthTest: true,
       side: FrontSide,
-      fog: true, // CRITICAL: Must blend with scene fog
     });
     
     // Low-poly LOD corn: thicker stalk + larger drooping leaves
@@ -633,7 +627,6 @@ export const InstancedWalls = ({
       color: new Color(0.2, 0.45, 0.15),
       side: DoubleSide, // See leaves from both sides
       depthWrite: true,
-      fog: true, // CRITICAL: Must blend with scene fog
     });
     
     // Use all meshes from the model (stalk + leaves + corn cobs)
@@ -697,14 +690,11 @@ export const InstancedWalls = ({
     const edgeMeshes: ThreeInstancedMesh[] = [];
     if (edgeTransforms.length > 0) {
       meshDataList.forEach((meshData) => {
-        // Clone material and FORCE fog on
-        const clonedMat = Array.isArray(meshData.material)
-          ? meshData.material.map(m => { const c = m.clone(); (c as any).fog = true; return c; })
-          : (() => { const c = meshData.material.clone(); (c as any).fog = true; return c; })();
-        
         const instancedMesh = new ThreeInstancedMesh(
           meshData.geometry.clone(),
-          clonedMat,
+          Array.isArray(meshData.material)
+            ? meshData.material.map(m => m.clone())
+            : meshData.material.clone(),
           edgeTransforms.length
         );
         
@@ -731,13 +721,9 @@ export const InstancedWalls = ({
     
     // OUTER + BOUNDARY CORN: Single cheap material (1 draw call)
     if (cheapTransforms.length > 0) {
-      // Clone material and FORCE fog on
-      const cheapMatClone = cheapMaterial.clone();
-      (cheapMatClone as any).fog = true;
-      
       const cheapMesh = new ThreeInstancedMesh(
         cheapStalkGeometry.clone(),
-        cheapMatClone,
+        cheapMaterial.clone(),
         cheapTransforms.length
       );
       

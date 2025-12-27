@@ -1403,11 +1403,14 @@ return (
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
-      {/* Atmospheric sky sphere - horizon matches fog for seamless blend */}
+      {/* Atmospheric sky with gradient, sun halo, and clouds
+          Horizon color MUST match fog color exactly for seamless blending */}
       <AtmosphericSky 
-        zenithColor="#6BA8DC"
-        horizonColor="#B8B0A0"
-        sunColor="#FFF4E0"
+        topColor="#7FB6E6"       // Soft sky blue at zenith
+        horizonColor="#B8B0A0"   // MUST match fogColor exactly
+        sunColor="#FFF4E0"       // Warm sun tint
+        sunIntensity={0.35}      // Subtle sun
+        cloudSpeed={0.006}       // Slow-moving clouds
       />
       
       {/* Exponential fog - warm neutral tone matching sky horizon exactly
