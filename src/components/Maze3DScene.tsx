@@ -714,31 +714,29 @@ const MapStation = ({ position, showCollisionDebug = true }: { position: [number
   );
 };
 
-// NPC collision capsule configuration based on model heights from CharacterConfig
-// Farmer: 2.88 units, Woman: 2.72 units
+// NPC collision capsule configuration - VERTICAL capsules for humanoid characters
+// Farmer: 2.88 units tall, Woman: 2.72 units tall
+// These use vertical capsules (Y-axis) from feet to head
 const NPC_COLLISION_CONFIG: Record<string, { 
-  height: number; 
-  radius: number; 
-  startOffset: number; 
-  endOffset: number;
-  headOffset?: number;
-  headRadius?: number;
+  height: number;      // Total character height
+  radius: number;      // Capsule radius (body width)
+  bottomY: number;     // Bottom of capsule (near feet)
+  topY: number;        // Top of capsule (at head)
+  isVertical: true;    // Flag for vertical orientation
 }> = {
   'Farmer.glb': { 
     height: 2.88, 
-    radius: 0.30, 
-    startOffset: -0.20, 
-    endOffset: 0.25,
-    headOffset: 0.35,
-    headRadius: 0.20
+    radius: 0.35,       // Body width
+    bottomY: 0.35,      // Start above feet
+    topY: 2.70,         // End at head
+    isVertical: true
   },
   'Animated_Woman.glb': { 
     height: 2.72, 
-    radius: 0.28, 
-    startOffset: -0.18, 
-    endOffset: 0.22,
-    headOffset: 0.32,
-    headRadius: 0.18
+    radius: 0.30,       // Slightly narrower body
+    bottomY: 0.30,      // Start above feet
+    topY: 2.55,         // End at head
+    isVertical: true
   },
 };
 
@@ -858,38 +856,30 @@ const CharacterRenderer = ({
 
   // Get NPC collision config for debug visualization
   const npcConfig = NPC_COLLISION_CONFIG[modelFile];
-  const npcDebugY = npcConfig ? npcConfig.height / 2 : 1.0;
 
   return (
     <group position={[position.x + 0.5, characterYOffset, position.y + 0.5]}>
       <group ref={groupRef}>
         <primitive object={model} scale={characterScale} />
         
-        {/* NPC collision debug visualization */}
-        {showCollisionDebug && npcConfig && (
+        {/* NPC collision debug visualization - VERTICAL capsule for humanoids */}
+        {showCollisionDebug && npcConfig && npcConfig.isVertical && (
           <group>
-            {/* Tail/back sphere (red) */}
-            <mesh position={[0, npcDebugY, npcConfig.startOffset]} renderOrder={999}>
+            {/* Bottom sphere (red) - near feet */}
+            <mesh position={[0, npcConfig.bottomY, 0]} renderOrder={999}>
               <sphereGeometry args={[npcConfig.radius, 12, 12]} />
               <meshBasicMaterial color="#ff0000" transparent opacity={0.5} depthTest={false} depthWrite={false} />
             </mesh>
-            {/* Body cylinder (cyan for NPCs) */}
-            <mesh position={[0, npcDebugY, (npcConfig.startOffset + npcConfig.endOffset) / 2]} rotation={[Math.PI / 2, 0, 0]} renderOrder={998}>
-              <cylinderGeometry args={[npcConfig.radius, npcConfig.radius, npcConfig.endOffset - npcConfig.startOffset, 12]} />
+            {/* Body cylinder (cyan) - vertical along Y axis */}
+            <mesh position={[0, (npcConfig.bottomY + npcConfig.topY) / 2, 0]} renderOrder={998}>
+              <cylinderGeometry args={[npcConfig.radius, npcConfig.radius, npcConfig.topY - npcConfig.bottomY, 12]} />
               <meshBasicMaterial color="#00ffff" transparent opacity={0.3} depthTest={false} depthWrite={false} />
             </mesh>
-            {/* Body end sphere (yellow) */}
-            <mesh position={[0, npcDebugY, npcConfig.endOffset]} renderOrder={999}>
+            {/* Top sphere (green) - at head */}
+            <mesh position={[0, npcConfig.topY, 0]} renderOrder={999}>
               <sphereGeometry args={[npcConfig.radius, 12, 12]} />
-              <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+              <meshBasicMaterial color="#00ff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
             </mesh>
-            {/* Head sphere (magenta for NPCs) */}
-            {npcConfig.headOffset && npcConfig.headRadius && (
-              <mesh position={[0, npcDebugY, npcConfig.headOffset]} renderOrder={999}>
-                <sphereGeometry args={[npcConfig.headRadius, 12, 12]} />
-                <meshBasicMaterial color="#ff00ff" transparent opacity={0.5} depthTest={false} depthWrite={false} />
-              </mesh>
-            )}
           </group>
         )}
       </group>
