@@ -63,7 +63,7 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 
 // Simple LOD geometry - single green box per stalk (1 draw call total)
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 1.25, 0.08);
-const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
+const LOD_BOX_MATERIAL = new MeshLambertMaterial({ color: new Color(0.2, 0.5, 0.15), fog: true });
 
 
 // Hidden matrix (scale 0) for hiding instances
@@ -73,6 +73,11 @@ const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
 // Helper to optimize material for performance (fix transparency/overdraw issues)
 const optimizeMaterial = (material: Material): Material => {
   const mat = material as any;
+  
+  // CRITICAL: Enable fog so corn blends with scene fog
+  if ('fog' in mat) {
+    mat.fog = true;
+  }
   
   // CRITICAL: Disable transparency for opaque rendering - NO transparent=true allowed
   if ('transparent' in mat) {
@@ -537,6 +542,7 @@ export const InstancedWalls = ({
       depthWrite: true,
       depthTest: true,
       side: FrontSide,
+      fog: true, // Enable fog so distant corn blends into scene fog
     });
     
     // Low-poly LOD corn: thicker stalk + larger drooping leaves
@@ -622,6 +628,7 @@ export const InstancedWalls = ({
       color: new Color(0.2, 0.45, 0.15),
       side: DoubleSide, // See leaves from both sides
       depthWrite: true,
+      fog: true, // Enable fog so distant corn blends into scene fog
     });
     
     // Use all meshes from the model (stalk + leaves + corn cobs)
