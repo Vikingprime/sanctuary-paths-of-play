@@ -733,8 +733,8 @@ const NPC_COLLISION_CONFIG: Record<string, {
   },
   'Animated_Woman.glb': { 
     height: 2.72, 
-    radius: 0.30,       // Slightly narrower body
-    bottomY: 0.30,      // Start above feet
+    radius: 0.32,       // Slightly wider to cover legs
+    bottomY: 0.10,      // Lower to cover feet/ankles
     topY: 2.55,         // End at head
     isVertical: true
   },
