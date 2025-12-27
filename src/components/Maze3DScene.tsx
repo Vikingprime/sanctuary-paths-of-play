@@ -1439,8 +1439,8 @@ return (
       {/* Sky dome - gradient sky with horizon matching fog color exactly */}
       <SkyDome />
       
-      {/* Exponential fog - high density to hide pop-in */}
-      <fogExp2 attach="fog" args={['#B8B0A0', 0.18]} />
+      {/* Exponential fog - density 0.35 for 99% obscuring at ~13m */}
+      <fogExp2 attach="fog" args={['#B8B0A0', 0.35]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
