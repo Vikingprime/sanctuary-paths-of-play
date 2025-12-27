@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
@@ -650,7 +650,10 @@ const MazeWalls = forwardRef<Group, {
   optimizationSettings?: CornOptimizationSettings;
   onCullStats?: (stats: CullStats) => void;
 }>(({ maze, playerStateRef, optimizationSettings, onCullStats }, ref) => {
-  const { edgePositions, depthOnlyWalls, boundaryWalls } = useMemo(() => {
+  // Ref for camera collision boxes (simple raycasting targets)
+  const cameraCollidersRef = useRef<Group>(null);
+  
+  const { edgePositions, depthOnlyWalls, boundaryWalls, allWallPositions } = useMemo(() => {
     const maxX = maze.grid[0].length - 1;
     const maxZ = maze.grid.length - 1;
     
@@ -664,10 +667,15 @@ const MazeWalls = forwardRef<Group, {
     // Key: "x,z", Value: array of directions ['left', 'right', 'top', 'bottom']
     const wallEdges = new Map<string, ('left' | 'right' | 'top' | 'bottom')[]>();
     
+    // Collect ALL wall positions for camera colliders
+    const allWalls: { x: number; z: number }[] = [];
+    
     // For each wall cell, check which sides face a path
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
         if (cell.isWall) {
+          allWalls.push({ x, z: y });
+          
           const edges: ('left' | 'right' | 'top' | 'bottom')[] = [];
           if (isPath(x - 1, y)) edges.push('left');
           if (isPath(x + 1, y)) edges.push('right');
@@ -722,12 +730,56 @@ const MazeWalls = forwardRef<Group, {
     return { 
       edgePositions: edges, 
       depthOnlyWalls: depthOnly, 
-      boundaryWalls: boundary 
+      boundaryWalls: boundary,
+      allWallPositions: allWalls,
     };
   }, [maze]);
+  
+  // Create instanced camera colliders (invisible boxes for raycasting)
+  const cameraColliderMesh = useMemo(() => {
+    if (allWallPositions.length === 0) return null;
+    
+    const geometry = new BoxGeometry(0.9, 2.5, 0.9); // Slightly smaller than cell, tall enough for camera
+    const material = new MeshBasicMaterial({ 
+      visible: false, // Invisible - only for raycasting
+      color: 0xff0000,
+    });
+    
+    const mesh = new InstancedMesh(geometry, material, allWallPositions.length);
+    mesh.name = 'cameraColliders';
+    mesh.userData.isCameraBlocker = true;
+    
+    // Set up instance matrices
+    const dummy = new Object3D();
+    allWallPositions.forEach((pos, i) => {
+      dummy.position.set(pos.x + 0.5, 1.25, pos.z + 0.5); // Center of cell, raised to mid-height
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    
+    // Pre-compute bounding box for the entire mesh
+    mesh.computeBoundingBox();
+    mesh.computeBoundingSphere();
+    
+    return mesh;
+  }, [allWallPositions]);
+
+  // Expose the camera colliders group through the forwarded ref
+  useEffect(() => {
+    if (ref && typeof ref === 'object' && cameraCollidersRef.current) {
+      (ref as React.MutableRefObject<Group | null>).current = cameraCollidersRef.current;
+    }
+  }, [ref, cameraColliderMesh]);
 
   return (
-    <group ref={ref}>
+    <group>
+      {/* Camera collision boxes (invisible, for raycasting only) */}
+      <group ref={cameraCollidersRef} name="cameraColliders">
+        {cameraColliderMesh && <primitive object={cameraColliderMesh} />}
+      </group>
+      
+      {/* Visual corn (InstancedWalls) */}
       <InstancedWalls 
         edgePositions={edgePositions}
         noShadowPositions={depthOnlyWalls}
@@ -1323,35 +1375,21 @@ const OverShoulderCameraController = ({
       rayDir.current.copy(targetPos.current).sub(headPos).normalize();
       const rayLength = headPos.distanceTo(targetPos.current);
       
-      // Collect ALL meshes from the foliage group (which contains only corn)
-      // The foliageGroupRef points directly to the corn walls group, so all children are blockers
+      // Find the camera colliders group (invisible boxes for raycasting)
+      // This is more reliable than raycasting against InstancedMesh corn
       const cameraBlockers: Object3D[] = [];
       foliageGroupRef.current.traverse((child) => {
-        if ((child as Mesh).isMesh || (child as InstancedMesh).isInstancedMesh) {
-          cameraBlockers.push(child);
+        // Look for our dedicated camera collider mesh
+        if (child.name === 'cameraColliders' || child.userData?.isCameraBlocker) {
+          if ((child as Mesh).isMesh || (child as InstancedMesh).isInstancedMesh) {
+            cameraBlockers.push(child);
+          }
         }
       });
       
-      // Debug: also collect scene objects for comparison (throttled log only)
-      const debugLogRef = (window as any).__autopushDebugLog || { lastLog: 0, lastSceneLog: 0 };
+      // Debug: throttled logging
+      const debugLogRef = (window as any).__autopushDebugLog || { lastLog: 0 };
       (window as any).__autopushDebugLog = debugLogRef;
-      
-      // One-time debug: log what's in foliageGroupRef
-      if (!debugLogRef.loggedFoliageContents) {
-        debugLogRef.loggedFoliageContents = true;
-        const meshNames: string[] = [];
-        foliageGroupRef.current.traverse((child) => {
-          if ((child as Mesh).isMesh || (child as InstancedMesh).isInstancedMesh) {
-            meshNames.push(`${child.name || 'unnamed'} (${child.type})`);
-          }
-        });
-        console.log('[AUTOPUSH DEBUG] foliageGroupRef contents:', {
-          groupName: foliageGroupRef.current.name,
-          childCount: foliageGroupRef.current.children.length,
-          meshCount: meshNames.length,
-          meshNames: meshNames.slice(0, 10), // First 10
-        });
-      }
       
       // Perform raycasts (1 or 3 rays)
       let closestHitDist = rayLength;
