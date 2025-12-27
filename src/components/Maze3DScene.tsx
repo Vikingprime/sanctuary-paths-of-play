@@ -1362,7 +1362,8 @@ const OverShoulderCameraController = ({
         raycaster.current.set(rayOrigin.current, direction);
         raycaster.current.far = rayLength;
         
-        const intersects = raycaster.current.intersectObjects(cameraBlockers, false);
+        // Use recursive=true to check nested meshes inside the foliage group
+        const intersects = raycaster.current.intersectObjects(cameraBlockers, true);
         if (intersects.length > 0) {
           const hitDist = intersects[0].distance;
           if (hitDist < closestHitDist) {
