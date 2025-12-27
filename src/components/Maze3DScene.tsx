@@ -714,6 +714,34 @@ const MapStation = ({ position, showCollisionDebug = true }: { position: [number
   );
 };
 
+// NPC collision capsule configuration based on model heights from CharacterConfig
+// Farmer: 2.88 units, Woman: 2.72 units
+const NPC_COLLISION_CONFIG: Record<string, { 
+  height: number; 
+  radius: number; 
+  startOffset: number; 
+  endOffset: number;
+  headOffset?: number;
+  headRadius?: number;
+}> = {
+  'Farmer.glb': { 
+    height: 2.88, 
+    radius: 0.30, 
+    startOffset: -0.20, 
+    endOffset: 0.25,
+    headOffset: 0.35,
+    headRadius: 0.20
+  },
+  'Animated_Woman.glb': { 
+    height: 2.72, 
+    radius: 0.28, 
+    startOffset: -0.18, 
+    endOffset: 0.22,
+    headOffset: 0.32,
+    headRadius: 0.18
+  },
+};
+
 // Unified character renderer - works for end farmer, placed characters, and legacy dialogue characters
 // Single source of truth for character rendering, facing logic, and animation
 interface CharacterRendererProps {
@@ -724,6 +752,7 @@ interface CharacterRendererProps {
   isDialogueActive: boolean;
   isGoalMarker?: boolean; // If true, renders invisible collision trigger
   alwaysFacePlayer?: boolean; // If true, character always faces player even outside dialogue
+  showCollisionDebug?: boolean; // Whether to show collision debug capsules
 }
 
 const CharacterRenderer = ({
@@ -734,6 +763,7 @@ const CharacterRenderer = ({
   isDialogueActive,
   isGoalMarker = false,
   alwaysFacePlayer = false,
+  showCollisionDebug = false,
 }: CharacterRendererProps) => {
   const groupRef = useRef<Group>(null);
   const mixerRef = useRef<AnimationMixer | null>(null);
@@ -826,10 +856,42 @@ const CharacterRenderer = ({
     }
   });
 
+  // Get NPC collision config for debug visualization
+  const npcConfig = NPC_COLLISION_CONFIG[modelFile];
+  const npcDebugY = npcConfig ? npcConfig.height / 2 : 1.0;
+
   return (
     <group position={[position.x + 0.5, characterYOffset, position.y + 0.5]}>
       <group ref={groupRef}>
         <primitive object={model} scale={characterScale} />
+        
+        {/* NPC collision debug visualization */}
+        {showCollisionDebug && npcConfig && (
+          <group>
+            {/* Tail/back sphere (red) */}
+            <mesh position={[0, npcDebugY, npcConfig.startOffset]} renderOrder={999}>
+              <sphereGeometry args={[npcConfig.radius, 12, 12]} />
+              <meshBasicMaterial color="#ff0000" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Body cylinder (cyan for NPCs) */}
+            <mesh position={[0, npcDebugY, (npcConfig.startOffset + npcConfig.endOffset) / 2]} rotation={[Math.PI / 2, 0, 0]} renderOrder={998}>
+              <cylinderGeometry args={[npcConfig.radius, npcConfig.radius, npcConfig.endOffset - npcConfig.startOffset, 12]} />
+              <meshBasicMaterial color="#00ffff" transparent opacity={0.3} depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Body end sphere (yellow) */}
+            <mesh position={[0, npcDebugY, npcConfig.endOffset]} renderOrder={999}>
+              <sphereGeometry args={[npcConfig.radius, 12, 12]} />
+              <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Head sphere (magenta for NPCs) */}
+            {npcConfig.headOffset && npcConfig.headRadius && (
+              <mesh position={[0, npcDebugY, npcConfig.headOffset]} renderOrder={999}>
+                <sphereGeometry args={[npcConfig.headRadius, 12, 12]} />
+                <meshBasicMaterial color="#ff00ff" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+              </mesh>
+            )}
+          </group>
+        )}
       </group>
       {/* Invisible collision trigger for goal marker */}
       {isGoalMarker && (
@@ -843,10 +905,11 @@ const CharacterRenderer = ({
 };
 
 // GoalMarker - wraps CharacterRenderer for the end farmer
-const GoalMarker = ({ position, playerStateRef, isDialogueActive }: { 
+const GoalMarker = ({ position, playerStateRef, isDialogueActive, showCollisionDebug }: { 
   position: [number, number, number];
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive?: boolean;
+  showCollisionDebug?: boolean;
 }) => {
   return (
     <CharacterRenderer
@@ -856,6 +919,7 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive }: {
       playerStateRef={playerStateRef}
       isDialogueActive={isDialogueActive || false}
       isGoalMarker={true}
+      showCollisionDebug={showCollisionDebug}
     />
   );
 };
@@ -865,10 +929,12 @@ const PlacedCharacter = ({
   character, 
   playerStateRef,
   isDialogueActive,
+  showCollisionDebug,
 }: { 
   character: MazeCharacter;
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive: boolean;
+  showCollisionDebug?: boolean;
 }) => {
   return (
     <CharacterRenderer
@@ -878,6 +944,7 @@ const PlacedCharacter = ({
       playerStateRef={playerStateRef}
       isDialogueActive={isDialogueActive}
       alwaysFacePlayer={character.alwaysFacePlayer}
+      showCollisionDebug={showCollisionDebug}
     />
   );
 };
@@ -887,10 +954,12 @@ const DialogueCharacter = ({
   dialogue, 
   playerStateRef,
   isActiveDialogue,
+  showCollisionDebug,
 }: { 
   dialogue: DialogueTrigger;
   playerStateRef?: MutableRefObject<PlayerState>;
   isActiveDialogue: boolean;
+  showCollisionDebug?: boolean;
 }) => {
   const position = useMemo(() => {
     if (dialogue.speakerPosition) {
@@ -909,6 +978,7 @@ const DialogueCharacter = ({
       animation={dialogue.characterAnimation}
       playerStateRef={playerStateRef}
       isDialogueActive={isActiveDialogue}
+      showCollisionDebug={showCollisionDebug}
     />
   );
 };
@@ -1481,6 +1551,7 @@ return (
             Math.abs(dialogueTarget.speakerX - character.position.x) < 0.5 &&
             Math.abs(dialogueTarget.speakerZ - character.position.y) < 0.5
           }
+          showCollisionDebug={showCollisionDebug}
         />
       ))}
       
@@ -1491,6 +1562,7 @@ return (
           dialogue={dialogue}
           playerStateRef={playerStateRef}
           isActiveDialogue={dialogueTarget !== null && dialogueTarget !== undefined}
+          showCollisionDebug={showCollisionDebug}
         />
       ))}
       

@@ -250,28 +250,30 @@ export interface CapsuleCollider {
  * Get capsule collider for animal type
  */
 function getAnimalCapsule(animalType?: AnimalType): CapsuleCollider {
-  // Capsule sizes scaled to match new animal model sizes:
-  // Cow: ~1.575x larger, Pig: ~2x larger, Chicken: ~0.475x smaller
+  // Capsule sizes matched to PlayerCube.tsx debug visualization
+  // Cow: ~2.52 units tall, Pig: ~1.52 units tall, Chicken: ~0.76 units tall
   switch (animalType) {
     case 'cow':
       return {
-        startOffset: -0.80,  // Tail end (increased further for larger cow)
-        endOffset: 1.60,     // Head/neck end (increased further)
-        radius: 0.38,        // Body radius (increased to prevent body merging)
-        headOffset: 1.80,    // Extra head sphere (increased)
-        headRadius: 0.32     // Head radius (increased)
+        startOffset: -0.90,  // Tail end (back)
+        endOffset: 1.10,     // Body/neck end (forward)
+        radius: 0.55,        // Body radius (cows are wide)
+        headOffset: 1.50,    // Head sphere position (forward of body)
+        headRadius: 0.40     // Head radius
       };
     case 'pig':
       return {
-        startOffset: -0.60,  // Extended back for rear/tail (was -0.30, scaled 2x)
-        endOffset: 1.10,     // Extended far forward for snout (was 0.55, scaled 2x)
-        radius: 0.30         // Slightly larger radius (was 0.15, scaled 2x)
+        startOffset: -0.50,  // Rear/tail (extended back)
+        endOffset: 0.65,     // Snout (forward)
+        radius: 0.35         // Body width
       };
     case 'bird':
       return {
-        startOffset: -0.024, // (was -0.05, scaled 0.475x)
-        endOffset: 0.085,    // Extended forward (was 0.18, scaled 0.475x)
-        radius: 0.038        // (was 0.08, scaled 0.475x)
+        startOffset: -0.15,  // Tail (back)
+        endOffset: 0.25,     // Toward head (forward)
+        radius: 0.18,        // Body width
+        headOffset: 0.35,    // Head position (forward)
+        headRadius: 0.12     // Head size
       };
     default:
       return {

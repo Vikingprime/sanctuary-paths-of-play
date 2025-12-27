@@ -380,11 +380,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
 
   // Pig uses GLB model
   if (animalType === 'pig') {
-    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule (scaled 2x for new model size)
-    const CAPSULE_START = -0.60;  // Extended back for rear/tail
-    const CAPSULE_END = 1.10;     // Extended far forward for snout
-    const CAPSULE_RADIUS = 0.30;  // Larger radius
-    const DEBUG_Y = 0.5;
+    // Debug capsule collider - sized for pig at ~1.52 units tall
+    // Body center at ~0.5, extends back to tail and forward to snout
+    const CAPSULE_START = -0.50;  // Rear/tail (extended back)
+    const CAPSULE_END = 0.65;     // Snout (forward)
+    const CAPSULE_RADIUS = 0.35;  // Body width
+    const DEBUG_Y = 0.55;         // Body center height
     
     // FIX: Raise pig model so feet touch ground at y=0
     const PIG_Y_OFFSET = 0.05;
@@ -424,13 +425,14 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
 
   // Cow uses GLB model with animation
   if (animalType === 'cow') {
-    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule (increased for larger cow)
-    const CAPSULE_START = -0.80;  // Tail end offset (increased)
-    const CAPSULE_END = 1.60;     // Head/neck end offset (increased)
-    const CAPSULE_RADIUS = 0.38;  // Body radius (increased)
-    const HEAD_OFFSET = 1.80;     // Extra head sphere (increased)
-    const HEAD_RADIUS = 0.32;     // Head radius (increased)
-    const DEBUG_Y = 0.65;
+    // Debug capsule collider - sized for cow at ~2.52 units tall
+    // Body center at ~1.0-1.2 units, cow is longer than tall
+    const CAPSULE_START = -0.90;  // Tail end (back)
+    const CAPSULE_END = 1.10;     // Body/neck end (forward)
+    const CAPSULE_RADIUS = 0.55;  // Body radius (cows are wide)
+    const HEAD_OFFSET = 1.50;     // Head sphere position (forward of body)
+    const HEAD_RADIUS = 0.40;     // Head radius
+    const DEBUG_Y = 1.10;         // Body center height (half of 2.52 ~ 1.26, adjusted for body center)
     
     // Use the cow scale from our constants
     const cowScale = ANIMAL_SCALES.cow;
@@ -472,11 +474,14 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   }
 
   // Bird/Chicken uses GLB model
-  // Debug capsule collider - matches GameLogic.ts getAnimalCapsule (scaled 0.475x for new model size)
-  const CAPSULE_START = -0.024;
-  const CAPSULE_END = 0.085;
-  const CAPSULE_RADIUS = 0.038;
-  const DEBUG_Y = 0.1;
+  // Debug capsule collider - sized for chicken at ~0.76 units tall
+  // Body center at ~0.25-0.35, chicken has small body with head forward
+  const CAPSULE_START = -0.15;   // Tail (back)
+  const CAPSULE_END = 0.25;      // Toward head (forward)
+  const CAPSULE_RADIUS = 0.18;   // Body width
+  const HEAD_OFFSET_CHICKEN = 0.35;  // Head position (forward)
+  const HEAD_RADIUS_CHICKEN = 0.12;  // Head size
+  const DEBUG_Y = 0.30;          // Body center height
   
   // FIX: The chicken model's origin is at its body center, not feet.
   // We need a positive Y offset to raise the model so feet touch ground.
@@ -513,10 +518,15 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
               <cylinderGeometry args={[CAPSULE_RADIUS, CAPSULE_RADIUS, CAPSULE_END - CAPSULE_START, 12]} />
               <meshBasicMaterial color="#ff8800" transparent opacity={0.3} depthTest={false} depthWrite={false} />
             </mesh>
-            {/* Head sphere (yellow) */}
+            {/* Body end sphere (yellow) */}
             <mesh position={[0, DEBUG_Y, CAPSULE_END]} renderOrder={999}>
               <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
               <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+            </mesh>
+            {/* Head sphere (green) */}
+            <mesh position={[0, DEBUG_Y, HEAD_OFFSET_CHICKEN]} renderOrder={999}>
+              <sphereGeometry args={[HEAD_RADIUS_CHICKEN, 12, 12]} />
+              <meshBasicMaterial color="#00ff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
             </mesh>
           </group>
         </>
