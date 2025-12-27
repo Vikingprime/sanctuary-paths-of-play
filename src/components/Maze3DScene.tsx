@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Box3, Box3Helper, Quaternion, Euler } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Box3, Box3Helper, Quaternion, Euler, DoubleSide } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
@@ -1296,80 +1296,32 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-// Debug component to visualize corn bounding box with actual game transforms
-const CornBoundingBoxDebug = () => {
+// Debug component to show height marker plane at predicted corn height
+const HeightMarkerDebug = () => {
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
-  const groupRef = useRef<Group>(null);
-  const helperRef = useRef<Box3Helper | null>(null);
-  const { scene } = useThree();
-  const measuredRef = useRef(false);
-  
-  useFrame(() => {
-    if (!groupRef.current || measuredRef.current) return;
-    measuredRef.current = true;
-    
-    // Force update world matrix
-    groupRef.current.updateMatrixWorld(true);
-    
-    // Compute bounding box from ONLY visible mesh geometry (not armatures/bones)
-    const box = new Box3();
-    groupRef.current.traverse((child) => {
-      if ((child as any).isMesh) {
-        const mesh = child as any;
-        mesh.geometry.computeBoundingBox();
-        if (mesh.geometry.boundingBox) {
-          const meshBox = mesh.geometry.boundingBox.clone();
-          meshBox.applyMatrix4(mesh.matrixWorld);
-          box.expandByPoint(meshBox.min);
-          box.expandByPoint(meshBox.max);
-        }
-      }
-    });
-    
-    const size = new Vector3();
-    const center = new Vector3();
-    box.getSize(size);
-    box.getCenter(center);
-    
-    console.log('%c=== CORN BOUNDING BOX DEBUG (MESH ONLY) ===', 'color: #ff00ff; font-weight: bold; font-size: 14px');
-    console.log('World bounding box size:', { x: size.x.toFixed(4), y: size.y.toFixed(4), z: size.z.toFixed(4) });
-    console.log('World bounding box center:', { x: center.x.toFixed(4), y: center.y.toFixed(4), z: center.z.toFixed(4) });
-    console.log('Box min:', { x: box.min.x.toFixed(4), y: box.min.y.toFixed(4), z: box.min.z.toFixed(4) });
-    console.log('Box max:', { x: box.max.x.toFixed(4), y: box.max.y.toFixed(4), z: box.max.z.toFixed(4) });
-    console.log('%cVISUAL HEIGHT (Y dimension): ' + size.y.toFixed(4), 'color: #00ff00; font-weight: bold');
-    
-    // Create visible Box3Helper
-    const helper = new Box3Helper(box, new Color(0xff00ff)); // Magenta wireframe
-    scene.add(helper);
-    helperRef.current = helper;
-  });
-  
-  // Cleanup helper on unmount
-  useEffect(() => {
-    return () => {
-      if (helperRef.current) {
-        scene.remove(helperRef.current);
-      }
-    };
-  }, [scene]);
   
   // Clone scene to avoid modifying original
   const clonedScene = useMemo(() => gltfScene.clone(), [gltfScene]);
   
+  // The predicted corn height from CharacterConfig.ts
+  const predictedCornHeight = 197;
+  
   // Apply same transforms as InstancedWalls corn stalks
-  // From CornWall.tsx: rotation -PI/2 on X, scale [widthScale, widthScale, heightScale]
-  // where widthScale ≈ 70, heightScale ≈ 180
   const widthScale = 100 * 1.0 * 0.7; // baseScale * heightVariation * widthMultiplier = 70
   const heightScale = 100 * 1.0 * 1.8; // baseScale * heightVariation * heightMultiplier = 180
   
   return (
-    <group 
-      ref={groupRef} 
-      position={[2.5, 0, 2.5]} // Near player start (assuming start is around 1,1)
-    >
+    <group position={[2.5, 0, 2.5]}>
+      {/* Red plane at predicted corn height (Y=197) */}
+      <mesh position={[0, predictedCornHeight, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[3, 3]} />
+        <meshBasicMaterial color="red" transparent opacity={0.6} side={DoubleSide} />
+      </mesh>
+      
+      {/* Single corn stalk for visual reference */}
       <primitive 
         object={clonedScene}
-        rotation={[-Math.PI / 2, 0, 0]} // Same rotation as corn stalks
+        rotation={[-Math.PI / 2, 0, 0]}
         scale={[widthScale, widthScale, heightScale]}
       />
     </group>
@@ -1599,7 +1551,7 @@ return (
       <WorldScaleDebug />
       
       {/* Visual bounding box debug for corn */}
-      <CornBoundingBoxDebug />
+      <HeightMarkerDebug />
     </>
   );
 };
