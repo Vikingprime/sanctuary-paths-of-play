@@ -256,10 +256,10 @@ function getAnimalCapsule(animalType?: AnimalType): CapsuleCollider {
     case 'cow':
       return {
         startOffset: -0.90,  // Tail end (back)
-        endOffset: 1.10,     // Body/neck end (forward)
+        endOffset: 1.40,     // Extended forward toward neck
         radius: 0.55,        // Body radius (cows are wide)
-        headOffset: 1.50,    // Head sphere position (forward of body)
-        headRadius: 0.40     // Head radius
+        headOffset: 2.00,    // Head sphere further forward
+        headRadius: 0.50     // Larger head radius
       };
     case 'pig':
       return {

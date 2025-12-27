@@ -426,13 +426,14 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   // Cow uses GLB model with animation
   if (animalType === 'cow') {
     // Debug capsule collider - sized for cow at ~2.52 units tall
-    // Cow body is horizontal, but we need a tall capsule to prevent going through NPCs
+    // Cow body is horizontal, need capsule high enough to cover head
     const CAPSULE_START = -0.90;  // Tail end (back)
-    const CAPSULE_END = 1.10;     // Body/neck end (forward)
+    const CAPSULE_END = 1.40;     // Extended forward toward neck
     const CAPSULE_RADIUS = 0.55;  // Body radius (cows are wide)
-    const HEAD_OFFSET = 1.50;     // Head sphere position (forward of body)
-    const HEAD_RADIUS = 0.40;     // Head radius
-    const DEBUG_Y = 1.60;         // Raised significantly to cover head area (was 1.10)
+    const HEAD_OFFSET = 2.00;     // Head sphere further forward
+    const HEAD_RADIUS = 0.50;     // Larger head radius
+    const DEBUG_Y = 1.80;         // Raised to cover cow's back/head height
+    const HEAD_Y = 2.20;          // Head sphere even higher (cow head is raised)
     
     // Use the cow scale from our constants
     const cowScale = ANIMAL_SCALES.cow;
@@ -462,8 +463,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
               <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
               <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
             </mesh>
-            {/* Head sphere (green) */}
-            <mesh position={[0, DEBUG_Y, HEAD_OFFSET]} renderOrder={999}>
+            {/* Head sphere (green) - positioned higher and further forward */}
+            <mesh position={[0, HEAD_Y, HEAD_OFFSET]} renderOrder={999}>
               <sphereGeometry args={[HEAD_RADIUS, 12, 12]} />
               <meshBasicMaterial color="#00ff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
             </mesh>
