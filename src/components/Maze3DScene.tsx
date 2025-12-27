@@ -1534,11 +1534,30 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
   const lastUpdate = useRef(0);
   const frameTimesRef = useRef<number[]>([]);
   const lastFrameTime = useRef(performance.now());
+  const lastFogLog = useRef(0);
   
   useFrame(() => {
     const now = performance.now();
     const frameTime = now - lastFrameTime.current;
     lastFrameTime.current = now;
+    
+    // DEBUG: Log fog state once per second
+    if (now - lastFogLog.current > 1000) {
+      lastFogLog.current = now;
+      const fog = scene.fog as any;
+      if (fog) {
+        console.log('[FOG DEBUG]', {
+          type: fog.isFogExp2 ? 'FogExp2' : 'Fog',
+          color: fog.color?.getHexString?.(),
+          density: fog.density,
+          near: fog.near,
+          far: fog.far,
+          sceneUuid: scene.uuid,
+        });
+      } else {
+        console.log('[FOG DEBUG] scene.fog is NULL!', { sceneUuid: scene.uuid });
+      }
+    }
     
     // Keep last 30 frame times for averaging
     frameTimesRef.current.push(frameTime);
