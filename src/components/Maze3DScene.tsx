@@ -1450,8 +1450,8 @@ return (
       {/* Background color as fallback - matches horizon */}
       <color attach="background" args={['#E8D8C8']} />
       
-      {/* Denser fog to hide corn culling in distance */}
-      <fogExp2 attach="fog" args={['#D8C8B8', 0.12]} />
+      {/* Much denser fog to completely hide corn culling in distance */}
+      <fogExp2 attach="fog" args={['#D8C8B8', 0.22]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
