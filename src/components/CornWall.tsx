@@ -63,7 +63,7 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 
 // Simple LOD geometry - single green box per stalk (1 draw call total)
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 1.25, 0.08);
-const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
+const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.25, 0.42, 0.18), fog: true });
 
 
 // Hidden matrix (scale 0) for hiding instances

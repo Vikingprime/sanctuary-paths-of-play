@@ -96,9 +96,10 @@ const mat = new ShaderMaterial({
         rockLight: { value: new Color('#C4B090') },
         rockMid: { value: new Color('#A08060') },
         rockDark: { value: new Color('#705540') },
-        // Fog uniforms
-        fogColor: { value: new Color('#5a6b55') },
+        // Fog uniforms - neutral atmospheric tone, not green
+        fogColor: { value: new Color('#D0C8BC') },
         fogDensity: { value: 0.145 },  // Fog tuned for 16m corn cull distance
+        fogHeightMax: { value: 2.5 },  // Height above which fog fades out
       },
       fog: true,
       vertexShader: `
@@ -129,6 +130,7 @@ const mat = new ShaderMaterial({
         uniform vec3 rockDark;
         uniform vec3 fogColor;
         uniform float fogDensity;
+        uniform float fogHeightMax;
         varying vec2 vUv;
         varying float vFogDepth;
         varying vec3 vWorldPos;
@@ -271,9 +273,15 @@ const mat = new ShaderMaterial({
           
           vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
           
-          // Apply exponential fog
+          // Apply height-attenuated exponential fog
+          // Ground is at Y=0, fog strongest there, fading out above corn height
+          float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
           float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
-          finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
+          fogFactor *= heightAttenuation;
+          
+          // Desaturate fog slightly for more atmospheric look
+          vec3 desatFogColor = mix(fogColor, vec3(dot(fogColor, vec3(0.299, 0.587, 0.114))), 0.2);
+          finalColor = mix(finalColor, desatFogColor, clamp(fogFactor, 0.0, 1.0));
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
@@ -1393,11 +1401,12 @@ return (
       
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
-      {/* Atmospheric background - desaturated to match fog */}
-      <color attach="background" args={['#5a6b55']} />
+      {/* Sky background - separate from fog, clean blue sky */}
+      <color attach="background" args={['#87CEEB']} />
       
-      {/* Exponential fog */}
-      <fogExp2 attach="fog" args={['#5a6b55', 0.145]} />
+      {/* Height-attenuated fog - neutral atmospheric tone, NOT green 
+          Fog only affects objects, NOT the background/sky */}
+      <fogExp2 attach="fog" args={['#D0C8BC', 0.12]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
