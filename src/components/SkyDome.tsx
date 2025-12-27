@@ -84,10 +84,12 @@ export const SkyDome = () => {
     return { geometry: geo, material: mat };
   }, []);
 
-  // Set frustumCulled on mesh after mount
+  // Set mesh properties after mount
   useEffect(() => {
     if (meshRef.current) {
       meshRef.current.frustumCulled = false;
+      // Render first (behind everything else)
+      meshRef.current.renderOrder = -1000;
     }
   }, []);
 
