@@ -52,6 +52,7 @@ interface Maze3DSceneProps {
   dialogueTarget?: DialogueTarget | null; // Active dialogue speaker position for cutscene camera
   topDownCamera?: boolean; // Toggle between normal and top-down camera
   groundLevelCamera?: boolean; // Toggle to ground-level camera for debugging heights
+  lookUpCamera?: boolean; // Toggle to look up at 70 degrees for debugging corn height
   showCollisionDebug?: boolean; // Show collision debug spheres
 }
 
@@ -1041,11 +1042,13 @@ const OverShoulderCameraController = ({
   restartKey,
   topDownCamera = false,
   groundLevelCamera = false,
+  lookUpCamera = false,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
   topDownCamera?: boolean;
   groundLevelCamera?: boolean;
+  lookUpCamera?: boolean;
 }) => {
   const { camera } = useThree();
   
@@ -1167,7 +1170,17 @@ const OverShoulderCameraController = ({
     currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
     
     // Apply to camera
-    if (groundLevelCamera) {
+    if (lookUpCamera) {
+      // Look up at 70 degrees - position camera near debug corn at ground level
+      const cornX = 2.5;
+      const cornZ = 2.5;
+      camera.position.set(cornX + 1.5, 0.1, cornZ + 1.5); // Slightly offset from corn
+      
+      // Look up at 70 degrees (from horizontal)
+      const lookDistance = 5; // horizontal distance to look target
+      const lookHeight = Math.tan(70 * Math.PI / 180) * lookDistance; // ~13.7 units up
+      camera.lookAt(cornX, lookHeight, cornZ);
+    } else if (groundLevelCamera) {
       // Ground level debug view - camera at ground level, looking at player from side
       const sideOffset = 2.5; // Distance to the side
       camera.position.set(
@@ -1350,7 +1363,7 @@ const CornBoundingBoxDebug = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, lookUpCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -1565,6 +1578,7 @@ return (
           restartKey={restartKey}
           topDownCamera={topDownCamera}
           groundLevelCamera={groundLevelCamera}
+          lookUpCamera={lookUpCamera}
         />
       )}
       
