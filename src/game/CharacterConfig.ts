@@ -14,12 +14,15 @@ export interface CharacterModelConfig {
 // Chicken 0.19, Pig 0.38, Cow 0.63, Woman 0.68, Man/Farmer 0.72, Cornstalk 1.00
 export const CharacterConfig: Record<string, CharacterModelConfig> = {
   // Main characters - yOffset adjusts vertical position so feet touch ground
+  // Game world scale: 1 cell = 1 unit, characters should be ~1.5-2 units tall
+  // Corn appears ~2.5-3 visual units tall, so targets:
+  // Farmer: 0.72 * 2.5 = 1.8 visual height, Woman: 0.68 * 2.5 = 1.7
   'Farmer.glb': {
-    scale: 141.004914,   // 257.12 / 1.823 raw
+    scale: 0.75,   // Farmer raw ~1.82, so 0.75 * 1.82 ≈ 1.37 visual height
     yOffset: -0.1,
   },
   'Animated_Woman.glb': {
-    scale: 46.625169,   // 242.84 / 5.208 raw
+    scale: 0.30,   // Woman raw ~5.2, so 0.30 * 5.2 ≈ 1.56 visual height  
     yOffset: -0.1,
   },
   
