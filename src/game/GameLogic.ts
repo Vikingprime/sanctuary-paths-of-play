@@ -953,26 +953,39 @@ export function calculateMovement(
               
               // Second sweep made no progress - APPLY ROTATION to turn toward gap
               // This "turns the head" instead of forcing a blocked translation
-              const ROTATION_NUDGE_STRENGTH = 0.06; // Radians per frame when blocked (slightly stronger)
               
-              // Increase nudge strength gradually the longer we're stuck
-              const stuckMultiplier = Math.min(slideBlockedCounter / 10, 2); // Ramps up to 3x over 20 frames
+              // Check if user is actively rotating - if so, skip automatic nudge
+              const userRotatingRight = input.rotateRight && !input.rotateLeft;
+              const userRotatingLeft = input.rotateLeft && !input.rotateRight;
+              const userIsRotating = userRotatingRight || userRotatingLeft;
               
-              // Don't flip for backward - the headOnSideSign already captures which side has the gap
-              // based on movement direction relative to the obstacle normal
-              const isMovingBackward = input.backward && !input.forward;
-              const directionMultiplier = 1; // Same rotation direction regardless of forward/backward
-              
-              const rotationNudge = ROTATION_NUDGE_STRENGTH * (1 + stuckMultiplier) * headOnSideSign * directionMultiplier;
-              newRotation += rotationNudge;
-              console.log('[SLIDE] Rotation nudge (blocked slide):', {
-                sideSign: headOnSideSign,
-                isBackward: isMovingBackward,
-                blockedFrames: slideBlockedCounter,
-                stuckMultiplier: stuckMultiplier.toFixed(2),
-                rotationNudge: rotationNudge.toFixed(4),
-                newRotation: newRotation.toFixed(3)
-              });
+              if (!userIsRotating) {
+                const ROTATION_NUDGE_STRENGTH = 0.06; // Radians per frame when blocked
+                
+                // Increase nudge strength gradually the longer we're stuck
+                const stuckMultiplier = Math.min(slideBlockedCounter / 10, 2); // Ramps up to 3x over 20 frames
+                
+                // After a flip has occurred (counter reset but still blocked), reduce nudge strength
+                // We detect post-flip by checking if counter is low but we have a headOnSideSign
+                // Use a weaker nudge after 30+ total blocked frames across flips
+                const postFlipReduction = slideBlockedCounter < 5 && headOnSideSign !== 0 ? 0.5 : 1.0;
+                
+                const rotationNudge = ROTATION_NUDGE_STRENGTH * (1 + stuckMultiplier) * headOnSideSign * postFlipReduction;
+                newRotation += rotationNudge;
+                console.log('[SLIDE] Rotation nudge (blocked slide):', {
+                  sideSign: headOnSideSign,
+                  blockedFrames: slideBlockedCounter,
+                  stuckMultiplier: stuckMultiplier.toFixed(2),
+                  postFlipReduction,
+                  rotationNudge: rotationNudge.toFixed(4),
+                  newRotation: newRotation.toFixed(3)
+                });
+              } else {
+                console.log('[SLIDE] User is rotating, skipping auto-nudge:', {
+                  userRotatingRight,
+                  userRotatingLeft
+                });
+              }
               
               // Don't force translation - let the rotation guide the player
               // Just stay at pushed position (slightly away from collider)
