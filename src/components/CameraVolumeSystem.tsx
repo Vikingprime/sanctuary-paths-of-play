@@ -1,6 +1,6 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Vector3, Euler, MathUtils } from 'three';
+import { Vector3, Euler, MathUtils, Raycaster, Object3D, Mesh, InstancedMesh } from 'three';
 
 // Camera Volume Configuration
 export interface CameraVolumeConfig {
@@ -19,6 +19,29 @@ export interface CameraVolumeConfig {
   priority?: number;
 }
 
+// Autopush configuration for foliage collision
+export interface AutopushConfig {
+  enabled: boolean;
+  minDist: number;      // Minimum camera distance (never push closer than this)
+  padding: number;      // Padding before obstacle
+  pushLerp: number;     // Lerp speed when pushing in (faster)
+  relaxLerp: number;    // Lerp speed when relaxing out (slower)
+  headHeight: number;   // Height of target (animal head)
+  rayCount: 3 | 1;      // 1 for single ray, 3 for left/center/right
+  raySpread: number;    // Spread angle for side rays (radians)
+}
+
+export const DEFAULT_AUTOPUSH: AutopushConfig = {
+  enabled: true,
+  minDist: 0.8,         // Very close minimum
+  padding: 0.3,         // Small padding before corn
+  pushLerp: 0.35,       // Fast push-in
+  relaxLerp: 0.08,      // Slow relax-out (prevents pumping)
+  headHeight: 0.5,      // Animal head height
+  rayCount: 3,          // Use 3 rays for stability
+  raySpread: 0.15,      // ~8.5 degrees spread for side rays
+};
+
 // Default overhead camera settings (fallback)
 const DEFAULT_CAMERA: Omit<CameraVolumeConfig, 'id' | 'position' | 'size'> = {
   cameraOffset: [0, 2.2, 0],
@@ -34,6 +57,8 @@ interface CameraVolumeSystemProps {
   volumes: CameraVolumeConfig[];
   transitionSpeed?: number; // 0.15-0.4 recommended
   enabled?: boolean; // Easy toggle to disable and use overhead
+  autopush?: AutopushConfig; // Autopush settings for foliage avoidance
+  foliageGroupRef?: React.RefObject<Object3D>; // Reference to corn/foliage group for raycasting
 }
 
 // Check if player is inside a volume
@@ -68,14 +93,25 @@ export const CameraVolumeController = ({
   volumes,
   transitionSpeed = 0.25,
   enabled = true,
+  autopush = DEFAULT_AUTOPUSH,
+  foliageGroupRef,
 }: CameraVolumeSystemProps) => {
-  const { camera } = useThree();
+  const { camera, scene } = useThree();
   
   // Current interpolated values
   const currentPosition = useRef(new Vector3());
   const currentLookAt = useRef(new Vector3());
   const currentFov = useRef(60);
   const initialized = useRef(false);
+  
+  // Autopush state
+  const currentAutopushDist = useRef<number | null>(null); // null = use full distance
+  const raycaster = useRef(new Raycaster());
+  
+  // Reusable vectors for raycasting
+  const rayOrigin = useRef(new Vector3());
+  const rayDir = useRef(new Vector3());
+  const tempVec = useRef(new Vector3());
 
   useFrame((state, delta) => {
     const playerX = playerPos.x + 0.5;
@@ -113,11 +149,18 @@ export const CameraVolumeController = ({
       }
     }
 
-    // Calculate target camera position
-    const targetPosition = new Vector3(
+    // Calculate base target camera position (desired position without autopush)
+    const desiredCameraPos = new Vector3(
       playerX + targetOffset[0] + shoulderOffset,
       targetOffset[1] + heightOffset,
       playerZ + targetOffset[2]
+    );
+
+    // Calculate target (animal head position)
+    const targetHead = new Vector3(
+      playerX + targetLookAtOffset[0],
+      autopush.headHeight,
+      playerZ + targetLookAtOffset[2]
     );
 
     // Calculate target look-at position
@@ -127,9 +170,100 @@ export const CameraVolumeController = ({
       playerZ + targetLookAtOffset[2]
     );
 
+    // === AUTOPUSH LOGIC ===
+    let finalCameraPos = desiredCameraPos.clone();
+    
+    if (autopush.enabled && foliageGroupRef?.current) {
+      const desiredDist = targetHead.distanceTo(desiredCameraPos);
+      
+      // Calculate direction from target to desired camera position
+      rayDir.current.copy(desiredCameraPos).sub(targetHead).normalize();
+      
+      // Collect foliage meshes for raycasting (InstancedMesh + regular Mesh)
+      const foliageMeshes: Object3D[] = [];
+      foliageGroupRef.current.traverse((child) => {
+        if ((child as Mesh).isMesh || (child as InstancedMesh).isInstancedMesh) {
+          foliageMeshes.push(child);
+        }
+      });
+      
+      // Perform raycasts (1 or 3 rays)
+      let closestHitDist = desiredDist;
+      
+      const performRaycast = (direction: Vector3) => {
+        rayOrigin.current.copy(targetHead);
+        raycaster.current.set(rayOrigin.current, direction);
+        raycaster.current.far = desiredDist;
+        
+        const intersects = raycaster.current.intersectObjects(foliageMeshes, false);
+        if (intersects.length > 0) {
+          const hitDist = intersects[0].distance;
+          if (hitDist < closestHitDist) {
+            closestHitDist = hitDist;
+          }
+        }
+      };
+      
+      // Center ray
+      performRaycast(rayDir.current);
+      
+      // Side rays (if enabled)
+      if (autopush.rayCount === 3) {
+        // Calculate perpendicular direction in XZ plane
+        const perpX = -rayDir.current.z;
+        const perpZ = rayDir.current.x;
+        
+        // Left ray
+        tempVec.current.set(
+          rayDir.current.x + perpX * autopush.raySpread,
+          rayDir.current.y,
+          rayDir.current.z + perpZ * autopush.raySpread
+        ).normalize();
+        performRaycast(tempVec.current);
+        
+        // Right ray
+        tempVec.current.set(
+          rayDir.current.x - perpX * autopush.raySpread,
+          rayDir.current.y,
+          rayDir.current.z - perpZ * autopush.raySpread
+        ).normalize();
+        performRaycast(tempVec.current);
+      }
+      
+      // Determine blocked distance
+      let blockedDist = desiredDist;
+      if (closestHitDist < desiredDist) {
+        blockedDist = Math.max(
+          closestHitDist - autopush.padding,
+          autopush.minDist
+        );
+        blockedDist = Math.min(blockedDist, desiredDist);
+      }
+      
+      // Initialize autopush distance on first frame
+      if (currentAutopushDist.current === null) {
+        currentAutopushDist.current = blockedDist;
+      }
+      
+      // Asymmetric damping: fast push-in, slow relax-out
+      const targetDist = blockedDist;
+      const currentDist = currentAutopushDist.current;
+      
+      const lerpSpeed = targetDist < currentDist ? autopush.pushLerp : autopush.relaxLerp;
+      currentAutopushDist.current = MathUtils.lerp(currentDist, targetDist, lerpSpeed);
+      
+      // Apply autopush: position camera at the smoothed distance
+      finalCameraPos.copy(targetHead).add(
+        rayDir.current.clone().multiplyScalar(currentAutopushDist.current)
+      );
+      
+      // Preserve the Y height from the original target
+      finalCameraPos.y = desiredCameraPos.y;
+    }
+
     // Initialize on first frame
     if (!initialized.current) {
-      currentPosition.current.copy(targetPosition);
+      currentPosition.current.copy(finalCameraPos);
       currentLookAt.current.copy(targetLookAt);
       currentFov.current = targetFov;
       initialized.current = true;
@@ -138,7 +272,7 @@ export const CameraVolumeController = ({
     // Smooth interpolation (frame-rate independent)
     const lerpFactor = 1 - Math.pow(1 - transitionSpeed, delta * 60);
     
-    currentPosition.current.lerp(targetPosition, lerpFactor);
+    currentPosition.current.lerp(finalCameraPos, lerpFactor);
     currentLookAt.current.lerp(targetLookAt, lerpFactor);
     currentFov.current = MathUtils.lerp(currentFov.current, targetFov, lerpFactor);
 
