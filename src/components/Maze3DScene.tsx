@@ -1296,27 +1296,30 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-// Debug component to show height marker plane at predicted corn height
+// Debug component to show height marker planes to find corn height
 const HeightMarkerDebug = () => {
   const { scene: gltfScene } = useGLTF('/models/Corn.glb');
   
   // Clone scene to avoid modifying original
   const clonedScene = useMemo(() => gltfScene.clone(), [gltfScene]);
   
-  // The predicted corn height from CharacterConfig.ts
-  const predictedCornHeight = 197;
-  
   // Apply same transforms as InstancedWalls corn stalks
   const widthScale = 100 * 1.0 * 0.7; // baseScale * heightVariation * widthMultiplier = 70
   const heightScale = 100 * 1.0 * 1.8; // baseScale * heightVariation * heightMultiplier = 180
   
+  // Multiple height markers to find where corn actually ends
+  const heightMarkers = [1, 2, 3, 5, 10, 20];
+  const colors = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
+  
   return (
     <group position={[2.5, 0, 2.5]}>
-      {/* Red plane at predicted corn height (Y=197) */}
-      <mesh position={[0, predictedCornHeight, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[3, 3]} />
-        <meshBasicMaterial color="red" transparent opacity={0.6} side={DoubleSide} />
-      </mesh>
+      {/* Height marker planes at various heights */}
+      {heightMarkers.map((height, i) => (
+        <mesh key={height} position={[0, height, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[2, 2]} />
+          <meshBasicMaterial color={colors[i]} transparent opacity={0.5} side={DoubleSide} />
+        </mesh>
+      ))}
       
       {/* Single corn stalk for visual reference */}
       <primitive 
