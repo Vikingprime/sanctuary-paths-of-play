@@ -21,7 +21,7 @@ export interface CameraVolumeConfig {
 
 // Default overhead camera settings (fallback)
 const DEFAULT_CAMERA: Omit<CameraVolumeConfig, 'id' | 'position' | 'size'> = {
-  cameraOffset: [0, 2.4, 0],
+  cameraOffset: [0, 2.2, 0],
   lookAtOffset: [0, 0, 0],
   fov: 60,
   heightOffset: 0,
@@ -196,7 +196,7 @@ export const createCameraVolume = (
 ): CameraVolumeConfig => {
   const presets: Record<string, Partial<CameraVolumeConfig>> = {
     'overhead': {
-      cameraOffset: [0, 2.4, 0],
+      cameraOffset: [0, 2.2, 0],
       lookAtOffset: [0, 0, 0],
       fov: 60,
     },
@@ -222,7 +222,7 @@ export const createCameraVolume = (
     id,
     position,
     size,
-    cameraOffset: [0, 2.4, 0],
+    cameraOffset: [0, 2.2, 0],
     lookAtOffset: [0, 0, 0],
     fov: 60,
     priority: 1,
