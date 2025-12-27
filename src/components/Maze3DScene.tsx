@@ -1490,10 +1490,13 @@ const OverShoulderCameraController = ({
       }
       
       if (closestHitDist < rayLength) {
-        // We have a hit - calculate potential blocked distance
+        // We have a hit - camera should be IN FRONT of the wall, not behind it
+        // Don't clamp to minDist here - that would put camera inside the wall!
+        // Use a small minimum to prevent camera from being inside player's head
+        const absoluteMinDist = 0.5; // Never closer than 0.5 units to player
         const potentialBlockedDist = Math.max(
           closestHitDist - autopush.padding,
-          autopush.minDist
+          absoluteMinDist
         );
         
         // Check if the RAW HIT is significant (not the clamped distance)
@@ -1502,7 +1505,7 @@ const OverShoulderCameraController = ({
         const isSignificantHit = rawObstruction > autopush.minPushDelta;
         
         if (isSignificantHit) {
-          // Significant hit - push in
+          // Significant hit - push camera in front of wall
           targetDist = potentialBlockedDist;
           lastHitTime.current = now; // Record hit time for hysteresis
         } else {
