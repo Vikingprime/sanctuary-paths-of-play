@@ -10,7 +10,7 @@ export interface CharacterModelConfig {
   yOffset?: number; // Optional vertical offset
 }
 
-// Scale factors from world-space measurements (corn height: 197.0637)
+// Scale factors from world-space measurements (corn height: ~4 units, between 3-5)
 // Target ratios: Chicken 0.19, Pig 0.38, Cow 0.63, Woman 0.68, Farmer 0.72
 export const CharacterConfig: Record<string, CharacterModelConfig> = {
   'Farmer.glb': {
