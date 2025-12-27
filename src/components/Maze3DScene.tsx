@@ -7,7 +7,7 @@ import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
-import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
+import { getCharacterScale, getCharacterYOffset, getCharacterHeight } from '@/game/CharacterConfig';
 import { findStartRotation } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 // Extended performance info type
@@ -1243,6 +1243,7 @@ const OverShoulderCameraController = ({
   groundLevelCamera = false,
   foliageGroupRef,
   autopush = DEFAULT_AUTOPUSH,
+  animalType,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
@@ -1250,6 +1251,7 @@ const OverShoulderCameraController = ({
   groundLevelCamera?: boolean;
   foliageGroupRef?: React.RefObject<Group>;
   autopush?: AutopushConfig;
+  animalType?: AnimalType;
 }) => {
   const { camera, scene } = useThree();
   
@@ -1292,13 +1294,23 @@ const OverShoulderCameraController = ({
   // Camera settings - over-the-shoulder view balanced for all animals
   const DEBUG_OVERHEAD_VIEW = topDownCamera; // Use prop for toggle
   
+  // Get character-scaled camera parameters
+  const animalModel = animalType === 'pig' ? 'Pig.glb' : animalType === 'cow' ? 'Cow.glb' : animalType === 'bird' ? 'Hen.glb' : 'Cow.glb';
+  const animalHeight = getCharacterHeight(animalModel);
+  
+  // Character-scaled camera framing:
+  // targetHeight: where camera looks (center of character) - scaled by animal height
+  // softMinDist: comfortable resting distance when clear - scaled by animal height
+  const targetHeight = Math.max(0.25, Math.min(1.2, 0.6 * animalHeight));
+  const softMinDist = Math.max(1.0, Math.min(2.4, 1.2 * animalHeight));
+  
   const CAMERA_DISTANCE_START = 0.4;
-  const CAMERA_DISTANCE_NORMAL = 2.0;
+  const CAMERA_DISTANCE_NORMAL = Math.max(softMinDist, 2.0); // Use softMinDist as minimum comfortable distance
   const CAMERA_HEIGHT_START = 1.8;
   const CAMERA_HEIGHT_NORMAL = 2.4;
   const LOOK_AHEAD = 1.3;
   const LOOK_HEIGHT_START = 0.0;
-  const LOOK_HEIGHT_NORMAL = 0.5;
+  const LOOK_HEIGHT_NORMAL = targetHeight; // Use character-scaled look height
   const POSITION_SMOOTHING = 0.15;
   const ROTATION_SMOOTHING = 0.12;
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
@@ -1369,8 +1381,8 @@ const OverShoulderCameraController = ({
       playerZ + Math.cos(rot) * desiredDist
     );
     
-    // Calculate target head position (for raycasting origin)
-    const headPos = new Vector3(playerX, autopush.headHeight, playerZ);
+    // Calculate target head position (for raycasting origin) - use character-scaled height
+    const headPos = new Vector3(playerX, targetHeight, playerZ);
     
     // === AUTOPUSH LOGIC ===
     let finalTargetPos = targetPos.current.clone();
@@ -1522,6 +1534,10 @@ const OverShoulderCameraController = ({
         if (timeSinceHit < autopush.holdTimeMs && currentAutopushDist.current !== null) {
           // Still in hysteresis hold period - maintain current pushed distance
           targetDist = currentAutopushDist.current;
+        } else {
+          // Hysteresis expired - relax toward comfortable distance for this character
+          // Use softMinDist to ensure small animals remain visible and well-framed
+          targetDist = Math.max(rayLength, softMinDist);
         }
       }
       
@@ -1926,6 +1942,7 @@ return (
           topDownCamera={topDownCamera}
           groundLevelCamera={groundLevelCamera}
           foliageGroupRef={foliageGroupRef}
+          animalType={animalType}
         />
       )}
     </>
