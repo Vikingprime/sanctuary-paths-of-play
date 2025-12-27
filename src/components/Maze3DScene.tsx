@@ -1,14 +1,14 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Box3, Box3Helper, Quaternion, Euler, DoubleSide } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Box3, Quaternion, Euler } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
-import { WorldScaleDebug } from './WorldScaleDebug';
+
 
 // Extended performance info type
 export interface PerformanceInfo {
@@ -1312,41 +1312,6 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-// Debug component to show height marker planes to find corn height
-const HeightMarkerDebug = () => {
-  const { scene: gltfScene } = useGLTF('/models/Corn.glb');
-  
-  // Clone scene to avoid modifying original
-  const clonedScene = useMemo(() => gltfScene.clone(), [gltfScene]);
-  
-  // Apply same transforms as InstancedWalls corn stalks
-  const widthScale = 100 * 1.0 * 0.7; // baseScale * heightVariation * widthMultiplier = 70
-  const heightScale = 100 * 1.0 * 1.8; // baseScale * heightVariation * heightMultiplier = 180
-  
-  // Multiple height markers to find where corn actually ends
-  const heightMarkers = [1, 2, 3, 5, 10, 20];
-  const colors = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
-  
-  return (
-    <group position={[2.5, 0, 2.5]}>
-      {/* Height marker planes at various heights */}
-      {heightMarkers.map((height, i) => (
-        <mesh key={height} position={[0, height, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[2, 2]} />
-          <meshBasicMaterial color={colors[i]} transparent opacity={0.5} side={DoubleSide} />
-        </mesh>
-      ))}
-      
-      {/* Single corn stalk for visual reference */}
-      <primitive 
-        object={clonedScene}
-        rotation={[-Math.PI / 2, 0, 0]}
-        scale={[widthScale, widthScale, heightScale]}
-      />
-    </group>
-  );
-};
-
 const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, lookUpCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
@@ -1566,11 +1531,6 @@ return (
         />
       )}
       
-      {/* Debug component for measuring world-space heights */}
-      <WorldScaleDebug />
-      
-      {/* Visual bounding box debug for corn */}
-      <HeightMarkerDebug />
     </>
   );
 };
