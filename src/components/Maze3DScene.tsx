@@ -1361,15 +1361,16 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 return (
     <>
       
-      {/* Lighting - 8am morning sunlight */}
-      <ambientLight intensity={0.9} color="#FFF8F0" />
+      {/* === GHIBLI LIGHTING MIX === */}
+      {/* Hemisphere light for natural sky/ground bounce - soft blue sky, muted green ground */}
+      <hemisphereLight args={['#9BB8D4', '#6B8C5A', 0.7]} />
       
-      {/* Main sun light - follows player for consistent shadows */}
+      {/* Main sun light - warm yellow tint, follows player for consistent shadows */}
       <directionalLight
         ref={lightRef}
         position={[15, 35, 15]}
-        intensity={3.5}
-        color="#FFFDF5"
+        intensity={2.8}
+        color="#FFF0D4"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={1}
@@ -1379,25 +1380,31 @@ return (
         shadow-camera-top={25}
         shadow-camera-bottom={-25}
         shadow-bias={-0.0005}
-        shadow-radius={2}
+        shadow-radius={3}
       >
         <object3D attach="target" />
       </directionalLight>
       
-      {/* Fill light from opposite side */}
+      {/* Fill light from opposite side - sky-tinted for softer shadows */}
       <directionalLight
-        position={[-15, 15, -10]}
-        intensity={0.45}
-        color="#D8E8FF"
+        position={[-15, 12, -10]}
+        intensity={0.6}
+        color="#B8D4E8"
       />
       
-      {/* Hemisphere light for natural sky/ground color */}
-      <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
-      {/* Atmospheric background - desaturated to match fog */}
-      <color attach="background" args={['#5a6b55']} />
+      {/* Subtle rim light for character pop */}
+      <directionalLight
+        position={[0, 8, -20]}
+        intensity={0.3}
+        color="#FFE8CC"
+      />
       
-      {/* Exponential fog */}
-      <fogExp2 attach="fog" args={['#5a6b55', 0.145]} />
+      {/* === SKY-FOG GLUE === */}
+      {/* Background: soft peach/cream horizon color that blends with fog */}
+      <color attach="background" args={['#E8DDD4']} />
+      
+      {/* Exponential fog - matches horizon for seamless blending */}
+      <fogExp2 attach="fog" args={['#D8CCBE', 0.08]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
