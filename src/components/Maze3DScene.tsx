@@ -9,6 +9,7 @@ import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
 import { findStartRotation } from '@/game/MazeUtils';
+import { SkyDome } from './SkyDome';
 
 // Extended performance info type
 export interface PerformanceInfo {
@@ -1432,9 +1433,8 @@ return (
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
-      {/* Background color MUST match fog color exactly for seamless horizon blending
-          This is the key fix: distant corn fades into this color, not into a mismatched sky */}
-      <color attach="background" args={['#B8B0A0']} />
+      {/* Sky dome - gradient sky with horizon matching fog color exactly */}
+      <SkyDome />
       
       {/* Exponential fog - warm neutral tone matching background
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
