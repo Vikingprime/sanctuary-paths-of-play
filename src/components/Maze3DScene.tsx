@@ -1163,15 +1163,15 @@ interface AutopushConfig {
 
 const DEFAULT_AUTOPUSH: AutopushConfig = {
   enabled: true,
-  minDist: 2.5,         // Min distance to push camera (was 0.8, now more conservative)
-  padding: 0.5,         // Padding before corn
+  minDist: 1.2,         // Min distance to push camera
+  padding: 0.2,         // Reduced padding (was 0.5)
   pushLerp: 0.35,       // Fast push-in
   relaxLerp: 0.06,      // Very slow relax-out (prevents pumping)
   headHeight: 0.5,      // Animal head height
   rayCount: 3,          // Use 3 rays for stability
   raySpread: 0.15,      // ~8.5 degrees spread for side rays
   holdTimeMs: 200,      // Keep pushed-in for 200ms after ray clears
-  minPushDelta: 0.6,    // Ignore grazing hits that reduce distance by less than 0.6 units
+  minPushDelta: 0.05,   // Reduced for testing (was 0.6)
 };
 
 // Simple over-the-shoulder camera with smooth follow - reads from ref each frame
@@ -1372,9 +1372,35 @@ const OverShoulderCameraController = ({
       // Get current time for hysteresis
       const now = performance.now();
       
+      // Debug logging (throttled)
+      const debugLogRef = (window as any).__autopushDebugLog || { lastLog: 0 };
+      (window as any).__autopushDebugLog = debugLogRef;
+      
       // Determine blocked distance with micro-hit filtering and hysteresis
       let targetDist = rayLength; // Default: no blocking, use full distance
       const desiredDistForAutopush = rayLength;
+      
+      // Calculate debug values
+      const hitDist = closestHitDist;
+      const pushedDist = hitDist < rayLength ? Math.max(hitDist - autopush.padding, autopush.minDist) : rayLength;
+      const delta = desiredDistForAutopush - pushedDist;
+      const accepted = delta > autopush.minPushDelta;
+      const hasHit = closestHitDist < rayLength;
+      
+      // Throttled debug log (every 500ms)
+      if (now - debugLogRef.lastLog > 500) {
+        debugLogRef.lastLog = now;
+        console.log('[AUTOPUSH]', {
+          meshCount: foliageMeshes.length,
+          desiredDist: rayLength.toFixed(2),
+          hitDist: hasHit ? hitDist.toFixed(2) : 'none',
+          pushedDist: pushedDist.toFixed(2),
+          delta: delta.toFixed(2),
+          minPushDelta: autopush.minPushDelta,
+          accepted,
+          currentAutopushDist: currentAutopushDist.current?.toFixed(2) ?? 'null',
+        });
+      }
       
       if (closestHitDist < rayLength) {
         // We have a hit - calculate potential blocked distance
