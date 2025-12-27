@@ -914,33 +914,74 @@ export function calculateMovement(
             const lateralWorldX = wantsRight ? -Math.cos(newRotation) : Math.cos(newRotation);
             const lateralWorldY = wantsRight ? -Math.sin(newRotation) : Math.sin(newRotation);
             
-            // Remove the component of lateral direction that goes INTO the wall
+            // Check how much lateral direction goes INTO the wall
             const lateralDotNormal = lateralWorldX * nx + lateralWorldY * ny;
-            let safeLateralX = lateralWorldX;
-            let safeLateralY = lateralWorldY;
             
-            if (lateralDotNormal < 0) {
-              // Lateral direction goes into wall - remove that component
-              safeLateralX -= nx * lateralDotNormal;
-              safeLateralY -= ny * lateralDotNormal;
-            }
+            // Wall tangents (perpendicular to normal)
+            const tangent1X = -ny;
+            const tangent1Y = nx;
+            const tangent2X = ny;
+            const tangent2Y = -nx;
             
-            const safeLateralMag = Math.sqrt(safeLateralX * safeLateralX + safeLateralY * safeLateralY);
+            let slideDirectionX: number;
+            let slideDirectionY: number;
             
-            if (safeLateralMag > 0.1) {
-              // Normalize and apply movement magnitude
-              const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
-              slideX = (safeLateralX / safeLateralMag) * moveLen * slideFriction;
-              slideY = (safeLateralY / safeLateralMag) * moveLen * slideFriction;
-              slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
+            // If lateral direction goes significantly INTO the wall, use wall tangent instead
+            // This handles the case where player is at the side of an animal and needs to slide around
+            if (lateralDotNormal < -0.3) {
+              // Lateral mostly goes into wall - pick the tangent that best matches intended direction
+              const dot1 = lateralWorldX * tangent1X + lateralWorldY * tangent1Y;
+              const dot2 = lateralWorldX * tangent2X + lateralWorldY * tangent2Y;
+              
+              if (dot1 > dot2) {
+                slideDirectionX = tangent1X;
+                slideDirectionY = tangent1Y;
+              } else {
+                slideDirectionX = tangent2X;
+                slideDirectionY = tangent2Y;
+              }
+              
+              console.log('[SLIDE] ROTATION KEY USING TANGENT:', {
+                wantsDir: wantsRight ? 'RIGHT' : 'LEFT',
+                lateralDotNormal: lateralDotNormal.toFixed(4),
+                chosenTangent: { x: slideDirectionX.toFixed(4), y: slideDirectionY.toFixed(4) },
+                dot1: dot1.toFixed(4),
+                dot2: dot2.toFixed(4)
+              });
+            } else {
+              // Lateral direction doesn't go too much into wall - remove the "into wall" component
+              let safeLateralX = lateralWorldX;
+              let safeLateralY = lateralWorldY;
+              
+              if (lateralDotNormal < 0) {
+                safeLateralX -= nx * lateralDotNormal;
+                safeLateralY -= ny * lateralDotNormal;
+              }
+              
+              const safeLateralMag = Math.sqrt(safeLateralX * safeLateralX + safeLateralY * safeLateralY);
+              if (safeLateralMag > 0.01) {
+                slideDirectionX = safeLateralX / safeLateralMag;
+                slideDirectionY = safeLateralY / safeLateralMag;
+              } else {
+                // Fallback to tangent
+                const dot1 = lateralWorldX * tangent1X + lateralWorldY * tangent1Y;
+                slideDirectionX = dot1 > 0 ? tangent1X : tangent2X;
+                slideDirectionY = dot1 > 0 ? tangent1Y : tangent2Y;
+              }
               
               console.log('[SLIDE] ROTATION KEY DIRECT LATERAL:', {
                 wantsDir: wantsRight ? 'RIGHT' : 'LEFT',
                 lateralDotNormal: lateralDotNormal.toFixed(4),
-                safeLateral: { x: safeLateralX.toFixed(4), y: safeLateralY.toFixed(4) },
-                newSlide: { x: slideX.toFixed(4), y: slideY.toFixed(4) }
+                slideDir: { x: slideDirectionX.toFixed(4), y: slideDirectionY.toFixed(4) }
               });
             }
+            
+            // Apply slide with boosted speed for lateral movement
+            const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
+            const lateralBoost = 1.5; // Boost lateral sliding to feel responsive
+            slideX = slideDirectionX * moveLen * slideFriction * lateralBoost;
+            slideY = slideDirectionY * moveLen * slideFriction * lateralBoost;
+            slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
           }
           
           // ALWAYS set headOnSideSign for rotation nudge, regardless of slideable status
