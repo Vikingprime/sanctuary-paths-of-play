@@ -8,6 +8,7 @@ import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullSt
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
+import { findBestFacingDirection } from '@/game/MazeUtils';
 
 // Extended performance info type
 export interface PerformanceInfo {
@@ -730,6 +731,7 @@ interface CharacterRendererProps {
   isDialogueActive: boolean;
   isGoalMarker?: boolean; // If true, renders invisible collision trigger
   alwaysFacePlayer?: boolean; // If true, character always faces player even outside dialogue
+  maze: Maze; // Required for raycasting initial facing direction
 }
 
 const CharacterRenderer = ({
@@ -740,9 +742,11 @@ const CharacterRenderer = ({
   isDialogueActive,
   isGoalMarker = false,
   alwaysFacePlayer = false,
+  maze,
 }: CharacterRendererProps) => {
   const groupRef = useRef<Group>(null);
   const mixerRef = useRef<AnimationMixer | null>(null);
+  const initialRotationSet = useRef(false);
   
   const modelPath = `/models/${modelFile}`;
   const { scene, animations } = useGLTF(modelPath);
@@ -750,6 +754,13 @@ const CharacterRenderer = ({
   // Get character scale and Y offset from centralized config
   const characterScale = getCharacterScale(modelFile);
   const characterYOffset = getCharacterYOffset(modelFile);
+  
+  // Calculate initial facing direction using raycast (only once)
+  const initialRotation = useMemo(() => {
+    const charX = position.x + 0.5;
+    const charZ = position.y + 0.5;
+    return findBestFacingDirection(maze, charX, charZ);
+  }, [maze, position.x, position.y]);
   
   // Clone the scene using SkeletonUtils for skinned meshes
   const model = useMemo(() => {
@@ -791,9 +802,15 @@ const CharacterRenderer = ({
   }, [animations, model, animation]);
   
   useFrame((state, delta) => {
-    if (groupRef.current && playerStateRef) {
-      // Only face player during dialogue OR if alwaysFacePlayer is set
-      if (isDialogueActive || alwaysFacePlayer) {
+    if (groupRef.current) {
+      // Set initial rotation on first frame (raycast-based)
+      if (!initialRotationSet.current) {
+        groupRef.current.rotation.y = initialRotation;
+        initialRotationSet.current = true;
+      }
+      
+      // Face player during dialogue OR if alwaysFacePlayer is set
+      if (playerStateRef && (isDialogueActive || alwaysFacePlayer)) {
         const charX = position.x + 0.5;
         const charZ = position.y + 0.5;
         const playerX = playerStateRef.current.x;
@@ -829,10 +846,11 @@ const CharacterRenderer = ({
 };
 
 // GoalMarker - wraps CharacterRenderer for the end farmer
-const GoalMarker = ({ position, playerStateRef, isDialogueActive }: { 
+const GoalMarker = ({ position, playerStateRef, isDialogueActive, maze }: { 
   position: [number, number, number];
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive?: boolean;
+  maze: Maze;
 }) => {
   return (
     <CharacterRenderer
@@ -842,6 +860,7 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive }: {
       playerStateRef={playerStateRef}
       isDialogueActive={isDialogueActive || false}
       isGoalMarker={true}
+      maze={maze}
     />
   );
 };
@@ -851,10 +870,12 @@ const PlacedCharacter = ({
   character, 
   playerStateRef,
   isDialogueActive,
+  maze,
 }: { 
   character: MazeCharacter;
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive: boolean;
+  maze: Maze;
 }) => {
   return (
     <CharacterRenderer
@@ -864,6 +885,7 @@ const PlacedCharacter = ({
       playerStateRef={playerStateRef}
       isDialogueActive={isDialogueActive}
       alwaysFacePlayer={character.alwaysFacePlayer}
+      maze={maze}
     />
   );
 };
@@ -873,10 +895,12 @@ const DialogueCharacter = ({
   dialogue, 
   playerStateRef,
   isActiveDialogue,
+  maze,
 }: { 
   dialogue: DialogueTrigger;
   playerStateRef?: MutableRefObject<PlayerState>;
   isActiveDialogue: boolean;
+  maze: Maze;
 }) => {
   const position = useMemo(() => {
     if (dialogue.speakerPosition) {
@@ -895,6 +919,7 @@ const DialogueCharacter = ({
       animation={dialogue.characterAnimation}
       playerStateRef={playerStateRef}
       isDialogueActive={isActiveDialogue}
+      maze={maze}
     />
   );
 };
@@ -1445,6 +1470,7 @@ return (
             Math.abs(dialogueTarget.speakerX - character.position.x) < 0.5 &&
             Math.abs(dialogueTarget.speakerZ - character.position.y) < 0.5
           }
+          maze={maze}
         />
       ))}
       
@@ -1455,6 +1481,7 @@ return (
           dialogue={dialogue}
           playerStateRef={playerStateRef}
           isActiveDialogue={dialogueTarget !== null && dialogueTarget !== undefined}
+          maze={maze}
         />
       ))}
       
