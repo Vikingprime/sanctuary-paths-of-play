@@ -184,7 +184,7 @@ const generateEdgeTransforms = (
         const baseScale = 100;
         const heightMultiplier = 0.9;
         const widthMultiplier = 0.7;
-        const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
+        const heightVariation = 1.2 + seededRandom(stalkSeed + 3) * 0.05;
         const widthScale = baseScale * heightVariation * widthMultiplier;
         const heightScale = baseScale * heightVariation * heightMultiplier;
         
@@ -245,7 +245,7 @@ const generateWallTransforms = (
         const baseScale = 100;
         const heightMultiplier = 0.9;
         const widthMultiplier = 0.7;
-        const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
+        const heightVariation = 1.2 + seededRandom(stalkSeed + 3) * 0.05;
         const widthScale = baseScale * heightVariation * widthMultiplier;
         const heightScale = baseScale * heightVariation * heightMultiplier;
         
@@ -305,7 +305,7 @@ const generateBoundaryTransforms = (
         const baseScale = 100;
         const heightMultiplier = 0.9;
         const widthMultiplier = 0.7;
-        const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
+        const heightVariation = 1.2 + seededRandom(stalkSeed + 3) * 0.05;
         const widthScale = baseScale * heightVariation * widthMultiplier;
         const heightScale = baseScale * heightVariation * heightMultiplier;
         dummy.position.set(posX, 0, posZ);
