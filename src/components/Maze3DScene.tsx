@@ -5,6 +5,7 @@ import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, In
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
+import { AtmosphericSky } from './AtmosphericSky';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
@@ -1402,11 +1403,17 @@ return (
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
-      {/* Background color MUST match fog color exactly for seamless horizon blending
-          This is the key fix: distant corn fades into this color, not into a mismatched sky */}
-      <color attach="background" args={['#B8B0A0']} />
+      {/* Atmospheric sky with gradient, sun halo, and clouds
+          Horizon color MUST match fog color exactly for seamless blending */}
+      <AtmosphericSky 
+        topColor="#7FB6E6"       // Soft sky blue at zenith
+        horizonColor="#B8B0A0"   // MUST match fogColor exactly
+        sunColor="#FFF4E0"       // Warm sun tint
+        sunIntensity={0.35}      // Subtle sun
+        cloudSpeed={0.006}       // Slow-moving clouds
+      />
       
-      {/* Exponential fog - warm neutral tone matching background
+      {/* Exponential fog - warm neutral tone matching sky horizon exactly
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
       <fogExp2 attach="fog" args={['#B8B0A0', 0.14]} />
       
