@@ -902,7 +902,7 @@ export function calculateMovement(
           
           // === ROTATION KEY INFLUENCE ON SLIDE DIRECTION ===
           // If user is pressing rotate left/right, they likely want to slide in that direction
-          // This overrides the natural collision-based slide direction
+          // Instead of using wall tangent, use actual lateral direction (minus component into wall)
           const wantsRight = input.rotateRight && !input.rotateLeft;
           const wantsLeft = input.rotateLeft && !input.rotateRight;
           
@@ -913,23 +913,30 @@ export function calculateMovement(
             const lateralWorldX = Math.cos(newRotation) * lateralDirSign;
             const lateralWorldY = Math.sin(newRotation) * lateralDirSign;
             
-            // Project the lateral direction onto the collision tangent
-            // This gives us a slide in the direction the user WANTS
-            const lateralDotTangent = lateralWorldX * naturalTangentX + lateralWorldY * naturalTangentY;
+            // Remove the component of lateral direction that goes INTO the wall
+            const lateralDotNormal = lateralWorldX * nx + lateralWorldY * ny;
+            let safeLateralX = lateralWorldX;
+            let safeLateralY = lateralWorldY;
             
-            if (Math.abs(lateralDotTangent) > 0.1) {
-              // There's a valid slide component in the lateral direction
-              const lateralTangentSign = lateralDotTangent > 0 ? 1 : -1;
+            if (lateralDotNormal < 0) {
+              // Lateral direction goes into wall - remove that component
+              safeLateralX -= nx * lateralDotNormal;
+              safeLateralY -= ny * lateralDotNormal;
+            }
+            
+            const safeLateralMag = Math.sqrt(safeLateralX * safeLateralX + safeLateralY * safeLateralY);
+            
+            if (safeLateralMag > 0.1) {
+              // Normalize and apply movement magnitude
               const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
-              
-              // Use the lateral-aligned tangent for sliding
-              slideX = naturalTangentX * lateralTangentSign * moveLen * slideFriction;
-              slideY = naturalTangentY * lateralTangentSign * moveLen * slideFriction;
+              slideX = (safeLateralX / safeLateralMag) * moveLen * slideFriction;
+              slideY = (safeLateralY / safeLateralMag) * moveLen * slideFriction;
               slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
               
-              console.log('[SLIDE] ROTATION KEY LATERAL SLIDE:', {
+              console.log('[SLIDE] ROTATION KEY DIRECT LATERAL:', {
                 wantsDir: wantsRight ? 'RIGHT' : 'LEFT',
-                lateralDotTangent: lateralDotTangent.toFixed(4),
+                lateralDotNormal: lateralDotNormal.toFixed(4),
+                safeLateral: { x: safeLateralX.toFixed(4), y: safeLateralY.toFixed(4) },
                 newSlide: { x: slideX.toFixed(4), y: slideY.toFixed(4) }
               });
             }
