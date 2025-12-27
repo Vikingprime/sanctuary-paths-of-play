@@ -1,54 +1,59 @@
 import { useMemo, useRef } from 'react';
-import { ShaderMaterial, BackSide, Color, AdditiveBlending } from 'three';
+import { ShaderMaterial, BackSide, Color } from 'three';
 import { useFrame } from '@react-three/fiber';
 
 interface AtmosphericSkyProps {
-  topColor?: string;      // Sky blue at zenith
-  horizonColor?: string;  // MUST match fog color exactly
-  sunColor?: string;      // Sun/halo tint
-  sunIntensity?: number;  // Sun brightness (0-1)
-  cloudSpeed?: number;    // Cloud movement speed
+  zenithColor?: string;    // Top of sky - soft blue
+  midColor?: string;       // Mid sky - pale desaturated blue-gray  
+  horizonColor?: string;   // MUST match fog color exactly
+  sunColor?: string;       // Sun/halo tint
+  sunIntensity?: number;   // Sun brightness (0-1)
+  sunPosition?: [number, number, number]; // Sun direction (normalized)
+  cloudSpeed?: number;     // Cloud movement speed
 }
 
 /**
- * Atmospheric sky dome with:
- * - Vertical gradient (blue top → fog-matched horizon)
- * - Subtle sun disc with soft halo
- * - Slow-moving high clouds (only in upper sky)
- * - Slight warm tint at horizon for "harvest moon" vibe
+ * Atmospheric sky dome rendered in sky-space (infinite dome):
+ * - 3-stop vertical gradient: zenith blue → mid gray-blue → horizon fog
+ * - Subtle off-center sun with soft radial halo
+ * - High clouds ONLY in upper sky (above horizon band)
+ * - No fog applied (sky ignores scene fog)
+ * - No depth writing (background layer)
  */
 export const AtmosphericSky = ({
-  topColor = '#7FB6E6',      // Soft sky blue
-  horizonColor = '#B8B0A0',  // MUST match fogColor exactly
-  sunColor = '#FFF8E8',      // Warm white sun
-  sunIntensity = 0.4,
-  cloudSpeed = 0.008,
+  zenithColor = '#6BA8DC',    // Soft blue at top
+  midColor = '#A8B8C4',       // Pale desaturated blue-gray
+  horizonColor = '#B8B0A0',   // MUST match fogColor exactly
+  sunColor = '#FFF8E8',       // Warm white sun
+  sunIntensity = 0.3,         // Faint, cozy
+  sunPosition = [0.6, 0.35, 0.4], // Upper right, off-center
+  cloudSpeed = 0.004,
 }: AtmosphericSkyProps) => {
   const materialRef = useRef<ShaderMaterial>(null);
 
   const material = useMemo(() => {
     return new ShaderMaterial({
       uniforms: {
-        topColor: { value: new Color(topColor) },
+        zenithColor: { value: new Color(zenithColor) },
+        midColor: { value: new Color(midColor) },
         horizonColor: { value: new Color(horizonColor) },
         sunColor: { value: new Color(sunColor) },
         sunIntensity: { value: sunIntensity },
-        sunDirection: { value: [0.4, 0.3, 0.5] }, // Sun position (normalized)
+        sunDirection: { value: sunPosition },
         time: { value: 0 },
         cloudSpeed: { value: cloudSpeed },
       },
       vertexShader: `
         varying vec3 vWorldPosition;
-        varying vec3 vPosition;
         void main() {
-          vPosition = position;
           vec4 worldPos = modelMatrix * vec4(position, 1.0);
           vWorldPosition = worldPos.xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
-        uniform vec3 topColor;
+        uniform vec3 zenithColor;
+        uniform vec3 midColor;
         uniform vec3 horizonColor;
         uniform vec3 sunColor;
         uniform float sunIntensity;
@@ -57,9 +62,8 @@ export const AtmosphericSky = ({
         uniform float cloudSpeed;
         
         varying vec3 vWorldPosition;
-        varying vec3 vPosition;
         
-        // Simple hash for noise
+        // Hash for noise
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
         }
@@ -92,73 +96,76 @@ export const AtmosphericSky = ({
         
         void main() {
           vec3 dir = normalize(vWorldPosition);
-          float height = dir.y;
+          float height = max(dir.y, 0.0);
           
-          // Clamp to positive hemisphere
-          height = max(height, 0.0);
+          // === 3-STOP SKY GRADIENT ===
+          // horizon (0) → mid (0.25) → zenith (0.6+)
+          float midPoint = 0.25;
+          float zenithPoint = 0.6;
           
-          // === SKY GRADIENT ===
-          // Smooth gradient from horizon (0) to zenith (1)
-          float gradientT = smoothstep(0.0, 0.5, height);
+          vec3 skyColor;
+          if (height < midPoint) {
+            // Horizon to mid
+            float t = height / midPoint;
+            t = smoothstep(0.0, 1.0, t);
+            skyColor = mix(horizonColor, midColor, t);
+          } else {
+            // Mid to zenith
+            float t = (height - midPoint) / (zenithPoint - midPoint);
+            t = clamp(t, 0.0, 1.0);
+            t = smoothstep(0.0, 1.0, t);
+            skyColor = mix(midColor, zenithColor, t);
+          }
           
-          // Slight warm tint at horizon for "harvest moon" cozy feel
-          vec3 warmHorizon = mix(horizonColor, vec3(0.78, 0.72, 0.65), 0.15);
-          
-          // Base sky color
-          vec3 skyColor = mix(warmHorizon, topColor, gradientT);
-          
-          // === SUN + HALO ===
+          // === SUN + HALO (faint, cozy) ===
           vec3 sunDir = normalize(sunDirection);
           float sunDot = dot(dir, sunDir);
           
-          // Soft sun disc (very subtle, no hard edge)
-          float sunDisc = smoothstep(0.995, 0.999, sunDot) * 0.6;
+          // Very soft sun disc (no hard edge)
+          float sunDisc = smoothstep(0.996, 0.9995, sunDot) * 0.5;
           
-          // Wide soft halo around sun
-          float halo = pow(max(sunDot, 0.0), 8.0) * 0.25;
-          float innerHalo = pow(max(sunDot, 0.0), 32.0) * 0.4;
+          // Wide soft halo
+          float halo = pow(max(sunDot, 0.0), 6.0) * 0.15;
+          float innerHalo = pow(max(sunDot, 0.0), 24.0) * 0.25;
           
           vec3 sunContrib = sunColor * (sunDisc + halo + innerHalo) * sunIntensity;
           skyColor += sunContrib;
           
-          // === CLOUDS (only in upper sky) ===
-          // Only show clouds above horizon band (height > 0.2)
-          float cloudMask = smoothstep(0.15, 0.4, height);
+          // === HIGH CLOUDS (only in UPPER sky, NOT near horizon) ===
+          // Clouds only appear above height 0.35 - well above horizon blend zone
+          float cloudMinHeight = 0.35;
+          float cloudFadeIn = 0.5;
+          float cloudMask = smoothstep(cloudMinHeight, cloudFadeIn, height);
           
           if (cloudMask > 0.01) {
-            // Project onto dome for cloud UVs
-            vec2 cloudUV = dir.xz / (height + 0.1) * 0.3;
-            cloudUV += time * cloudSpeed;
+            // Project onto dome for stable cloud UVs
+            vec2 cloudUV = dir.xz / (height + 0.2) * 0.25;
+            cloudUV += vec2(time * cloudSpeed, time * cloudSpeed * 0.3);
             
             // Layered cloud noise
-            float cloud1 = fbm(cloudUV * 2.0);
-            float cloud2 = fbm(cloudUV * 4.0 + 10.0);
-            float clouds = cloud1 * 0.6 + cloud2 * 0.4;
+            float cloud1 = fbm(cloudUV * 1.5);
+            float cloud2 = fbm(cloudUV * 3.0 + 5.0);
+            float clouds = cloud1 * 0.65 + cloud2 * 0.35;
             
-            // Threshold to create cloud shapes
-            clouds = smoothstep(0.4, 0.7, clouds);
+            // Threshold for wispy cloud shapes
+            clouds = smoothstep(0.45, 0.72, clouds);
             
-            // Very subtle, semi-transparent clouds
-            float cloudAlpha = clouds * cloudMask * 0.2;
-            vec3 cloudColor = mix(vec3(1.0), sunColor, 0.1);
+            // Very subtle, semi-transparent high clouds
+            float cloudAlpha = clouds * cloudMask * 0.18;
+            vec3 cloudColor = mix(vec3(1.0), sunColor, 0.08);
             
             skyColor = mix(skyColor, cloudColor, cloudAlpha);
           }
-          
-          // === ATMOSPHERIC PERSPECTIVE ===
-          // Slight desaturation toward horizon
-          float saturation = mix(0.85, 1.0, gradientT);
-          vec3 gray = vec3(dot(skyColor, vec3(0.299, 0.587, 0.114)));
-          skyColor = mix(gray, skyColor, saturation);
           
           gl_FragColor = vec4(skyColor, 1.0);
         }
       `,
       side: BackSide,
       depthWrite: false,
-      fog: false, // Sky should NOT receive fog
+      depthTest: false, // Sky renders behind everything
+      fog: false,       // Sky does NOT receive fog
     });
-  }, [topColor, horizonColor, sunColor, sunIntensity, cloudSpeed]);
+  }, [zenithColor, midColor, horizonColor, sunColor, sunIntensity, sunPosition, cloudSpeed]);
 
   // Animate clouds
   useFrame((_, delta) => {
