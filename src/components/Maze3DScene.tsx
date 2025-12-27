@@ -96,9 +96,9 @@ const mat = new ShaderMaterial({
         rockLight: { value: new Color('#C4B090') },
         rockMid: { value: new Color('#A08060') },
         rockDark: { value: new Color('#705540') },
-        // Fog uniforms - moderate density to blend corn at 10m
+        // Fog uniforms - subtle fog for atmosphere, corn fades separately
         fogColor: { value: new Color('#D8C8B8') },
-        fogDensity: { value: 0.18 },
+        fogDensity: { value: 0.08 },
       },
       fog: true,
       vertexShader: `
@@ -1450,8 +1450,8 @@ return (
       {/* Background color as fallback - matches horizon */}
       <color attach="background" args={['#E8D8C8']} />
       
-      {/* Moderate fog - corn now hides at 10m so this density fully obscures it */}
-      <fogExp2 attach="fog" args={['#D8C8B8', 0.18]} />
+      {/* Subtle fog for atmosphere - corn fades itself via shader */}
+      <fogExp2 attach="fog" args={['#D8C8B8', 0.08]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
