@@ -1412,7 +1412,7 @@ return (
       
       {/* Exponential fog - warm neutral tone matching sky horizon exactly
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
-      <fogExp2 attach="fog" args={['#B8B0A0', 0.22]} />
+      <fogExp2 attach="fog" args={['#B8B0A0', 0.14]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
