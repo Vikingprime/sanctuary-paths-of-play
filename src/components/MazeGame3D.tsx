@@ -97,6 +97,7 @@ export const MazeGame3D = ({
   // Debug toggles
   const [topDownCamera, setTopDownCamera] = useState(false);
   const [groundLevelCamera, setGroundLevelCamera] = useState(false);
+  const [lookUpCamera, setLookUpCamera] = useState(false);
   const [showCollisionDebug, setShowCollisionDebug] = useState(debugMode);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
@@ -752,6 +753,7 @@ export const MazeGame3D = ({
         }}
         topDownCamera={topDownCamera}
         groundLevelCamera={groundLevelCamera}
+        lookUpCamera={lookUpCamera}
         showCollisionDebug={showCollisionDebug}
       />
 
@@ -796,6 +798,8 @@ export const MazeGame3D = ({
           onToggleTopDownCamera={() => setTopDownCamera(prev => !prev)}
           groundLevelCamera={groundLevelCamera}
           onToggleGroundLevelCamera={() => setGroundLevelCamera(prev => !prev)}
+          lookUpCamera={lookUpCamera}
+          onToggleLookUpCamera={() => setLookUpCamera(prev => !prev)}
           showCollisionDebug={showCollisionDebug}
           onToggleCollisionDebug={() => setShowCollisionDebug(prev => !prev)}
         />
