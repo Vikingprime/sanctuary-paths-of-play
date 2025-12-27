@@ -77,6 +77,11 @@ const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
 const optimizeMaterial = (material: Material): Material => {
   const mat = material as any;
   
+  // CRITICAL: Enable fog so corn blends with scene fog
+  if ('fog' in mat) {
+    mat.fog = true;
+  }
+  
   // CRITICAL: Disable transparency for opaque rendering - NO transparent=true allowed
   if ('transparent' in mat) {
     mat.transparent = false;
