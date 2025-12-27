@@ -48,13 +48,13 @@ export const AtmosphericSky = ({
     // Create a mid-sky color (blend of zenith and a warmer tone)
     const midSky = zenith.clone().lerp(sun, 0.15);
     
-    // Gradient stops - keep variation ABOVE horizon
+    // Gradient stops - variation ABOVE horizon, horizon band = exact fogColor
     gradient.addColorStop(0, `#${zenith.getHexString()}`);      // Top: deep blue
-    gradient.addColorStop(0.25, `#${midSky.getHexString()}`);   // Upper: slightly warm
-    gradient.addColorStop(0.4, `#${sun.getHexString()}`);       // Sun glow zone
-    gradient.addColorStop(0.5, `#${horizon.clone().lerp(sun, 0.3).getHexString()}`); // Warm horizon
-    gradient.addColorStop(0.6, `#${horizon.getHexString()}`);   // Horizon = fog color
-    gradient.addColorStop(1, `#${horizon.getHexString()}`);     // Below horizon = fog color
+    gradient.addColorStop(0.2, `#${midSky.getHexString()}`);    // Upper: slightly warm
+    gradient.addColorStop(0.35, `#${sun.getHexString()}`);      // Sun glow zone
+    gradient.addColorStop(0.45, `#${horizon.getHexString()}`);  // Transition to horizon
+    gradient.addColorStop(0.5, `#${horizon.getHexString()}`);   // Horizon = EXACT fogColor
+    gradient.addColorStop(1, `#${horizon.getHexString()}`);     // Below horizon = EXACT fogColor
     
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
