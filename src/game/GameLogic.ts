@@ -900,6 +900,41 @@ export function calculateMovement(
             slidingContactTime += deltaTime;
           }
           
+          // === ROTATION KEY INFLUENCE ON SLIDE DIRECTION ===
+          // If user is pressing rotate left/right, they likely want to slide in that direction
+          // This overrides the natural collision-based slide direction
+          const wantsRight = input.rotateRight && !input.rotateLeft;
+          const wantsLeft = input.rotateLeft && !input.rotateRight;
+          
+          if (wantsRight || wantsLeft) {
+            // User is pressing a rotation key - compute the world-space lateral direction
+            // Right = perpendicular to facing direction (90 degrees clockwise)
+            const lateralDirSign = wantsRight ? 1 : -1;
+            const lateralWorldX = Math.cos(newRotation) * lateralDirSign;
+            const lateralWorldY = Math.sin(newRotation) * lateralDirSign;
+            
+            // Project the lateral direction onto the collision tangent
+            // This gives us a slide in the direction the user WANTS
+            const lateralDotTangent = lateralWorldX * naturalTangentX + lateralWorldY * naturalTangentY;
+            
+            if (Math.abs(lateralDotTangent) > 0.1) {
+              // There's a valid slide component in the lateral direction
+              const lateralTangentSign = lateralDotTangent > 0 ? 1 : -1;
+              const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
+              
+              // Use the lateral-aligned tangent for sliding
+              slideX = naturalTangentX * lateralTangentSign * moveLen * slideFriction;
+              slideY = naturalTangentY * lateralTangentSign * moveLen * slideFriction;
+              slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
+              
+              console.log('[SLIDE] ROTATION KEY LATERAL SLIDE:', {
+                wantsDir: wantsRight ? 'RIGHT' : 'LEFT',
+                lateralDotTangent: lateralDotTangent.toFixed(4),
+                newSlide: { x: slideX.toFixed(4), y: slideY.toFixed(4) }
+              });
+            }
+          }
+          
           // ALWAYS set headOnSideSign for rotation nudge, regardless of slideable status
           const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
           if (moveLen > 0.001 && headOnSideSign === 0) {
@@ -915,7 +950,8 @@ export function calculateMovement(
           }
           
           if (isSlideable) {
-            if (moveLen > 0.001) {
+            // Only apply tower/char assist if NOT already overridden by rotation keys
+            if (moveLen > 0.001 && !wantsRight && !wantsLeft) {
               const tangentX = naturalTangentX * headOnSideSign;
               const tangentY = naturalTangentY * headOnSideSign;
               
