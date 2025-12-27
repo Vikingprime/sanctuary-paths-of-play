@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, BackSide, DoubleSide } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
@@ -1358,19 +1358,66 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     }
   });
 
+  // Sky gradient shader material
+  const skyMaterial = useMemo(() => {
+    return new ShaderMaterial({
+      uniforms: {
+        topColor: { value: new Color('#8BA4C7') },      // Soft cornflower blue
+        horizonColor: { value: new Color('#E8D8C8') },  // Warm peach/cream
+        bottomColor: { value: new Color('#D8C8B8') },   // Matches fog
+        offset: { value: 0.4 },
+        exponent: { value: 0.6 },
+      },
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 topColor;
+        uniform vec3 horizonColor;
+        uniform vec3 bottomColor;
+        uniform float offset;
+        uniform float exponent;
+        varying vec3 vWorldPosition;
+        void main() {
+          float h = normalize(vWorldPosition).y;
+          // Above horizon: blend from horizon to sky
+          if (h > 0.0) {
+            float t = pow(max(h, 0.0), exponent);
+            gl_FragColor = vec4(mix(horizonColor, topColor, t), 1.0);
+          } else {
+            // Below horizon: blend to bottom color (for ground reflection)
+            gl_FragColor = vec4(mix(horizonColor, bottomColor, min(-h * 2.0, 1.0)), 1.0);
+          }
+        }
+      `,
+      side: BackSide,
+      depthWrite: false,
+    });
+  }, []);
+
 return (
     <>
+      {/* === GRADIENT SKY DOME === */}
+      <mesh scale={[80, 80, 80]}>
+        <sphereGeometry args={[1, 32, 16]} />
+        <primitive object={skyMaterial} attach="material" />
+      </mesh>
       
       {/* === GHIBLI LIGHTING MIX === */}
-      {/* Hemisphere light for natural sky/ground bounce - soft blue sky, muted green ground */}
-      <hemisphereLight args={['#9BB8D4', '#6B8C5A', 0.7]} />
+      {/* Hemisphere light - stronger for softer shadows with subtle purple/blue tint in shadows */}
+      <hemisphereLight args={['#A8C0E0', '#8B9F7A', 1.1]} />
       
-      {/* Main sun light - warm yellow tint, follows player for consistent shadows */}
+      {/* Main sun light - warm amber/golden hour tone, lower angle (30-45 deg) */}
       <directionalLight
         ref={lightRef}
-        position={[15, 35, 15]}
-        intensity={2.8}
-        color="#FFF0D4"
+        position={[20, 18, 15]}
+        intensity={3.2}
+        color="#FFD8A0"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={1}
@@ -1379,32 +1426,32 @@ return (
         shadow-camera-right={25}
         shadow-camera-top={25}
         shadow-camera-bottom={-25}
-        shadow-bias={-0.0005}
-        shadow-radius={3}
+        shadow-bias={-0.0003}
+        shadow-radius={4}
       >
         <object3D attach="target" />
       </directionalLight>
       
-      {/* Fill light from opposite side - sky-tinted for softer shadows */}
+      {/* Fill light from opposite side - cool sky blue for shadow fill */}
       <directionalLight
-        position={[-15, 12, -10]}
-        intensity={0.6}
-        color="#B8D4E8"
+        position={[-18, 10, -12]}
+        intensity={0.8}
+        color="#B0C8E8"
       />
       
-      {/* Subtle rim light for character pop */}
+      {/* Subtle back rim light for character pop - golden */}
       <directionalLight
-        position={[0, 8, -20]}
-        intensity={0.3}
-        color="#FFE8CC"
+        position={[-5, 6, -25]}
+        intensity={0.4}
+        color="#FFE0B0"
       />
       
       {/* === SKY-FOG GLUE === */}
-      {/* Background: soft peach/cream horizon color that blends with fog */}
-      <color attach="background" args={['#E8DDD4']} />
+      {/* Background color as fallback - matches horizon */}
+      <color attach="background" args={['#E8D8C8']} />
       
-      {/* Exponential fog - matches horizon for seamless blending */}
-      <fogExp2 attach="fog" args={['#D8CCBE', 0.08]} />
+      {/* Denser fog to hide corn culling in distance */}
+      <fogExp2 attach="fog" args={['#D8C8B8', 0.12]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
