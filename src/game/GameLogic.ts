@@ -907,40 +907,49 @@ export function calculateMovement(
           const wantsLeft = input.rotateLeft && !input.rotateRight;
           
           if (wantsRight || wantsLeft) {
-            // User is pressing a rotation key - compute the world-space lateral direction
-            // Forward is (sin(rotation), -cos(rotation))
-            // Right (90° clockwise) = (-cos(rotation), -sin(rotation))
-            // Left (90° counter-clockwise) = (cos(rotation), sin(rotation))
-            const lateralWorldX = wantsRight ? -Math.cos(newRotation) : Math.cos(newRotation);
-            const lateralWorldY = wantsRight ? -Math.sin(newRotation) : Math.sin(newRotation);
+            // Use collision TANGENT for sliding around obstacles
+            // Two tangent directions perpendicular to collision normal
+            const tangent1X = -ny, tangent1Y = nx;
+            const tangent2X = ny,  tangent2Y = -nx;
             
-            // Remove the component of lateral direction that goes INTO the wall
-            const lateralDotNormal = lateralWorldX * nx + lateralWorldY * ny;
-            let safeLateralX = lateralWorldX;
-            let safeLateralY = lateralWorldY;
+            // Player's forward direction
+            const forwardX = Math.sin(newRotation);
+            const forwardY = -Math.cos(newRotation);
             
-            if (lateralDotNormal < 0) {
-              // Lateral direction goes into wall - remove that component
-              safeLateralX -= nx * lateralDotNormal;
-              safeLateralY -= ny * lateralDotNormal;
-            }
+            // Determine which tangent is "forward-ish" vs "backward-ish"
+            const fwdDot1 = tangent1X * forwardX + tangent1Y * forwardY;
+            const fwdDot2 = tangent2X * forwardX + tangent2Y * forwardY;
             
-            const safeLateralMag = Math.sqrt(safeLateralX * safeLateralX + safeLateralY * safeLateralY);
+            const forwardTangentX = fwdDot1 >= fwdDot2 ? tangent1X : tangent2X;
+            const forwardTangentY = fwdDot1 >= fwdDot2 ? tangent1Y : tangent2Y;
+            const backwardTangentX = fwdDot1 >= fwdDot2 ? tangent2X : tangent1X;
+            const backwardTangentY = fwdDot1 >= fwdDot2 ? tangent2Y : tangent1Y;
             
-            if (safeLateralMag > 0.1) {
-              // Normalize and apply movement magnitude
-              const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
-              slideX = (safeLateralX / safeLateralMag) * moveLen * slideFriction;
-              slideY = (safeLateralY / safeLateralMag) * moveLen * slideFriction;
-              slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
-              
-              console.log('[SLIDE] ROTATION KEY DIRECT LATERAL:', {
-                wantsDir: wantsRight ? 'RIGHT' : 'LEFT',
-                lateralDotNormal: lateralDotNormal.toFixed(4),
-                safeLateral: { x: safeLateralX.toFixed(4), y: safeLateralY.toFixed(4) },
-                newSlide: { x: slideX.toFixed(4), y: slideY.toFixed(4) }
-              });
-            }
+            // Test if forward tangent is blocked (e.g., by a wall)
+            const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
+            const testDist = moveLen * slideFriction * 1.5;
+            
+            const forwardSlideTest = sweepTranslation(
+              newX + nx * 0.02, newY + ny * 0.02,
+              forwardTangentX * testDist, forwardTangentY * testDist,
+              newRotation, capsule, maze, rocks, characters, animalType
+            );
+            
+            // Choose tangent based on whether forward is blocked
+            const chosenTangentX = forwardSlideTest.blocked ? backwardTangentX : forwardTangentX;
+            const chosenTangentY = forwardSlideTest.blocked ? backwardTangentY : forwardTangentY;
+            
+            slideX = chosenTangentX * testDist;
+            slideY = chosenTangentY * testDist;
+            slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
+            
+            console.log('[SLIDE] TANGENT-BASED (rotation key):', {
+              wantsDir: wantsRight ? 'RIGHT' : 'LEFT',
+              forwardBlocked: forwardSlideTest.blocked,
+              usingTangent: forwardSlideTest.blocked ? 'BACKWARD' : 'FORWARD',
+              chosenTangent: { x: chosenTangentX.toFixed(3), y: chosenTangentY.toFixed(3) },
+              slide: { x: slideX.toFixed(4), y: slideY.toFixed(4) }
+            });
           }
           
           // ALWAYS set headOnSideSign for rotation nudge, regardless of slideable status
