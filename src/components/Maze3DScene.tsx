@@ -8,7 +8,7 @@ import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullSt
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
-import { findBestFacingDirection } from '@/game/MazeUtils';
+import { findStartRotation } from '@/game/MazeUtils';
 
 // Extended performance info type
 export interface PerformanceInfo {
@@ -755,11 +755,13 @@ const CharacterRenderer = ({
   const characterScale = getCharacterScale(modelFile);
   const characterYOffset = getCharacterYOffset(modelFile);
   
-  // Calculate initial facing direction using raycast (only once)
+  // Calculate initial facing direction using same logic as player
+  // findStartRotation returns "player rotation" format, convert to Three.js rotation.y with: -rotation + π
   const initialRotation = useMemo(() => {
     const charX = position.x + 0.5;
     const charZ = position.y + 0.5;
-    return findBestFacingDirection(maze, charX, charZ);
+    const rotation = findStartRotation(maze, charX, charZ);
+    return -rotation + Math.PI; // Same transform as player uses
   }, [maze, position.x, position.y]);
   
   // Clone the scene using SkeletonUtils for skinned meshes

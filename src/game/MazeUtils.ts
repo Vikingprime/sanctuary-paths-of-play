@@ -25,7 +25,6 @@ export function findStartPosition(maze: Maze): { x: number; y: number } {
   }
   return { x: 1.5, y: 1.5 }; // Fallback
 }
-
 /**
  * Core raycast function to find the most open direction from a position
  * Returns the raw angle (0 to 2π) of the best direction
@@ -36,7 +35,7 @@ export function findStartPosition(maze: Maze): { x: number; y: number } {
  * @param checkDistance - How far to raycast (default 2.0 cells)
  * @returns Raw angle in radians (0 = +X, π/2 = +Z, π = -X, 3π/2 = -Z)
  */
-export function findBestDirectionAngle(maze: Maze, posX: number, posY: number, checkDistance: number = 2.0): number {
+function findBestDirectionAngle(maze: Maze, posX: number, posY: number, checkDistance: number = 2.0): number {
   const numDirections = 24; // Every 15 degrees
   const stepSize = 0.1;
   
@@ -76,48 +75,32 @@ export function findBestDirectionAngle(maze: Maze, posX: number, posY: number, c
 }
 
 /**
- * Find the initial rotation for the player to face an open path
- * Returns rotation in radians (player rotation format)
+ * Find the best rotation for a character to face an open path
+ * Works for both player (at start position) and NPCs (at any position)
  * 
- * In the 3D scene, the player group applies: rotation.y = -playerRotation + π
- * The model faces +Z by default.
+ * Returns rotation in "player rotation" format. To convert to Three.js group.rotation.y:
+ *   group.rotation.y = -rotation + π
  * 
- * After transform (-rotation + π), the model faces:
- *   rotation = 0      → model rotation = π     → faces +Z (down in grid)
- *   rotation = π      → model rotation = 0     → faces -Z (up in grid) 
- *   rotation = π/2    → model rotation = π/2   → faces -X (left in grid)
- *   rotation = -π/2   → model rotation = 3π/2  → faces +X (right in grid)
- * 
- * So to face a direction:
- *   - Face right (+X): rotation = -π/2
- *   - Face left (-X):  rotation = π/2
- *   - Face down (+Z):  rotation = 0
- *   - Face up (-Z):    rotation = π
+ * @param maze - The maze to check walls against
+ * @param posX - X position in world coordinates (optional, defaults to maze start)
+ * @param posY - Y position in world coordinates (optional, defaults to maze start)
+ * @param checkDistance - How far to raycast (default 2.0 cells)
  */
-export function findStartRotation(maze: Maze): number {
-  const startPos = findStartPosition(maze);
-  const bestAngle = findBestDirectionAngle(maze, startPos.x, startPos.y, 1.5);
+export function findStartRotation(maze: Maze, posX?: number, posY?: number, checkDistance: number = 2.0): number {
+  // Default to start position if no position provided
+  if (posX === undefined || posY === undefined) {
+    const startPos = findStartPosition(maze);
+    posX = startPos.x;
+    posY = startPos.y;
+  }
+  
+  const bestAngle = findBestDirectionAngle(maze, posX, posY, checkDistance);
   
   // Convert angle to player rotation
   // Formula: playerRotation = π/2 - angle
   const playerRotation = Math.PI / 2 - bestAngle;
   
   return playerRotation;
-}
-
-/**
- * Find the best facing direction for any character at a given position
- * Returns rotation.y value to apply directly to a Three.js group (faces +Z by default)
- */
-export function findBestFacingDirection(maze: Maze, posX: number, posY: number): number {
-  const bestAngle = findBestDirectionAngle(maze, posX, posY, 2.0);
-  
-  // Convert to Three.js rotation.y
-  // For Three.js group.rotation.y where model faces +Z:
-  // rotation.y = -angle + π/2 makes model face the direction
-  const rotationY = -bestAngle + Math.PI / 2;
-  
-  return rotationY;
 }
 
 /**
