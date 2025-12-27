@@ -1387,18 +1387,22 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
   // Generate character positions for collision (all placed characters + map stations)
-  const CHARACTER_COLLISION_RADIUS = 0.1;
+  // Use larger radius to match NPC capsule sizes for proper collision
+  const CHARACTER_COLLISION_RADIUS = 0.35; // Match NPC vertical capsule radius
   const STATION_COLLISION_RADIUS = 0.12; // Tiny - barely perceptible
   const STATION_ROTATION_RADIUS = 0.10; // Even smaller for rotation
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
     
-    // Add placed characters from maze.characters
+    // Add placed characters from maze.characters with model-specific radii
     maze.characters?.forEach((char) => {
+      // Look up per-character collision radius from config
+      const npcConfig = NPC_COLLISION_CONFIG[char.model];
+      const charRadius = npcConfig ? npcConfig.radius : CHARACTER_COLLISION_RADIUS;
       positions.push({
         x: char.position.x,
         y: char.position.y,
-        radius: CHARACTER_COLLISION_RADIUS,
+        radius: charRadius,
       });
     });
     

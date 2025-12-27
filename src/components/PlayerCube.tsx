@@ -426,13 +426,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   // Cow uses GLB model with animation
   if (animalType === 'cow') {
     // Debug capsule collider - sized for cow at ~2.52 units tall
-    // Body center at ~1.0-1.2 units, cow is longer than tall
+    // Cow body is horizontal, but we need a tall capsule to prevent going through NPCs
     const CAPSULE_START = -0.90;  // Tail end (back)
     const CAPSULE_END = 1.10;     // Body/neck end (forward)
     const CAPSULE_RADIUS = 0.55;  // Body radius (cows are wide)
     const HEAD_OFFSET = 1.50;     // Head sphere position (forward of body)
     const HEAD_RADIUS = 0.40;     // Head radius
-    const DEBUG_Y = 1.10;         // Body center height (half of 2.52 ~ 1.26, adjusted for body center)
+    const DEBUG_Y = 1.60;         // Raised significantly to cover head area (was 1.10)
     
     // Use the cow scale from our constants
     const cowScale = ANIMAL_SCALES.cow;
