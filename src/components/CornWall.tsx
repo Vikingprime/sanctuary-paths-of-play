@@ -4,9 +4,9 @@ import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
 
-// LOD distance tiers
+// LOD distance tiers - cheap corn hidden at 10m so it fades into fog before appearing
 const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
-const LOD_CHEAP_DISTANCE = 16;          // Cheap material 6-16m, hidden beyond 16m
+const LOD_CHEAP_DISTANCE = 10;          // Cheap material 6-10m, hidden beyond 10m
 
 interface CornWallProps {
   position: [number, number, number];
