@@ -8,6 +8,7 @@ import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullSt
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
+import { WorldScaleDebug } from './WorldScaleDebug';
 
 // Extended performance info type
 export interface PerformanceInfo {
@@ -1499,6 +1500,9 @@ return (
           groundLevelCamera={groundLevelCamera}
         />
       )}
+      
+      {/* Debug component for measuring world-space heights */}
+      <WorldScaleDebug />
     </>
   );
 };
