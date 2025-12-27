@@ -1471,8 +1471,8 @@ const OverShoulderCameraController = ({
       // Calculate debug values
       const hitDist = closestHitDist;
       const pushedDist = hitDist < rayLength ? Math.max(hitDist - autopush.padding, autopush.minDist) : rayLength;
-      const delta = desiredDistForAutopush - pushedDist;
-      const accepted = delta > autopush.minPushDelta;
+      const rawObstruction = desiredDistForAutopush - hitDist;
+      const accepted = rawObstruction > autopush.minPushDelta;
       const hasHit = closestHitDist < rayLength;
       
       // Throttled debug log (every 500ms)
@@ -1485,7 +1485,7 @@ const OverShoulderCameraController = ({
           hitDist: hasHit ? hitDist.toFixed(2) : 'none',
           hitObject: hasHit ? hitObjectName : 'none',
           pushedDist: pushedDist.toFixed(2),
-          delta: delta.toFixed(2),
+          rawObstruction: rawObstruction.toFixed(2),
           minPushDelta: autopush.minPushDelta,
           accepted,
           currentAutopushDist: currentAutopushDist.current?.toFixed(2) ?? 'null',
@@ -1499,9 +1499,12 @@ const OverShoulderCameraController = ({
           autopush.minDist
         );
         
-        // Micro-hit filtering: only accept if distance reduction is significant
-        const distanceReduction = desiredDistForAutopush - potentialBlockedDist;
-        if (distanceReduction > autopush.minPushDelta) {
+        // Check if the RAW HIT is significant (not the clamped distance)
+        // This properly detects real obstructions vs grazing leaves
+        const rawObstruction = desiredDistForAutopush - closestHitDist;
+        const isSignificantHit = rawObstruction > autopush.minPushDelta;
+        
+        if (isSignificantHit) {
           // Significant hit - push in
           targetDist = potentialBlockedDist;
           lastHitTime.current = now; // Record hit time for hysteresis
