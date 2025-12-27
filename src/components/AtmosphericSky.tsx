@@ -1,12 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { useThree, useFrame } from '@react-three/fiber';
-import { 
-  MeshBasicMaterial, 
-  BackSide, 
-  Mesh,
-  SphereGeometry,
-  PerspectiveCamera
-} from 'three';
+import { useEffect } from 'react';
+import { useThree } from '@react-three/fiber';
+import { Color } from 'three';
 
 interface AtmosphericSkyProps {
   zenithColor?: string;
@@ -19,60 +13,28 @@ interface AtmosphericSkyProps {
 }
 
 /**
- * Atmospheric sky dome - sized to camera far plane
+ * Atmospheric sky using scene.background
+ * This is the most reliable way to set a sky color
  */
-export const AtmosphericSky = (_props: AtmosphericSkyProps) => {
-  const { scene, camera } = useThree();
-  const skyMeshRef = useRef<Mesh | null>(null);
-  const addedRef = useRef(false);
+export const AtmosphericSky = ({
+  horizonColor = '#B8B0A0',
+}: AtmosphericSkyProps) => {
+  const { scene, gl } = useThree();
 
   useEffect(() => {
-    if (addedRef.current) return;
-    addedRef.current = true;
+    // TEST 1: Set scene.background to magenta
+    console.log('[AtmosphericSky] Setting scene.background to MAGENTA');
+    scene.background = new Color(0xff00ff);
     
-    // Get camera far plane - use 0.95 of it so we're inside the frustum
-    const perspCam = camera as PerspectiveCamera;
-    const radius = (perspCam.far || 1000) * 0.95;
+    // TEST 2: Also set clear color
+    console.log('[AtmosphericSky] Setting gl.setClearColor to MAGENTA');
+    gl.setClearColor(0xff00ff, 1);
     
-    console.log('[AtmosphericSky] Camera far:', perspCam.far, 'Using radius:', radius);
-    
-    // Simple magenta material for debug
-    const skyMaterial = new MeshBasicMaterial({
-      color: 0xff00ff, // MAGENTA
-      side: BackSide,
-      depthTest: false,
-      depthWrite: false,
-      fog: false,
-    });
-
-    // Create sphere with radius based on camera far plane
-    const skyGeometry = new SphereGeometry(radius, 32, 16);
-    const skyMesh = new Mesh(skyGeometry, skyMaterial);
-    
-    // Critical settings
-    skyMesh.frustumCulled = false;
-    skyMesh.renderOrder = -1000;
-    skyMesh.name = 'SKY_DOME';
-    
-    // Start at camera position
-    skyMesh.position.copy(camera.position);
-    
-    skyMeshRef.current = skyMesh;
-    scene.add(skyMesh);
-    
-    console.log('[AtmosphericSky] Dome added with radius:', radius);
-
     return () => {
-      console.log('[AtmosphericSky] Cleanup - NOT removing');
+      // Reset on cleanup
+      scene.background = null;
     };
-  }, [scene, camera]);
-
-  // Keep dome centered on camera every frame
-  useFrame(() => {
-    if (skyMeshRef.current) {
-      skyMeshRef.current.position.copy(camera.position);
-    }
-  });
+  }, [scene, gl]);
 
   return null;
 };
