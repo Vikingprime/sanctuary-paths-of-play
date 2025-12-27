@@ -22,13 +22,11 @@ const measureModelHeight = (scene: any, name: string): number => {
   return size.y;
 };
 
-// Scale factors - tuned for game world (1 cell = 1 unit)
-// Characters should be ~1.5-2 visual units tall
-// Raw heights: Pig ~98, Cow ~4.6, Hen ~73
+// Scale factors from world-space measurements (corn height: 197.0637)
 const ANIMAL_SCALES = {
-  chicken: 0.018,   // Hen raw ~73, so 0.018 * 73 ≈ 1.3 visual height
-  pig: 0.015,       // Pig raw ~98, so 0.015 * 98 ≈ 1.5 visual height
-  cow: 0.35,        // Cow raw ~4.6, so 0.35 * 4.6 ≈ 1.6 visual height
+  chicken: 0.513257,  // target 37.44 / raw 72.95
+  pig: 0.759700,      // target 74.88 / raw 98.57
+  cow: 27.067594,     // target 124.15 / raw 4.59
 } as const;
 
 // Play chicken sound on spawn
