@@ -351,6 +351,11 @@ let slidingContactTime = 0;             // How long we've been in sliding contac
 let lastContactColliderKey = '';        // Track which collider we're contacting for cast offset
 let slideBlockedCounter = 0;            // Count consecutive frames where slide is blocked
 
+// Corridor detection - track recent collision normals to detect when stuck between walls
+let recentCollisionNormals: Array<{x: number, y: number, time: number}> = [];
+const CORRIDOR_DOT_THRESHOLD = -0.5;    // Normals are roughly opposite
+const CORRIDOR_MEMORY_MS = 300;         // Remember collisions for 300ms
+
 /**
  * Check if a capsule overlaps any static collider (walls, rocks, characters)
  * Returns overlap info including the type of collider hit (for tower sliding logic)
@@ -838,6 +843,25 @@ export function calculateMovement(
         const nx = sweepResult.normal.x;
         const ny = sweepResult.normal.y;
         
+        // === CORRIDOR DETECTION ===
+        // Track this collision normal
+        const currentTime = Date.now();
+        recentCollisionNormals.push({ x: nx, y: ny, time: currentTime });
+        // Keep only recent collisions
+        recentCollisionNormals = recentCollisionNormals.filter(n => currentTime - n.time < CORRIDOR_MEMORY_MS);
+        
+        // Check if we're in a corridor (opposite normals in recent history)
+        const isInCorridor = recentCollisionNormals.some((prevNormal, idx) => {
+          // Don't compare with self (the one we just added)
+          if (idx === recentCollisionNormals.length - 1) return false;
+          const dot = nx * prevNormal.x + ny * prevNormal.y;
+          return dot < CORRIDOR_DOT_THRESHOLD; // Opposite directions
+        });
+        
+        if (isInCorridor) {
+          console.log('[SLIDE] CORRIDOR DETECTED - dampening pushback and skipping rotation nudge');
+        }
+        
         // Compute natural tangent from normal
         const naturalTangentX = -ny;
         const naturalTangentY = nx;
@@ -845,7 +869,7 @@ export function calculateMovement(
         // Dot product of desired movement with collision normal
         const dotIntoSurface = moveX * nx + moveY * ny;
         
-        console.log('[SLIDE] dotIntoSurface:', dotIntoSurface.toFixed(4));
+        console.log('[SLIDE] dotIntoSurface:', dotIntoSurface.toFixed(4), 'isInCorridor:', isInCorridor);
         
         // Only slide if pushing into surface
         if (dotIntoSurface < 0) {
@@ -917,7 +941,8 @@ export function calculateMovement(
           if (Math.abs(slideX) > 0.0001 || Math.abs(slideY) > 0.0001) {
             // CRITICAL FIX: Push slightly away from surface FIRST before sliding
             // This prevents the second sweep from immediately hitting the same collider
-            const pushAwayDist = 0.02; // Small push away from the surface
+            // In corridors, use much smaller pushback to prevent bouncing
+            const pushAwayDist = isInCorridor ? 0.005 : 0.02;
             const pushedX = newX + nx * pushAwayDist;
             const pushedY = newY + ny * pushAwayDist;
             
@@ -959,7 +984,9 @@ export function calculateMovement(
               const userRotatingLeft = input.rotateLeft && !input.rotateRight;
               const userIsRotating = userRotatingRight || userRotatingLeft;
               
-              if (!userIsRotating) {
+              // Skip rotation nudge in corridors - it just causes more bouncing
+              // Also skip if user is actively rotating
+              if (!userIsRotating && !isInCorridor) {
                 const ROTATION_NUDGE_STRENGTH = 0.06; // Radians per frame when blocked
                 
                 // Increase nudge strength gradually the longer we're stuck
@@ -980,6 +1007,8 @@ export function calculateMovement(
                   rotationNudge: rotationNudge.toFixed(4),
                   newRotation: newRotation.toFixed(3)
                 });
+              } else if (isInCorridor) {
+                console.log('[SLIDE] In corridor, skipping rotation nudge');
               } else {
                 console.log('[SLIDE] User is rotating, skipping auto-nudge:', {
                   userRotatingRight,
