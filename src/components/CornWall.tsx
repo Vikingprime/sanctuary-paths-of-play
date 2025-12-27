@@ -8,9 +8,10 @@ import cornTexture from '@/assets/corn-texture.png';
 const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
 const LOD_CHEAP_DISTANCE = 16;          // Cheap material 6-16m, hidden beyond 16m
 
-// Default cull distance - completely independent of fog settings
-// This is overridden by optimizationSettings.cullDistance if provided
-const DEFAULT_CULL_DISTANCE = 14;
+// Default cull distance - must be SHORTER than fog obscuring distance
+// Corn should disappear while still mostly fogged so no pop-in visible
+// At fog density 0.20, objects at 10m are ~87% fogged
+const DEFAULT_CULL_DISTANCE = 10;
 
 interface CornWallProps {
   position: [number, number, number];
@@ -54,7 +55,7 @@ export interface CornOptimizationSettings {
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   shadowRadius: 8,
-  cullDistance: 14, // Must match DEFAULT_CULL_DISTANCE - independent of fog
+  cullDistance: 10, // Must match DEFAULT_CULL_DISTANCE - shorter than fog obscure distance
   lodDistance: 6,
   farMaterialDistance: 5,
   enableShadowOptimization: true,
