@@ -4,9 +4,14 @@ import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
 
-// LOD distance tiers
+// LOD distance tiers - with fade band for smooth transition
 const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
 const LOD_CHEAP_DISTANCE = 16;          // Cheap material 6-16m, hidden beyond 16m
+
+// Fade band settings - corn fades out smoothly before hard cull
+const FADE_START_DISTANCE = 10;  // Start fading at 10m
+const FADE_END_DISTANCE = 14;    // Fully faded at 14m (cull happens at 14m)
+const FADE_RANDOM_OFFSET = 4;    // ±4m random offset per instance
 
 interface CornWallProps {
   position: [number, number, number];
@@ -140,6 +145,7 @@ interface WallTransformData {
   matrix: Matrix4;
   centerX: number;
   centerZ: number;
+  fadeOffset: number; // Random offset for staggered fade (±4 units)
 }
 
 // Generate transforms for edge stalks only (single row facing the path)
@@ -195,7 +201,9 @@ const generateEdgeTransforms = (
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
         dummy.scale.set(widthScale, widthScale, heightScale);
         dummy.updateMatrix();
-        transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ });
+        // Random fade offset per stalk for staggered culling (±FADE_RANDOM_OFFSET)
+        const fadeOffset = (seededRandom(stalkSeed + 5) - 0.5) * 2 * FADE_RANDOM_OFFSET;
+        transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ, fadeOffset });
       }
     });
   });
@@ -256,7 +264,9 @@ const generateWallTransforms = (
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
         dummy.scale.set(widthScale, widthScale, heightScale);
         dummy.updateMatrix();
-        transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ });
+        // Random fade offset per stalk for staggered culling (±FADE_RANDOM_OFFSET)
+        const fadeOffset = (seededRandom(stalkSeed + 5) - 0.5) * 2 * FADE_RANDOM_OFFSET;
+        transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ, fadeOffset });
       }
     }
   });
@@ -311,7 +321,9 @@ const generateBoundaryTransforms = (
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
         dummy.scale.set(widthScale, widthScale, heightScale);
         dummy.updateMatrix();
-        transforms.push({ matrix: dummy.matrix.clone(), centerX: posX, centerZ: posZ });
+        // Random fade offset per stalk for staggered culling (±FADE_RANDOM_OFFSET)
+        const fadeOffset = (seededRandom(stalkSeed + 5) - 0.5) * 2 * FADE_RANDOM_OFFSET;
+        transforms.push({ matrix: dummy.matrix.clone(), centerX: posX, centerZ: posZ, fadeOffset });
       }
     }
   });
@@ -366,11 +378,19 @@ export const InstancedWalls = ({
   const ROTATION_THRESHOLD = 0.1; // ~5.7 degrees of rotation triggers update
   const cullDebugRef = useRef(0); // Debug counter
   
-  // Distance threshold for culling
-  const CULL_DISTANCE_SQ = 12 * 12; // 12m squared
+  // Distance threshold for culling - use fade band constants
+  // Actual cull happens at FADE_END_DISTANCE + max offset
+  const CULL_DISTANCE = FADE_END_DISTANCE + FADE_RANDOM_OFFSET;
+  const CULL_DISTANCE_SQ = CULL_DISTANCE * CULL_DISTANCE;
   
   // Camera direction culling - cull back 90 degrees (keep front 270 degrees)
   const BACK_CULL_DOT_THRESHOLD = -0.707; // cos(135°) - corn behind this angle gets culled
+  
+  // Temp matrix for scaled transforms
+  const tempMatrix = useMemo(() => new Matrix4(), []);
+  const tempScale = useMemo(() => new Vector3(), []);
+  const tempPos = useMemo(() => new Vector3(), []);
+  const tempQuat = useMemo(() => new Quaternion(), []);
   
   // Distance culling (fog is now handled by scene's FogExp2)
   useFrame(() => {
@@ -421,17 +441,38 @@ export const InstancedWalls = ({
       return dot > BACK_CULL_DOT_THRESHOLD; // Keep if not directly behind
     };
     
-    // Cull edge corn (GLTF) - re-pack visible instances
+    // Helper to calculate fade scale based on distance with per-instance offset
+    const getFadeScale = (dist: number, fadeOffset: number): number => {
+      const adjustedFadeStart = FADE_START_DISTANCE + fadeOffset;
+      const adjustedFadeEnd = FADE_END_DISTANCE + fadeOffset;
+      
+      if (dist < adjustedFadeStart) return 1.0; // Full scale
+      if (dist >= adjustedFadeEnd) return 0.0; // Culled
+      
+      // Smooth fade between start and end
+      const t = (dist - adjustedFadeStart) / (adjustedFadeEnd - adjustedFadeStart);
+      return 1.0 - t * t; // Quadratic ease-out for smoother fade
+    };
+    
+    // Cull edge corn (GLTF) - re-pack visible instances with fade
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
-        // Distance cull AND camera-direction cull (back-cull only for >3m)
-        if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
+        const dist = Math.sqrt(distSq);
+        const fadeScale = getFadeScale(dist, t.fadeOffset);
+        
+        // Distance cull AND camera-direction cull (back-cull only for >6m)
+        if (fadeScale > 0.01 && isInViewArc(t.centerX, t.centerZ, distSq)) {
+          // Apply fade scale to matrix
+          t.matrix.decompose(tempPos, tempQuat, tempScale);
+          tempScale.multiplyScalar(fadeScale);
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          
           for (const mesh of edgeMeshesRef.current) {
-            mesh.setMatrixAt(edgeCount, t.matrix);
+            mesh.setMatrixAt(edgeCount, tempMatrix);
           }
           edgeCount++;
         }
@@ -443,16 +484,24 @@ export const InstancedWalls = ({
       }
     }
     
-    // Cull cheap corn (interior/boundary)
+    // Cull cheap corn (interior/boundary) with fade
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
       const transforms = cheapTransformsRef.current;
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
-        // Distance cull AND camera-direction cull (back-cull only for >3m)
-        if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
-          cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
+        const dist = Math.sqrt(distSq);
+        const fadeScale = getFadeScale(dist, t.fadeOffset);
+        
+        // Distance cull AND camera-direction cull (back-cull only for >6m)
+        if (fadeScale > 0.01 && isInViewArc(t.centerX, t.centerZ, distSq)) {
+          // Apply fade scale to matrix
+          t.matrix.decompose(tempPos, tempQuat, tempScale);
+          tempScale.multiplyScalar(fadeScale);
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          
+          cheapMeshRef.current.setMatrixAt(cheapCount, tempMatrix);
           cheapCount++;
         }
       }
@@ -660,7 +709,7 @@ export const InstancedWalls = ({
       bbDummy.scale.set(1, 1, 1);
       bbDummy.updateMatrix();
       
-      billboardTransforms.push({ matrix: bbDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ });
+      billboardTransforms.push({ matrix: bbDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ, fadeOffset: t.fadeOffset });
     });
     
     return { 

@@ -5,6 +5,7 @@ import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, In
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
+import { GradientSky } from './GradientSky';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
@@ -96,9 +97,9 @@ const mat = new ShaderMaterial({
         rockLight: { value: new Color('#C4B090') },
         rockMid: { value: new Color('#A08060') },
         rockDark: { value: new Color('#705540') },
-        // Fog uniforms - neutral atmospheric tone, not green
-        fogColor: { value: new Color('#D0C8BC') },
-        fogDensity: { value: 0.145 },  // Fog tuned for 16m corn cull distance
+        // Fog uniforms - warm neutral atmospheric tone matching horizon
+        fogColor: { value: new Color('#B8B0A0') },
+        fogDensity: { value: 0.11 },  // Fog tuned for fade band distance
         fogHeightMax: { value: 2.5 },  // Height above which fog fades out
       },
       fog: true,
@@ -1401,12 +1402,19 @@ return (
       
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
-      {/* Sky background - separate from fog, clean blue sky */}
-      <color attach="background" args={['#87CEEB']} />
       
-      {/* Height-attenuated fog - neutral atmospheric tone, NOT green 
-          Fog only affects objects, NOT the background/sky */}
-      <fogExp2 attach="fog" args={['#D0C8BC', 0.12]} />
+      {/* Gradient sky - blue at top, blending to fog color at horizon 
+          This ensures distant corn fades INTO the horizon instead of turning white */}
+      <GradientSky 
+        topColor="#5DA9E9"       // Sky blue at zenith
+        horizonColor="#C8C0B0"   // Warm gray-tan at horizon (matches fog)
+        fogColor="#B8B0A0"       // Slightly darker for fog blending
+        horizonBlend={0.4}       // How far up the horizon color extends
+      />
+      
+      {/* Height-attenuated fog - warm neutral atmospheric tone, NOT green or pure white
+          Fog color matches the horizon for seamless blending */}
+      <fogExp2 attach="fog" args={['#B8B0A0', 0.11]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
