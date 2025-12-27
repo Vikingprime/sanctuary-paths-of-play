@@ -765,17 +765,26 @@ const MazeWalls = forwardRef<Group, {
     return mesh;
   }, [allWallPositions]);
 
-  // Expose the camera colliders group through the forwarded ref
-  useEffect(() => {
-    if (ref && typeof ref === 'object' && cameraCollidersRef.current) {
-      (ref as React.MutableRefObject<Group | null>).current = cameraCollidersRef.current;
-    }
-  }, [ref, cameraColliderMesh]);
+  // Callback to set both internal and forwarded ref
+  const setRefs = useMemo(() => {
+    return (node: Group | null) => {
+      // Set internal ref
+      (cameraCollidersRef as React.MutableRefObject<Group | null>).current = node;
+      // Set forwarded ref
+      if (ref) {
+        if (typeof ref === 'function') {
+          ref(node);
+        } else {
+          (ref as React.MutableRefObject<Group | null>).current = node;
+        }
+      }
+    };
+  }, [ref]);
 
   return (
     <group>
       {/* Camera collision boxes (invisible, for raycasting only) */}
-      <group ref={cameraCollidersRef} name="cameraColliders">
+      <group ref={setRefs} name="cameraColliders">
         {cameraColliderMesh && <primitive object={cameraColliderMesh} />}
       </group>
       
@@ -1375,21 +1384,36 @@ const OverShoulderCameraController = ({
       rayDir.current.copy(targetPos.current).sub(headPos).normalize();
       const rayLength = headPos.distanceTo(targetPos.current);
       
-      // Find the camera colliders group (invisible boxes for raycasting)
-      // This is more reliable than raycasting against InstancedMesh corn
+      // Find camera collider meshes - these are invisible boxes for raycasting
+      // The foliageGroupRef points to the cameraColliders group which contains an InstancedMesh
       const cameraBlockers: Object3D[] = [];
+      
+      // The foliageGroupRef.current IS the cameraColliders group, so just get the mesh children
       foliageGroupRef.current.traverse((child) => {
-        // Look for our dedicated camera collider mesh
-        if (child.name === 'cameraColliders' || child.userData?.isCameraBlocker) {
-          if ((child as Mesh).isMesh || (child as InstancedMesh).isInstancedMesh) {
-            cameraBlockers.push(child);
-          }
+        if ((child as InstancedMesh).isInstancedMesh) {
+          cameraBlockers.push(child);
         }
       });
       
       // Debug: throttled logging
-      const debugLogRef = (window as any).__autopushDebugLog || { lastLog: 0 };
+      const debugLogRef = (window as any).__autopushDebugLog || { lastLog: 0, loggedOnce: false };
       (window as any).__autopushDebugLog = debugLogRef;
+      
+      // One-time debug: log ref contents
+      if (!debugLogRef.loggedOnce) {
+        debugLogRef.loggedOnce = true;
+        const childInfo: string[] = [];
+        foliageGroupRef.current.traverse((child) => {
+          childInfo.push(`${child.name || 'unnamed'} (${child.type})`);
+        });
+        console.log('[AUTOPUSH DEBUG] foliageGroupRef:', {
+          name: foliageGroupRef.current.name,
+          type: foliageGroupRef.current.type,
+          childCount: foliageGroupRef.current.children.length,
+          allDescendants: childInfo.slice(0, 10),
+          blockerCount: cameraBlockers.length,
+        });
+      }
       
       // Perform raycasts (1 or 3 rays)
       let closestHitDist = rayLength;
