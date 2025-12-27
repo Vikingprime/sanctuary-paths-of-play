@@ -1439,8 +1439,8 @@ return (
       {/* Sky dome - gradient sky with horizon matching fog color exactly */}
       <SkyDome />
       
-      {/* DEBUG: Red fog to check corn visibility */}
-      <fog attach="fog" args={['#ff0000', 1, 5]} />
+      {/* DEBUG: Extreme red fog to verify corn visibility - density 1.0 makes everything red within ~3m */}
+      <fogExp2 attach="fog" args={['#ff0000', 1.0]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
