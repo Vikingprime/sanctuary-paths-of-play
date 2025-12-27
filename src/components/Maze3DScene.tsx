@@ -1,14 +1,13 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Box3, Quaternion, Euler } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
-
 
 // Extended performance info type
 export interface PerformanceInfo {
@@ -52,7 +51,6 @@ interface Maze3DSceneProps {
   dialogueTarget?: DialogueTarget | null; // Active dialogue speaker position for cutscene camera
   topDownCamera?: boolean; // Toggle between normal and top-down camera
   groundLevelCamera?: boolean; // Toggle to ground-level camera for debugging heights
-  lookUpCamera?: boolean; // Toggle to look up at 70 degrees for debugging corn height
   showCollisionDebug?: boolean; // Show collision debug spheres
 }
 
@@ -714,32 +712,6 @@ const MapStation = ({ position, showCollisionDebug = true }: { position: [number
   );
 };
 
-// NPC collision capsule configuration - VERTICAL capsules for humanoid characters
-// Farmer: 2.88 units tall, Woman: 2.72 units tall
-// These use vertical capsules (Y-axis) from feet to head
-const NPC_COLLISION_CONFIG: Record<string, { 
-  height: number;      // Total character height
-  radius: number;      // Capsule radius (body width)
-  bottomY: number;     // Bottom of capsule (near feet)
-  topY: number;        // Top of capsule (at head)
-  isVertical: true;    // Flag for vertical orientation
-}> = {
-  'Farmer.glb': { 
-    height: 2.88, 
-    radius: 0.35,       // Body width
-    bottomY: 0.35,      // Start above feet
-    topY: 2.70,         // End at head
-    isVertical: true
-  },
-  'Animated_Woman.glb': { 
-    height: 2.72, 
-    radius: 0.45,       // Wider to cover both legs
-    bottomY: 0.10,      // Cover feet/ankles
-    topY: 2.55,         // End at head
-    isVertical: true
-  },
-};
-
 // Unified character renderer - works for end farmer, placed characters, and legacy dialogue characters
 // Single source of truth for character rendering, facing logic, and animation
 interface CharacterRendererProps {
@@ -750,7 +722,6 @@ interface CharacterRendererProps {
   isDialogueActive: boolean;
   isGoalMarker?: boolean; // If true, renders invisible collision trigger
   alwaysFacePlayer?: boolean; // If true, character always faces player even outside dialogue
-  showCollisionDebug?: boolean; // Whether to show collision debug capsules
 }
 
 const CharacterRenderer = ({
@@ -761,7 +732,6 @@ const CharacterRenderer = ({
   isDialogueActive,
   isGoalMarker = false,
   alwaysFacePlayer = false,
-  showCollisionDebug = false,
 }: CharacterRendererProps) => {
   const groupRef = useRef<Group>(null);
   const mixerRef = useRef<AnimationMixer | null>(null);
@@ -784,26 +754,6 @@ const CharacterRenderer = ({
     });
     return clone;
   }, [scene]);
-  
-  // Measure and log in-game height
-  useEffect(() => {
-    const box = new Box3().setFromObject(scene);
-    const size = new Vector3();
-    box.getSize(size);
-    const inGameHeight = size.y * characterScale;
-    
-    console.log(`%c=== NPC IN-GAME HEIGHT: ${modelFile} ===`, 'color: #00ffff; font-weight: bold');
-    console.log(`Raw height: ${size.y.toFixed(6)}, Scale: ${characterScale}, IN-GAME: ${inGameHeight.toFixed(4)}`);
-    
-    // Calculate needed scale
-    setTimeout(() => {
-      const cornHeight = (window as any).__CORN_FINAL_HEIGHT__ || 1;
-      const targetRatio = modelFile.includes('Woman') ? 0.68 : 0.72; // Woman or Farmer
-      const targetHeight = cornHeight * targetRatio;
-      const neededScale = targetHeight / size.y;
-      console.log(`  ${modelFile}: target=${targetHeight.toFixed(4)} (${targetRatio} of corn), NEED SCALE: ${neededScale.toFixed(6)}`);
-    }, 500);
-  }, [scene, modelFile, characterScale]);
   
   // Set up animation mixer
   useEffect(() => {
@@ -854,34 +804,10 @@ const CharacterRenderer = ({
     }
   });
 
-  // Get NPC collision config for debug visualization
-  const npcConfig = NPC_COLLISION_CONFIG[modelFile];
-
   return (
     <group position={[position.x + 0.5, characterYOffset, position.y + 0.5]}>
       <group ref={groupRef}>
         <primitive object={model} scale={characterScale} />
-        
-        {/* NPC collision debug visualization - VERTICAL capsule for humanoids */}
-        {showCollisionDebug && npcConfig && npcConfig.isVertical && (
-          <group>
-            {/* Bottom sphere (red) - near feet */}
-            <mesh position={[0, npcConfig.bottomY, 0]} renderOrder={999}>
-              <sphereGeometry args={[npcConfig.radius, 12, 12]} />
-              <meshBasicMaterial color="#ff0000" transparent opacity={0.5} depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Body cylinder (cyan) - vertical along Y axis */}
-            <mesh position={[0, (npcConfig.bottomY + npcConfig.topY) / 2, 0]} renderOrder={998}>
-              <cylinderGeometry args={[npcConfig.radius, npcConfig.radius, npcConfig.topY - npcConfig.bottomY, 12]} />
-              <meshBasicMaterial color="#00ffff" transparent opacity={0.3} depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Top sphere (green) - at head */}
-            <mesh position={[0, npcConfig.topY, 0]} renderOrder={999}>
-              <sphereGeometry args={[npcConfig.radius, 12, 12]} />
-              <meshBasicMaterial color="#00ff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
-            </mesh>
-          </group>
-        )}
       </group>
       {/* Invisible collision trigger for goal marker */}
       {isGoalMarker && (
@@ -895,11 +821,10 @@ const CharacterRenderer = ({
 };
 
 // GoalMarker - wraps CharacterRenderer for the end farmer
-const GoalMarker = ({ position, playerStateRef, isDialogueActive, showCollisionDebug }: { 
+const GoalMarker = ({ position, playerStateRef, isDialogueActive }: { 
   position: [number, number, number];
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive?: boolean;
-  showCollisionDebug?: boolean;
 }) => {
   return (
     <CharacterRenderer
@@ -909,7 +834,6 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive, showCollisionD
       playerStateRef={playerStateRef}
       isDialogueActive={isDialogueActive || false}
       isGoalMarker={true}
-      showCollisionDebug={showCollisionDebug}
     />
   );
 };
@@ -919,12 +843,10 @@ const PlacedCharacter = ({
   character, 
   playerStateRef,
   isDialogueActive,
-  showCollisionDebug,
 }: { 
   character: MazeCharacter;
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive: boolean;
-  showCollisionDebug?: boolean;
 }) => {
   return (
     <CharacterRenderer
@@ -934,7 +856,6 @@ const PlacedCharacter = ({
       playerStateRef={playerStateRef}
       isDialogueActive={isDialogueActive}
       alwaysFacePlayer={character.alwaysFacePlayer}
-      showCollisionDebug={showCollisionDebug}
     />
   );
 };
@@ -944,12 +865,10 @@ const DialogueCharacter = ({
   dialogue, 
   playerStateRef,
   isActiveDialogue,
-  showCollisionDebug,
 }: { 
   dialogue: DialogueTrigger;
   playerStateRef?: MutableRefObject<PlayerState>;
   isActiveDialogue: boolean;
-  showCollisionDebug?: boolean;
 }) => {
   const position = useMemo(() => {
     if (dialogue.speakerPosition) {
@@ -968,7 +887,6 @@ const DialogueCharacter = ({
       animation={dialogue.characterAnimation}
       playerStateRef={playerStateRef}
       isDialogueActive={isActiveDialogue}
-      showCollisionDebug={showCollisionDebug}
     />
   );
 };
@@ -1102,13 +1020,11 @@ const OverShoulderCameraController = ({
   restartKey,
   topDownCamera = false,
   groundLevelCamera = false,
-  lookUpCamera = false,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
   topDownCamera?: boolean;
   groundLevelCamera?: boolean;
-  lookUpCamera?: boolean;
 }) => {
   const { camera } = useThree();
   
@@ -1127,11 +1043,6 @@ const OverShoulderCameraController = ({
   const currentDistance = useRef(0.4); // Start very close
   const lastRestartKey = useRef(restartKey);
   
-  // Track look-up camera height for smooth animation
-  const lookUpHeight = useRef(0.1); // Start at ground level
-  const LOOK_UP_SPEED = 0.005; // How fast to move up per frame (very slow)
-  const LOOK_UP_MAX_HEIGHT = 50; // Maximum height to reach
-  
   // Reset camera state when restartKey changes
   useEffect(() => {
     if (restartKey !== lastRestartKey.current) {
@@ -1140,27 +1051,19 @@ const OverShoulderCameraController = ({
       hasPlayerMoved.current = false;
       initialPlayerPos.current = null;
       currentDistance.current = 0.4;
-      lookUpHeight.current = 0.1; // Reset look-up height
     }
   }, [restartKey]);
-  
-  // Reset look-up height when toggle is turned off
-  useEffect(() => {
-    if (!lookUpCamera) {
-      lookUpHeight.current = 0.1;
-    }
-  }, [lookUpCamera]);
   
   // Camera settings - over-the-shoulder view balanced for all animals
   const DEBUG_OVERHEAD_VIEW = topDownCamera; // Use prop for toggle
   
   const CAMERA_DISTANCE_START = 0.4;
-  const CAMERA_DISTANCE_NORMAL = 3.0;  // Pulled back more for larger cow
-  const CAMERA_HEIGHT_START = 4.5;     // Raised 2 units higher
-  const CAMERA_HEIGHT_NORMAL = 5.5;    // Raised 2 units higher
+  const CAMERA_DISTANCE_NORMAL = 2.0;
+  const CAMERA_HEIGHT_START = 1.8;
+  const CAMERA_HEIGHT_NORMAL = 2.4;
   const LOOK_AHEAD = 1.3;
-  const LOOK_HEIGHT_START = 0.5;       // Raised
-  const LOOK_HEIGHT_NORMAL = 1.0;      // Raised
+  const LOOK_HEIGHT_START = 0.0;
+  const LOOK_HEIGHT_NORMAL = 0.5;
   const POSITION_SMOOTHING = 0.15;
   const ROTATION_SMOOTHING = 0.12;
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
@@ -1243,20 +1146,7 @@ const OverShoulderCameraController = ({
     currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
     
     // Apply to camera
-    if (lookUpCamera) {
-      // Slowly move camera up while looking at corn stalks
-      const cornX = 2.5;
-      const cornZ = 2.5;
-      
-      // Gradually increase height while toggle is on
-      lookUpHeight.current = Math.min(lookUpHeight.current + LOOK_UP_SPEED, LOOK_UP_MAX_HEIGHT);
-      
-      // Position camera near corn, moving upward
-      camera.position.set(cornX + 1.5, lookUpHeight.current, cornZ + 1.5);
-      
-      // Always look at the corn at current height (looking slightly up)
-      camera.lookAt(cornX, lookUpHeight.current + 0.5, cornZ);
-    } else if (groundLevelCamera) {
+    if (groundLevelCamera) {
       // Ground level debug view - camera at ground level, looking at player from side
       const sideOffset = 2.5; // Distance to the side
       camera.position.set(
@@ -1292,9 +1182,9 @@ const CutsceneCameraController = ({
 }) => {
   const { camera } = useThree();
   
-  const CAMERA_HEIGHT = 1.8;  // Raised higher to see characters
-  const LOOK_HEIGHT = 1.5;   // Look at farmer's face level
-  const ZOOM_DISTANCE = 2.8; // Pulled back more to frame both characters
+  const CAMERA_HEIGHT = 1.0;  // Lower camera for better framing
+  const LOOK_HEIGHT = 0.9;   // Look at farmer's chest/face level
+  const ZOOM_DISTANCE = 1.8; // Closer to center the farmer
   
   useFrame(() => {
     const playerX = playerStateRef.current.x;
@@ -1372,7 +1262,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, lookUpCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -1387,20 +1277,18 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
   // Generate character positions for collision (all placed characters + map stations)
-  const DEFAULT_CHARACTER_COLLISION_RADIUS = 0.35; // Default if no NPC config
+  const CHARACTER_COLLISION_RADIUS = 0.1;
   const STATION_COLLISION_RADIUS = 0.12; // Tiny - barely perceptible
   const STATION_ROTATION_RADIUS = 0.10; // Even smaller for rotation
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
     
-    // Add placed characters from maze.characters - use NPC config radius for actual collision
+    // Add placed characters from maze.characters
     maze.characters?.forEach((char) => {
-      const npcConfig = NPC_COLLISION_CONFIG[char.model];
-      const collisionRadius = npcConfig ? npcConfig.radius : DEFAULT_CHARACTER_COLLISION_RADIUS;
       positions.push({
         x: char.position.x,
         y: char.position.y,
-        radius: collisionRadius,
+        radius: CHARACTER_COLLISION_RADIUS,
       });
     });
     
@@ -1543,7 +1431,6 @@ return (
             Math.abs(dialogueTarget.speakerX - character.position.x) < 0.5 &&
             Math.abs(dialogueTarget.speakerZ - character.position.y) < 0.5
           }
-          showCollisionDebug={showCollisionDebug}
         />
       ))}
       
@@ -1554,7 +1441,6 @@ return (
           dialogue={dialogue}
           playerStateRef={playerStateRef}
           isActiveDialogue={dialogueTarget !== null && dialogueTarget !== undefined}
-          showCollisionDebug={showCollisionDebug}
         />
       ))}
       
@@ -1591,10 +1477,8 @@ return (
           restartKey={restartKey}
           topDownCamera={topDownCamera}
           groundLevelCamera={groundLevelCamera}
-          lookUpCamera={lookUpCamera}
         />
       )}
-      
     </>
   );
 };
@@ -1704,7 +1588,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
         frameloop="always"
         performance={{ min: 0.1 }}
       >
-        <PerspectiveCamera makeDefault fov={60} near={0.1} far={200} />
+        <PerspectiveCamera makeDefault fov={60} near={0.1} far={100} />
         <Scene {...props} onCullStats={setCullStats} />
         <FPSTracker onFpsUpdate={setFps} />
         <RendererInfoTracker onRendererInfo={props.onRendererInfo} />

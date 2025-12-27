@@ -250,30 +250,26 @@ export interface CapsuleCollider {
  * Get capsule collider for animal type
  */
 function getAnimalCapsule(animalType?: AnimalType): CapsuleCollider {
-  // Capsule sizes matched to PlayerCube.tsx debug visualization
-  // Cow: ~2.52 units tall, Pig: ~1.52 units tall, Chicken: ~0.76 units tall
   switch (animalType) {
     case 'cow':
       return {
-        startOffset: -0.90,  // Tail end (back)
-        endOffset: 1.40,     // Extended forward toward neck
-        radius: 0.55,        // Body radius (cows are wide)
-        headOffset: 2.00,    // Head sphere further forward
-        headRadius: 0.50     // Larger head radius
+        startOffset: -0.40,  // Tail end
+        endOffset: 0.85,     // Head/neck end  
+        radius: 0.18,        // Body radius
+        headOffset: 0.95,    // Extra head sphere
+        headRadius: 0.15
       };
     case 'pig':
       return {
-        startOffset: -0.50,  // Rear/tail (extended back)
-        endOffset: 0.65,     // Snout (forward)
-        radius: 0.35         // Body width
+        startOffset: -0.30,  // Extended back for rear/tail
+        endOffset: 0.55,     // Extended far forward for snout
+        radius: 0.15         // Slightly larger radius
       };
     case 'bird':
       return {
-        startOffset: -0.15,  // Tail (back)
-        endOffset: 0.25,     // Toward head (forward)
-        radius: 0.18,        // Body width
-        headOffset: 0.35,    // Head position (forward)
-        headRadius: 0.12     // Head size
+        startOffset: -0.05,
+        endOffset: 0.18,   // Extended forward to prevent head entering obstacles
+        radius: 0.08
       };
     default:
       return {
@@ -334,20 +330,11 @@ const MIN_ASSIST_FACTOR = 0.5;        // Start ramp at 50% instead of 0% for imm
 // Collision types
 export type ColliderType = 'wall' | 'tower' | 'rock' | 'character';
 
-// Individual collision info
-export interface CollisionInfo {
-  type: ColliderType;
-  normal: { x: number; y: number };
-  depth: number;
-  position?: { x: number; y: number };  // For characters/rocks - world position
-}
-
 // Hit info returned from collision checks
 export interface CollisionHitInfo {
   overlapping: boolean;
   mtv?: { x: number; y: number; depth: number };
   hitType?: ColliderType;
-  allCollisions: CollisionInfo[];  // All individual collisions
 }
 
 // Persistent state for smooth sliding
@@ -360,15 +347,9 @@ let slidingContactTime = 0;             // How long we've been in sliding contac
 let lastContactColliderKey = '';        // Track which collider we're contacting for cast offset
 let slideBlockedCounter = 0;            // Count consecutive frames where slide is blocked
 
-// Corridor detection - track recent collision normals to detect when stuck between walls
-let recentCollisionNormals: Array<{x: number, y: number, time: number}> = [];
-const CORRIDOR_DOT_THRESHOLD = -0.5;    // Normals are roughly opposite
-const CORRIDOR_MEMORY_MS = 300;         // Remember collisions for 300ms
-
 /**
  * Check if a capsule overlaps any static collider (walls, rocks, characters)
  * Returns overlap info including the type of collider hit (for tower sliding logic)
- * Also returns ALL collisions so caller can choose appropriate normal for sliding
  */
 function checkCapsuleOverlap(
   x: number,
@@ -408,20 +389,11 @@ function checkCapsuleOverlap(
   let totalMtvY = 0;
   let maxDepth = 0;
   let hitType: ColliderType | undefined = undefined;
-  const allCollisions: CollisionInfo[] = [];
   
   // WALL COLLISION: Use center point only (simplified for now)
   const centerRadius = capsule.radius;
   const wallPen = getWallPenetrationForPoint(maze, x, y, centerRadius);
   if (wallPen) {
-    const wallNormalLen = Math.sqrt(wallPen.x * wallPen.x + wallPen.y * wallPen.y);
-    if (wallNormalLen > 0.001) {
-      allCollisions.push({
-        type: 'wall',
-        normal: { x: wallPen.x / wallNormalLen, y: wallPen.y / wallNormalLen },
-        depth: wallPen.depth
-      });
-    }
     totalMtvX += wallPen.x;
     totalMtvY += wallPen.y;
     if (wallPen.depth > maxDepth) {
@@ -439,12 +411,6 @@ function checkCapsuleOverlap(
     
     if (dist < minDist && dist > 0.001) {
       const depth = minDist - dist;
-      allCollisions.push({
-        type: 'rock',
-        normal: { x: dx / dist, y: dy / dist },
-        depth,
-        position: { x: rock.x, y: rock.z }
-      });
       if (depth > maxDepth) {
         maxDepth = depth;
         hitType = 'rock';  // Rock collision
@@ -456,14 +422,10 @@ function checkCapsuleOverlap(
   
   // CHARACTER/TOWER COLLISION: Use full capsule (all points)
   // Characters marked as isStation are TOWERS - apply slide boost
-  // Track which characters we've already added to avoid duplicates
-  const collidedCharacters = new Set<string>();
-  
   for (const point of capsulePoints) {
     for (const char of characters) {
       const charX = char.x + 0.5;
       const charZ = char.y + 0.5;
-      const charKey = `${char.x}_${char.y}`;
       const dx = point.x - charX;
       const dy = point.y - charZ;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -471,22 +433,10 @@ function checkCapsuleOverlap(
       
       if (dist < minDist && dist > 0.001) {
         const depth = minDist - dist;
-        const colliderType: ColliderType = char.isStation ? 'tower' : 'character';
-        
-        // Add to allCollisions only once per character (use deepest)
-        if (!collidedCharacters.has(charKey)) {
-          collidedCharacters.add(charKey);
-          allCollisions.push({
-            type: colliderType,
-            normal: { x: dx / dist, y: dy / dist },
-            depth,
-            position: { x: charX, y: charZ }
-          });
-        }
-        
         if (depth > maxDepth) {
           maxDepth = depth;
-          hitType = colliderType;
+          // Stations are "towers", other NPCs are "characters" - both get slide boost
+          hitType = char.isStation ? 'tower' : 'character';
         }
         totalMtvX += (dx / dist) * depth;
         totalMtvY += (dy / dist) * depth;
@@ -498,12 +448,11 @@ function checkCapsuleOverlap(
     return { 
       overlapping: true, 
       mtv: { x: totalMtvX, y: totalMtvY, depth: maxDepth },
-      hitType,
-      allCollisions
+      hitType
     };
   }
   
-  return { overlapping: false, allCollisions: [] };
+  return { overlapping: false };
 }
 
 /**
@@ -579,7 +528,7 @@ function sweepTranslation(
   rocks: RockPosition[],
   characters: CharacterPosition[],
   animalType?: AnimalType
-): { x: number; y: number; blocked: boolean; normal?: { x: number; y: number }; hitType?: ColliderType; allCollisions?: CollisionInfo[] } {
+): { x: number; y: number; blocked: boolean; normal?: { x: number; y: number }; hitType?: ColliderType } {
   const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
   if (moveLen < 0.0001) {
     return { x: startX, y: startY, blocked: false };
@@ -637,8 +586,7 @@ function sweepTranslation(
     y: safeY, 
     blocked: true,
     normal: normalLen > 0.001 ? { x: normalX / normalLen, y: normalY / normalLen } : undefined,
-    hitType: endOverlap.hitType,  // Return the type of collider hit (deepest)
-    allCollisions: endOverlap.allCollisions  // Return ALL collisions for direction-aware sliding
+    hitType: endOverlap.hitType  // Return the type of collider hit
   };
 }
 
@@ -886,25 +834,6 @@ export function calculateMovement(
         const nx = sweepResult.normal.x;
         const ny = sweepResult.normal.y;
         
-        // === CORRIDOR DETECTION ===
-        // Track this collision normal
-        const currentTime = Date.now();
-        recentCollisionNormals.push({ x: nx, y: ny, time: currentTime });
-        // Keep only recent collisions
-        recentCollisionNormals = recentCollisionNormals.filter(n => currentTime - n.time < CORRIDOR_MEMORY_MS);
-        
-        // Check if we're in a corridor (opposite normals in recent history)
-        const isInCorridor = recentCollisionNormals.some((prevNormal, idx) => {
-          // Don't compare with self (the one we just added)
-          if (idx === recentCollisionNormals.length - 1) return false;
-          const dot = nx * prevNormal.x + ny * prevNormal.y;
-          return dot < CORRIDOR_DOT_THRESHOLD; // Opposite directions
-        });
-        
-        if (isInCorridor) {
-          console.log('[SLIDE] CORRIDOR DETECTED - dampening pushback and skipping rotation nudge');
-        }
-        
         // Compute natural tangent from normal
         const naturalTangentX = -ny;
         const naturalTangentY = nx;
@@ -912,7 +841,7 @@ export function calculateMovement(
         // Dot product of desired movement with collision normal
         const dotIntoSurface = moveX * nx + moveY * ny;
         
-        console.log('[SLIDE] dotIntoSurface:', dotIntoSurface.toFixed(4), 'isInCorridor:', isInCorridor);
+        console.log('[SLIDE] dotIntoSurface:', dotIntoSurface.toFixed(4));
         
         // Only slide if pushing into surface
         if (dotIntoSurface < 0) {
@@ -943,97 +872,6 @@ export function calculateMovement(
             slidingContactTime += deltaTime;
           }
           
-          // === ROTATION KEY INFLUENCE ON SLIDE DIRECTION ===
-          // If user is pressing rotate left/right, they likely want to slide in that direction
-          // Instead of using wall tangent, use actual lateral direction (minus component into wall)
-          const wantsRight = input.rotateRight && !input.rotateLeft;
-          const wantsLeft = input.rotateLeft && !input.rotateRight;
-          
-          if (wantsRight || wantsLeft) {
-            // DIRECTION-AWARE COLLISION: Find character in the lateral direction
-            // When user presses RIGHT, look for character on the right and use ITS tangent
-            const lateralDirX = wantsRight ? -Math.cos(newRotation) : Math.cos(newRotation);
-            const lateralDirY = wantsRight ? -Math.sin(newRotation) : Math.sin(newRotation);
-            
-            // Search through ALL collisions to find a character in the lateral direction
-            let tangentNormalX = nx;  // Default to primary collision normal
-            let tangentNormalY = ny;
-            let foundCharInDirection = false;
-            
-            for (const collision of sweepResult.allCollisions || []) {
-              if (collision.type === 'character' || collision.type === 'tower') {
-                if (collision.position) {
-                  // Check if this character is in our lateral direction
-                  const toCharX = collision.position.x - newX;
-                  const toCharY = collision.position.y - newY;
-                  const dist = Math.sqrt(toCharX * toCharX + toCharY * toCharY);
-                  if (dist > 0.001) {
-                    const dotLateral = (toCharX / dist) * lateralDirX + (toCharY / dist) * lateralDirY;
-                    if (dotLateral > 0.2) {  // Character is at least somewhat in the lateral direction
-                      // Use this character's collision normal for tangent calculation
-                      tangentNormalX = collision.normal.x;
-                      tangentNormalY = collision.normal.y;
-                      foundCharInDirection = true;
-                      console.log('[SLIDE] Found character in lateral direction:', {
-                        direction: wantsRight ? 'RIGHT' : 'LEFT',
-                        dotLateral: dotLateral.toFixed(3),
-                        charPos: { x: collision.position.x.toFixed(2), y: collision.position.y.toFixed(2) },
-                        charNormal: { x: tangentNormalX.toFixed(3), y: tangentNormalY.toFixed(3) }
-                      });
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-            
-            // Use the appropriate normal (character's if found, otherwise wall's)
-            // Two tangent directions perpendicular to this normal
-            const tangent1X = -tangentNormalY, tangent1Y = tangentNormalX;
-            const tangent2X = tangentNormalY,  tangent2Y = -tangentNormalX;
-            
-            // Player's forward direction
-            const forwardX = Math.sin(newRotation);
-            const forwardY = -Math.cos(newRotation);
-            
-            // Determine which tangent is "forward-ish" vs "backward-ish"
-            const fwdDot1 = tangent1X * forwardX + tangent1Y * forwardY;
-            const fwdDot2 = tangent2X * forwardX + tangent2Y * forwardY;
-            
-            const forwardTangentX = fwdDot1 >= fwdDot2 ? tangent1X : tangent2X;
-            const forwardTangentY = fwdDot1 >= fwdDot2 ? tangent1Y : tangent2Y;
-            const backwardTangentX = fwdDot1 >= fwdDot2 ? tangent2X : tangent1X;
-            const backwardTangentY = fwdDot1 >= fwdDot2 ? tangent2Y : tangent1Y;
-            
-            // Test if forward tangent is blocked (e.g., by another wall)
-            const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
-            const testDist = moveLen * slideFriction * 1.5;
-            
-            const forwardSlideTest = sweepTranslation(
-              newX + tangentNormalX * 0.02, newY + tangentNormalY * 0.02,
-              forwardTangentX * testDist, forwardTangentY * testDist,
-              newRotation, capsule, maze, rocks, characters, animalType
-            );
-            
-            // Choose tangent based on whether forward is blocked
-            const chosenTangentX = forwardSlideTest.blocked ? backwardTangentX : forwardTangentX;
-            const chosenTangentY = forwardSlideTest.blocked ? backwardTangentY : forwardTangentY;
-            
-            slideX = chosenTangentX * testDist;
-            slideY = chosenTangentY * testDist;
-            slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
-            
-            console.log('[SLIDE] TANGENT-BASED (rotation key):', {
-              wantsDir: wantsRight ? 'RIGHT' : 'LEFT',
-              foundCharInDirection,
-              usingNormal: { x: tangentNormalX.toFixed(3), y: tangentNormalY.toFixed(3) },
-              forwardBlocked: forwardSlideTest.blocked,
-              usingTangent: forwardSlideTest.blocked ? 'BACKWARD' : 'FORWARD',
-              chosenTangent: { x: chosenTangentX.toFixed(3), y: chosenTangentY.toFixed(3) },
-              slide: { x: slideX.toFixed(4), y: slideY.toFixed(4) }
-            });
-          }
-          
           // ALWAYS set headOnSideSign for rotation nudge, regardless of slideable status
           const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
           if (moveLen > 0.001 && headOnSideSign === 0) {
@@ -1049,8 +887,7 @@ export function calculateMovement(
           }
           
           if (isSlideable) {
-            // Only apply tower/char assist if NOT already overridden by rotation keys
-            if (moveLen > 0.001 && !wantsRight && !wantsLeft) {
+            if (moveLen > 0.001) {
               const tangentX = naturalTangentX * headOnSideSign;
               const tangentY = naturalTangentY * headOnSideSign;
               
@@ -1076,8 +913,7 @@ export function calculateMovement(
           if (Math.abs(slideX) > 0.0001 || Math.abs(slideY) > 0.0001) {
             // CRITICAL FIX: Push slightly away from surface FIRST before sliding
             // This prevents the second sweep from immediately hitting the same collider
-            // In corridors, use much smaller pushback to prevent bouncing
-            const pushAwayDist = isInCorridor ? 0.005 : 0.02;
+            const pushAwayDist = 0.02; // Small push away from the surface
             const pushedX = newX + nx * pushAwayDist;
             const pushedY = newY + ny * pushAwayDist;
             
@@ -1113,43 +949,26 @@ export function calculateMovement(
               
               // Second sweep made no progress - APPLY ROTATION to turn toward gap
               // This "turns the head" instead of forcing a blocked translation
+              const ROTATION_NUDGE_STRENGTH = 0.06; // Radians per frame when blocked (slightly stronger)
               
-              // Check if user is actively rotating - if so, skip automatic nudge
-              const userRotatingRight = input.rotateRight && !input.rotateLeft;
-              const userRotatingLeft = input.rotateLeft && !input.rotateRight;
-              const userIsRotating = userRotatingRight || userRotatingLeft;
+              // Increase nudge strength gradually the longer we're stuck
+              const stuckMultiplier = Math.min(slideBlockedCounter / 10, 2); // Ramps up to 3x over 20 frames
               
-              // Skip rotation nudge in corridors - it just causes more bouncing
-              // Also skip if user is actively rotating
-              if (!userIsRotating && !isInCorridor) {
-                const ROTATION_NUDGE_STRENGTH = 0.06; // Radians per frame when blocked
-                
-                // Increase nudge strength gradually the longer we're stuck
-                const stuckMultiplier = Math.min(slideBlockedCounter / 10, 2); // Ramps up to 3x over 20 frames
-                
-                // After a flip has occurred (counter reset but still blocked), reduce nudge strength
-                // We detect post-flip by checking if counter is low but we have a headOnSideSign
-                // Use a weaker nudge after 30+ total blocked frames across flips
-                const postFlipReduction = slideBlockedCounter < 5 && headOnSideSign !== 0 ? 0.5 : 1.0;
-                
-                const rotationNudge = ROTATION_NUDGE_STRENGTH * (1 + stuckMultiplier) * headOnSideSign * postFlipReduction;
-                newRotation += rotationNudge;
-                console.log('[SLIDE] Rotation nudge (blocked slide):', {
-                  sideSign: headOnSideSign,
-                  blockedFrames: slideBlockedCounter,
-                  stuckMultiplier: stuckMultiplier.toFixed(2),
-                  postFlipReduction,
-                  rotationNudge: rotationNudge.toFixed(4),
-                  newRotation: newRotation.toFixed(3)
-                });
-              } else if (isInCorridor) {
-                console.log('[SLIDE] In corridor, skipping rotation nudge');
-              } else {
-                console.log('[SLIDE] User is rotating, skipping auto-nudge:', {
-                  userRotatingRight,
-                  userRotatingLeft
-                });
-              }
+              // Don't flip for backward - the headOnSideSign already captures which side has the gap
+              // based on movement direction relative to the obstacle normal
+              const isMovingBackward = input.backward && !input.forward;
+              const directionMultiplier = 1; // Same rotation direction regardless of forward/backward
+              
+              const rotationNudge = ROTATION_NUDGE_STRENGTH * (1 + stuckMultiplier) * headOnSideSign * directionMultiplier;
+              newRotation += rotationNudge;
+              console.log('[SLIDE] Rotation nudge (blocked slide):', {
+                sideSign: headOnSideSign,
+                isBackward: isMovingBackward,
+                blockedFrames: slideBlockedCounter,
+                stuckMultiplier: stuckMultiplier.toFixed(2),
+                rotationNudge: rotationNudge.toFixed(4),
+                newRotation: newRotation.toFixed(3)
+              });
               
               // Don't force translation - let the rotation guide the player
               // Just stay at pushed position (slightly away from collider)

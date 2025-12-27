@@ -1,34 +1,9 @@
 import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Clone } from '@react-three/drei';
-import { AnimationMixer, LoopRepeat, LoopOnce, Box3, Vector3 } from 'three';
+import { AnimationMixer, LoopRepeat, LoopOnce } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
-
-// Target heights relative to corn stalk (1.0 unit = corn height)
-// From user specs: Chicken 0.19, Pig 0.38, Cow 0.63, Woman 0.68, Man/Farmer 0.72, Cornstalk 1.00
-const TARGET_HEIGHTS = {
-  chicken: 0.19,
-  pig: 0.38,
-  cow: 0.63,
-} as const;
-
-// Helper to measure actual model height at scale 1.0
-const measureModelHeight = (scene: any, name: string): number => {
-  const box = new Box3().setFromObject(scene);
-  const size = new Vector3();
-  box.getSize(size);
-  console.log(`[MODEL MEASURE] ${name}: raw height = ${size.y.toFixed(4)}, width = ${size.x.toFixed(4)}, depth = ${size.z.toFixed(4)}`);
-  return size.y;
-};
-
-// Scale factors for corn height of ~4 units
-// Targets: Chicken 0.76 (19%), Pig 1.52 (38%), Cow 2.52 (63%)
-const ANIMAL_SCALES = {
-  chicken: 0.0104,  // target 0.76 / raw 72.95
-  pig: 0.0154,      // target 1.52 / raw 98.57
-  cow: 0.549,       // target 2.52 / raw 4.59
-} as const;
 
 // Play chicken sound on spawn
 const playChickenSound = () => {
@@ -103,49 +78,6 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     });
     return clone;
   }, [cowScene]);
-  
-  // Measure and calculate correct scales based on corn height
-  useEffect(() => {
-    const pigRaw = measureModelHeight(pigScene, 'Pig');
-    const cowRaw = measureModelHeight(cowScene, 'Cow');
-    const henRaw = measureModelHeight(henWalkScene, 'Hen');
-    
-    // Current scales being applied
-    const pigCurrent = ANIMAL_SCALES.pig;
-    const cowCurrent = ANIMAL_SCALES.cow;
-    const henCurrent = ANIMAL_SCALES.chicken;
-    
-    // Current in-game heights
-    const pigInGame = pigRaw * pigCurrent;
-    const cowInGame = cowRaw * cowCurrent;
-    const henInGame = henRaw * henCurrent;
-    
-    console.log(`%c=== PLAYER ANIMAL IN-GAME HEIGHTS ===`, 'color: #ff9900; font-weight: bold');
-    console.log(`Pig: raw=${pigRaw.toFixed(4)}, scale=${pigCurrent}, IN-GAME=${pigInGame.toFixed(4)}`);
-    console.log(`Cow: raw=${cowRaw.toFixed(4)}, scale=${cowCurrent}, IN-GAME=${cowInGame.toFixed(4)}`);
-    console.log(`Hen: raw=${henRaw.toFixed(4)}, scale=${henCurrent}, IN-GAME=${henInGame.toFixed(4)}`);
-    
-    // Wait for corn measurement then calculate required scales
-    setTimeout(() => {
-      const cornHeight = (window as any).__CORN_FINAL_HEIGHT__ || 1;
-      console.log(`%c=== SCALE CALCULATION (corn height: ${cornHeight.toFixed(4)}) ===`, 'color: #ff00ff; font-weight: bold');
-      
-      // Target in-game heights
-      const targetCow = cornHeight * 0.63;
-      const targetPig = cornHeight * 0.38;
-      const targetHen = cornHeight * 0.19;
-      
-      // Required scales = target_height / raw_height
-      const neededCowScale = targetCow / cowRaw;
-      const neededPigScale = targetPig / pigRaw;
-      const neededHenScale = targetHen / henRaw;
-      
-      console.log(`To achieve targets:`);
-      console.log(`  Cow: current in-game=${cowInGame.toFixed(4)}, target=${targetCow.toFixed(4)}, NEED SCALE: ${neededCowScale.toFixed(6)}`);
-      console.log(`  Pig: current in-game=${pigInGame.toFixed(4)}, target=${targetPig.toFixed(4)}, NEED SCALE: ${neededPigScale.toFixed(6)}`);
-      console.log(`  Hen: current in-game=${henInGame.toFixed(4)}, target=${targetHen.toFixed(4)}, NEED SCALE: ${neededHenScale.toFixed(6)}`);
-    }, 500);
-  }, [pigScene, cowScene, henWalkScene]);
   
   // Set up animation mixers and actions
   const cowMixerRef = useRef<AnimationMixer | null>(null);
@@ -380,23 +312,20 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
 
   // Pig uses GLB model
   if (animalType === 'pig') {
-    // Debug capsule collider - sized for pig at ~1.52 units tall
-    // Body center at ~0.5, extends back to tail and forward to snout
-    const CAPSULE_START = -0.50;  // Rear/tail (extended back)
-    const CAPSULE_END = 0.65;     // Snout (forward)
-    const CAPSULE_RADIUS = 0.35;  // Body width
-    const DEBUG_Y = 0.55;         // Body center height
+    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
+    // Extended significantly to cover snout (front) and rear (back) fully
+    const CAPSULE_START = -0.30;  // Extended back for rear/tail
+    const CAPSULE_END = 0.55;     // Extended far forward for snout
+    const CAPSULE_RADIUS = 0.15;  // Slightly larger radius
+    const DEBUG_Y = 0.3;
     
     // FIX: Raise pig model so feet touch ground at y=0
     const PIG_Y_OFFSET = 0.05;
     
-    // Use the pig scale from our constants
-    const pigScale = ANIMAL_SCALES.pig;
-    
     return (
       <group position={position}>
         <group ref={innerGroupRef}>
-          <primitive object={clonedPigScene} scale={[pigScale, pigScale, pigScale]} position={[0, PIG_Y_OFFSET, 0]} />
+          <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, PIG_Y_OFFSET, 0]} />
         </group>
         
         {/* Debug capsule collider */}
@@ -425,23 +354,18 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
 
   // Cow uses GLB model with animation
   if (animalType === 'cow') {
-    // Debug capsule collider - sized for cow at ~2.52 units tall
-    // Cow body is horizontal, need capsule high enough to cover head
-    const CAPSULE_START = -0.90;  // Tail end (back)
-    const CAPSULE_END = 1.40;     // Extended forward toward neck
-    const CAPSULE_RADIUS = 0.55;  // Body radius (cows are wide)
-    const HEAD_OFFSET = 2.00;     // Head sphere further forward
-    const HEAD_RADIUS = 0.50;     // Larger head radius
-    const DEBUG_Y = 1.80;         // Raised to cover cow's back/head height
-    const HEAD_Y = 2.20;          // Head sphere even higher (cow head is raised)
-    
-    // Use the cow scale from our constants
-    const cowScale = ANIMAL_SCALES.cow;
+    // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
+    const CAPSULE_START = -0.40;  // Tail end offset
+    const CAPSULE_END = 0.85;     // Head/neck end offset
+    const CAPSULE_RADIUS = 0.18;  // Body radius
+    const HEAD_OFFSET = 0.95;     // Extra head sphere
+    const HEAD_RADIUS = 0.15;
+    const DEBUG_Y = 0.5;
     
     return (
       <group position={position}>
         <group ref={cowGroupRef} position={[0, 0.15, 0]}>
-          <primitive object={clonedCowScene} scale={[cowScale, cowScale, cowScale]} position={[0, -0.3, 0]} />
+          <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.3, 0]} />
         </group>
         
         {/* Debug capsule collider - rotate with cow using rotation prop */}
@@ -463,8 +387,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
               <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
               <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
             </mesh>
-            {/* Head sphere (green) - positioned higher and further forward */}
-            <mesh position={[0, HEAD_Y, HEAD_OFFSET]} renderOrder={999}>
+            {/* Head sphere (green) */}
+            <mesh position={[0, DEBUG_Y, HEAD_OFFSET]} renderOrder={999}>
               <sphereGeometry args={[HEAD_RADIUS, 12, 12]} />
               <meshBasicMaterial color="#00ff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
             </mesh>
@@ -475,27 +399,21 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   }
 
   // Bird/Chicken uses GLB model
-  // Debug capsule collider - sized for chicken at ~0.76 units tall
-  // Body center at ~0.25-0.35, chicken has small body with head forward
-  const CAPSULE_START = -0.15;   // Tail (back)
-  const CAPSULE_END = 0.25;      // Toward head (forward)
-  const CAPSULE_RADIUS = 0.18;   // Body width
-  const HEAD_OFFSET_CHICKEN = 0.35;  // Head position (forward)
-  const HEAD_RADIUS_CHICKEN = 0.12;  // Head size
-  const DEBUG_Y = 0.30;          // Body center height
+  // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
+  const CAPSULE_START = -0.05;
+  const CAPSULE_END = 0.18;  // Extended forward to match GameLogic.ts
+  const CAPSULE_RADIUS = 0.08;
+  const DEBUG_Y = 0.2;
   
   // FIX: The chicken model's origin is at its body center, not feet.
   // We need a positive Y offset to raise the model so feet touch ground.
   // At scale 0.008, the model's visual half-height is roughly 0.15-0.2 units.
   const CHICKEN_Y_OFFSET = 0.15;
   
-  // Use the chicken scale from our constants
-  const chickenScale = ANIMAL_SCALES.chicken;
-  
   return (
     <group position={position}>
       <group ref={innerGroupRef}>
-        <primitive object={clonedHenScene} scale={[chickenScale, chickenScale, chickenScale]} position={[0, CHICKEN_Y_OFFSET, 0]} />
+        <primitive object={clonedHenScene} scale={[0.008, 0.008, 0.008]} position={[0, CHICKEN_Y_OFFSET, 0]} />
       </group>
       
       {/* Debug grounding visualization */}
@@ -519,15 +437,10 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
               <cylinderGeometry args={[CAPSULE_RADIUS, CAPSULE_RADIUS, CAPSULE_END - CAPSULE_START, 12]} />
               <meshBasicMaterial color="#ff8800" transparent opacity={0.3} depthTest={false} depthWrite={false} />
             </mesh>
-            {/* Body end sphere (yellow) */}
+            {/* Head sphere (yellow) */}
             <mesh position={[0, DEBUG_Y, CAPSULE_END]} renderOrder={999}>
               <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
               <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Head sphere (green) */}
-            <mesh position={[0, DEBUG_Y, HEAD_OFFSET_CHICKEN]} renderOrder={999}>
-              <sphereGeometry args={[HEAD_RADIUS_CHICKEN, 12, 12]} />
-              <meshBasicMaterial color="#00ff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
             </mesh>
           </group>
         </>

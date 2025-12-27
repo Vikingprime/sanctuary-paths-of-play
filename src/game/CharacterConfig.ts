@@ -10,37 +10,36 @@ export interface CharacterModelConfig {
   yOffset?: number; // Optional vertical offset
 }
 
-// Scale factors based on corn height of ~4 units
-// Target heights: Chicken 0.76 (19%), Pig 1.52 (38%), Cow 2.52 (63%), Woman 2.72 (68%), Farmer 2.88 (72%)
 export const CharacterConfig: Record<string, CharacterModelConfig> = {
+  // Main characters - yOffset adjusts vertical position so feet touch ground
   'Farmer.glb': {
-    scale: 1.58,  // target 2.88 / raw ~1.82
-    yOffset: -0.1,
+    scale: 0.55,
+    yOffset: -0.05, // Slight adjustment to ground feet
   },
   'Animated_Woman.glb': {
-    scale: 0.52,  // target 2.72 / raw ~5.21
-    yOffset: -0.1,
+    scale: 0.20, // Model is much larger than Farmer
+    yOffset: -0.15, // Lower to ground feet properly
   },
   
-  // Animals - target heights relative to 4-unit corn
+  // Animals
   'Cow.glb': {
-    scale: 1.2,   // target ~2.52 units (63% of corn)
+    scale: 0.4,
     yOffset: 0,
   },
   'Pig.glb': {
-    scale: 0.8,   // target ~1.52 units (38% of corn)
+    scale: 0.35,
     yOffset: 0,
   },
   'Hen.glb': {
-    scale: 0.4,   // target ~0.76 units (19% of corn)
+    scale: 0.25,
     yOffset: 0,
   },
   'Hen_idle.glb': {
-    scale: 0.4,
+    scale: 0.25,
     yOffset: 0,
   },
   'Hen_walk.glb': {
-    scale: 0.4,
+    scale: 0.25,
     yOffset: 0,
   },
 } as const;

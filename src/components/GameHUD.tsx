@@ -47,8 +47,6 @@ interface GameHUDProps {
   onToggleTopDownCamera?: () => void;
   groundLevelCamera?: boolean;
   onToggleGroundLevelCamera?: () => void;
-  lookUpCamera?: boolean;
-  onToggleLookUpCamera?: () => void;
   showCollisionDebug?: boolean;
   onToggleCollisionDebug?: () => void;
 }
@@ -79,8 +77,6 @@ export const GameHUD = ({
   onToggleTopDownCamera,
   groundLevelCamera = false,
   onToggleGroundLevelCamera,
-  lookUpCamera = false,
-  onToggleLookUpCamera,
   showCollisionDebug = true,
   onToggleCollisionDebug,
 }: GameHUDProps) => {
@@ -246,18 +242,6 @@ export const GameHUD = ({
                   title="Ground level camera (debug height)"
                 >
                   👁️ {groundLevelCamera ? 'Ground' : 'Normal'}
-                </button>
-              )}
-              {onToggleLookUpCamera && (
-                <button
-                  onClick={onToggleLookUpCamera}
-                  className={cn(
-                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                    lookUpCamera ? 'text-purple-500' : 'text-green-500'
-                  )}
-                  title="Look up at 70° to see corn height"
-                >
-                  👀 {lookUpCamera ? 'Up 70°' : 'Normal'}
                 </button>
               )}
               {onToggleCollisionDebug && (
