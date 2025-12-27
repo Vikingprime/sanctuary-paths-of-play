@@ -3,6 +3,7 @@ import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, Bu
 import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
+import { calculateFadeFactor } from './FogFadeMaterial';
 
 // LOD distance tiers
 const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
@@ -10,6 +11,10 @@ const LOD_CHEAP_DISTANCE = 16;          // Cheap material 6-16m, hidden beyond 1
 
 // Hard cull distance - fog should obscure corn before this distance
 const CULL_DISTANCE = 14; // Hard cull at 14m where fog is dense
+
+// Fade distance thresholds
+const FADE_START = 10;  // Start fading corn at 10m
+const FADE_END = 14;    // Fully hidden at 14m
 
 interface CornWallProps {
   position: [number, number, number];
@@ -424,7 +429,11 @@ export const InstancedWalls = ({
       return dot > BACK_CULL_DOT_THRESHOLD; // Keep if not directly behind
     };
     
-    // Cull edge corn (GLTF) - hard distance culling (fog hides the transition)
+    // Temporary matrix for applying fade scale
+    const tempMatrix = new Matrix4();
+    const fadeScaleMatrix = new Matrix4();
+    
+    // Cull edge corn (GLTF) - with scale-based fade for smooth transition
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
       
@@ -434,10 +443,24 @@ export const InstancedWalls = ({
         
         // Distance cull AND camera-direction cull
         if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
-          for (const mesh of edgeMeshesRef.current) {
-            mesh.setMatrixAt(edgeCount, t.matrix);
+          const distance = Math.sqrt(distSq);
+          const fadeFactor = calculateFadeFactor(distance);
+          
+          if (fadeFactor > 0.01) {
+            // Apply fade via scale
+            if (fadeFactor < 0.99) {
+              fadeScaleMatrix.makeScale(fadeFactor, fadeFactor, fadeFactor);
+              tempMatrix.copy(t.matrix).multiply(fadeScaleMatrix);
+              for (const mesh of edgeMeshesRef.current) {
+                mesh.setMatrixAt(edgeCount, tempMatrix);
+              }
+            } else {
+              for (const mesh of edgeMeshesRef.current) {
+                mesh.setMatrixAt(edgeCount, t.matrix);
+              }
+            }
+            edgeCount++;
           }
-          edgeCount++;
         }
       }
       
@@ -447,7 +470,7 @@ export const InstancedWalls = ({
       }
     }
     
-    // Cull cheap corn (interior/boundary) - hard distance culling
+    // Cull cheap corn (interior/boundary) - with scale-based fade
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
       const transforms = cheapTransformsRef.current;
       
@@ -457,8 +480,20 @@ export const InstancedWalls = ({
         
         // Distance cull AND camera-direction cull
         if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
-          cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
-          cheapCount++;
+          const distance = Math.sqrt(distSq);
+          const fadeFactor = calculateFadeFactor(distance);
+          
+          if (fadeFactor > 0.01) {
+            // Apply fade via scale
+            if (fadeFactor < 0.99) {
+              fadeScaleMatrix.makeScale(fadeFactor, fadeFactor, fadeFactor);
+              tempMatrix.copy(t.matrix).multiply(fadeScaleMatrix);
+              cheapMeshRef.current.setMatrixAt(cheapCount, tempMatrix);
+            } else {
+              cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
+            }
+            cheapCount++;
+          }
         }
       }
       
