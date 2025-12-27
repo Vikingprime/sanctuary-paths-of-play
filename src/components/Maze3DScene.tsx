@@ -1433,6 +1433,9 @@ return (
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
+      {/* Scene background color - must match fog color for seamless blend */}
+      <color attach="background" args={['#B8B0A0']} />
+      
       {/* Sky dome - gradient sky with horizon matching fog color exactly */}
       <SkyDome />
       
