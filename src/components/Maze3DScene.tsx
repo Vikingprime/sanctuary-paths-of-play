@@ -10,6 +10,7 @@ import { PlayerState, MovementInput, calculateMovement, generateRockPositions, R
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight } from '@/game/CharacterConfig';
 import { findStartRotation } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
+import { LOSCornFader, getFadedCells } from './LOSCornFader';
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
@@ -1936,14 +1937,22 @@ return (
           />
         </>
       ) : (
-        <OverShoulderCameraController 
-          playerStateRef={playerStateRef}
-          restartKey={restartKey}
-          topDownCamera={topDownCamera}
-          groundLevelCamera={groundLevelCamera}
-          foliageGroupRef={foliageGroupRef}
-          animalType={animalType}
-        />
+        <>
+          <OverShoulderCameraController 
+            playerStateRef={playerStateRef}
+            restartKey={restartKey}
+            topDownCamera={topDownCamera}
+            groundLevelCamera={groundLevelCamera}
+            foliageGroupRef={foliageGroupRef}
+            animalType={animalType}
+          />
+          {/* LOS-based corn fading - only fades corn that blocks view of character */}
+          <LOSCornFader
+            playerStateRef={playerStateRef}
+            foliageGroupRef={foliageGroupRef}
+            animalType={animalType}
+          />
+        </>
       )}
     </>
   );
