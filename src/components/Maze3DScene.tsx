@@ -1067,6 +1067,11 @@ const OverShoulderCameraController = ({
   const currentDistance = useRef(0.4); // Start very close
   const lastRestartKey = useRef(restartKey);
   
+  // Track look-up camera height for smooth animation
+  const lookUpHeight = useRef(0.1); // Start at ground level
+  const LOOK_UP_SPEED = 0.03; // How fast to move up per frame
+  const LOOK_UP_MAX_HEIGHT = 50; // Maximum height to reach
+  
   // Reset camera state when restartKey changes
   useEffect(() => {
     if (restartKey !== lastRestartKey.current) {
@@ -1075,8 +1080,16 @@ const OverShoulderCameraController = ({
       hasPlayerMoved.current = false;
       initialPlayerPos.current = null;
       currentDistance.current = 0.4;
+      lookUpHeight.current = 0.1; // Reset look-up height
     }
   }, [restartKey]);
+  
+  // Reset look-up height when toggle is turned off
+  useEffect(() => {
+    if (!lookUpCamera) {
+      lookUpHeight.current = 0.1;
+    }
+  }, [lookUpCamera]);
   
   // Camera settings - over-the-shoulder view balanced for all animals
   const DEBUG_OVERHEAD_VIEW = topDownCamera; // Use prop for toggle
@@ -1171,15 +1184,18 @@ const OverShoulderCameraController = ({
     
     // Apply to camera
     if (lookUpCamera) {
-      // Look up at 70 degrees - position camera near debug corn at ground level
+      // Slowly move camera up while looking at corn stalks
       const cornX = 2.5;
       const cornZ = 2.5;
-      camera.position.set(cornX + 1.5, 0.1, cornZ + 1.5); // Slightly offset from corn
       
-      // Look up at 45 degrees (from horizontal)
-      const lookDistance = 3; // horizontal distance to look target
-      const lookHeight = Math.tan(45 * Math.PI / 180) * lookDistance; // ~3 units up
-      camera.lookAt(cornX, lookHeight, cornZ);
+      // Gradually increase height while toggle is on
+      lookUpHeight.current = Math.min(lookUpHeight.current + LOOK_UP_SPEED, LOOK_UP_MAX_HEIGHT);
+      
+      // Position camera near corn, moving upward
+      camera.position.set(cornX + 1.5, lookUpHeight.current, cornZ + 1.5);
+      
+      // Always look at the corn at current height (looking slightly up)
+      camera.lookAt(cornX, lookUpHeight.current + 0.5, cornZ);
     } else if (groundLevelCamera) {
       // Ground level debug view - camera at ground level, looking at player from side
       const sideOffset = 2.5; // Distance to the side
