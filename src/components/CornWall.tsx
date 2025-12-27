@@ -8,9 +8,9 @@ import cornTexture from '@/assets/corn-texture.png';
 const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
 const LOD_CHEAP_DISTANCE = 16;          // Cheap material 6-16m, hidden beyond 16m
 
-// Hard cull distance - completely independent of fog settings
-// This should be far enough that fog fully obscures corn before cull kicks in
-const CULL_DISTANCE = 20; // Fixed distance, never derived from fog
+// Default cull distance - completely independent of fog settings
+// This is overridden by optimizationSettings.cullDistance if provided
+const DEFAULT_CULL_DISTANCE = 14;
 
 interface CornWallProps {
   position: [number, number, number];
@@ -54,7 +54,7 @@ export interface CornOptimizationSettings {
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
   shadowRadius: 8,
-  cullDistance: 18,
+  cullDistance: 14, // Must match DEFAULT_CULL_DISTANCE - independent of fog
   lodDistance: 6,
   farMaterialDistance: 5,
   enableShadowOptimization: true,
@@ -375,8 +375,9 @@ export const InstancedWalls = ({
   const ROTATION_THRESHOLD = 0.1; // ~5.7 degrees of rotation triggers update
   const cullDebugRef = useRef(0); // Debug counter
   
-  // Distance threshold for hard culling - fog should fully obscure at this distance
-  const CULL_DISTANCE_SQ = CULL_DISTANCE * CULL_DISTANCE;
+  // Distance threshold for hard culling - use settings value or default
+  const cullDistance = optimizationSettings?.cullDistance ?? DEFAULT_CULL_DISTANCE;
+  const CULL_DISTANCE_SQ = cullDistance * cullDistance;
   
   // Camera direction culling - cull back 90 degrees (keep front 270 degrees)
   const BACK_CULL_DOT_THRESHOLD = -0.707; // cos(135°) - corn behind this angle gets culled
