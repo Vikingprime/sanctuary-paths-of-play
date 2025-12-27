@@ -44,10 +44,10 @@ export const AtmosphericSky = ({
         cloudSpeed: { value: cloudSpeed },
       },
       vertexShader: `
-        varying vec3 vWorldPosition;
+        varying vec3 vDirection;
         void main() {
-          vec4 worldPos = modelMatrix * vec4(position, 1.0);
-          vWorldPosition = worldPos.xyz;
+          // Use local position as direction (sphere centered on camera)
+          vDirection = normalize(position);
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
@@ -61,7 +61,7 @@ export const AtmosphericSky = ({
         uniform float time;
         uniform float cloudSpeed;
         
-        varying vec3 vWorldPosition;
+        varying vec3 vDirection;
         
         // Hash for noise
         float hash(vec2 p) {
@@ -95,7 +95,7 @@ export const AtmosphericSky = ({
         }
         
         void main() {
-          vec3 dir = normalize(vWorldPosition);
+          vec3 dir = normalize(vDirection);
           float height = max(dir.y, 0.0);
           
           // === 3-STOP SKY GRADIENT ===
