@@ -1559,8 +1559,9 @@ const OverShoulderCameraController = ({
       // Apply the speed-limited change
       currentAutopushDist.current = currAutoDist + desiredChange;
       
-      // Clamp to valid range
-      currentAutopushDist.current = Math.max(autopush.minDist, Math.min(currentAutopushDist.current, desiredDistForAutopush));
+      // Clamp to valid range (use absoluteMinDist=0.5, not autopush.minDist which is for relaxed state)
+      const absoluteMinDist = 0.5;
+      currentAutopushDist.current = Math.max(absoluteMinDist, Math.min(currentAutopushDist.current, desiredDistForAutopush));
       
       // Apply autopush: position camera at the smoothed distance
       finalTargetPos.copy(headPos).add(
