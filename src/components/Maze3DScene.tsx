@@ -1,7 +1,7 @@
-import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
+import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
@@ -644,12 +644,12 @@ const Ground = ({ maze, rocks, playerStateRef }: { maze: Maze; rocks: RockPositi
 };
 
 
-const MazeWalls = ({ maze, playerStateRef, optimizationSettings, onCullStats }: { 
+const MazeWalls = forwardRef<Group, { 
   maze: Maze; 
   playerStateRef?: React.MutableRefObject<{ x: number; y: number }>;
   optimizationSettings?: CornOptimizationSettings;
   onCullStats?: (stats: CullStats) => void;
-}) => {
+}>(({ maze, playerStateRef, optimizationSettings, onCullStats }, ref) => {
   const { edgePositions, depthOnlyWalls, boundaryWalls } = useMemo(() => {
     const maxX = maze.grid[0].length - 1;
     const maxZ = maze.grid.length - 1;
@@ -727,16 +727,18 @@ const MazeWalls = ({ maze, playerStateRef, optimizationSettings, onCullStats }: 
   }, [maze]);
 
   return (
-    <InstancedWalls 
-      edgePositions={edgePositions}
-      noShadowPositions={depthOnlyWalls}
-      boundaryPositions={boundaryWalls}
-      playerPositionRef={playerStateRef}
-      optimizationSettings={optimizationSettings}
-      onCullStats={onCullStats}
-    />
+    <group ref={ref}>
+      <InstancedWalls 
+        edgePositions={edgePositions}
+        noShadowPositions={depthOnlyWalls}
+        boundaryPositions={boundaryWalls}
+        playerPositionRef={playerStateRef}
+        optimizationSettings={optimizationSettings}
+        onCullStats={onCullStats}
+      />
+    </group>
   );
-};
+});
 
 const PowerUp = ({ position }: { position: [number, number, number] }) => {
   const meshRef = useRef<any>(null);
@@ -1145,19 +1147,46 @@ const RefBasedPlayer = ({
   );
 };
 
+// Autopush configuration for foliage collision
+interface AutopushConfig {
+  enabled: boolean;
+  minDist: number;      // Minimum camera distance (never push closer than this)
+  padding: number;      // Padding before obstacle
+  pushLerp: number;     // Lerp speed when pushing in (faster)
+  relaxLerp: number;    // Lerp speed when relaxing out (slower)
+  headHeight: number;   // Height of target (animal head)
+  rayCount: 3 | 1;      // 1 for single ray, 3 for left/center/right
+  raySpread: number;    // Spread angle for side rays (radians)
+}
+
+const DEFAULT_AUTOPUSH: AutopushConfig = {
+  enabled: true,
+  minDist: 0.8,         // Very close minimum
+  padding: 0.3,         // Small padding before corn
+  pushLerp: 0.35,       // Fast push-in
+  relaxLerp: 0.08,      // Slow relax-out (prevents pumping)
+  headHeight: 0.5,      // Animal head height
+  rayCount: 3,          // Use 3 rays for stability
+  raySpread: 0.15,      // ~8.5 degrees spread for side rays
+};
+
 // Simple over-the-shoulder camera with smooth follow - reads from ref each frame
 const OverShoulderCameraController = ({ 
   playerStateRef,
   restartKey,
   topDownCamera = false,
   groundLevelCamera = false,
+  foliageGroupRef,
+  autopush = DEFAULT_AUTOPUSH,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
   topDownCamera?: boolean;
   groundLevelCamera?: boolean;
+  foliageGroupRef?: React.RefObject<Group>;
+  autopush?: AutopushConfig;
 }) => {
-  const { camera } = useThree();
+  const { camera, scene } = useThree();
   
   // Store smoothed rotation to prevent discontinuities
   const smoothRotation = useRef(0);
@@ -1174,6 +1203,13 @@ const OverShoulderCameraController = ({
   const currentDistance = useRef(0.4); // Start very close
   const lastRestartKey = useRef(restartKey);
   
+  // Autopush state
+  const currentAutopushDist = useRef<number | null>(null);
+  const raycaster = useRef(new Raycaster());
+  const rayOrigin = useRef(new Vector3());
+  const rayDir = useRef(new Vector3());
+  const tempVec = useRef(new Vector3());
+  
   // Reset camera state when restartKey changes
   useEffect(() => {
     if (restartKey !== lastRestartKey.current) {
@@ -1182,6 +1218,7 @@ const OverShoulderCameraController = ({
       hasPlayerMoved.current = false;
       initialPlayerPos.current = null;
       currentDistance.current = 0.4;
+      currentAutopushDist.current = null;
     }
   }, [restartKey]);
   
@@ -1257,12 +1294,106 @@ const OverShoulderCameraController = ({
     
     const rot = smoothRotation.current;
     
-    // Calculate camera position behind player (reuse vector to avoid GC)
+    // Calculate desired camera position behind player (reuse vector to avoid GC)
+    const desiredDist = currentDistance.current;
     targetPos.current.set(
-      playerX - Math.sin(rot) * currentDistance.current,
+      playerX - Math.sin(rot) * desiredDist,
       currentHeight,
-      playerZ + Math.cos(rot) * currentDistance.current
+      playerZ + Math.cos(rot) * desiredDist
     );
+    
+    // Calculate target head position (for raycasting origin)
+    const headPos = new Vector3(playerX, autopush.headHeight, playerZ);
+    
+    // === AUTOPUSH LOGIC ===
+    let finalTargetPos = targetPos.current.clone();
+    
+    if (autopush.enabled && foliageGroupRef?.current && !DEBUG_OVERHEAD_VIEW && !groundLevelCamera) {
+      // Calculate direction from head to desired camera position
+      rayDir.current.copy(targetPos.current).sub(headPos).normalize();
+      const rayLength = headPos.distanceTo(targetPos.current);
+      
+      // Collect foliage meshes for raycasting (InstancedMesh + regular Mesh)
+      const foliageMeshes: Object3D[] = [];
+      foliageGroupRef.current.traverse((child) => {
+        if ((child as Mesh).isMesh || (child as InstancedMesh).isInstancedMesh) {
+          foliageMeshes.push(child);
+        }
+      });
+      
+      // Perform raycasts (1 or 3 rays)
+      let closestHitDist = rayLength;
+      
+      const performRaycast = (direction: Vector3) => {
+        rayOrigin.current.copy(headPos);
+        raycaster.current.set(rayOrigin.current, direction);
+        raycaster.current.far = rayLength;
+        
+        const intersects = raycaster.current.intersectObjects(foliageMeshes, false);
+        if (intersects.length > 0) {
+          const hitDist = intersects[0].distance;
+          if (hitDist < closestHitDist) {
+            closestHitDist = hitDist;
+          }
+        }
+      };
+      
+      // Center ray
+      performRaycast(rayDir.current);
+      
+      // Side rays (if enabled)
+      if (autopush.rayCount === 3) {
+        // Calculate perpendicular direction in XZ plane
+        const perpX = -rayDir.current.z;
+        const perpZ = rayDir.current.x;
+        
+        // Left ray
+        tempVec.current.set(
+          rayDir.current.x + perpX * autopush.raySpread,
+          rayDir.current.y,
+          rayDir.current.z + perpZ * autopush.raySpread
+        ).normalize();
+        performRaycast(tempVec.current);
+        
+        // Right ray
+        tempVec.current.set(
+          rayDir.current.x - perpX * autopush.raySpread,
+          rayDir.current.y,
+          rayDir.current.z - perpZ * autopush.raySpread
+        ).normalize();
+        performRaycast(tempVec.current);
+      }
+      
+      // Determine blocked distance
+      let blockedDist = rayLength;
+      if (closestHitDist < rayLength) {
+        blockedDist = Math.max(
+          closestHitDist - autopush.padding,
+          autopush.minDist
+        );
+        blockedDist = Math.min(blockedDist, rayLength);
+      }
+      
+      // Initialize autopush distance on first frame
+      if (currentAutopushDist.current === null) {
+        currentAutopushDist.current = blockedDist;
+      }
+      
+      // Asymmetric damping: fast push-in, slow relax-out
+      const targetDist = blockedDist;
+      const currAutoDist = currentAutopushDist.current;
+      
+      const lerpSpeed = targetDist < currAutoDist ? autopush.pushLerp : autopush.relaxLerp;
+      currentAutopushDist.current = currAutoDist + (targetDist - currAutoDist) * lerpSpeed;
+      
+      // Apply autopush: position camera at the smoothed distance
+      finalTargetPos.copy(headPos).add(
+        rayDir.current.clone().multiplyScalar(currentAutopushDist.current)
+      );
+      
+      // Preserve the Y height from the original target
+      finalTargetPos.y = currentHeight;
+    }
     
     // Calculate look target ahead of player (reuse vector to avoid GC)
     const currentLookHeight = LOOK_HEIGHT_START + distanceProgress * (LOOK_HEIGHT_NORMAL - LOOK_HEIGHT_START);
@@ -1273,7 +1404,7 @@ const OverShoulderCameraController = ({
     );
     
     // Smooth position interpolation
-    currentPosition.current.lerp(targetPos.current, POSITION_SMOOTHING);
+    currentPosition.current.lerp(finalTargetPos, POSITION_SMOOTHING);
     currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
     
     // Apply to camera
@@ -1396,6 +1527,9 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
 const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
+  
+  // Ref for corn walls - used by camera autopush raycasting
+  const foliageGroupRef = useRef<Group>(null);
   
   useFrame(() => {
     if (!hasSignaled.current && onSceneReady) {
@@ -1538,6 +1672,7 @@ return (
       
       {/* Maze Walls (corn) with optimizations */}
       <MazeWalls 
+        ref={foliageGroupRef}
         maze={maze} 
         playerStateRef={playerStateRef}
         optimizationSettings={cornOptimizationSettings}
@@ -1613,6 +1748,7 @@ return (
           restartKey={restartKey}
           topDownCamera={topDownCamera}
           groundLevelCamera={groundLevelCamera}
+          foliageGroupRef={foliageGroupRef}
         />
       )}
     </>
