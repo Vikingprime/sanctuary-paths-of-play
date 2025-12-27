@@ -1,59 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, SphereGeometry, BackSide } from 'three';
-
-// Warm sunset green-blue fog color for horizon blending
-const FOG_COLOR = '#6a8060';
-const FOG_DENSITY = 0.12;
-
-// Sky Dome with vertical gradient - fog-proof for vivid sky
-const SkyDome = () => {
-  const material = useMemo(() => {
-    return new ShaderMaterial({
-      uniforms: {
-        topColor: { value: new Color('#87CEEB') },      // Soft warm sky blue at top
-        midColor: { value: new Color('#b8cfa8') },      // Warm atmospheric green-blue
-        bottomColor: { value: new Color(FOG_COLOR) },   // Matches fog exactly for seamless horizon
-      },
-      vertexShader: `
-        varying vec3 vWorldPosition;
-        void main() {
-          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-          vWorldPosition = worldPosition.xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 topColor;
-        uniform vec3 midColor;
-        uniform vec3 bottomColor;
-        varying vec3 vWorldPosition;
-        void main() {
-          float h = normalize(vWorldPosition).y;
-          // Gradient: bottom (0.0) -> mid (0.3) -> top (1.0)
-          vec3 color;
-          if (h < 0.3) {
-            color = mix(bottomColor, midColor, h / 0.3);
-          } else {
-            color = mix(midColor, topColor, (h - 0.3) / 0.7);
-          }
-          gl_FragColor = vec4(color, 1.0);
-        }
-      `,
-      side: BackSide,
-      fog: false, // Critical: sky stays crisp while corn fades into fog
-      depthWrite: false,
-    });
-  }, []);
-
-  return (
-    <mesh>
-      <sphereGeometry args={[90, 32, 16]} />
-      <primitive object={material} attach="material" />
-    </mesh>
-  );
-};
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
@@ -148,9 +96,9 @@ const mat = new ShaderMaterial({
         rockLight: { value: new Color('#C4B090') },
         rockMid: { value: new Color('#A08060') },
         rockDark: { value: new Color('#705540') },
-        // Fog uniforms - match scene fog for seamless blending
-        fogColor: { value: new Color(FOG_COLOR) },
-        fogDensity: { value: FOG_DENSITY },
+        // Fog uniforms
+        fogColor: { value: new Color('#5a6b55') },
+        fogDensity: { value: 0.145 },  // Fog tuned for 16m corn cull distance
       },
       fog: true,
       vertexShader: `
@@ -1413,27 +1361,15 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 return (
     <>
       
-      {/* Sky Dome - fog-proof gradient for vivid sky */}
-      <SkyDome />
+      {/* Lighting - 8am morning sunlight */}
+      <ambientLight intensity={0.9} color="#FFF8F0" />
       
-      {/* Background color matches fog for seamless horizon */}
-      <color attach="background" args={[FOG_COLOR]} />
-      
-      {/* Exponential fog - softer green for warmth */}
-      <fogExp2 attach="fog" args={[FOG_COLOR, FOG_DENSITY]} />
-      
-      {/* Hemisphere light - pale amber sky, deep forest green ground for outdoor warmth */}
-      <hemisphereLight args={['#FFE4C4', '#2E5420', 0.7]} />
-      
-      {/* Ambient light with warm tint */}
-      <ambientLight intensity={0.6} color="#FFF5E6" />
-      
-      {/* Main sun light - low angle golden sun for warm highlights */}
+      {/* Main sun light - follows player for consistent shadows */}
       <directionalLight
         ref={lightRef}
-        position={[15, 25, 15]}
-        intensity={2.8}
-        color="#FFD090"
+        position={[15, 35, 15]}
+        intensity={3.5}
+        color="#FFFDF5"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={1}
@@ -1448,12 +1384,20 @@ return (
         <object3D attach="target" />
       </directionalLight>
       
-      {/* Fill light from opposite side - cool blue for contrast */}
+      {/* Fill light from opposite side */}
       <directionalLight
-        position={[-15, 12, -10]}
-        intensity={0.35}
-        color="#B8D4FF"
+        position={[-15, 15, -10]}
+        intensity={0.45}
+        color="#D8E8FF"
       />
+      
+      {/* Hemisphere light for natural sky/ground color */}
+      <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
+      {/* Atmospheric background - desaturated to match fog */}
+      <color attach="background" args={['#5a6b55']} />
+      
+      {/* Exponential fog */}
+      <fogExp2 attach="fog" args={['#5a6b55', 0.145]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
