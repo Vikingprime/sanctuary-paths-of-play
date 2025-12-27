@@ -1381,12 +1381,13 @@ const OverShoulderCameraController = ({
       const rayLength = headPos.distanceTo(targetPos.current);
       
       // Find camera collider meshes - these are invisible boxes for raycasting
-      // The foliageGroupRef points to the cameraColliders group which contains an InstancedMesh
+      // The foliageGroupRef points to the cameraColliders group which contains individual Mesh objects
       const cameraBlockers: Object3D[] = [];
       
-      // The foliageGroupRef.current IS the cameraColliders group, so just get the mesh children
+      // Collect all mesh children from the cameraColliders group
       foliageGroupRef.current.traverse((child) => {
-        if ((child as InstancedMesh).isInstancedMesh) {
+        const mesh = child as Mesh;
+        if (mesh.isMesh) {
           cameraBlockers.push(child);
         }
       });
