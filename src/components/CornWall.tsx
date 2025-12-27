@@ -1,14 +1,12 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader, CylinderGeometry, BackSide, ShaderMaterial } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader, CylinderGeometry, BackSide } from 'three';
 import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
 
 // LOD distance tiers
 const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
-const LOD_CHEAP_DISTANCE = 12;          // Cheap material 6-12m
-const FADE_START_DISTANCE = 8;          // Start fading at 8m
-const FADE_END_DISTANCE = 12;           // Fully transparent at 12m
+const LOD_CHEAP_DISTANCE = 16;          // Cheap material 6-16m, hidden beyond 16m
 
 interface CornWallProps {
   position: [number, number, number];
@@ -538,54 +536,13 @@ export const InstancedWalls = ({
       ? stalkMeshes[0].geometry.clone()
       : new BoxGeometry(0.1, 2, 0.1); // Fallback if no stalk meshes found
     
-    // Custom shader material that fades to transparent based on camera distance
-    const cornColor = sampledColor || new Color(0.12, 0.25, 0.10);
-    const cheapMat = new ShaderMaterial({
-      uniforms: {
-        color: { value: cornColor },
-        fogColor: { value: new Color('#D8C8B8') },
-        fadeStart: { value: FADE_START_DISTANCE },
-        fadeEnd: { value: FADE_END_DISTANCE },
-      },
-      vertexShader: `
-        varying float vDistance;
-        varying vec3 vNormal;
-        void main() {
-          vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
-          vec4 mvPosition = viewMatrix * worldPos;
-          vDistance = -mvPosition.z;
-          vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 color;
-        uniform vec3 fogColor;
-        uniform float fadeStart;
-        uniform float fadeEnd;
-        varying float vDistance;
-        varying vec3 vNormal;
-        void main() {
-          // Simple lighting
-          vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
-          float diff = max(dot(vNormal, lightDir), 0.0) * 0.6 + 0.4;
-          vec3 litColor = color * diff;
-          
-          // Distance fade - becomes fully transparent at fadeEnd
-          float fadeFactor = 1.0 - smoothstep(fadeStart, fadeEnd, vDistance);
-          
-          // Also blend toward fog color as it fades
-          vec3 finalColor = mix(fogColor, litColor, fadeFactor);
-          
-          // Discard fully faded fragments
-          if (fadeFactor < 0.01) discard;
-          
-          gl_FragColor = vec4(finalColor, fadeFactor);
-        }
-      `,
-      transparent: true,
+    const cheapMat = new MeshLambertMaterial({ 
+      color: sampledColor || new Color(0.12, 0.25, 0.10),
+      transparent: false,
       depthWrite: true,
+      depthTest: true,
       side: FrontSide,
+      fog: true, // Enable fog so distant corn blends into scene fog
     });
     
     // Low-poly LOD corn: thicker stalk + larger drooping leaves
@@ -666,45 +623,12 @@ export const InstancedWalls = ({
     lodCornGeo.setAttribute('normal', new BufferAttribute(combinedNorm, 3));
     lodCornGeo.setIndex(new BufferAttribute(combinedIdx, 1));
     
-    // Custom shader for LOD corn with distance fade
-    const lodCornMat = new ShaderMaterial({
-      uniforms: {
-        color: { value: new Color(0.2, 0.45, 0.15) },
-        fogColor: { value: new Color('#D8C8B8') },
-        fadeStart: { value: FADE_START_DISTANCE },
-        fadeEnd: { value: FADE_END_DISTANCE },
-      },
-      vertexShader: `
-        varying float vDistance;
-        varying vec3 vNormal;
-        void main() {
-          vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
-          vec4 mvPosition = viewMatrix * worldPos;
-          vDistance = -mvPosition.z;
-          vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 color;
-        uniform vec3 fogColor;
-        uniform float fadeStart;
-        uniform float fadeEnd;
-        varying float vDistance;
-        varying vec3 vNormal;
-        void main() {
-          vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
-          float diff = max(dot(vNormal, lightDir), 0.0) * 0.6 + 0.4;
-          vec3 litColor = color * diff;
-          float fadeFactor = 1.0 - smoothstep(fadeStart, fadeEnd, vDistance);
-          vec3 finalColor = mix(fogColor, litColor, fadeFactor);
-          if (fadeFactor < 0.01) discard;
-          gl_FragColor = vec4(finalColor, fadeFactor);
-        }
-      `,
-      transparent: true,
+    // Green material matching the corn color
+    const lodCornMat = new MeshLambertMaterial({
+      color: new Color(0.2, 0.45, 0.15),
+      side: DoubleSide, // See leaves from both sides
       depthWrite: true,
-      side: DoubleSide,
+      fog: true, // Enable fog so distant corn blends into scene fog
     });
     
     // Use all meshes from the model (stalk + leaves + corn cobs)
