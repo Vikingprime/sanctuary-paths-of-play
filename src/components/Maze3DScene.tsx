@@ -98,7 +98,7 @@ const mat = new ShaderMaterial({
         rockDark: { value: new Color('#705540') },
         // Fog uniforms - warm neutral atmospheric tone matching horizon
         fogColor: { value: new Color('#B8B0A0') },
-        fogDensity: { value: 0.11 },  // Fog tuned for fade band distance
+        fogDensity: { value: 0.14 },  // Matches scene fog density
         fogHeightMax: { value: 2.5 },  // Height above which fog fades out
       },
       fog: true,
@@ -1406,9 +1406,9 @@ return (
           This is the key fix: distant corn fades into this color, not into a mismatched sky */}
       <color attach="background" args={['#B8B0A0']} />
       
-      {/* Exponential fog - warm neutral atmospheric tone matching background exactly
-          NOT green, NOT white - dusty warm gray */}
-      <fogExp2 attach="fog" args={['#B8B0A0', 0.11]} />
+      {/* Exponential fog - warm neutral tone matching background
+          Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
+      <fogExp2 attach="fog" args={['#B8B0A0', 0.14]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
