@@ -1069,7 +1069,7 @@ const OverShoulderCameraController = ({
   
   // Track look-up camera height for smooth animation
   const lookUpHeight = useRef(0.1); // Start at ground level
-  const LOOK_UP_SPEED = 0.03; // How fast to move up per frame
+  const LOOK_UP_SPEED = 0.005; // How fast to move up per frame (very slow)
   const LOOK_UP_MAX_HEIGHT = 50; // Maximum height to reach
   
   // Reset camera state when restartKey changes
