@@ -22,11 +22,12 @@ const measureModelHeight = (scene: any, name: string): number => {
   return size.y;
 };
 
-// Scale factors from world-space measurements (corn height: 197.0637)
+// Scale factors for corn height of ~4 units
+// Targets: Chicken 0.76 (19%), Pig 1.52 (38%), Cow 2.52 (63%)
 const ANIMAL_SCALES = {
-  chicken: 0.513257,  // target 37.44 / raw 72.95
-  pig: 0.759700,      // target 74.88 / raw 98.57
-  cow: 27.067594,     // target 124.15 / raw 4.59
+  chicken: 0.0104,  // target 0.76 / raw 72.95
+  pig: 0.0154,      // target 1.52 / raw 98.57
+  cow: 0.549,       // target 2.52 / raw 4.59
 } as const;
 
 // Play chicken sound on spawn
