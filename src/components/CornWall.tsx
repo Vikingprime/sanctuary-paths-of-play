@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader, CylinderGeometry, BackSide } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader, CylinderGeometry, BackSide, ShaderMaterial } from 'three';
 import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
@@ -10,6 +10,10 @@ const LOD_CHEAP_DISTANCE = 16;          // Cheap material 6-16m, hidden beyond 1
 
 // Hard cull distance - fog should obscure corn before this distance
 const CULL_DISTANCE = 14; // Hard cull at 14m where fog is dense
+
+// Fade distance thresholds for opacity
+const FADE_START = 10;  // Start fading corn at 10m
+const FADE_END = 14;    // Fully transparent at 14m
 
 interface CornWallProps {
   position: [number, number, number];
@@ -73,31 +77,98 @@ const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.25, 0.42, 0.
 const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
 
 
-// Helper to optimize material for performance (fix transparency/overdraw issues)
-const optimizeMaterial = (material: Material): Material => {
+// Helper to add distance-based opacity fading to a material using onBeforeCompile
+const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }): Material => {
   const mat = material as any;
   
-  // CRITICAL: Disable transparency for opaque rendering - NO transparent=true allowed
-  if ('transparent' in mat) {
-    mat.transparent = false;
-  }
+  // Enable transparency for fading
+  mat.transparent = true;
+  mat.depthWrite = true;
+  mat.depthTest = true;
+  mat.side = FrontSide;
   
-  // Use alphaTest instead of transparency for any alpha textures
-  if ('alphaTest' in mat) {
-    mat.alphaTest = 0.5;
-  }
+  // Store uniform reference
+  mat.userData.playerPos = playerPosRef;
   
-  // CRITICAL: Ensure proper depth handling - must write depth
-  if ('depthWrite' in mat) {
-    mat.depthWrite = true;
-  }
-  if ('depthTest' in mat) {
-    mat.depthTest = true;
-  }
+  const originalOnBeforeCompile = mat.onBeforeCompile;
   
-  // CRITICAL: Always use FrontSide to reduce overdraw - NO DoubleSide
-  if ('side' in mat) {
-    mat.side = FrontSide;
+  mat.onBeforeCompile = (shader: any) => {
+    if (originalOnBeforeCompile) {
+      originalOnBeforeCompile(shader);
+    }
+    
+    // Add player position uniform
+    shader.uniforms.playerPos = playerPosRef;
+    shader.uniforms.fadeStart = { value: FADE_START };
+    shader.uniforms.fadeEnd = { value: FADE_END };
+    
+    // Inject varying for world position in vertex shader
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <common>',
+      `#include <common>
+      varying vec3 vWorldPos;`
+    );
+    
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <worldpos_vertex>',
+      `#include <worldpos_vertex>
+      #ifdef USE_INSTANCING
+        vWorldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
+      #else
+        vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+      #endif`
+    );
+    
+    // Inject uniforms and varying in fragment shader
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <common>',
+      `#include <common>
+      uniform vec3 playerPos;
+      uniform float fadeStart;
+      uniform float fadeEnd;
+      varying vec3 vWorldPos;`
+    );
+    
+    // Apply distance-based opacity fade at end of fragment shader
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <dithering_fragment>',
+      `#include <dithering_fragment>
+      float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
+      float fadeFactor = 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer);
+      gl_FragColor.a *= fadeFactor;
+      if (gl_FragColor.a < 0.01) discard;`
+    );
+  };
+  
+  mat.needsUpdate = true;
+  return material;
+};
+
+// Helper to optimize material for performance (fix transparency/overdraw issues)
+// Now also adds distance fade
+const optimizeMaterial = (material: Material, playerPosRef?: { value: Vector3 }): Material => {
+  const mat = material as any;
+  
+  // If we have a player position ref, add distance fade (enables transparency)
+  if (playerPosRef) {
+    addDistanceFade(material, playerPosRef);
+  } else {
+    // Legacy path without fade
+    if ('transparent' in mat) {
+      mat.transparent = false;
+    }
+    if ('alphaTest' in mat) {
+      mat.alphaTest = 0.5;
+    }
+    if ('depthWrite' in mat) {
+      mat.depthWrite = true;
+    }
+    if ('depthTest' in mat) {
+      mat.depthTest = true;
+    }
+    if ('side' in mat) {
+      mat.side = FrontSide;
+    }
   }
   
   mat.needsUpdate = true;
@@ -340,6 +411,9 @@ export const InstancedWalls = ({
   // Load corn texture for billboards
   const cornTex = useTexture(cornTexture);
   
+  // Player position uniform for shader-based opacity fade
+  const playerPosUniform = useMemo(() => ({ value: new Vector3() }), []);
+  
   // Track closest distance to any outer/boundary corn cell
   const cheapCellCenters = useMemo(() => {
     const centers: { x: number; z: number }[] = [];
@@ -377,11 +451,13 @@ export const InstancedWalls = ({
   
   // Distance culling (fog is now handled by scene's FogExp2)
   useFrame(() => {
-    // Skip ALL culling if distance culling is disabled
-    if (!optimizationSettings.enableDistanceCulling) return;
-    
+    // Update player position uniform for shader-based opacity fade
     const px = playerPositionRef?.current?.x ?? 0;
     const pz = playerPositionRef?.current?.y ?? 0;
+    playerPosUniform.value.set(px, 0, pz);
+    
+    // Skip ALL culling if distance culling is disabled
+    if (!optimizationSettings.enableDistanceCulling) return;
     
     // Get camera forward direction for back-culling
     const camForward = new Vector3();
@@ -511,8 +587,8 @@ export const InstancedWalls = ({
         }
         
         const optimizedMaterial = Array.isArray(mesh.material) 
-          ? mesh.material.map(m => optimizeMaterial(m.clone()))
-          : optimizeMaterial(mesh.material.clone());
+          ? mesh.material.map(m => optimizeMaterial(m.clone(), playerPosUniform))
+          : optimizeMaterial(mesh.material.clone(), playerPosUniform);
         
         const meshData = {
           geometry: mesh.geometry.clone(),
