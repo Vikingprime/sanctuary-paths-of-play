@@ -547,6 +547,7 @@ export const InstancedWalls = ({
       depthWrite: true,
       depthTest: true,
       side: FrontSide,
+      fog: true, // CRITICAL: Must blend with scene fog
     });
     
     // Low-poly LOD corn: thicker stalk + larger drooping leaves
@@ -632,6 +633,7 @@ export const InstancedWalls = ({
       color: new Color(0.2, 0.45, 0.15),
       side: DoubleSide, // See leaves from both sides
       depthWrite: true,
+      fog: true, // CRITICAL: Must blend with scene fog
     });
     
     // Use all meshes from the model (stalk + leaves + corn cobs)
@@ -695,11 +697,14 @@ export const InstancedWalls = ({
     const edgeMeshes: ThreeInstancedMesh[] = [];
     if (edgeTransforms.length > 0) {
       meshDataList.forEach((meshData) => {
+        // Clone material and FORCE fog on
+        const clonedMat = Array.isArray(meshData.material)
+          ? meshData.material.map(m => { const c = m.clone(); (c as any).fog = true; return c; })
+          : (() => { const c = meshData.material.clone(); (c as any).fog = true; return c; })();
+        
         const instancedMesh = new ThreeInstancedMesh(
           meshData.geometry.clone(),
-          Array.isArray(meshData.material)
-            ? meshData.material.map(m => m.clone())
-            : meshData.material.clone(),
+          clonedMat,
           edgeTransforms.length
         );
         
@@ -726,9 +731,13 @@ export const InstancedWalls = ({
     
     // OUTER + BOUNDARY CORN: Single cheap material (1 draw call)
     if (cheapTransforms.length > 0) {
+      // Clone material and FORCE fog on
+      const cheapMatClone = cheapMaterial.clone();
+      (cheapMatClone as any).fog = true;
+      
       const cheapMesh = new ThreeInstancedMesh(
         cheapStalkGeometry.clone(),
-        cheapMaterial.clone(),
+        cheapMatClone,
         cheapTransforms.length
       );
       
