@@ -1439,9 +1439,8 @@ return (
       {/* Sky dome - gradient sky with horizon matching fog color exactly */}
       <SkyDome />
       
-      {/* Exponential fog - warm neutral tone matching background
-          Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
-      <fogExp2 attach="fog" args={['#B8B0A0', 0.14]} />
+      {/* SANITY CHECK: Extreme fog values - should be VERY obvious */}
+      <fog attach="fog" args={['#ff0000', 1, 5]} />
       
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
