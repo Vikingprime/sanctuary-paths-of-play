@@ -62,7 +62,7 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 };
 
 // Simple LOD geometry - single green box per stalk (1 draw call total)
-const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 2.5, 0.08);
+const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 1.25, 0.08);
 const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.2, 0.5, 0.15) });
 
 
@@ -179,7 +179,7 @@ const generateEdgeTransforms = (
         const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
         
         const baseScale = 100;
-        const heightMultiplier = 1.8;
+        const heightMultiplier = 0.9;
         const widthMultiplier = 0.7;
         const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
         const widthScale = baseScale * heightVariation * widthMultiplier;
@@ -240,7 +240,7 @@ const generateWallTransforms = (
         
         const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
         const baseScale = 100;
-        const heightMultiplier = 1.8;
+        const heightMultiplier = 0.9;
         const widthMultiplier = 0.7;
         const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
         const widthScale = baseScale * heightVariation * widthMultiplier;
@@ -300,7 +300,7 @@ const generateBoundaryTransforms = (
         }
         
         const baseScale = 100;
-        const heightMultiplier = 1.8;
+        const heightMultiplier = 0.9;
         const widthMultiplier = 0.7;
         const heightVariation = 0.8 + seededRandom(stalkSeed + 3) * 0.4;
         const widthScale = baseScale * heightVariation * widthMultiplier;
