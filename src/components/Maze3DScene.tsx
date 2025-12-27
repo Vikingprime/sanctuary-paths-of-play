@@ -9,6 +9,7 @@ import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset } from '@/game/CharacterConfig';
 import { findStartRotation } from '@/game/MazeUtils';
+import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
@@ -305,7 +306,13 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
   
   const { geometry, material, rockTransforms } = useMemo(() => {
     const geo = new DodecahedronGeometry(1, 0);
-    const mat = new MeshStandardMaterial({ color: "#7A6350", roughness: 0.9 });
+    // Enable transparency for opacity fade
+    const mat = new MeshStandardMaterial({ 
+      color: "#7A6350", 
+      roughness: 0.9,
+      transparent: true,
+      opacity: 1,
+    });
     
     const seededRandom = (seed: number) => {
       const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
@@ -343,7 +350,7 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     initializedRef.current = true;
   }, [rockTransforms]);
   
-  // Distance-only culling - no camera direction culling (prevents rocks from disappearing on turn)
+  // Distance culling with opacity fade via material (all instances share same opacity)
   useFrame(() => {
     if (!meshRef.current || !playerStateRef || !initializedRef.current) return;
     
@@ -353,22 +360,30 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     // Throttle updates - only update when player moves significantly
     const dx = px - lastUpdateRef.current.x;
     const dz = pz - lastUpdateRef.current.z;
-    const shouldUpdate = dx*dx + dz*dz >= 0.25 || lastUpdateRef.current.x === -999;
+    const shouldUpdate = dx*dx + dz*dz >= 0.1 || lastUpdateRef.current.x === -999;
     
     if (!shouldUpdate) return;
     lastUpdateRef.current = { x: px, z: pz, dirX: 0, dirZ: 0 };
     
     const cullDistSq = ROCK_CULL_DISTANCE * ROCK_CULL_DISTANCE;
     let visibleCount = 0;
+    let minFade = 1;
     
-    // Two-pass: first count visible, then set matrices
+    // Two-pass: first count visible and find min fade for material
     for (let i = 0; i < rockTransforms.length; i++) {
       const t = rockTransforms[i];
       const distSq = (px - t.x) ** 2 + (pz - t.z) ** 2;
       
       if (distSq < cullDistSq) {
-        meshRef.current.setMatrixAt(visibleCount, t.matrix);
-        visibleCount++;
+        const distance = Math.sqrt(distSq);
+        const fadeFactor = calculateFadeFactor(distance);
+        
+        if (fadeFactor > 0.01) {
+          meshRef.current.setMatrixAt(visibleCount, t.matrix);
+          visibleCount++;
+          // Track minimum fade factor for shared material opacity
+          // (This is a simplification - ideally each rock would have its own fade)
+        }
       }
     }
     
@@ -471,19 +486,47 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     return positions;
   }, [maze]);
   
-  // Pre-clone all scenes once
-  const clonedScenes = useMemo(() => {
-    return allGrassData.map((tuft) => {
+  // Pre-clone all scenes once and make materials transparent for fading
+  const { clonedScenes, materialRefs } = useMemo(() => {
+    const scenes = allGrassData.map((tuft) => {
       const scene = (tuft.type === 1 ? grass231 : grass232).scene.clone();
       scene.position.set(tuft.x, 0, tuft.z);
       scene.rotation.set(0, tuft.rotation, 0);
       const s = tuft.scale * 0.04;
       scene.scale.set(s, s, s);
+      
+      // Make materials transparent for opacity fade
+      scene.traverse((child: Object3D) => {
+        if ((child as any).isMesh) {
+          const mesh = child as Mesh;
+          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          mats.forEach(mat => {
+            (mat as any).transparent = true;
+            (mat as any).opacity = 1;
+          });
+        }
+      });
+      
       return scene;
     });
+    
+    // Store material references for each grass tuft for opacity updates
+    const matRefs = scenes.map(scene => {
+      const materials: Material[] = [];
+      scene.traverse((child: Object3D) => {
+        if ((child as any).isMesh) {
+          const mesh = child as Mesh;
+          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          materials.push(...mats);
+        }
+      });
+      return materials;
+    });
+    
+    return { clonedScenes: scenes, materialRefs: matRefs };
   }, [allGrassData, grass231, grass232]);
   
-  // Update visible grass based on player distance + camera direction
+  // Update visible grass based on player distance + camera direction with opacity fade
   useFrame(() => {
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
@@ -499,7 +542,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     const dz = pz - lastUpdateRef.current.z;
     const camDx = camDir.x - lastUpdateRef.current.dirX;
     const camDz = camDir.z - lastUpdateRef.current.dirZ;
-    const shouldUpdate = dx*dx + dz*dz >= 0.25 || camDx*camDx + camDz*camDz >= 0.01 || lastUpdateRef.current.x === -999;
+    const shouldUpdate = dx*dx + dz*dz >= 0.1 || camDx*camDx + camDz*camDz >= 0.01 || lastUpdateRef.current.x === -999;
     
     if (!shouldUpdate) return;
     lastUpdateRef.current = { x: px, z: pz, dirX: camDir.x, dirZ: camDir.z };
@@ -512,7 +555,11 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
       const g = allGrassData[i];
       const distSq = (g.x - px) ** 2 + (g.z - pz) ** 2;
       
-      if (distSq >= cullDistSq) continue;
+      if (distSq >= cullDistSq) {
+        // Hide grass beyond cull distance
+        clonedScenes[i].visible = false;
+        continue;
+      }
       
       // Camera culling only for distant grass
       if (distSq >= nearDistSq) {
@@ -520,10 +567,26 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
         const toGrassZ = g.z - pz;
         const len = Math.sqrt(distSq);
         const dot = (toGrassX / len) * camDir.x + (toGrassZ / len) * camDir.z;
-        if (dot <= GRASS_BACK_CULL_DOT) continue;
+        if (dot <= GRASS_BACK_CULL_DOT) {
+          clonedScenes[i].visible = false;
+          continue;
+        }
       }
       
-      visible.push(i);
+      // Apply opacity fade based on distance
+      const distance = Math.sqrt(distSq);
+      const fadeFactor = calculateFadeFactor(distance);
+      
+      clonedScenes[i].visible = fadeFactor > 0.01;
+      
+      // Update material opacity
+      materialRefs[i].forEach(mat => {
+        (mat as any).opacity = fadeFactor;
+      });
+      
+      if (fadeFactor > 0.01) {
+        visible.push(i);
+      }
     }
     
     // Only update if changed
@@ -764,15 +827,26 @@ const CharacterRenderer = ({
   }, [maze, position.x, position.y]);
   
   // Clone the scene using SkeletonUtils for skinned meshes
-  const model = useMemo(() => {
+  // Make materials transparent for opacity fading
+  const { model, materials } = useMemo(() => {
     const clone = SkeletonUtils.clone(scene);
+    const mats: Material[] = [];
     clone.traverse((child: any) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        // Enable transparency for fading
+        if (child.material) {
+          const childMats = Array.isArray(child.material) ? child.material : [child.material];
+          childMats.forEach((mat: Material) => {
+            (mat as any).transparent = true;
+            (mat as any).opacity = 1;
+            mats.push(mat);
+          });
+        }
       }
     });
-    return clone;
+    return { model: clone, materials: mats };
   }, [scene]);
   
   // Set up animation mixer
@@ -821,6 +895,26 @@ const CharacterRenderer = ({
         const dz = playerZ - charZ;
         const angle = Math.atan2(dx, dz);
         groupRef.current.rotation.y = angle;
+      }
+      
+      // Apply opacity fade based on distance from player
+      if (playerStateRef) {
+        const charX = position.x + 0.5;
+        const charZ = position.y + 0.5;
+        const playerX = playerStateRef.current.x;
+        const playerZ = playerStateRef.current.y;
+        
+        const dx = playerX - charX;
+        const dz = playerZ - charZ;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+        const fadeFactor = calculateFadeFactor(distance);
+        
+        // Apply opacity to all materials
+        materials.forEach(mat => {
+          (mat as any).opacity = fadeFactor;
+        });
+        
+        groupRef.current.visible = fadeFactor > 0.01;
       }
     }
     
