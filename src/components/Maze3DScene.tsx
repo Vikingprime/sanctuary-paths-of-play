@@ -735,34 +735,28 @@ const MazeWalls = forwardRef<Group, {
     };
   }, [maze]);
   
-  // Create instanced camera colliders (invisible boxes for raycasting)
-  const cameraColliderMesh = useMemo(() => {
-    if (allWallPositions.length === 0) return null;
+  // Create individual camera collider meshes (NOT instanced - for proper raycasting)
+  // InstancedMesh raycasting only checks bounding box, not individual instances
+  const cameraColliderMeshes = useMemo(() => {
+    if (allWallPositions.length === 0) return [];
     
-    const geometry = new BoxGeometry(0.9, 2.5, 0.9); // Slightly smaller than cell, tall enough for camera
+    const geometry = new BoxGeometry(0.85, 2.5, 0.85); // Slightly smaller than cell
     const material = new MeshBasicMaterial({ 
       visible: false, // Invisible - only for raycasting
       color: 0xff0000,
     });
     
-    const mesh = new InstancedMesh(geometry, material, allWallPositions.length);
-    mesh.name = 'cameraColliders';
-    mesh.userData.isCameraBlocker = true;
-    
-    // Set up instance matrices
-    const dummy = new Object3D();
-    allWallPositions.forEach((pos, i) => {
-      dummy.position.set(pos.x + 0.5, 1.25, pos.z + 0.5); // Center of cell, raised to mid-height
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+    // Create individual meshes for each wall cell
+    const meshes: Mesh[] = [];
+    allWallPositions.forEach((pos) => {
+      const mesh = new Mesh(geometry, material);
+      mesh.position.set(pos.x + 0.5, 1.25, pos.z + 0.5);
+      mesh.name = 'wallCollider';
+      mesh.userData.isCameraBlocker = true;
+      meshes.push(mesh);
     });
-    mesh.instanceMatrix.needsUpdate = true;
     
-    // Pre-compute bounding box for the entire mesh
-    mesh.computeBoundingBox();
-    mesh.computeBoundingSphere();
-    
-    return mesh;
+    return meshes;
   }, [allWallPositions]);
 
   // Callback to set both internal and forwarded ref
@@ -785,7 +779,9 @@ const MazeWalls = forwardRef<Group, {
     <group>
       {/* Camera collision boxes (invisible, for raycasting only) */}
       <group ref={setRefs} name="cameraColliders">
-        {cameraColliderMesh && <primitive object={cameraColliderMesh} />}
+        {cameraColliderMeshes.map((mesh, i) => (
+          <primitive key={i} object={mesh} />
+        ))}
       </group>
       
       {/* Visual corn (InstancedWalls) */}
