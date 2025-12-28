@@ -85,6 +85,9 @@ const cellToInstances = new Map<string, InstanceRef[]>();
 // Global reference to opacity attributes that need updating
 const opacityAttributesNeedingUpdate = new Set<InstancedBufferAttribute>();
 
+// Global reference to color attributes that need updating
+const colorAttributesNeedingUpdate = new Set<InstancedBufferAttribute>();
+
 // Register an instance for a cell
 function registerCellInstance(cellX: number, cellZ: number, mesh: ThreeInstancedMesh, index: number) {
   const key = `${cellX},${cellZ}`;
@@ -99,6 +102,7 @@ export function clearCellRegistry() {
   console.log('[CORN_WALL] Clearing cell registry. Had', cellToInstances.size, 'cells');
   cellToInstances.clear();
   opacityAttributesNeedingUpdate.clear();
+  colorAttributesNeedingUpdate.clear();
 }
 
 // Debug: get registry stats
@@ -109,7 +113,7 @@ export function getCellRegistryStats() {
   };
 }
 
-// Set opacity for all instances in a cell
+// Set opacity for all instances in a cell (also sets debug color: red when faded, white when opaque)
 export function setCellOpacity(cellX: number, cellZ: number, opacity: number) {
   const key = `${cellX},${cellZ}`;
   const instances = cellToInstances.get(key);
@@ -132,11 +136,29 @@ export function setCellOpacity(cellX: number, cellZ: number, opacity: number) {
     return;
   }
   
+  // Calculate debug color: red when faded, white when opaque
+  // Lerp from white (1,1,1) to red (1,0,0) based on how faded we are
+  const fadeAmount = 1.0 - opacity; // 0 = opaque, 1 = fully faded
+  const r = 1.0;
+  const g = 1.0 - fadeAmount; // 1 when opaque, 0 when faded
+  const b = 1.0 - fadeAmount; // 1 when opaque, 0 when faded
+  
   for (const { mesh, index } of instances) {
-    const attr = mesh.geometry.getAttribute('instanceOpacity') as InstancedBufferAttribute;
-    if (attr) {
-      (attr.array as Float32Array)[index] = opacity;
-      opacityAttributesNeedingUpdate.add(attr);
+    // Update opacity
+    const opacityAttr = mesh.geometry.getAttribute('instanceOpacity') as InstancedBufferAttribute;
+    if (opacityAttr) {
+      (opacityAttr.array as Float32Array)[index] = opacity;
+      opacityAttributesNeedingUpdate.add(opacityAttr);
+    }
+    
+    // Update debug color (RGB stored as 3 floats per instance)
+    const colorAttr = mesh.geometry.getAttribute('instanceColor') as InstancedBufferAttribute;
+    if (colorAttr) {
+      const arr = colorAttr.array as Float32Array;
+      arr[index * 3 + 0] = r;
+      arr[index * 3 + 1] = g;
+      arr[index * 3 + 2] = b;
+      colorAttributesNeedingUpdate.add(colorAttr);
     }
   }
 }
@@ -155,17 +177,22 @@ export function getCellOpacity(cellX: number, cellZ: number): number {
   return 1.0;
 }
 
-// Flush opacity updates (call once per frame)
+// Flush opacity and color updates (call once per frame)
 function flushOpacityUpdates() {
   opacityAttributesNeedingUpdate.forEach(attr => {
     attr.needsUpdate = true;
   });
   opacityAttributesNeedingUpdate.clear();
+  
+  colorAttributesNeedingUpdate.forEach(attr => {
+    attr.needsUpdate = true;
+  });
+  colorAttributesNeedingUpdate.clear();
 }
 
 // ============= End per-instance opacity system =============
 
-// Helper to add per-instance opacity support to a material using onBeforeCompile
+// Helper to add per-instance opacity AND color support to a material using onBeforeCompile
 const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: Vector3 }): Material => {
   const mat = material as any;
   
@@ -192,12 +219,14 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
     // Store shader reference
     mat.userData.shader = shader;
     
-    // Inject attribute and varying in vertex shader
+    // Inject attribute and varying in vertex shader (opacity + color)
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
       `#include <common>
       attribute float instanceOpacity;
+      attribute vec3 instanceColor;
       varying float vInstanceOpacity;
+      varying vec3 vInstanceColor;
       varying vec3 vWorldPos;`
     );
     
@@ -205,6 +234,7 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       '#include <worldpos_vertex>',
       `#include <worldpos_vertex>
       vInstanceOpacity = instanceOpacity;
+      vInstanceColor = instanceColor;
       #ifdef USE_INSTANCING
         vWorldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
       #else
@@ -222,10 +252,11 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       '#include <common>',
       `#include <common>
       varying float vInstanceOpacity;
+      varying vec3 vInstanceColor;
       varying vec3 vWorldPos;${distanceUniforms}`
     );
     
-    // Apply per-instance opacity + optional distance fade at end of fragment shader
+    // Apply per-instance opacity + color tint + optional distance fade at end of fragment shader
     const distanceFadeCode = playerPosRef ? `
       float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
       float distFade = 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer);
@@ -234,6 +265,8 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
+      // Apply per-instance color tint (debug: red = faded)
+      gl_FragColor.rgb *= vInstanceColor;
       // Apply per-instance opacity from LOS fading
       gl_FragColor.a *= vInstanceOpacity;${distanceFadeCode}
       if (gl_FragColor.a < 0.01) discard;`
@@ -471,11 +504,17 @@ const generateBoundaryTransforms = (
   return transforms;
 };
 
-// Helper to add instanceOpacity attribute to an InstancedMesh
+// Helper to add instanceOpacity and instanceColor attributes to an InstancedMesh
 function addOpacityAttribute(mesh: ThreeInstancedMesh, count: number, transforms: WallTransformData[]) {
+  // Add opacity attribute (1 float per instance)
   const opacityArray = new Float32Array(count).fill(1.0);
   const opacityAttr = new InstancedBufferAttribute(opacityArray, 1);
   mesh.geometry.setAttribute('instanceOpacity', opacityAttr);
+  
+  // Add color attribute (3 floats per instance: RGB) - default white
+  const colorArray = new Float32Array(count * 3).fill(1.0);
+  const colorAttr = new InstancedBufferAttribute(colorArray, 3);
+  mesh.geometry.setAttribute('instanceColor', colorAttr);
   
   // Register each instance with its cell
   for (let i = 0; i < transforms.length && i < count; i++) {
