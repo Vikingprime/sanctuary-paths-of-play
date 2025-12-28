@@ -278,8 +278,6 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
-      // DEBUG: Force ALL corn to be bright magenta to test shader is working
-      gl_FragColor.rgb = vec3(1.0, 0.0, 1.0);
       // Apply per-instance opacity from LOS fading
       gl_FragColor.a *= vInstanceOpacity;${distanceFadeCode}
       if (gl_FragColor.a < 0.01) discard;`
