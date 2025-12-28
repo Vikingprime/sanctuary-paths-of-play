@@ -526,18 +526,19 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
   }, [allGrassData, grass231, grass232]);
   
   // Update visible grass based on player distance + camera direction with opacity fade
-  // No more forceUpdate - just toggle visibility directly on the scene objects
+  // Uses camera position (not player) for back-culling to avoid flicker
   useFrame(() => {
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
     
-    // Get camera direction
+    // Get camera position and direction
+    const camPos = camera.position;
     const camDir = new Vector3();
     camera.getWorldDirection(camDir);
     camDir.y = 0;
     camDir.normalize();
     
-    // Throttle updates
+    // Throttle updates - check both player and camera movement
     const dx = px - lastUpdateRef.current.x;
     const dz = pz - lastUpdateRef.current.z;
     const camDx = camDir.x - lastUpdateRef.current.dirX;
@@ -552,6 +553,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     
     for (let i = 0; i < allGrassData.length; i++) {
       const g = allGrassData[i];
+      // Use player distance for culling radius
       const distSq = (g.x - px) ** 2 + (g.z - pz) ** 2;
       
       if (distSq >= cullDistSq) {
@@ -560,19 +562,24 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
         continue;
       }
       
-      // Camera culling only for distant grass
+      // Camera back-culling: check if grass is BEHIND the camera
+      // Use camera position, not player position, for consistency
       if (distSq >= nearDistSq) {
-        const toGrassX = g.x - px;
-        const toGrassZ = g.z - pz;
-        const len = Math.sqrt(distSq);
-        const dot = (toGrassX / len) * camDir.x + (toGrassZ / len) * camDir.z;
-        if (dot <= GRASS_BACK_CULL_DOT) {
-          clonedScenes[i].visible = false;
-          continue;
+        // Vector from camera to grass
+        const toGrassX = g.x - camPos.x;
+        const toGrassZ = g.z - camPos.z;
+        const len = Math.sqrt(toGrassX * toGrassX + toGrassZ * toGrassZ);
+        if (len > 0.001) {
+          const dot = (toGrassX / len) * camDir.x + (toGrassZ / len) * camDir.z;
+          // If grass is behind camera (dot < threshold), hide it
+          if (dot < GRASS_BACK_CULL_DOT) {
+            clonedScenes[i].visible = false;
+            continue;
+          }
         }
       }
       
-      // Apply opacity fade based on distance
+      // Apply opacity fade based on distance from player
       const distance = Math.sqrt(distSq);
       const fadeFactor = calculateFadeFactor(distance);
       
