@@ -7,7 +7,7 @@ import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
-import { getCharacterScale, getCharacterYOffset, getCharacterHeight } from '@/game/CharacterConfig';
+import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterRotationOffset } from '@/game/CharacterConfig';
 import { findStartRotation } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
@@ -892,18 +892,20 @@ const CharacterRenderer = ({
   const modelPath = `/models/${modelFile}`;
   const { scene, animations } = useGLTF(modelPath);
   
-  // Get character scale and Y offset from centralized config
+  // Get character scale, Y offset, and rotation offset from centralized config
   const characterScale = getCharacterScale(modelFile);
   const characterYOffset = getCharacterYOffset(modelFile);
+  const characterRotationOffset = getCharacterRotationOffset(modelFile);
   
   // Calculate initial facing direction using same logic as player
   // findStartRotation returns "player rotation" format, convert to Three.js rotation.y with: -rotation + π
+  // Then add model-specific rotation offset to correct for models facing different default directions
   const initialRotation = useMemo(() => {
     const charX = position.x + 0.5;
     const charZ = position.y + 0.5;
     const rotation = findStartRotation(maze, charX, charZ);
-    return -rotation + Math.PI; // Same transform as player uses
-  }, [maze, position.x, position.y]);
+    return -rotation + Math.PI + characterRotationOffset;
+  }, [maze, position.x, position.y, characterRotationOffset]);
   
   // Clone the scene using SkeletonUtils for skinned meshes
   // Make materials transparent for opacity fading
