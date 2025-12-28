@@ -176,11 +176,19 @@ const mat = new ShaderMaterial({
           vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
           float isWall = texture2D(wallMap, mazeUV).r;
           
-          // Organic edge distortion for natural grass patches
-          float edgeWarp = fbm(worldUV * 1.5 + 10.0) * 0.35;
-          float edgeDetail = noise(worldUV * 4.0) * 0.15;
-          float wallMask = smoothstep(0.15, 0.85, isWall + edgeWarp - edgeDetail);
+          // Organic edge distortion for natural grass patches - expanded for larger grass areas
+          float edgeWarp = fbm(worldUV * 1.2 + 10.0) * 0.55;  // Increased from 0.35 to 0.55 for larger grass areas
+          float edgeDetail = noise(worldUV * 4.0) * 0.12;
+          float wallMask = smoothstep(0.10, 0.90, isWall + edgeWarp - edgeDetail);  // Expanded range
           wallMask = smoothstep(0.0, 1.0, wallMask);
+          
+          // Create path edge spillover - grass creeps into path sides but not center
+          // Only apply where we're close to a wall (transition zone)
+          float edgeDistance = isWall + edgeWarp * 0.6;  // How close to wall edge
+          float spilloverNoise = fbm(worldUV * 3.0 + 700.0);
+          // Spillover strongest near edges (edgeDistance 0.3-0.6), fades toward center
+          float spilloverZone = smoothstep(0.15, 0.35, edgeDistance) * smoothstep(0.65, 0.45, edgeDistance);
+          float spilloverMask = spilloverZone * smoothstep(0.4, 0.7, spilloverNoise) * 0.7;
           
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
@@ -273,7 +281,11 @@ const mat = new ShaderMaterial({
           float allRocks = max(grassRocks, pebbles * 0.8);
           grassAreaColor = mix(grassAreaColor, rockColor, allRocks * 0.85);
           
+          // Mix path and grass, then add spillover grass patches on path edges
           vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
+          // Add grass spillover to path edges - sparse grass patches creeping into the path sides
+          vec3 spilloverGrass = mix(grassDark, grassMoss, noise(worldUV * 5.0 + 800.0) * 0.4);
+          finalColor = mix(finalColor, spilloverGrass, spilloverMask * (1.0 - wallMask));  // Only on path areas
           
           // Apply height-attenuated exponential fog
           // Ground is at Y=0, fog strongest there, fading out above corn height
@@ -1965,15 +1977,14 @@ return (
         intensity={3.5}
         color="#FFFDF5"
         castShadow
-        shadow-mapSize={[4096, 4096]}
-        shadow-camera-near={1}
-        shadow-camera-far={80}
-        shadow-camera-left={-25}
-        shadow-camera-right={25}
-        shadow-camera-top={25}
-        shadow-camera-bottom={-25}
-        shadow-bias={-0.0005}
-        shadow-radius={2}
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-near={0.5}
+        shadow-camera-far={100}
+        shadow-camera-left={-30}
+        shadow-camera-right={30}
+        shadow-camera-top={30}
+        shadow-camera-bottom={-30}
+        shadow-bias={-0.0001}
       >
         <object3D attach="target" />
       </directionalLight>
