@@ -1501,7 +1501,7 @@ const OverShoulderCameraController = ({
       
       // === CORN FADING LOGIC ===
       // Constants for fading - will be applied AFTER we determine if autopush is triggered
-      const FADE_TARGET = 0.35;       // Target opacity when faded (more visible)
+      const FADE_TARGET = 0.55;       // Target opacity when faded (more visible)
       const FADE_IN_SPEED = 0.15;     // How fast corn fades out (per frame)
       const FADE_OUT_SPEED = 0.03;    // How fast corn fades back in (per frame)
       const HOLD_TIME = 200;          // ms to hold fade before starting fade-out
