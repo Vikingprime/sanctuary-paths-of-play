@@ -494,7 +494,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
       const s = tuft.scale * 0.04;
       scene.scale.set(s, s, s);
       
-      // Make materials transparent for opacity fade
+      // Make materials transparent for opacity fade and double-sided for consistent lighting
       scene.traverse((child: Object3D) => {
         if ((child as any).isMesh) {
           const mesh = child as Mesh;
@@ -502,6 +502,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
           mats.forEach(mat => {
             (mat as any).transparent = true;
             (mat as any).opacity = 1;
+            (mat as any).side = 2; // THREE.DoubleSide - renders both faces with proper lighting
           });
         }
       });
