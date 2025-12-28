@@ -930,11 +930,11 @@ export const InstancedWalls = ({
     const edgeMeshes: ThreeInstancedMesh[] = [];
     if (edgeTransforms.length > 0) {
       meshDataList.forEach((meshData) => {
+        // DON'T clone materials here - they already have onBeforeCompile set up
+        // Cloning loses the onBeforeCompile callback
         const instancedMesh = new ThreeInstancedMesh(
           meshData.geometry.clone(),
-          Array.isArray(meshData.material)
-            ? meshData.material.map(m => m.clone())
-            : meshData.material.clone(),
+          meshData.material, // Use directly, don't clone
           edgeTransforms.length
         );
         
@@ -961,9 +961,10 @@ export const InstancedWalls = ({
     
     // OUTER + BOUNDARY CORN: Single cheap material
     if (cheapTransforms.length > 0) {
+      // DON'T clone material - it already has onBeforeCompile set up
       const cheapMesh = new ThreeInstancedMesh(
         cheapStalkGeometry.clone(),
-        cheapMaterial.clone(),
+        cheapMaterial, // Use directly, don't clone
         cheapTransforms.length
       );
       
