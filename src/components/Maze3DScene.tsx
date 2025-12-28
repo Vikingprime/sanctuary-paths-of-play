@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
@@ -494,16 +494,25 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
       const s = tuft.scale * 0.04;
       scene.scale.set(s, s, s);
       
-      // Make materials transparent for opacity fade and double-sided for consistent lighting
+      // Replace PBR materials with MeshBasicMaterial to ignore lighting completely
+      // This fixes the issue where grass appears dark when viewed directly and bright when turning
       scene.traverse((child: Object3D) => {
         if ((child as any).isMesh) {
           const mesh = child as Mesh;
-          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-          mats.forEach(mat => {
-            (mat as any).transparent = true;
-            (mat as any).opacity = 1;
-            (mat as any).side = 2; // THREE.DoubleSide - renders both faces with proper lighting
+          const oldMats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          
+          // Create new MeshBasicMaterial with the original color - ignores all lighting
+          const newMats = oldMats.map(oldMat => {
+            const color = (oldMat as any).color?.clone() || new Color(0x4a7c3f);
+            return new MeshBasicMaterial({
+              color,
+              transparent: true,
+              opacity: 1,
+              side: DoubleSide,
+            });
           });
+          
+          mesh.material = newMats.length === 1 ? newMats[0] : newMats;
         }
       });
       
