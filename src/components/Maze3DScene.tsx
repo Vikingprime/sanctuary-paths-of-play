@@ -1462,14 +1462,23 @@ const OverShoulderCameraController = ({
         }
       };
       
-      // Center ray
-      performRaycast(rayDir.current);
+      // Only use CENTER ray for corn fading - side rays hit corn that's not blocking view
+      // Store original hitCells before side rays
+      const centerRayHitCells = new Set<string>();
       
-      // Side rays (if enabled)
+      // Center ray - collect hits for both autopush AND fading
+      performRaycast(rayDir.current);
+      hitCells.forEach(cell => centerRayHitCells.add(cell));
+      
+      // Side rays (if enabled) - only for autopush, NOT for fading
       if (autopush.rayCount === 3) {
         // Calculate perpendicular direction in XZ plane
         const perpX = -rayDir.current.z;
         const perpZ = rayDir.current.x;
+        
+        // Temporarily clear hitCells so side rays don't add to fade list
+        const savedHitCells = new Set(hitCells);
+        hitCells.clear();
         
         // Left ray
         tempVec.current.set(
@@ -1486,6 +1495,10 @@ const OverShoulderCameraController = ({
           rayDir.current.z - perpZ * autopush.raySpread
         ).normalize();
         performRaycast(tempVec.current);
+        
+        // Restore only center ray hits for fading
+        hitCells.clear();
+        centerRayHitCells.forEach(cell => hitCells.add(cell));
       }
       
       // Get current time for hysteresis
@@ -1493,7 +1506,7 @@ const OverShoulderCameraController = ({
       
       // === CORN FADING LOGIC ===
       // Fade corn cells that are blocking the camera view
-      const FADE_TARGET = 0.15;       // Target opacity when faded
+      const FADE_TARGET = 0.35;       // Target opacity when faded (more visible)
       const FADE_IN_SPEED = 0.15;     // How fast corn fades out (per frame)
       const FADE_OUT_SPEED = 0.03;    // How fast corn fades back in (per frame)
       const HOLD_TIME = 200;          // ms to hold fade before starting fade-out
