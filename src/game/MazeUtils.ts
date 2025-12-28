@@ -35,7 +35,7 @@ export function findStartPosition(maze: Maze): { x: number; y: number } {
  * @param checkDistance - How far to raycast (default 2.0 cells)
  * @returns Raw angle in radians (0 = +X, π/2 = +Z, π = -X, 3π/2 = -Z)
  */
-function findBestDirectionAngle(maze: Maze, posX: number, posY: number, checkDistance: number = 2.0): number {
+export function findBestDirectionAngle(maze: Maze, posX: number, posY: number, checkDistance: number = 2.0): number {
   const numDirections = 24; // Every 15 degrees
   const stepSize = 0.1;
   

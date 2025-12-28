@@ -7,8 +7,8 @@ import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
-import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterRotationOffset } from '@/game/CharacterConfig';
-import { findStartRotation } from '@/game/MazeUtils';
+import { getCharacterScale, getCharacterYOffset, getCharacterHeight } from '@/game/CharacterConfig';
+import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 // Extended performance info type
@@ -892,20 +892,20 @@ const CharacterRenderer = ({
   const modelPath = `/models/${modelFile}`;
   const { scene, animations } = useGLTF(modelPath);
   
-  // Get character scale, Y offset, and rotation offset from centralized config
+  // Get character scale and Y offset from centralized config
   const characterScale = getCharacterScale(modelFile);
   const characterYOffset = getCharacterYOffset(modelFile);
-  const characterRotationOffset = getCharacterRotationOffset(modelFile);
   
-  // Calculate initial facing direction using same logic as player
-  // findStartRotation returns "player rotation" format, convert to Three.js rotation.y with: -rotation + π
-  // Then add model-specific rotation offset to correct for models facing different default directions
+  // Calculate initial facing direction using same approach as dialogue code
+  // findBestDirectionAngle returns angle from +X axis (0 = +X, π/2 = +Z)
+  // atan2(dx, dz) returns angle from +Z axis, so we need: π/2 - bestAngle
   const initialRotation = useMemo(() => {
     const charX = position.x + 0.5;
     const charZ = position.y + 0.5;
-    const rotation = findStartRotation(maze, charX, charZ);
-    return -rotation + Math.PI + characterRotationOffset;
-  }, [maze, position.x, position.y, characterRotationOffset]);
+    const bestAngle = findBestDirectionAngle(maze, charX, charZ);
+    // Convert from math angle (from +X) to Three.js rotation.y (from +Z, like atan2(dx, dz))
+    return Math.PI / 2 - bestAngle;
+  }, [maze, position.x, position.y]);
   
   // Clone the scene using SkeletonUtils for skinned meshes
   // Make materials transparent for opacity fading
