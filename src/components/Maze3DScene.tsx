@@ -415,11 +415,9 @@ const GRASS_BACK_CULL_DOT = -0.707; // cos(135°)
 const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: MutableRefObject<PlayerState> }) => {
   const grass231 = useGLTF('/models/Grass_231.glb');
   const grass232 = useGLTF('/models/Grass_232.glb');
-  const groupRef = useRef<any>(null);
+  const groupRef = useRef<Group>(null);
   const { camera } = useThree();
   const lastUpdateRef = useRef({ x: -999, z: -999, dirX: 0, dirZ: -1 });
-  const visibleRef = useRef<number[]>([]);
-  const [, forceUpdate] = useState(0);
   
   // Pre-calculate all grass positions once
   const allGrassData = useMemo(() => {
@@ -528,6 +526,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
   }, [allGrassData, grass231, grass232]);
   
   // Update visible grass based on player distance + camera direction with opacity fade
+  // No more forceUpdate - just toggle visibility directly on the scene objects
   useFrame(() => {
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
@@ -551,7 +550,6 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     const cullDistSq = GRASS_CULL_DISTANCE * GRASS_CULL_DISTANCE;
     const nearDistSq = GRASS_NEAR_DISTANCE * GRASS_NEAR_DISTANCE;
     
-    const visible: number[] = [];
     for (let i = 0; i < allGrassData.length; i++) {
       const g = allGrassData[i];
       const distSq = (g.x - px) ** 2 + (g.z - pz) ** 2;
@@ -584,24 +582,14 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
       materialRefs[i].forEach(mat => {
         (mat as any).opacity = fadeFactor;
       });
-      
-      if (fadeFactor > 0.01) {
-        visible.push(i);
-      }
-    }
-    
-    // Only update if changed
-    if (visible.length !== visibleRef.current.length || 
-        visible.some((v, idx) => visibleRef.current[idx] !== v)) {
-      visibleRef.current = visible;
-      forceUpdate(n => n + 1);
     }
   });
   
+  // Render ALL grass once - visibility is toggled via scene.visible
   return (
     <group ref={groupRef}>
-      {visibleRef.current.map((i) => (
-        <primitive key={i} object={clonedScenes[i]} />
+      {clonedScenes.map((scene, i) => (
+        <primitive key={i} object={scene} />
       ))}
     </group>
   );

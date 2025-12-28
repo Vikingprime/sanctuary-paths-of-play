@@ -11,7 +11,7 @@ import { Vector3, Raycaster, Object3D, Group, Mesh } from 'three';
 import { PlayerState } from '@/game/GameLogic';
 import { getCharacterHeight } from '@/game/CharacterConfig';
 import { AnimalType, Maze } from '@/types/game';
-import { setCellOpacity, getCellOpacity } from './CornWall';
+import { setCellOpacity } from './CornWall';
 
 // LOS fade configuration
 const LOS_CONFIG = {
@@ -59,6 +59,9 @@ export const LOSCornFader = ({
   const raycaster = useRef(new Raycaster());
   const rayOrigin = useRef(new Vector3());
   const rightVec = useRef(new Vector3());
+  
+  // Reusable vector for world position
+  const worldPos = useRef(new Vector3());
   
   // Get character height for focus point calculation
   const animalModel = animalType === 'pig' ? 'Pig.glb' : animalType === 'cow' ? 'Cow.glb' : animalType === 'bird' ? 'Hen.glb' : 'Cow.glb';
@@ -134,12 +137,12 @@ export const LOSCornFader = ({
       if (intersects.length > 0) {
         raysHit++;
         
-        // Mark hit cells - extract cell position from the camera collider's position
+        // Mark hit cells - extract cell position from the camera collider's WORLD position
         for (const hit of intersects) {
-          // Camera colliders are positioned at (cellX + 0.5, 1.25, cellZ + 0.5)
-          const meshPos = hit.object.position;
-          const cellX = Math.floor(meshPos.x);
-          const cellZ = Math.floor(meshPos.z);
+          // Get world position of the hit object (camera colliders are positioned at cellX+0.5, 1.25, cellZ+0.5)
+          hit.object.getWorldPosition(worldPos.current);
+          const cellX = Math.floor(worldPos.current.x);
+          const cellZ = Math.floor(worldPos.current.z);
           const cellKey = `${cellX},${cellZ}`;
           
           hitCellsThisFrame.add(cellKey);
