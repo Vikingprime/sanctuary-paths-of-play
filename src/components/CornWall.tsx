@@ -95,9 +95,18 @@ function registerCellInstance(cellX: number, cellZ: number, mesh: ThreeInstanced
 }
 
 // Clear all registrations (call when recreating meshes)
-function clearCellRegistry() {
+export function clearCellRegistry() {
+  console.log('[CORN_WALL] Clearing cell registry. Had', cellToInstances.size, 'cells');
   cellToInstances.clear();
   opacityAttributesNeedingUpdate.clear();
+}
+
+// Debug: get registry stats
+export function getCellRegistryStats() {
+  return {
+    cellCount: cellToInstances.size,
+    sampleCells: Array.from(cellToInstances.keys()).slice(0, 10)
+  };
 }
 
 // Set opacity for all instances in a cell
