@@ -4,13 +4,13 @@ import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/d
 import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
-import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats } from './CornWall';
+import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight } from '@/game/CharacterConfig';
 import { findStartRotation } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
-import { LOSCornFader } from './LOSCornFader';
+// LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
@@ -1275,6 +1275,9 @@ const OverShoulderCameraController = ({
   const rayDir = useRef(new Vector3());
   const tempVec = useRef(new Vector3());
   
+  // Corn fading state - track cells that are currently faded
+  const fadedCellsRef = useRef<Map<string, { opacity: number; lastHitTime: number }>>(new Map());
+  
   // Reset camera state when restartKey changes
   useEffect(() => {
     if (restartKey !== lastRestartKey.current) {
@@ -1423,6 +1426,7 @@ const OverShoulderCameraController = ({
       // Perform raycasts (1 or 3 rays)
       let closestHitDist = rayLength;
       let hitObjectName = '';
+      const hitCells = new Set<string>(); // Track which cells were hit for fading
       
       const performRaycast = (direction: Vector3) => {
         rayOrigin.current.copy(headPos);
@@ -1436,6 +1440,13 @@ const OverShoulderCameraController = ({
           if (hitDist < closestHitDist) {
             closestHitDist = hitDist;
             hitObjectName = intersects[0].object.name || 'unnamed';
+          }
+          
+          // Collect ALL hit cells for corn fading (not just closest)
+          for (const hit of intersects) {
+            const cellX = Math.floor(hit.point.x);
+            const cellZ = Math.floor(hit.point.z);
+            hitCells.add(`${cellX},${cellZ}`);
           }
         }
       };
@@ -1468,6 +1479,52 @@ const OverShoulderCameraController = ({
       
       // Get current time for hysteresis
       const now = performance.now();
+      
+      // === CORN FADING LOGIC ===
+      // Fade corn cells that are blocking the camera view
+      const FADE_TARGET = 0.15;       // Target opacity when faded
+      const FADE_IN_SPEED = 0.15;     // How fast corn fades out (per frame)
+      const FADE_OUT_SPEED = 0.03;    // How fast corn fades back in (per frame)
+      const HOLD_TIME = 200;          // ms to hold fade before starting fade-out
+      
+      // Mark hit cells as needing fade
+      for (const cellKey of hitCells) {
+        const existing = fadedCellsRef.current.get(cellKey);
+        if (existing) {
+          existing.lastHitTime = now;
+        } else {
+          fadedCellsRef.current.set(cellKey, { opacity: 1.0, lastHitTime: now });
+        }
+      }
+      
+      // Update all faded cells
+      for (const [cellKey, state] of fadedCellsRef.current) {
+        const isCurrentlyHit = hitCells.has(cellKey);
+        const timeSinceHit = now - state.lastHitTime;
+        
+        if (isCurrentlyHit) {
+          // Fade out (reduce opacity)
+          state.opacity = Math.max(FADE_TARGET, state.opacity - FADE_IN_SPEED);
+        } else if (timeSinceHit > HOLD_TIME) {
+          // Fade back in (increase opacity)
+          state.opacity = Math.min(1.0, state.opacity + FADE_OUT_SPEED);
+        }
+        
+        // Apply opacity to corn instances
+        const [cx, cz] = cellKey.split(',').map(Number);
+        setCellOpacity(cx, cz, state.opacity);
+        
+        // Remove fully opaque cells that haven't been hit recently
+        if (state.opacity >= 0.99 && timeSinceHit > 1000) {
+          setCellOpacity(cx, cz, 1.0); // Ensure fully reset
+          fadedCellsRef.current.delete(cellKey);
+        }
+      }
+      
+      // Debug: log fading activity
+      if (hitCells.size > 0 && Math.random() < 0.05) {
+        console.log('[CORN_FADE] Hit cells:', Array.from(hitCells), 'Faded cells:', fadedCellsRef.current.size);
+      }
       
       // Determine blocked distance with micro-hit filtering and hysteresis
       let targetDist = rayLength; // Default: no blocking, use full distance
@@ -1941,13 +1998,7 @@ return (
             foliageGroupRef={foliageGroupRef}
             animalType={animalType}
           />
-          {/* LOS-based corn fading - only fades corn that blocks view of character */}
-          <LOSCornFader
-            playerStateRef={playerStateRef}
-            foliageGroupRef={foliageGroupRef}
-            animalType={animalType}
-            maze={maze}
-          />
+          {/* Corn fading is now integrated into the CameraController's autopush logic */}
         </>
       )}
     </>
