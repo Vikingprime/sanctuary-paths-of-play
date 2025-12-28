@@ -1242,6 +1242,7 @@ const OverShoulderCameraController = ({
   foliageGroupRef,
   autopush = DEFAULT_AUTOPUSH,
   animalType,
+  maze,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
@@ -1250,6 +1251,7 @@ const OverShoulderCameraController = ({
   foliageGroupRef?: React.RefObject<Group>;
   autopush?: AutopushConfig;
   animalType?: AnimalType;
+  maze?: Maze;
 }) => {
   const { camera, scene } = useThree();
   
@@ -1452,6 +1454,23 @@ const OverShoulderCameraController = ({
             const cellZ = hit.object.userData.cellZ;
             if (cellX !== undefined && cellZ !== undefined) {
               hitCells.add(`${cellX},${cellZ}`);
+              
+              // Also fade adjacent cells to catch visual corn leaves extending from neighbors
+              if (maze) {
+                const adjacents = [
+                  [cellX - 1, cellZ], [cellX + 1, cellZ],
+                  [cellX, cellZ - 1], [cellX, cellZ + 1]
+                ];
+                for (const [ax, az] of adjacents) {
+                  // Only add if it's a valid wall cell in the maze
+                  if (ax >= 0 && az >= 0 && 
+                      az < maze.grid.length && 
+                      ax < maze.grid[0].length && 
+                      maze.grid[az][ax].isWall) {
+                    hitCells.add(`${ax},${az}`);
+                  }
+                }
+              }
             }
           }
         }
@@ -2051,6 +2070,7 @@ return (
             groundLevelCamera={groundLevelCamera}
             foliageGroupRef={foliageGroupRef}
             animalType={animalType}
+            maze={maze}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
         </>
