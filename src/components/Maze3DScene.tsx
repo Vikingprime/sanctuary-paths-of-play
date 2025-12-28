@@ -1428,6 +1428,9 @@ const OverShoulderCameraController = ({
       let hitObjectName = '';
       const hitCells = new Set<string>(); // Track which cells were hit for fading
       
+      // Player position for filtering - only fade corn BEHIND player
+      const playerPosXZ = new Vector3(playerX, 0, playerZ);
+      
       const performRaycast = (direction: Vector3) => {
         rayOrigin.current.copy(headPos);
         raycaster.current.set(rayOrigin.current, direction);
@@ -1443,12 +1446,20 @@ const OverShoulderCameraController = ({
           }
           
           // Collect hit cells for corn fading
-          // Ray goes from player head toward camera, capped at rayLength
-          // So ALL hits are between player and camera - no need to filter
+          // Only fade corn that's actually BEHIND the player (in camera direction)
           for (const hit of intersects) {
-            const cellX = Math.floor(hit.point.x);
-            const cellZ = Math.floor(hit.point.z);
-            hitCells.add(`${cellX},${cellZ}`);
+            const hitPosXZ = new Vector3(hit.point.x, 0, hit.point.z);
+            const playerToHit = hitPosXZ.clone().sub(playerPosXZ);
+            
+            // Check if hit is in the same direction as rayDir (behind player toward camera)
+            // Dot product > 0 means hit is in the ray direction (behind player)
+            const dotWithRay = playerToHit.dot(new Vector3(direction.x, 0, direction.z));
+            
+            if (dotWithRay > 0.1) { // Must be clearly behind player
+              const cellX = Math.floor(hit.point.x);
+              const cellZ = Math.floor(hit.point.z);
+              hitCells.add(`${cellX},${cellZ}`);
+            }
           }
         }
       };
