@@ -1505,50 +1505,14 @@ const OverShoulderCameraController = ({
       const now = performance.now();
       
       // === CORN FADING LOGIC ===
-      // Fade corn cells that are blocking the camera view
+      // Constants for fading - will be applied AFTER we determine if autopush is triggered
       const FADE_TARGET = 0.35;       // Target opacity when faded (more visible)
       const FADE_IN_SPEED = 0.15;     // How fast corn fades out (per frame)
       const FADE_OUT_SPEED = 0.03;    // How fast corn fades back in (per frame)
       const HOLD_TIME = 200;          // ms to hold fade before starting fade-out
       
-      // Mark hit cells as needing fade
-      for (const cellKey of hitCells) {
-        const existing = fadedCellsRef.current.get(cellKey);
-        if (existing) {
-          existing.lastHitTime = now;
-        } else {
-          fadedCellsRef.current.set(cellKey, { opacity: 1.0, lastHitTime: now });
-        }
-      }
-      
-      // Update all faded cells
-      for (const [cellKey, state] of fadedCellsRef.current) {
-        const isCurrentlyHit = hitCells.has(cellKey);
-        const timeSinceHit = now - state.lastHitTime;
-        
-        if (isCurrentlyHit) {
-          // Fade out (reduce opacity)
-          state.opacity = Math.max(FADE_TARGET, state.opacity - FADE_IN_SPEED);
-        } else if (timeSinceHit > HOLD_TIME) {
-          // Fade back in (increase opacity)
-          state.opacity = Math.min(1.0, state.opacity + FADE_OUT_SPEED);
-        }
-        
-        // Apply opacity to corn instances
-        const [cx, cz] = cellKey.split(',').map(Number);
-        setCellOpacity(cx, cz, state.opacity);
-        
-        // Remove fully opaque cells that haven't been hit recently
-        if (state.opacity >= 0.99 && timeSinceHit > 1000) {
-          setCellOpacity(cx, cz, 1.0); // Ensure fully reset
-          fadedCellsRef.current.delete(cellKey);
-        }
-      }
-      
-      // Debug: log fading activity
-      if (hitCells.size > 0 && Math.random() < 0.05) {
-        console.log('[CORN_FADE] Hit cells:', Array.from(hitCells), 'Faded cells:', fadedCellsRef.current.size);
-      }
+      // We'll apply fading ONLY after determining if autopush is actually pushing
+      // For now, just store the hit cells and process them after autopush logic
       
       // Determine blocked distance with micro-hit filtering and hysteresis
       let targetDist = rayLength; // Default: no blocking, use full distance
@@ -1597,12 +1561,47 @@ const OverShoulderCameraController = ({
           // Significant hit - push camera in front of wall
           targetDist = potentialBlockedDist;
           lastHitTime.current = now; // Record hit time for hysteresis
+          
+          // === APPLY CORN FADING ONLY WHEN AUTOPUSH IS ACTIVE ===
+          // Mark hit cells as needing fade
+          for (const cellKey of hitCells) {
+            const existing = fadedCellsRef.current.get(cellKey);
+            if (existing) {
+              existing.lastHitTime = now;
+            } else {
+              fadedCellsRef.current.set(cellKey, { opacity: 1.0, lastHitTime: now });
+            }
+          }
         } else {
           // Grazing hit - ignore, but check hysteresis
           const timeSinceHit = now - lastHitTime.current;
           if (timeSinceHit < autopush.holdTimeMs && currentAutopushDist.current !== null) {
             // Still in hysteresis hold period - maintain current pushed distance
             targetDist = currentAutopushDist.current;
+          }
+        }
+        
+        // Update all faded cells (always update opacity animation)
+        for (const [cellKey, state] of fadedCellsRef.current) {
+          const isCurrentlyHit = hitCells.has(cellKey) && isSignificantHit;
+          const timeSinceHit = now - state.lastHitTime;
+          
+          if (isCurrentlyHit) {
+            // Fade out (reduce opacity)
+            state.opacity = Math.max(FADE_TARGET, state.opacity - FADE_IN_SPEED);
+          } else if (timeSinceHit > HOLD_TIME) {
+            // Fade back in (increase opacity)
+            state.opacity = Math.min(1.0, state.opacity + FADE_OUT_SPEED);
+          }
+          
+          // Apply opacity to corn instances
+          const [cx, cz] = cellKey.split(',').map(Number);
+          setCellOpacity(cx, cz, state.opacity);
+          
+          // Remove fully opaque cells that haven't been hit recently
+          if (state.opacity >= 0.99 && timeSinceHit > 1000) {
+            setCellOpacity(cx, cz, 1.0); // Ensure fully reset
+            fadedCellsRef.current.delete(cellKey);
           }
         }
       } else {
@@ -1615,6 +1614,26 @@ const OverShoulderCameraController = ({
           // Hysteresis expired - relax toward comfortable distance for this character
           // Use softMinDist to ensure small animals remain visible and well-framed
           targetDist = Math.max(rayLength, softMinDist);
+        }
+        
+        // No autopush active - fade all cells back to opaque
+        for (const [cellKey, state] of fadedCellsRef.current) {
+          const timeSinceHitCell = now - state.lastHitTime;
+          
+          if (timeSinceHitCell > HOLD_TIME) {
+            // Fade back in (increase opacity)
+            state.opacity = Math.min(1.0, state.opacity + FADE_OUT_SPEED);
+          }
+          
+          // Apply opacity to corn instances
+          const [cx, cz] = cellKey.split(',').map(Number);
+          setCellOpacity(cx, cz, state.opacity);
+          
+          // Remove fully opaque cells that haven't been hit recently
+          if (state.opacity >= 0.99 && timeSinceHitCell > 1000) {
+            setCellOpacity(cx, cz, 1.0); // Ensure fully reset
+            fadedCellsRef.current.delete(cellKey);
+          }
         }
       }
       
