@@ -1564,12 +1564,18 @@ const OverShoulderCameraController = ({
           
           if (lerpSettled) {
             // Mark hit cells as needing fade only after camera settles
+            // Check if we already have faded cells (autopush already active)
+            const hasExistingFadedCells = fadedCellsRef.current.size > 0;
+            
             for (const cellKey of hitCells) {
               const existing = fadedCellsRef.current.get(cellKey);
               if (existing) {
                 existing.lastHitTime = now;
               } else {
-                fadedCellsRef.current.set(cellKey, { opacity: 1.0, lastHitTime: now });
+                // If autopush is already active with faded cells, start new cells at target opacity
+                // This prevents blinking when turning and hitting new cells
+                const startOpacity = hasExistingFadedCells ? FADE_TARGET : 1.0;
+                fadedCellsRef.current.set(cellKey, { opacity: startOpacity, lastHitTime: now });
               }
             }
           }
