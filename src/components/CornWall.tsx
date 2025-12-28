@@ -265,8 +265,12 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
-      // Apply per-instance color tint (debug: red = faded)
+      // DEBUG: Apply per-instance color tint (red = faded)
       gl_FragColor.rgb *= vInstanceColor;
+      // DEBUG: Make it very obvious - if opacity < 0.5, make it bright magenta
+      if (vInstanceOpacity < 0.5) {
+        gl_FragColor.rgb = vec3(1.0, 0.0, 1.0); // Magenta for debugging
+      }
       // Apply per-instance opacity from LOS fading
       gl_FragColor.a *= vInstanceOpacity;${distanceFadeCode}
       if (gl_FragColor.a < 0.01) discard;`
