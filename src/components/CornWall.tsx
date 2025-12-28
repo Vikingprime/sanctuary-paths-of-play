@@ -104,7 +104,24 @@ function clearCellRegistry() {
 export function setCellOpacity(cellX: number, cellZ: number, opacity: number) {
   const key = `${cellX},${cellZ}`;
   const instances = cellToInstances.get(key);
-  if (!instances) return;
+  
+  // Debug: log opacity updates
+  if (opacity < 0.9 && Math.random() < 0.1) {
+    console.log('[CORN_WALL] setCellOpacity', { 
+      cellKey: key, 
+      opacity: opacity.toFixed(2), 
+      instanceCount: instances?.length ?? 0,
+      totalCells: cellToInstances.size
+    });
+  }
+  
+  if (!instances) {
+    // Debug: log when cell is not found
+    if (opacity < 0.9 && Math.random() < 0.2) {
+      console.log('[CORN_WALL] Cell not found in registry!', key, 'Available cells:', cellToInstances.size);
+    }
+    return;
+  }
   
   for (const { mesh, index } of instances) {
     const attr = mesh.geometry.getAttribute('instanceOpacity') as InstancedBufferAttribute;

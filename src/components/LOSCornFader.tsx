@@ -107,6 +107,11 @@ export const LOSCornFader = ({
     const hitCellsThisFrame = new Set<string>();
     let raysHit = 0;
     
+    // Debug: log blocker count periodically
+    if (Math.random() < 0.01) {
+      console.log('[LOS_CORN_FADER] Camera blockers found:', cameraBlockers.length);
+    }
+    
     // Cast multiple rays - center, left, right, and upper variants
     const rayConfigs = [
       { h: 0, v: 0 },                               // Center
@@ -145,6 +150,16 @@ export const LOSCornFader = ({
           const cellZ = Math.floor(worldPos.current.z);
           const cellKey = `${cellX},${cellZ}`;
           
+          // Debug: log hit info
+          if (Math.random() < 0.02) {
+            console.log('[LOS_CORN_FADER] Ray hit!', {
+              cellKey,
+              worldPos: { x: worldPos.current.x.toFixed(2), z: worldPos.current.z.toFixed(2) },
+              objectName: hit.object.name,
+              objectType: hit.object.type,
+            });
+          }
+          
           hitCellsThisFrame.add(cellKey);
           
           // Update or create fade state for this cell
@@ -168,6 +183,11 @@ export const LOSCornFader = ({
     
     // Determine if we're occluded (enough rays hit)
     const isOccluded = raysHit >= LOS_CONFIG.occlusionThreshold;
+    
+    // Debug: log ray hit stats
+    if (raysHit > 0 && Math.random() < 0.05) {
+      console.log('[LOS_CORN_FADER] Rays hit:', raysHit, '/', rayConfigs.length, 'isOccluded:', isOccluded, 'hitCells:', Array.from(hitCellsThisFrame));
+    }
     
     // Update fade states and directly set instance opacity
     cellFadeStates.forEach((state, key) => {
