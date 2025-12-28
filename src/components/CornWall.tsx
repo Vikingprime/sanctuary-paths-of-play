@@ -689,6 +689,11 @@ export const InstancedWalls = ({
             mesh.setMatrixAt(edgeCount, t.matrix);
             // Re-register with new index
             registerCellInstance(t.cellX, t.cellZ, mesh, edgeCount);
+            // Reset opacity when instance is moved to new index (prevents corruption)
+            const opacityAttr = mesh.geometry.getAttribute('instanceOpacity') as InstancedBufferAttribute;
+            if (opacityAttr) {
+              (opacityAttr.array as Float32Array)[edgeCount] = 1.0;
+            }
           }
           edgeCount++;
         }
@@ -697,6 +702,11 @@ export const InstancedWalls = ({
       for (const mesh of edgeMeshesRef.current) {
         mesh.count = edgeCount;
         mesh.instanceMatrix.needsUpdate = true;
+        // Mark opacity as needing update after culling
+        const opacityAttr = mesh.geometry.getAttribute('instanceOpacity') as InstancedBufferAttribute;
+        if (opacityAttr) {
+          opacityAttr.needsUpdate = true;
+        }
       }
     }
     
@@ -716,12 +726,22 @@ export const InstancedWalls = ({
           mesh.setMatrixAt(cheapCount, t.matrix);
           // Re-register with new index
           registerCellInstance(t.cellX, t.cellZ, mesh, cheapCount);
+          // Reset opacity when instance is moved to new index (prevents corruption)
+          const opacityAttr = mesh.geometry.getAttribute('instanceOpacity') as InstancedBufferAttribute;
+          if (opacityAttr) {
+            (opacityAttr.array as Float32Array)[cheapCount] = 1.0;
+          }
           cheapCount++;
         }
       }
       
       mesh.count = cheapCount;
       mesh.instanceMatrix.needsUpdate = true;
+      // Mark opacity as needing update after culling
+      const opacityAttr = mesh.geometry.getAttribute('instanceOpacity') as InstancedBufferAttribute;
+      if (opacityAttr) {
+        opacityAttr.needsUpdate = true;
+      }
     }
     
     // Disable LOD corn
