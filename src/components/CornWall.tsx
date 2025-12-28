@@ -89,12 +89,22 @@ const opacityAttributesNeedingUpdate = new Set<InstancedBufferAttribute>();
 const colorAttributesNeedingUpdate = new Set<InstancedBufferAttribute>();
 
 // Register an instance for a cell
-function registerCellInstance(cellX: number, cellZ: number, mesh: ThreeInstancedMesh, index: number) {
+export function registerCellInstance(cellX: number, cellZ: number, mesh: ThreeInstancedMesh, index: number) {
   const key = `${cellX},${cellZ}`;
   if (!cellToInstances.has(key)) {
     cellToInstances.set(key, []);
   }
   cellToInstances.get(key)!.push({ mesh, index });
+}
+
+// Clear registrations for a specific mesh (used after culling reorders)
+export function clearMeshFromRegistry(mesh: ThreeInstancedMesh) {
+  for (const [key, instances] of cellToInstances.entries()) {
+    cellToInstances.set(key, instances.filter(inst => inst.mesh !== mesh));
+    if (cellToInstances.get(key)!.length === 0) {
+      cellToInstances.delete(key);
+    }
+  }
 }
 
 // Clear all registrations (call when recreating meshes)
@@ -667,9 +677,14 @@ export const InstancedWalls = ({
       return dot > BACK_CULL_DOT_THRESHOLD;
     };
     
-    // Cull edge corn
+    // Cull edge corn AND rebuild cell registry after reordering
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
+      
+      // Clear registry for edge meshes before reordering
+      for (const mesh of edgeMeshesRef.current) {
+        clearMeshFromRegistry(mesh);
+      }
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
@@ -678,6 +693,8 @@ export const InstancedWalls = ({
         if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
           for (const mesh of edgeMeshesRef.current) {
             mesh.setMatrixAt(edgeCount, t.matrix);
+            // Re-register with new index
+            registerCellInstance(t.cellX, t.cellZ, mesh, edgeCount);
           }
           edgeCount++;
         }
@@ -689,22 +706,28 @@ export const InstancedWalls = ({
       }
     }
     
-    // Cull cheap corn
+    // Cull cheap corn AND rebuild cell registry after reordering
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
       const transforms = cheapTransformsRef.current;
+      const mesh = cheapMeshRef.current;
+      
+      // Clear registry for cheap mesh before reordering
+      clearMeshFromRegistry(mesh);
       
       for (let i = 0; i < transforms.length; i++) {
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
         
         if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
-          cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
+          mesh.setMatrixAt(cheapCount, t.matrix);
+          // Re-register with new index
+          registerCellInstance(t.cellX, t.cellZ, mesh, cheapCount);
           cheapCount++;
         }
       }
       
-      cheapMeshRef.current.count = cheapCount;
-      cheapMeshRef.current.instanceMatrix.needsUpdate = true;
+      mesh.count = cheapCount;
+      mesh.instanceMatrix.needsUpdate = true;
     }
     
     // Disable LOD corn
