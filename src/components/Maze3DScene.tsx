@@ -1968,13 +1968,12 @@ return (
         shadow-mapSize={[4096, 4096]}
         shadow-camera-near={1}
         shadow-camera-far={80}
-        shadow-camera-left={-20}
-        shadow-camera-right={20}
-        shadow-camera-top={20}
-        shadow-camera-bottom={-20}
-        shadow-bias={-0.001}
-        shadow-normalBias={0.02}
-        shadow-radius={1}
+        shadow-camera-left={-25}
+        shadow-camera-right={25}
+        shadow-camera-top={25}
+        shadow-camera-bottom={-25}
+        shadow-bias={-0.0005}
+        shadow-radius={2}
       >
         <object3D attach="target" />
       </directionalLight>
