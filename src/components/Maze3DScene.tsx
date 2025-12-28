@@ -1428,6 +1428,14 @@ const OverShoulderCameraController = ({
       let hitObjectName = '';
       const hitCells = new Set<string>(); // Track which cells were hit for fading
       
+      // Distance from camera (headPos) to player - only fade corn within this distance
+      const playerWorldPos = new Vector3(
+        playerX,
+        0,
+        playerZ
+      );
+      const distToPlayer = headPos.distanceTo(playerWorldPos);
+      
       const performRaycast = (direction: Vector3) => {
         rayOrigin.current.copy(headPos);
         raycaster.current.set(rayOrigin.current, direction);
@@ -1442,11 +1450,14 @@ const OverShoulderCameraController = ({
             hitObjectName = intersects[0].object.name || 'unnamed';
           }
           
-          // Collect ALL hit cells for corn fading (not just closest)
+          // Collect hit cells for corn fading - ONLY if between camera and player
           for (const hit of intersects) {
-            const cellX = Math.floor(hit.point.x);
-            const cellZ = Math.floor(hit.point.z);
-            hitCells.add(`${cellX},${cellZ}`);
+            // Only fade corn that's CLOSER than the player (between camera and player)
+            if (hit.distance < distToPlayer + 0.5) {
+              const cellX = Math.floor(hit.point.x);
+              const cellZ = Math.floor(hit.point.z);
+              hitCells.add(`${cellX},${cellZ}`);
+            }
           }
         }
       };
