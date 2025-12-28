@@ -111,6 +111,19 @@ export const LOSCornFader = ({
     if (Math.random() < 0.01) {
       const stats = getCellRegistryStats();
       console.log('[LOS_CORN_FADER] Camera blockers:', cameraBlockers.length, 'Registry cells:', stats.cellCount, 'Sample:', stats.sampleCells);
+      
+      // Log ray setup info
+      console.log('[LOS_CORN_FADER] Ray setup:', {
+        camPos: { x: camPos.current.x.toFixed(2), y: camPos.current.y.toFixed(2), z: camPos.current.z.toFixed(2) },
+        focusPoint: { x: focusPoint.current.x.toFixed(2), y: focusPoint.current.y.toFixed(2), z: focusPoint.current.z.toFixed(2) },
+        distToFocus: distToFocus.toFixed(2),
+        firstBlockerPos: cameraBlockers.length > 0 ? {
+          x: (cameraBlockers[0] as any).position?.x?.toFixed(2),
+          y: (cameraBlockers[0] as any).position?.y?.toFixed(2),
+          z: (cameraBlockers[0] as any).position?.z?.toFixed(2),
+          name: (cameraBlockers[0] as any).name,
+        } : 'none'
+      });
     }
     
     // Cast multiple rays - center, left, right, and upper variants
