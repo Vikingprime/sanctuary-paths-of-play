@@ -749,6 +749,8 @@ const MazeWalls = forwardRef<Group, {
       mesh.position.set(pos.x + 0.5, 1.25, pos.z + 0.5);
       mesh.name = 'wallCollider';
       mesh.userData.isCameraBlocker = true;
+      mesh.userData.cellX = pos.x;
+      mesh.userData.cellZ = pos.z;
       meshes.push(mesh);
     });
     
@@ -1428,9 +1430,6 @@ const OverShoulderCameraController = ({
       let hitObjectName = '';
       const hitCells = new Set<string>(); // Track which cells were hit for fading
       
-      // Player position for filtering - only fade corn BEHIND player
-      const playerPosXZ = new Vector3(playerX, 0, playerZ);
-      
       const performRaycast = (direction: Vector3) => {
         rayOrigin.current.copy(headPos);
         raycaster.current.set(rayOrigin.current, direction);
@@ -1445,19 +1444,11 @@ const OverShoulderCameraController = ({
             hitObjectName = intersects[0].object.name || 'unnamed';
           }
           
-          // Collect hit cells for corn fading
-          // Only fade corn that's actually BEHIND the player (in camera direction)
+          // Collect hit cells for corn fading using userData (not hit.point)
           for (const hit of intersects) {
-            const hitPosXZ = new Vector3(hit.point.x, 0, hit.point.z);
-            const playerToHit = hitPosXZ.clone().sub(playerPosXZ);
-            
-            // Check if hit is in the same direction as rayDir (behind player toward camera)
-            // Dot product > 0 means hit is in the ray direction (behind player)
-            const dotWithRay = playerToHit.dot(new Vector3(direction.x, 0, direction.z));
-            
-            if (dotWithRay > 0.1) { // Must be clearly behind player
-              const cellX = Math.floor(hit.point.x);
-              const cellZ = Math.floor(hit.point.z);
+            const cellX = hit.object.userData.cellX;
+            const cellZ = hit.object.userData.cellZ;
+            if (cellX !== undefined && cellZ !== undefined) {
               hitCells.add(`${cellX},${cellZ}`);
             }
           }
