@@ -143,21 +143,19 @@ export const LOSCornFader = ({
       if (intersects.length > 0) {
         raysHit++;
         
-        // Mark hit cells - extract cell position from the camera collider's WORLD position
+        // Mark hit cells - use the hit POINT (where ray intersects), not object position
         for (const hit of intersects) {
-          // Get world position of the hit object (camera colliders are positioned at cellX+0.5, 1.25, cellZ+0.5)
-          hit.object.getWorldPosition(worldPos.current);
-          const cellX = Math.floor(worldPos.current.x);
-          const cellZ = Math.floor(worldPos.current.z);
+          // Use hit.point to get the actual intersection location
+          const cellX = Math.floor(hit.point.x);
+          const cellZ = Math.floor(hit.point.z);
           const cellKey = `${cellX},${cellZ}`;
           
           // Debug: log hit info
           if (Math.random() < 0.02) {
             console.log('[LOS_CORN_FADER] Ray hit!', {
               cellKey,
-              worldPos: { x: worldPos.current.x.toFixed(2), z: worldPos.current.z.toFixed(2) },
+              hitPoint: { x: hit.point.x.toFixed(2), z: hit.point.z.toFixed(2) },
               objectName: hit.object.name,
-              objectType: hit.object.type,
             });
           }
           
