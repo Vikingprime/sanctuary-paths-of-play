@@ -89,6 +89,8 @@ export const LOSCornFader = ({
     foliageGroupRef.current.traverse((child) => {
       const mesh = child as Mesh;
       if (mesh.isMesh) {
+        // Ensure world matrix is up to date for raycasting
+        mesh.updateMatrixWorld(true);
         cameraBlockers.push(child);
       }
     });
