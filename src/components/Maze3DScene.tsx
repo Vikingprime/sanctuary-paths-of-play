@@ -1557,14 +1557,20 @@ const OverShoulderCameraController = ({
           targetDist = potentialBlockedDist;
           lastHitTime.current = now; // Record hit time for hysteresis
           
-          // === APPLY CORN FADING ONLY WHEN AUTOPUSH IS ACTIVE ===
-          // Mark hit cells as needing fade
-          for (const cellKey of hitCells) {
-            const existing = fadedCellsRef.current.get(cellKey);
-            if (existing) {
-              existing.lastHitTime = now;
-            } else {
-              fadedCellsRef.current.set(cellKey, { opacity: 1.0, lastHitTime: now });
+          // === APPLY CORN FADING ONLY AFTER AUTOPUSH LERP HAS SETTLED ===
+          // Check if camera has finished lerping (current distance is close to target)
+          const lerpSettled = currentAutopushDist.current !== null && 
+            Math.abs(currentAutopushDist.current - potentialBlockedDist) < 0.15;
+          
+          if (lerpSettled) {
+            // Mark hit cells as needing fade only after camera settles
+            for (const cellKey of hitCells) {
+              const existing = fadedCellsRef.current.get(cellKey);
+              if (existing) {
+                existing.lastHitTime = now;
+              } else {
+                fadedCellsRef.current.set(cellKey, { opacity: 1.0, lastHitTime: now });
+              }
             }
           }
         } else {
@@ -1577,8 +1583,12 @@ const OverShoulderCameraController = ({
         }
         
         // Update all faded cells (always update opacity animation)
+        // But only fade OUT if camera lerp has settled
+        const lerpSettledForFade = currentAutopushDist.current !== null && 
+          Math.abs(currentAutopushDist.current - targetDist) < 0.15;
+        
         for (const [cellKey, state] of fadedCellsRef.current) {
-          const isCurrentlyHit = hitCells.has(cellKey) && isSignificantHit;
+          const isCurrentlyHit = hitCells.has(cellKey) && isSignificantHit && lerpSettledForFade;
           const timeSinceHit = now - state.lastHitTime;
           
           if (isCurrentlyHit) {
