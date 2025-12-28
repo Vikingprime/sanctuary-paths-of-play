@@ -11,7 +11,7 @@ import { Vector3, Raycaster, Object3D, Group, Mesh } from 'three';
 import { PlayerState } from '@/game/GameLogic';
 import { getCharacterHeight } from '@/game/CharacterConfig';
 import { AnimalType, Maze } from '@/types/game';
-import { setCellOpacity } from './CornWall';
+import { setCellOpacity, getCellRegistryStats } from './CornWall';
 
 // LOS fade configuration
 const LOS_CONFIG = {
@@ -107,9 +107,10 @@ export const LOSCornFader = ({
     const hitCellsThisFrame = new Set<string>();
     let raysHit = 0;
     
-    // Debug: log blocker count periodically
+    // Debug: log blocker count and registry stats periodically
     if (Math.random() < 0.01) {
-      console.log('[LOS_CORN_FADER] Camera blockers found:', cameraBlockers.length);
+      const stats = getCellRegistryStats();
+      console.log('[LOS_CORN_FADER] Camera blockers:', cameraBlockers.length, 'Registry cells:', stats.cellCount, 'Sample:', stats.sampleCells);
     }
     
     // Cast multiple rays - center, left, right, and upper variants
