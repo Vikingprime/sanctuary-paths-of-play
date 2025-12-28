@@ -205,6 +205,8 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
   const originalOnBeforeCompile = mat.onBeforeCompile;
   
   mat.onBeforeCompile = (shader: any) => {
+    console.log('[SHADER] onBeforeCompile triggered for material');
+    
     if (originalOnBeforeCompile) {
       originalOnBeforeCompile(shader);
     }
@@ -218,6 +220,7 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
     
     // Store shader reference
     mat.userData.shader = shader;
+    console.log('[SHADER] Shader modified, stored in userData');
     
     // Inject attribute and varying in vertex shader (opacity + color)
     shader.vertexShader = shader.vertexShader.replace(
@@ -519,6 +522,9 @@ function addOpacityAttribute(mesh: ThreeInstancedMesh, count: number, transforms
   const colorArray = new Float32Array(count * 3).fill(1.0);
   const colorAttr = new InstancedBufferAttribute(colorArray, 3);
   mesh.geometry.setAttribute('instanceColor', colorAttr);
+  
+  console.log('[CORN_WALL] Added opacity/color attributes to mesh with', count, 'instances');
+  console.log('[CORN_WALL] Mesh has instanceOpacity:', mesh.geometry.hasAttribute('instanceOpacity'));
   
   // Register each instance with its cell
   for (let i = 0; i < transforms.length && i < count; i++) {
