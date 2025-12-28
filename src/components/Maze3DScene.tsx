@@ -1289,6 +1289,8 @@ const OverShoulderCameraController = ({
       initialPlayerPos.current = null;
       currentDistance.current = 0.4;
       currentAutopushDist.current = null;
+      // Clear faded cells to prevent stale fade states
+      fadedCellsRef.current.clear();
     }
   }, [restartKey]);
   
