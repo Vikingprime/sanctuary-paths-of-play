@@ -1,9 +1,8 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, PlaneGeometry, TextureLoader, CylinderGeometry, BackSide, ShaderMaterial } from 'three';
+import { Group, Mesh, Object3D, InstancedMesh as ThreeInstancedMesh, Matrix4, BufferGeometry, BufferAttribute, Material, Quaternion, Euler, BoxGeometry, MeshBasicMaterial, MeshLambertMaterial, Color, FrontSide, DoubleSide, Vector3, CylinderGeometry, InstancedBufferAttribute } from 'three';
 import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import cornTexture from '@/assets/corn-texture.png';
-import { getLOSOpacityTexture, getLOSTextureDimensions, initLOSTexture } from './LOSCornFader';
 
 // LOD distance tiers
 const LOD_FULL_QUALITY_DISTANCE = 6;   // Full GLTF materials within 6m
@@ -15,8 +14,6 @@ const CULL_DISTANCE = 14; // Hard cull at 14m where fog is dense
 // Fade distance thresholds for opacity (player-based)
 const FADE_START = 10;  // Start fading corn at 10m from player
 const FADE_END = 14;    // Fully transparent at 14m from player
-
-// Note: Near-camera bubble fade removed - replaced by LOS-based corn fading in LOSCornFader.tsx
 
 interface CornWallProps {
   position: [number, number, number];
@@ -55,7 +52,7 @@ export interface CornOptimizationSettings {
   enableLOD: boolean;
   enableFarMaterialOptimization: boolean;
   enableDynamicFog: boolean;
-  enableEdgeCornCulling: boolean; // Toggle for edge corn distance culling
+  enableEdgeCornCulling: boolean;
 }
 
 export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
@@ -75,14 +72,75 @@ export const DEFAULT_CORN_SETTINGS: CornOptimizationSettings = {
 const LOD_BOX_GEOMETRY = new BoxGeometry(0.08, 1.25, 0.08);
 const LOD_BOX_MATERIAL = new MeshBasicMaterial({ color: new Color(0.25, 0.42, 0.18), fog: true });
 
+// ============= Per-instance opacity system =============
+// Maps cell key "x,z" to array of { meshRef, instanceIndex }
+interface InstanceRef {
+  mesh: ThreeInstancedMesh;
+  index: number;
+}
 
-// Hidden matrix (scale 0) for hiding instances
-const HIDDEN_MATRIX = new Matrix4().makeScale(0, 0, 0);
+// Global registry of cell -> instances mapping
+const cellToInstances = new Map<string, InstanceRef[]>();
 
+// Global reference to opacity attributes that need updating
+const opacityAttributesNeedingUpdate = new Set<InstancedBufferAttribute>();
 
-// Helper to add distance-based opacity fading + LOS fading to a material using onBeforeCompile
-// Fades corn based on distance from player AND samples LOS opacity texture for per-cell fading
-const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }): Material => {
+// Register an instance for a cell
+function registerCellInstance(cellX: number, cellZ: number, mesh: ThreeInstancedMesh, index: number) {
+  const key = `${cellX},${cellZ}`;
+  if (!cellToInstances.has(key)) {
+    cellToInstances.set(key, []);
+  }
+  cellToInstances.get(key)!.push({ mesh, index });
+}
+
+// Clear all registrations (call when recreating meshes)
+function clearCellRegistry() {
+  cellToInstances.clear();
+  opacityAttributesNeedingUpdate.clear();
+}
+
+// Set opacity for all instances in a cell
+export function setCellOpacity(cellX: number, cellZ: number, opacity: number) {
+  const key = `${cellX},${cellZ}`;
+  const instances = cellToInstances.get(key);
+  if (!instances) return;
+  
+  for (const { mesh, index } of instances) {
+    const attr = mesh.geometry.getAttribute('instanceOpacity') as InstancedBufferAttribute;
+    if (attr) {
+      (attr.array as Float32Array)[index] = opacity;
+      opacityAttributesNeedingUpdate.add(attr);
+    }
+  }
+}
+
+// Get current opacity for a cell (from first instance)
+export function getCellOpacity(cellX: number, cellZ: number): number {
+  const key = `${cellX},${cellZ}`;
+  const instances = cellToInstances.get(key);
+  if (!instances || instances.length === 0) return 1.0;
+  
+  const { mesh, index } = instances[0];
+  const attr = mesh.geometry.getAttribute('instanceOpacity') as InstancedBufferAttribute;
+  if (attr) {
+    return (attr.array as Float32Array)[index];
+  }
+  return 1.0;
+}
+
+// Flush opacity updates (call once per frame)
+function flushOpacityUpdates() {
+  opacityAttributesNeedingUpdate.forEach(attr => {
+    attr.needsUpdate = true;
+  });
+  opacityAttributesNeedingUpdate.clear();
+}
+
+// ============= End per-instance opacity system =============
+
+// Helper to add per-instance opacity support to a material using onBeforeCompile
+const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: Vector3 }): Material => {
   const mat = material as any;
   
   // Enable transparency for fading
@@ -91,9 +149,6 @@ const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }): 
   mat.depthTest = true;
   mat.side = FrontSide;
   
-  // Store uniform reference
-  mat.userData.playerPos = playerPosRef;
-  
   const originalOnBeforeCompile = mat.onBeforeCompile;
   
   mat.onBeforeCompile = (shader: any) => {
@@ -101,29 +156,29 @@ const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }): 
       originalOnBeforeCompile(shader);
     }
     
-    // Add uniforms for player position
-    shader.uniforms.playerPos = playerPosRef;
-    shader.uniforms.fadeStart = { value: FADE_START };
-    shader.uniforms.fadeEnd = { value: FADE_END };
+    // Add uniforms for distance fade
+    if (playerPosRef) {
+      shader.uniforms.playerPos = playerPosRef;
+      shader.uniforms.fadeStart = { value: FADE_START };
+      shader.uniforms.fadeEnd = { value: FADE_END };
+    }
     
-    // LOS opacity texture uniform - will be set dynamically
-    shader.uniforms.losOpacityMap = { value: null };
-    shader.uniforms.mazeWidth = { value: 1.0 };
-    shader.uniforms.mazeHeight = { value: 1.0 };
-    
-    // Store shader reference for later uniform updates
+    // Store shader reference
     mat.userData.shader = shader;
     
-    // Inject varying for world position in vertex shader
+    // Inject attribute and varying in vertex shader
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
       `#include <common>
+      attribute float instanceOpacity;
+      varying float vInstanceOpacity;
       varying vec3 vWorldPos;`
     );
     
     shader.vertexShader = shader.vertexShader.replace(
       '#include <worldpos_vertex>',
       `#include <worldpos_vertex>
+      vInstanceOpacity = instanceOpacity;
       #ifdef USE_INSTANCING
         vWorldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
       #else
@@ -131,33 +186,30 @@ const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }): 
       #endif`
     );
     
-    // Inject uniforms and varying in fragment shader
+    // Inject varying and uniforms in fragment shader
+    const distanceUniforms = playerPosRef ? `
+      uniform vec3 playerPos;
+      uniform float fadeStart;
+      uniform float fadeEnd;` : '';
+    
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
       `#include <common>
-      uniform vec3 playerPos;
-      uniform float fadeStart;
-      uniform float fadeEnd;
-      uniform sampler2D losOpacityMap;
-      uniform float mazeWidth;
-      uniform float mazeHeight;
-      varying vec3 vWorldPos;`
+      varying float vInstanceOpacity;
+      varying vec3 vWorldPos;${distanceUniforms}`
     );
     
-    // Apply distance-based opacity fade + LOS opacity fade at end of fragment shader
+    // Apply per-instance opacity + optional distance fade at end of fragment shader
+    const distanceFadeCode = playerPosRef ? `
+      float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
+      float distFade = 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer);
+      gl_FragColor.a *= distFade;` : '';
+    
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
-      // Distance-based fade (far fog)
-      float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
-      float distFade = 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer);
-      
-      // LOS-based fade (sample opacity texture by cell position)
-      vec2 cellUV = vWorldPos.xz / vec2(mazeWidth, mazeHeight);
-      float losOpacity = texture2D(losOpacityMap, cellUV).r;
-      
-      // Combine both fades
-      gl_FragColor.a *= distFade * losOpacity;
+      // Apply per-instance opacity from LOS fading
+      gl_FragColor.a *= vInstanceOpacity;${distanceFadeCode}
       if (gl_FragColor.a < 0.01) discard;`
     );
   };
@@ -168,32 +220,7 @@ const addDistanceFade = (material: Material, playerPosRef: { value: Vector3 }): 
 
 // Helper to optimize material for performance
 const optimizeMaterial = (material: Material, playerPosRef?: { value: Vector3 }): Material => {
-  const mat = material as any;
-  
-  // If we have a player position ref, add distance fade
-  if (playerPosRef) {
-    addDistanceFade(material, playerPosRef);
-  } else {
-    // Legacy path without fade
-    if ('transparent' in mat) {
-      mat.transparent = false;
-    }
-    if ('alphaTest' in mat) {
-      mat.alphaTest = 0.5;
-    }
-    if ('depthWrite' in mat) {
-      mat.depthWrite = true;
-    }
-    if ('depthTest' in mat) {
-      mat.depthTest = true;
-    }
-    if ('side' in mat) {
-      mat.side = FrontSide;
-    }
-  }
-  
-  mat.needsUpdate = true;
-  return material;
+  return addInstanceOpacitySupport(material, playerPosRef);
 };
 
 // Cull stats for debugging
@@ -206,8 +233,8 @@ export interface CullStats {
 
 // Instanced walls using InstancedMesh
 interface InstancedWallsProps {
-  edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[];  // Edge stalks only
-  noShadowPositions?: { x: number; z: number; avoidEdges?: ('left' | 'right' | 'top' | 'bottom')[] }[];     // Full cell walls with edges to avoid
+  edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[];
+  noShadowPositions?: { x: number; z: number; avoidEdges?: ('left' | 'right' | 'top' | 'bottom')[] }[];
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
   size?: [number, number, number];
   playerPositionRef?: React.MutableRefObject<{ x: number; y: number }>;
@@ -217,8 +244,8 @@ interface InstancedWallsProps {
 
 // Density settings - staggered rows to close gaps
 const ROWS = 3;
-const STALKS_PER_ROW = 2; // Base count, odd rows get +1
-const STALK_SPACING = 0.5; // Spacing between stalks
+const STALKS_PER_ROW = 2;
+const STALK_SPACING = 0.5;
 
 // Boundary walls - reduced for performance
 const BOUNDARY_ROWS = 2;
@@ -235,9 +262,11 @@ interface WallTransformData {
   matrix: Matrix4;
   centerX: number;
   centerZ: number;
+  cellX: number;  // Added: which cell this stalk belongs to
+  cellZ: number;  // Added: which cell this stalk belongs to
 }
 
-// Generate transforms for edge stalks only (single row facing the path)
+// Generate transforms for edge stalks only
 const generateEdgeTransforms = (
   edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[],
   seedOffset: number = 0
@@ -249,16 +278,16 @@ const generateEdgeTransforms = (
     const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset;
     const centerX = wallPos.x + 0.5;
     const centerZ = wallPos.z + 0.5;
+    const cellX = wallPos.x;
+    const cellZ = wallPos.z;
     
-    // For each edge direction, generate only the single row of stalks on that edge
     wallPos.edges.forEach((edge, edgeIdx) => {
       for (let col = 0; col < STALKS_PER_ROW; col++) {
         const stalkSeed = baseSeed + edgeIdx * 1000 + col;
         
-        // Position based on which edge - push stalks to actual cell edge
         let offsetX = 0;
         let offsetZ = 0;
-        const edgeOffset = 0.45; // Fixed offset to position at cell edge (not center)
+        const edgeOffset = 0.45;
         const colOffset = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING;
         
         switch (edge) {
@@ -268,7 +297,6 @@ const generateEdgeTransforms = (
           case 'bottom': offsetX = colOffset;   offsetZ = edgeOffset; break;
         }
         
-        // Increased jitter for more natural randomness
         const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.12;
         const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.12;
         const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
@@ -290,7 +318,7 @@ const generateEdgeTransforms = (
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
         dummy.scale.set(widthScale, widthScale, heightScale);
         dummy.updateMatrix();
-        transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ });
+        transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ, cellX, cellZ });
       }
     });
   });
@@ -298,19 +326,21 @@ const generateEdgeTransforms = (
   return transforms;
 };
 
-// Generate transforms for a set of wall positions, avoiding specific edges
+// Generate transforms for wall positions, avoiding specific edges
 const generateWallTransforms = (
   positions: { x: number; z: number; avoidEdges?: ('left' | 'right' | 'top' | 'bottom')[] }[],
   seedOffset: number = 0
 ): WallTransformData[] => {
   const transforms: WallTransformData[] = [];
   const dummy = new Object3D();
-  const edgeZone = 0.35; // Distance from center where edge stalks are (don't place depth stalks here)
+  const edgeZone = 0.35;
   
   positions.forEach((wallPos) => {
     const baseSeed = wallPos.x * 1000 + wallPos.z + seedOffset;
     const centerX = wallPos.x + 0.5;
     const centerZ = wallPos.z + 0.5;
+    const cellX = wallPos.x;
+    const cellZ = wallPos.z;
     const avoidEdges = wallPos.avoidEdges || [];
     
     for (let row = 0; row < ROWS; row++) {
@@ -324,14 +354,13 @@ const generateWallTransforms = (
         const jitterX = (seededRandom(stalkSeed) - 0.5) * 0.1;
         const jitterZ = (seededRandom(stalkSeed + 1) - 0.5) * 0.1;
         
-        // Check if this stalk would be too close to an edge that has edge stalks
         let tooCloseToEdge = false;
         if (avoidEdges.includes('left') && offsetX + jitterX < -edgeZone + 0.1) tooCloseToEdge = true;
         if (avoidEdges.includes('right') && offsetX + jitterX > edgeZone - 0.1) tooCloseToEdge = true;
         if (avoidEdges.includes('top') && offsetZ + jitterZ < -edgeZone + 0.1) tooCloseToEdge = true;
         if (avoidEdges.includes('bottom') && offsetZ + jitterZ > edgeZone - 0.1) tooCloseToEdge = true;
         
-        if (tooCloseToEdge) continue; // Skip this stalk
+        if (tooCloseToEdge) continue;
         
         const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
         const baseScale = 100;
@@ -351,7 +380,7 @@ const generateWallTransforms = (
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
         dummy.scale.set(widthScale, widthScale, heightScale);
         dummy.updateMatrix();
-        transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ });
+        transforms.push({ matrix: dummy.matrix.clone(), centerX, centerZ, cellX, cellZ });
       }
     }
   });
@@ -370,6 +399,8 @@ const generateBoundaryTransforms = (
     const baseSeed = wallPos.x * 1000 + wallPos.z + 50000;
     const dirX = wallPos.offsetX !== 0 ? Math.sign(wallPos.offsetX) : 0;
     const dirZ = wallPos.offsetZ !== 0 ? Math.sign(wallPos.offsetZ) : 0;
+    const cellX = wallPos.x;
+    const cellZ = wallPos.z;
     
     for (let row = 0; row < BOUNDARY_ROWS; row++) {
       const rowOffset = (row % 2) * (BOUNDARY_SPACING / 2);
@@ -406,13 +437,26 @@ const generateBoundaryTransforms = (
         dummy.quaternion.copy(uprightQuat).premultiply(yRotQuat);
         dummy.scale.set(widthScale, widthScale, heightScale);
         dummy.updateMatrix();
-        transforms.push({ matrix: dummy.matrix.clone(), centerX: posX, centerZ: posZ });
+        transforms.push({ matrix: dummy.matrix.clone(), centerX: posX, centerZ: posZ, cellX, cellZ });
       }
     }
   });
   
   return transforms;
 };
+
+// Helper to add instanceOpacity attribute to an InstancedMesh
+function addOpacityAttribute(mesh: ThreeInstancedMesh, count: number, transforms: WallTransformData[]) {
+  const opacityArray = new Float32Array(count).fill(1.0);
+  const opacityAttr = new InstancedBufferAttribute(opacityArray, 1);
+  mesh.geometry.setAttribute('instanceOpacity', opacityAttr);
+  
+  // Register each instance with its cell
+  for (let i = 0; i < transforms.length && i < count; i++) {
+    const t = transforms[i];
+    registerCellInstance(t.cellX, t.cellZ, mesh, i);
+  }
+}
 
 export const InstancedWalls = ({ 
   edgePositions, 
@@ -435,9 +479,6 @@ export const InstancedWalls = ({
   // Player position uniform for shader-based opacity fade
   const playerPosUniform = useMemo(() => ({ value: new Vector3() }), []);
   
-  // Camera position uniform for near-camera bubble fade (keeps small characters visible)
-  const cameraPosUniform = useMemo(() => ({ value: new Vector3() }), []);
-  
   // Track closest distance to any outer/boundary corn cell
   const cheapCellCenters = useMemo(() => {
     const centers: { x: number; z: number }[] = [];
@@ -455,51 +496,58 @@ export const InstancedWalls = ({
   const edgeMeshesRef = useRef<ThreeInstancedMesh[]>([]);
   const edgeTransformsRef = useRef<WallTransformData[]>([]);
   
-  // Billboard mesh for distant corn (2 triangles per stalk vs hundreds)
+  // Billboard mesh for distant corn
   const billboardMeshRef = useRef<ThreeInstancedMesh | null>(null);
   const billboardTransformsRef = useRef<WallTransformData[]>([]);
   
-  // Track last update position and camera direction for culling
+  // Track last update position to avoid recalculating every frame
   const lastUpdatePosRef = useRef({ x: -999, z: -999 });
-  const lastCamDirRef = useRef({ x: 0, z: -1 }); // Track camera direction for rotation-based updates
-  const lastCullingEnabledRef = useRef<boolean | null>(null);
-  const UPDATE_THRESHOLD = 0.5;
-  const ROTATION_THRESHOLD = 0.1; // ~5.7 degrees of rotation triggers update
-  const cullDebugRef = useRef(0); // Debug counter
+  const lastCamDirRef = useRef({ x: 0, z: 1 });
   
-  // Distance threshold for hard culling - fog should fully obscure at this distance
+  // Calculate culling distances
   const CULL_DISTANCE_SQ = CULL_DISTANCE * CULL_DISTANCE;
+  const ROTATION_THRESHOLD = 0.15;
+  const BACK_CULL_DOT_THRESHOLD = -0.5;
   
-  // Camera direction culling - cull back 90 degrees (keep front 270 degrees)
-  const BACK_CULL_DOT_THRESHOLD = -0.707; // cos(135°) - corn behind this angle gets culled
-  
-  // Distance culling (fog is now handled by scene's FogExp2)
-  // LOS opacity fading is handled via texture in the shader
-  
+  // Per-frame updates
   useFrame(() => {
-    // Update player position uniform for shader-based opacity fade
+    // Update player position uniform for shader
+    if (playerPositionRef?.current) {
+      playerPosUniform.value.set(
+        playerPositionRef.current.x,
+        0,
+        playerPositionRef.current.y
+      );
+    }
+    
+    // Flush any pending opacity updates
+    flushOpacityUpdates();
+    
+    // Player position for distance calculations
     const px = playerPositionRef?.current?.x ?? 0;
     const pz = playerPositionRef?.current?.y ?? 0;
-    playerPosUniform.value.set(px, 0, pz);
     
-    // Update camera position uniform
-    cameraPosUniform.value.copy(camera.position);
-    
-    // Update LOS opacity texture in all edge mesh materials
-    const losTexture = getLOSOpacityTexture();
-    const losDims = getLOSTextureDimensions();
-    if (losTexture && edgeMeshesRef.current.length > 0) {
-      for (const mesh of edgeMeshesRef.current) {
-        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        for (const mat of materials) {
-          const shader = (mat as any).userData?.shader;
-          if (shader?.uniforms) {
-            shader.uniforms.losOpacityMap.value = losTexture;
-            shader.uniforms.mazeWidth.value = losDims.width;
-            shader.uniforms.mazeHeight.value = losDims.height;
+    // Update shader uniforms for all materials
+    const updateShaderUniforms = (materials: Material | Material[]) => {
+      const mats = Array.isArray(materials) ? materials : [materials];
+      for (const mat of mats) {
+        const shader = (mat as any).userData?.shader;
+        if (shader) {
+          if (shader.uniforms.playerPos) {
+            shader.uniforms.playerPos.value.copy(playerPosUniform.value);
           }
         }
       }
+    };
+    
+    // Update edge mesh shaders
+    for (const mesh of edgeMeshesRef.current) {
+      updateShaderUniforms(mesh.material);
+    }
+    
+    // Update cheap mesh shader
+    if (cheapMeshRef.current) {
+      updateShaderUniforms(cheapMeshRef.current.material);
     }
     
     // Skip ALL culling if distance culling is disabled
@@ -508,7 +556,7 @@ export const InstancedWalls = ({
     // Get camera forward direction for back-culling
     const camForward = new Vector3();
     camera.getWorldDirection(camForward);
-    camForward.y = 0; // Flatten to horizontal plane
+    camForward.y = 0;
     camForward.normalize();
     
     // Check if position changed significantly
@@ -531,11 +579,9 @@ export const InstancedWalls = ({
     let edgeCount = 0;
     let cheapCount = 0;
     
-    // Helper to check if corn is in viewable arc (front 270 degrees)
-    // Only apply back-culling to corn >6m away - nearby corn always visible
-    const NEAR_DISTANCE_SQ = 6 * 6; // 6m squared - no back-culling within this
+    // Helper to check if corn is in viewable arc
+    const NEAR_DISTANCE_SQ = 6 * 6;
     const isInViewArc = (cornX: number, cornZ: number, distSq: number): boolean => {
-      // Always show corn within 3m regardless of angle
       if (distSq < NEAR_DISTANCE_SQ) return true;
       
       const toCornX = cornX - px;
@@ -543,10 +589,10 @@ export const InstancedWalls = ({
       const len = Math.sqrt(distSq);
       if (len < 0.001) return true;
       const dot = (toCornX / len) * camForward.x + (toCornZ / len) * camForward.z;
-      return dot > BACK_CULL_DOT_THRESHOLD; // Keep if not directly behind
+      return dot > BACK_CULL_DOT_THRESHOLD;
     };
     
-    // Cull edge corn (GLTF) - hard distance culling
+    // Cull edge corn
     if (edgeMeshesRef.current.length > 0 && edgeTransformsRef.current.length > 0) {
       const transforms = edgeTransformsRef.current;
       
@@ -554,7 +600,6 @@ export const InstancedWalls = ({
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
         
-        // Distance cull AND camera-direction cull
         if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
           for (const mesh of edgeMeshesRef.current) {
             mesh.setMatrixAt(edgeCount, t.matrix);
@@ -569,7 +614,7 @@ export const InstancedWalls = ({
       }
     }
     
-    // Cull cheap corn (interior/boundary) - hard distance culling
+    // Cull cheap corn
     if (cheapMeshRef.current && cheapTransformsRef.current.length > 0) {
       const transforms = cheapTransformsRef.current;
       
@@ -577,7 +622,6 @@ export const InstancedWalls = ({
         const t = transforms[i];
         const distSq = (px - t.centerX) ** 2 + (pz - t.centerZ) ** 2;
         
-        // Distance cull AND camera-direction cull
         if (distSq < cullDistSq && isInViewArc(t.centerX, t.centerZ, distSq)) {
           cheapMeshRef.current.setMatrixAt(cheapCount, t.matrix);
           cheapCount++;
@@ -588,28 +632,26 @@ export const InstancedWalls = ({
       cheapMeshRef.current.instanceMatrix.needsUpdate = true;
     }
     
-    // Disable LOD corn - just let fog hide the empty space
+    // Disable LOD corn
     if (billboardMeshRef.current) {
       billboardMeshRef.current.count = 0;
     }
     
-    // Always report cull stats
+    // Report cull stats
     const stats = {
       edgeVisible: edgeCount,
       edgeTotal: edgeTransformsRef.current.length,
       cheapVisible: cheapCount,
       cheapTotal: cheapTransformsRef.current.length,
     };
-    // console.log('[CullStats]', stats); // Disabled for cleaner console
     onCullStats?.(stats);
   });
   
   // Extract mesh data from GLTF with optimized materials
-  // For cheap corn (non-edge): only use stalk/leaf geometry, skip corn cobs
   const { meshDataList, cheapStalkGeometry, cheapMaterial, billboardGeometry, billboardMaterial } = useMemo(() => {
     const meshes: MeshData[] = [];
-    const stalkMeshes: MeshData[] = []; // Only stalk/leaf meshes (no corn cobs)
-    const cornCobMeshes: MeshData[] = []; // Only corn cob meshes
+    const stalkMeshes: MeshData[] = [];
+    const cornCobMeshes: MeshData[] = [];
     let sampledColor: Color | null = null;
     
     gltfScene.traverse((child) => {
@@ -617,15 +659,12 @@ export const InstancedWalls = ({
         const mesh = child as Mesh;
         const mat = mesh.material as any;
         
-        // Check if this is a corn cob by color (yellow/orange hues)
         let isCornCob = false;
         if (mat.color) {
           const r = mat.color.r;
           const g = mat.color.g;
           const b = mat.color.b;
-          // Corn cobs are yellow/orange: high red, medium-high green, low blue
           isCornCob = r > 0.5 && g > 0.3 && b < 0.3 && r > g * 0.8;
-          // Corn cob detected by color
         }
         
         if (!sampledColor && mat.color && !isCornCob) {
@@ -643,7 +682,6 @@ export const InstancedWalls = ({
         
         meshes.push(meshData);
         
-        // Separate stalk and corn cob meshes
         if (isCornCob) {
           cornCobMeshes.push(meshData);
         } else {
@@ -652,85 +690,73 @@ export const InstancedWalls = ({
       }
     });
     
-    
-    // Use just the FIRST stalk geometry for cheap corn (keeps triangle count low)
     const firstStalkGeo: BufferGeometry = stalkMeshes.length >= 1 
       ? stalkMeshes[0].geometry.clone()
-      : new BoxGeometry(0.1, 2, 0.1); // Fallback if no stalk meshes found
+      : new BoxGeometry(0.1, 2, 0.1);
     
     const cheapMat = new MeshLambertMaterial({ 
       color: sampledColor || new Color(0.12, 0.25, 0.10),
-      transparent: false,
+      transparent: true,
       depthWrite: true,
       depthTest: true,
       side: FrontSide,
     });
     
-    // Low-poly LOD corn: thicker stalk + larger drooping leaves
-    // Create stalk (6-sided cylinder, thicker for visibility)
-    const stalk = new CylinderGeometry(0.04, 0.05, 2.0, 6, 1);
-    stalk.translate(0, 1.0, 0); // Base at y=0
+    // Add instance opacity support to cheap material
+    addInstanceOpacitySupport(cheapMat, playerPosUniform);
     
-    // Create larger, drooping triangular leaves
+    // Create stalk geometry
+    const stalk = new CylinderGeometry(0.04, 0.05, 2.0, 6, 1);
+    stalk.translate(0, 1.0, 0);
+    
+    // Create leaves
     const leafPositions: number[] = [];
     const leafNormals: number[] = [];
-    const leafCount = 6; // More leaves for better coverage
-    const leafLength = 0.5; // Longer leaves
-    const leafWidth = 0.08; // Wider base
+    const leafCount = 6;
+    const leafLength = 0.5;
+    const leafWidth = 0.08;
     
     for (let i = 0; i < leafCount; i++) {
       const angle = (i / leafCount) * Math.PI * 2;
-      const baseY = 0.4 + i * 0.28; // Leaves spread along stalk
+      const baseY = 0.4 + i * 0.28;
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
       
-      // Leaf droops downward at tip (tip is lower than mid-point)
-      const tipY = baseY + 0.15; // Tip slightly above base but leaf curves out
+      const tipY = baseY + 0.15;
       
-      // Triangle: base on stalk, extends outward and curves down
-      // Vertex 0: base bottom (on stalk)
       leafPositions.push(cos * 0.05, baseY, sin * 0.05);
-      // Vertex 1: base top (on stalk, slightly higher)
       leafPositions.push(cos * 0.05, baseY + leafWidth * 2, sin * 0.05);
-      // Vertex 2: tip (extended outward, drooping)
       leafPositions.push(cos * leafLength, tipY, sin * leafLength);
       
-      // Normal pointing outward-upward
       const nx = cos * 0.7;
       const nz = sin * 0.7;
       const ny = 0.7;
       leafNormals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
       
-      // Add second triangle for backface (leaf has thickness visually)
       leafPositions.push(cos * 0.05, baseY + leafWidth * 2, sin * 0.05);
       leafPositions.push(cos * 0.05, baseY, sin * 0.05);
       leafPositions.push(cos * leafLength, tipY, sin * leafLength);
       leafNormals.push(-nx, -ny, -nz, -nx, -ny, -nz, -nx, -ny, -nz);
     }
     
-    // Get stalk data
     const stalkPos = stalk.attributes.position.array;
     const stalkNorm = stalk.attributes.normal.array;
     const stalkIdx = stalk.index!.array;
     
-    // Combine stalk + leaves into single geometry
-    const totalLeafVerts = leafCount * 6; // 2 triangles per leaf, 3 verts each
+    const totalLeafVerts = leafCount * 6;
     const totalVerts = stalk.attributes.position.count + totalLeafVerts;
     const combinedPos = new Float32Array(totalVerts * 3);
     const combinedNorm = new Float32Array(totalVerts * 3);
     
-    // Copy stalk
     combinedPos.set(stalkPos, 0);
     combinedNorm.set(stalkNorm, 0);
     
-    // Copy leaves
     combinedPos.set(leafPositions, stalkPos.length);
     combinedNorm.set(leafNormals, stalkNorm.length);
     
-    // Build indices: stalk indices + leaf triangles
     const leafIndices: number[] = [];
     const stalkVertCount = stalk.attributes.position.count;
-    for (let i = 0; i < leafCount * 2; i++) { // 2 triangles per leaf
+    for (let i = 0; i < leafCount * 2; i++) {
       const base = stalkVertCount + i * 3;
       leafIndices.push(base, base + 1, base + 2);
     }
@@ -744,15 +770,11 @@ export const InstancedWalls = ({
     lodCornGeo.setAttribute('normal', new BufferAttribute(combinedNorm, 3));
     lodCornGeo.setIndex(new BufferAttribute(combinedIdx, 1));
     
-    // Green material matching the corn color
     const lodCornMat = new MeshLambertMaterial({
       color: new Color(0.2, 0.45, 0.15),
-      side: DoubleSide, // See leaves from both sides
+      side: DoubleSide,
       depthWrite: true,
     });
-    
-    // Use all meshes from the model (stalk + leaves + corn cobs)
-    
     
     return { 
       meshDataList: meshes, 
@@ -763,14 +785,13 @@ export const InstancedWalls = ({
     };
   }, [gltfScene, cornTex]);
   
-  // Generate transforms for all corn types + billboard transforms
+  // Generate transforms for all corn types
   const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {
     const edge = generateEdgeTransforms(edgePositions, 0);
     const outer = generateWallTransforms(noShadowPositions, 10000);
     const boundary = generateBoundaryTransforms(boundaryPositions);
     const cheap3D = [...outer, ...boundary];
     
-    // Generate billboard transforms for ALL corn (edge + cheap)
     const allTransforms = [...edge, ...cheap3D];
     const billboardTransforms: WallTransformData[] = [];
     const bbDummy = new Object3D();
@@ -781,13 +802,12 @@ export const InstancedWalls = ({
       const scale = new Vector3();
       t.matrix.decompose(pos, quat, scale);
       
-      // Billboard: upright plane at stalk position, slightly above ground
-      bbDummy.position.set(pos.x, 1.25, pos.z); // Center billboard vertically
-      bbDummy.rotation.set(0, 0, 0); // Reset rotation (will face camera via shader or lookAt)
+      bbDummy.position.set(pos.x, 1.25, pos.z);
+      bbDummy.rotation.set(0, 0, 0);
       bbDummy.scale.set(1, 1, 1);
       bbDummy.updateMatrix();
       
-      billboardTransforms.push({ matrix: bbDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ });
+      billboardTransforms.push({ matrix: bbDummy.matrix.clone(), centerX: t.centerX, centerZ: t.centerZ, cellX: t.cellX, cellZ: t.cellZ });
     });
     
     return { 
@@ -806,9 +826,13 @@ export const InstancedWalls = ({
     if (!edgeGroup || !cheapGroup || !billboardGroup || meshDataList.length === 0 || createdRef.current) return;
     
     createdRef.current = true;
+    
+    // Clear previous registrations
+    clearCellRegistry();
+    
     const allMeshes: ThreeInstancedMesh[] = [];
     
-    // EDGE CORN (adjacent to paths): Full GLTF materials
+    // EDGE CORN: Full GLTF materials
     const edgeMeshes: ThreeInstancedMesh[] = [];
     if (edgeTransforms.length > 0) {
       meshDataList.forEach((meshData) => {
@@ -820,34 +844,37 @@ export const InstancedWalls = ({
           edgeTransforms.length
         );
         
+        // Add instanceOpacity attribute
+        addOpacityAttribute(instancedMesh, edgeTransforms.length, edgeTransforms);
+        
         edgeTransforms.forEach((t, i) => {
           instancedMesh.setMatrixAt(i, t.matrix);
         });
         
         instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedMesh.castShadow = true;  // Edge corn casts shadows
+        instancedMesh.castShadow = true;
         instancedMesh.receiveShadow = true;
-        instancedMesh.frustumCulled = false;  // Disable - we do distance culling manually
+        instancedMesh.frustumCulled = false;
         
         edgeGroup.add(instancedMesh);
         allMeshes.push(instancedMesh);
         edgeMeshes.push(instancedMesh);
       });
       
-      // Store refs for distance culling
       edgeMeshesRef.current = edgeMeshes;
       edgeTransformsRef.current = edgeTransforms;
-      
-      
     }
     
-    // OUTER + BOUNDARY CORN: Single cheap material (1 draw call)
+    // OUTER + BOUNDARY CORN: Single cheap material
     if (cheapTransforms.length > 0) {
       const cheapMesh = new ThreeInstancedMesh(
         cheapStalkGeometry.clone(),
         cheapMaterial.clone(),
         cheapTransforms.length
       );
+      
+      // Add instanceOpacity attribute
+      addOpacityAttribute(cheapMesh, cheapTransforms.length, cheapTransforms);
       
       cheapTransforms.forEach((t, i) => {
         cheapMesh.setMatrixAt(i, t.matrix);
@@ -856,9 +883,8 @@ export const InstancedWalls = ({
       cheapMesh.instanceMatrix.needsUpdate = true;
       cheapMesh.castShadow = false;
       cheapMesh.receiveShadow = true;
-      cheapMesh.frustumCulled = false;  // Disable - we do distance culling manually
+      cheapMesh.frustumCulled = false;
       
-      // Store refs for dynamic LOD updates
       cheapMeshRef.current = cheapMesh;
       cheapMeshCountRef.current = cheapTransforms.length;
       cheapTransformsRef.current = cheapTransforms;
@@ -868,6 +894,7 @@ export const InstancedWalls = ({
     }
     
     return () => {
+      clearCellRegistry();
       allMeshes.forEach(mesh => {
         const parent = mesh.parent;
         if (parent) {
