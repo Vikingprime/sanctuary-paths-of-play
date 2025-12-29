@@ -258,12 +258,17 @@ export const MazeGame3D = ({
   }, [triggeredDialogues]);
 
   // Check if a dialogue can be triggered at the given cell
-  const checkDialogueAtCell = useCallback((gridX: number, gridY: number): DialogueTrigger | null => {
+  const checkDialogueAtCell = useCallback((gridX: number, gridY: number, currentTriggered: Set<string>): DialogueTrigger | null => {
     if (!maze.dialogues) return null;
     
     for (const dialogue of maze.dialogues) {
-      if (triggeredDialogues.has(dialogue.id)) continue;
-      if (!areRequirementsMet(dialogue)) continue;
+      if (currentTriggered.has(dialogue.id)) continue;
+      
+      // Check requirements inline to avoid stale closure
+      if (dialogue.requires && dialogue.requires.length > 0) {
+        const requirementsMet = dialogue.requires.every(reqId => currentTriggered.has(reqId));
+        if (!requirementsMet) continue;
+      }
       
       // Check if this cell is in the dialogue's trigger cells
       const isInCells = dialogue.cells.some(cell => cell.x === gridX && cell.y === gridY);
@@ -272,7 +277,7 @@ export const MazeGame3D = ({
       }
     }
     return null;
-  }, [maze.dialogues, triggeredDialogues, areRequirementsMet]);
+  }, [maze.dialogues]);
 
   // Check if all required dialogues for end are completed
   const canEndLevel = useCallback((): boolean => {
@@ -298,8 +303,8 @@ export const MazeGame3D = ({
 
       // Station triggering is now handled by proximity check, not cell interaction
       
-      // Check for any dialogue at this cell
-      const dialogue = checkDialogueAtCell(gridX, gridY);
+      // Check for any dialogue at this cell (pass current triggered set for fresh check)
+      const dialogue = checkDialogueAtCell(gridX, gridY, triggeredDialogues);
       
       if (dialogue) {
         setActiveDialogue(dialogue);
