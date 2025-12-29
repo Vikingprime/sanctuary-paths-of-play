@@ -261,6 +261,14 @@ export const mazes: Maze[] = [
         model: 'Farmer.glb',
         animation: 'wave',
         position: { x: 5, y: 6 },
+      },
+      {
+        id: 'char_1766995805084',
+        name: 'Stella',
+        emoji: '🧑',
+        model: 'Animated_Woman.glb',
+        animation: 'idle',
+        position: { x: 11, y: 2 },
       }
     ],
     dialogues: [
@@ -297,7 +305,7 @@ export const mazes: Maze[] = [
     grid: createGrid([
       '################',
       '################',
-      '##S       H   ##',
+      '##S       H#  ##',
       '##            ##',
       '########  #   ##',
       '##     #  #   ##',
