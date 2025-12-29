@@ -196,7 +196,10 @@ export const LevelSelect = ({
                       {(levelData?.medal === 'gold' || !levelData?.attempts || levelData.attempts === 0) ? (
                         <span>🥇 ≤{maze.medalTimes.gold}s</span>
                       ) : (
-                        <span className="line-through opacity-50" title="Gold only possible on first try">🥇 ≤{maze.medalTimes.gold}s</span>
+                        <span className="flex items-center gap-1 text-destructive/70" title="Gold only possible on first try">
+                          <span className="line-through">🥇</span>
+                          <span className="text-[10px] font-medium">(1st try only)</span>
+                        </span>
                       )}
                       <span>🥈 ≤{maze.medalTimes.silver}s</span>
                       <span>🥉 ≤{maze.medalTimes.bronze}s</span>
