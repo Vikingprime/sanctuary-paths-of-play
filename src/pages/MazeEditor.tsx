@@ -530,8 +530,8 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     >
       <div className="max-w-[1600px] mx-auto">
         <div className="flex items-center justify-between mb-4">
-          <Button variant="ghost" onClick={() => navigate('/')} className="text-amber-900">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Game
+          <Button variant="ghost" onClick={() => navigate('/mazes')} className="text-amber-900">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Mazes
           </Button>
           <h1 className="text-2xl font-bold text-amber-900 text-center flex-1">
             🌽 Maze Editor (Read-Only Preview)
