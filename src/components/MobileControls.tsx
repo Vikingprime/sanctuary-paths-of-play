@@ -11,36 +11,57 @@ export const MobileControls = ({ onMoveStart, onMoveEnd, rotationIntensityRef }:
   const activeDirectionsRef = useRef<Set<'forward' | 'back' | 'left' | 'right'>>(new Set());
   const touchIdRef = useRef<number | null>(null);
   
-  const DEADZONE_X = 30; // Smaller deadzone since we use proportional intensity
-  const DEADZONE_Y = 30;
-  const MAX_DRAG_X = 150; // Full rotation intensity at this drag distance
+  // Joystick-style controls: center deadzone, then proportional steering
+  const DEADZONE = 20; // Small deadzone in center
+  const MAX_DISTANCE = 120; // Max drag distance for full effect
+  const FORWARD_THRESHOLD = 0.3; // Normalized Y threshold to move forward (lower = easier to go straight)
 
   const updateDirections = useCallback((dx: number, dy: number) => {
     const newDirections = new Set<'forward' | 'back' | 'left' | 'right'>();
     
-    // Forward/back based on Y delta (negative = drag up = forward)
-    if (dy < -DEADZONE_Y) newDirections.add('forward');
-    if (dy > DEADZONE_Y) newDirections.add('back');
+    // Calculate distance and angle from center (joystick-style)
+    const distance = Math.sqrt(dx * dx + dy * dy);
     
-    // Left/right based on X delta with proportional intensity
-    const absDx = Math.abs(dx);
-    if (absDx > DEADZONE_X) {
-      if (dx < 0) newDirections.add('left');
-      if (dx > 0) newDirections.add('right');
-      
-      // Calculate rotation intensity: 0 at deadzone, 1 at MAX_DRAG_X
-      const effectiveDrag = absDx - DEADZONE_X;
-      const maxEffectiveDrag = MAX_DRAG_X - DEADZONE_X;
-      const intensity = Math.min(1, effectiveDrag / maxEffectiveDrag);
-      
-      // Apply easing for smoother control (quadratic)
-      const easedIntensity = intensity * intensity;
-      
+    // Inside deadzone - no movement
+    if (distance < DEADZONE) {
       if (rotationIntensityRef) {
-        rotationIntensityRef.current = easedIntensity;
+        rotationIntensityRef.current = 0;
+      }
+      // End all active directions
+      activeDirectionsRef.current.forEach(dir => onMoveEnd(dir));
+      activeDirectionsRef.current = new Set();
+      return;
+    }
+    
+    // Normalize direction
+    const normalizedX = dx / distance;
+    const normalizedY = dy / distance;
+    
+    // Calculate effective distance (0 at deadzone, 1 at max)
+    const effectiveDistance = Math.min(1, (distance - DEADZONE) / (MAX_DISTANCE - DEADZONE));
+    
+    // Forward/back based on Y (negative = up = forward)
+    // Use a threshold so slight vertical movement still goes forward when turning
+    if (normalizedY < -FORWARD_THRESHOLD) {
+      newDirections.add('forward');
+    } else if (normalizedY > FORWARD_THRESHOLD) {
+      newDirections.add('back');
+    }
+    
+    // Left/right rotation with proportional intensity
+    // Allow turning while moving forward (simultaneous)
+    if (Math.abs(normalizedX) > 0.2) {
+      if (normalizedX < 0) newDirections.add('left');
+      if (normalizedX > 0) newDirections.add('right');
+      
+      // Rotation intensity based on how far left/right (not total distance)
+      // This allows forward + gentle turn vs forward + sharp turn
+      const rotationIntensity = Math.abs(normalizedX) * effectiveDistance;
+      if (rotationIntensityRef) {
+        rotationIntensityRef.current = rotationIntensity * rotationIntensity; // Quadratic easing
       }
     } else {
-      // Inside deadzone - no rotation
+      // Moving mostly forward/back - no rotation
       if (rotationIntensityRef) {
         rotationIntensityRef.current = 0;
       }
