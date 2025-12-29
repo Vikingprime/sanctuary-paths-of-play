@@ -297,6 +297,7 @@ export const mazes: Maze[] = [
         message: "By Golly, I've been looking everywhere for you!",
         cells: [{ x: 4, y: 6 }, { x: 5, y: 6 }, { x: 4, y: 7 }, { x: 5, y: 7 }],
         speakerCharacterId: 'sanctuary_sam',
+        requires: ['dialogue_stella_2'],
       }
     ],
     endConditions: {
