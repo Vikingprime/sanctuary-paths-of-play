@@ -6,27 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Download, Trash2, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Save, Upload, FileDown, RotateCcw, Check, GripVertical } from 'lucide-react';
+import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMazeStorage, createGrid, gridToLayout } from '@/hooks/useMazeStorage';
 import { Maze } from '@/types/game';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -117,104 +100,12 @@ const AVAILABLE_ANIMATIONS = [
   'celebrate',
 ];
 
-// Sortable maze list item component for drag-and-drop reordering
-interface SortableMazeItemProps {
-  maze: Maze;
-  isSelected: boolean;
-  isCustomized: boolean;
-  onSelect: () => void;
-  onDelete: (e: React.MouseEvent) => void;
-}
-
-const SortableMazeItem: React.FC<SortableMazeItemProps> = ({
-  maze,
-  isSelected,
-  isCustomized,
-  onSelect,
-  onDelete,
-}) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: maze.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`p-2 rounded-lg border cursor-pointer transition-colors ${
-        isSelected
-          ? 'bg-primary/10 border-primary'
-          : 'hover:bg-muted border-transparent'
-      } ${isDragging ? 'shadow-lg z-50' : ''}`}
-      onClick={onSelect}
-    >
-      <div className="flex items-center justify-between gap-1">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {/* Drag handle */}
-          <div
-            {...attributes}
-            {...listeners}
-            className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <GripVertical className="w-3 h-3 text-muted-foreground" />
-          </div>
-          <span className="text-sm font-medium truncate">{maze.name}</span>
-          {isCustomized && (
-            <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded shrink-0">
-              edited
-            </span>
-          )}
-        </div>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(e);
-          }}
-        >
-          <Trash2 className="w-3 h-3" />
-        </Button>
-      </div>
-      <div className="text-xs text-muted-foreground ml-7">
-        ID: {maze.id} • {maze.difficulty}
-      </div>
-    </div>
-  );
-};
-
 const MazeEditor: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const mazeIdParam = searchParams.get('mazeId');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const { 
-    getAllMazes, 
-    getMaze, 
-    saveMaze, 
-    deleteMaze, 
-    createNewMaze, 
-    isCustomized,
-    resetToDefault,
-    exportAllMazes,
-    importMazes,
-    reorderMazes,
-    isLoaded 
-  } = useMazeStorage();
+  const { getAllMazes, getMaze, isLoaded } = useMazeStorage();
   
   const [width, setWidth] = useState(16);
   const [height, setHeight] = useState(16);
@@ -237,7 +128,6 @@ const MazeEditor: React.FC = () => {
   const [placingCharacterId, setPlacingCharacterId] = useState<string | null>(null);
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showMazeList, setShowMazeList] = useState(true);
 
   function createEmptyGrid(w: number, h: number): CellType[][] {
@@ -313,40 +203,13 @@ const MazeEditor: React.FC = () => {
     }
     
     setLoadedMazeId(mazeId);
-    setHasUnsavedChanges(false);
     setSearchParams({ mazeId: String(mazeId) });
     if (showToast) {
       toast.success(`Loaded: ${maze.name}`);
     }
   }, [getMaze, setSearchParams]);
 
-  // Delete any maze by ID
-  const handleDeleteMazeById = useCallback((mazeId: number, mazeName: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm(`Are you sure you want to delete "${mazeName}"?`)) return;
-    
-    deleteMaze(mazeId);
-    
-    // If we deleted the currently loaded maze, clear the editor
-    if (loadedMazeId === mazeId) {
-      setLoadedMazeId(null);
-      setSearchParams({});
-      setGrid(createEmptyGrid(16, 16));
-      setConfig({
-        name: 'New Maze',
-        difficulty: 'easy',
-        timeLimit: 60,
-        previewTime: 5,
-        requiredDialogues: [],
-      });
-      setDialogues([]);
-      setCharacters([]);
-      setHasUnsavedChanges(false);
-    }
-    toast.success('Maze deleted');
-  }, [loadedMazeId, deleteMaze, setSearchParams]);
-  
-  // Load maze from URL param on mount - only run once when storage is loaded
+  // Load maze from URL param on mount
   const hasInitiallyLoaded = useRef(false);
   useEffect(() => {
     if (isLoaded && mazeIdParam && !hasInitiallyLoaded.current) {
@@ -358,13 +221,6 @@ const MazeEditor: React.FC = () => {
     }
   }, [isLoaded, mazeIdParam, loadMaze]);
 
-  // Mark unsaved changes
-  useEffect(() => {
-    if (loadedMazeId !== null) {
-      setHasUnsavedChanges(true);
-    }
-  }, [grid, config, dialogues, characters]);
-
   const resizeGrid = useCallback(() => {
     const evenWidth = width % 2 === 0 ? width : width + 1;
     const evenHeight = height % 2 === 0 ? height : height + 1;
@@ -372,7 +228,6 @@ const MazeEditor: React.FC = () => {
     if (width !== evenWidth) setWidth(evenWidth);
     if (height !== evenHeight) setHeight(evenHeight);
     setDialogues([]);
-    setHasUnsavedChanges(true);
   }, [width, height]);
 
   const paintCell = useCallback((x: number, y: number) => {
@@ -431,7 +286,6 @@ const MazeEditor: React.FC = () => {
         return newGrid;
       });
     }
-    setHasUnsavedChanges(true);
   }, [selectedTool, selectedDialogueId, singleTileMode]);
 
   const handleMouseDown = (x: number, y: number) => {
@@ -441,7 +295,6 @@ const MazeEditor: React.FC = () => {
         updateCharacter(placingCharacterId, { position: { x, y } });
         toast.success(`${char.name} placed at (${x}, ${y})`);
         setPlacingCharacterId(null);
-        setHasUnsavedChanges(true);
       }
       return;
     }
@@ -474,13 +327,11 @@ const MazeEditor: React.FC = () => {
     setDialogues(prev => [...prev, newDialogue]);
     setSelectedDialogueId(newId);
     setShowDialoguePanel(true);
-    setHasUnsavedChanges(true);
     toast.success('Dialogue created! Now click cells on the grid to add trigger zones.');
   };
 
   const updateDialogue = (id: string, updates: Partial<DialogueConfig>) => {
     setDialogues(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
-    setHasUnsavedChanges(true);
   };
 
   const removeDialogue = (id: string) => {
@@ -492,7 +343,6 @@ const MazeEditor: React.FC = () => {
       ...c,
       requiredDialogues: c.requiredDialogues?.filter(did => did !== id) || []
     }));
-    setHasUnsavedChanges(true);
   };
 
   const addCharacter = () => {
@@ -509,13 +359,11 @@ const MazeEditor: React.FC = () => {
     setSelectedCharacterId(newId);
     setPlacingCharacterId(newId);
     setShowCharacterPanel(true);
-    setHasUnsavedChanges(true);
     toast.success('Character created! Click on the grid to place them.');
   };
 
   const updateCharacter = (id: string, updates: Partial<CharacterConfig>) => {
     setCharacters(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-    setHasUnsavedChanges(true);
   };
 
   const removeCharacter = (id: string) => {
@@ -529,172 +377,11 @@ const MazeEditor: React.FC = () => {
     setDialogues(prev => prev.map(d => 
       d.speakerCharacterId === id ? { ...d, speakerCharacterId: undefined } : d
     ));
-    setHasUnsavedChanges(true);
   };
 
   const getCharacterAtCell = (x: number, y: number): CharacterConfig | undefined => {
     return characters.find(c => c.position?.x === x && c.position?.y === y);
   };
-
-  // Build current maze object
-  const buildCurrentMaze = useCallback((): Maze => {
-    const mazeGrid = grid.map((row, y) =>
-      row.map((cell, x) => ({
-        x,
-        y,
-        isWall: cell === '#',
-        isStart: cell === 'S',
-        isEnd: cell === 'E',
-        isPowerUp: cell === 'P',
-        isStation: cell === 'H',
-        powerUpType: cell === 'P' ? 'time' as const : undefined,
-        brand: cell === 'P' ? 'T-Mobile' : undefined,
-      }))
-    );
-
-    return {
-      id: loadedMazeId || Date.now(),
-      name: config.name,
-      difficulty: config.difficulty,
-      timeLimit: config.timeLimit,
-      previewTime: config.previewTime,
-      medalTimes: { gold: 30, silver: 45, bronze: 60 },
-      characters: characters.filter(c => c.position).map(c => ({
-        id: c.id,
-        name: c.name,
-        emoji: c.emoji,
-        model: c.model,
-        animation: c.animation,
-        position: c.position!,
-      })),
-      dialogues: dialogues.map(d => ({
-        id: d.id,
-        speaker: d.speaker,
-        speakerEmoji: d.speakerEmoji,
-        message: d.message,
-        cells: d.cells,
-        characterModel: d.characterModel,
-        characterAnimation: d.characterAnimation,
-        requires: d.requires,
-        speakerCharacterId: d.speakerCharacterId,
-      })),
-      endConditions: config.requiredDialogues && config.requiredDialogues.length > 0 
-        ? { requiredDialogues: config.requiredDialogues } 
-        : undefined,
-      grid: mazeGrid,
-    };
-  }, [grid, config, characters, dialogues, loadedMazeId]);
-
-  // Save current maze
-  const handleSaveMaze = useCallback(() => {
-    const maze = buildCurrentMaze();
-    saveMaze(maze);
-    setLoadedMazeId(maze.id);
-    setHasUnsavedChanges(false);
-    toast.success(`Saved: ${maze.name}`);
-  }, [buildCurrentMaze, saveMaze]);
-
-  // Create new maze
-  const handleCreateNew = useCallback(() => {
-    const newMaze = createNewMaze();
-    loadMaze(newMaze.id);
-  }, [createNewMaze, loadMaze]);
-
-  // Delete current maze
-  const handleDeleteMaze = useCallback(() => {
-    if (!loadedMazeId) return;
-    if (!confirm('Are you sure you want to delete this maze?')) return;
-    
-    deleteMaze(loadedMazeId);
-    setLoadedMazeId(null);
-    setSearchParams({});
-    setGrid(createEmptyGrid(16, 16));
-    setConfig({
-      name: 'New Maze',
-      difficulty: 'easy',
-      timeLimit: 60,
-      previewTime: 5,
-      requiredDialogues: [],
-    });
-    setDialogues([]);
-    setCharacters([]);
-    setHasUnsavedChanges(false);
-    toast.success('Maze deleted');
-  }, [loadedMazeId, deleteMaze, setSearchParams]);
-
-  // Reset to default
-  const handleResetToDefault = useCallback(() => {
-    if (!loadedMazeId) return;
-    if (!confirm('Reset this maze to its default state? Your changes will be lost.')) return;
-    
-    resetToDefault(loadedMazeId);
-    loadMaze(loadedMazeId);
-    toast.success('Reset to default');
-  }, [loadedMazeId, resetToDefault, loadMaze]);
-
-  // Export all mazes
-  const handleExportAll = useCallback(() => {
-    const json = exportAllMazes();
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'all-mazes.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('All mazes exported!');
-  }, [exportAllMazes]);
-
-  // Import mazes
-  const handleImportMazes = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      const result = importMazes(content);
-      if (result.success) {
-        toast.success(`Imported ${result.count} mazes!`);
-        // Reload current maze if it was updated
-        if (loadedMazeId) {
-          loadMaze(loadedMazeId);
-        }
-      } else {
-        toast.error(`Import failed: ${result.error}`);
-      }
-    };
-    reader.readAsText(file);
-    event.target.value = '';
-  }, [importMazes, loadedMazeId, loadMaze]);
-
-  // DnD sensors for drag and drop
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  // Handle drag end for reordering
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (over && active.id !== over.id) {
-      const currentMazes = getAllMazes();
-      const oldIndex = currentMazes.findIndex(m => m.id === active.id);
-      const newIndex = currentMazes.findIndex(m => m.id === over.id);
-      
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const newOrder = arrayMove(currentMazes.map(m => m.id), oldIndex, newIndex);
-        reorderMazes(newOrder);
-      }
-    }
-  }, [getAllMazes, reorderMazes]);
 
   const generateSchema = useCallback(() => {
     const gridStrings = grid.map(row => row.join('').replace(/D/g, ' '));
@@ -773,7 +460,6 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     setGrid(createEmptyGrid(width, height));
     setDialogues([]);
     setSelectedDialogueId(null);
-    setHasUnsavedChanges(true);
     toast.info('Grid cleared');
   };
 
@@ -848,7 +534,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Game
           </Button>
           <h1 className="text-2xl font-bold text-amber-900 text-center flex-1">
-            🌽 Maze Editor {loadedMazeId && hasUnsavedChanges && <span className="text-orange-600 text-sm">(unsaved)</span>}
+            🌽 Maze Editor (Read-Only Preview)
           </h1>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowMazeList(!showMazeList)}>
@@ -862,51 +548,34 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
           {showMazeList && (
             <Card className="w-64 shrink-0">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span>All Mazes ({allMazes.length})</span>
-                  <Button size="sm" variant="default" onClick={handleCreateNew}>
-                    <Plus className="w-3 h-3 mr-1" /> New
-                  </Button>
+                <CardTitle className="text-sm">
+                  All Mazes ({allMazes.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={allMazes.map(m => m.id)}
-                    strategy={verticalListSortingStrategy}
+                {allMazes.map((maze) => (
+                  <div
+                    key={maze.id}
+                    className={`p-2 rounded-lg border cursor-pointer transition-colors ${
+                      loadedMazeId === maze.id
+                        ? 'bg-primary/10 border-primary'
+                        : 'hover:bg-muted border-transparent'
+                    }`}
+                    onClick={() => loadMaze(maze.id, false)}
                   >
-                    {allMazes.map((maze) => (
-                      <SortableMazeItem
-                        key={maze.id}
-                        maze={maze}
-                        isSelected={loadedMazeId === maze.id}
-                        isCustomized={isCustomized(maze.id)}
-                        onSelect={() => loadMaze(maze.id, false)}
-                        onDelete={(e) => handleDeleteMazeById(maze.id, maze.name, e)}
-                      />
-                    ))}
-                  </SortableContext>
-                </DndContext>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-sm font-medium truncate">{maze.name}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      ID: {maze.id} • {maze.difficulty}
+                    </div>
+                  </div>
+                ))}
                 
-                {/* Import/Export buttons */}
-                <div className="pt-4 border-t space-y-2">
-                  <Button variant="outline" size="sm" className="w-full" onClick={handleExportAll}>
-                    <FileDown className="w-3 h-3 mr-1" /> Export All
-                  </Button>
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => fileInputRef.current?.click()}>
-                    <Upload className="w-3 h-3 mr-1" /> Import
-                  </Button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".json"
-                    className="hidden"
-                    onChange={handleImportMazes}
-                  />
+                <div className="pt-4 border-t">
+                  <p className="text-xs text-muted-foreground text-center">
+                    Edit mazes here, then copy schema to update mazes.ts
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -917,46 +586,9 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
             {/* Tools Panel */}
             <Card className="lg:col-span-1">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center justify-between">
-                  <span>Tools</span>
-                  {loadedMazeId && (
-                    <div className="flex gap-1">
-                      <Button 
-                        size="sm" 
-                        onClick={handleSaveMaze}
-                        variant={hasUnsavedChanges ? "default" : "outline"}
-                      >
-                        <Save className="w-3 h-3 mr-1" /> Save
-                      </Button>
-                    </div>
-                  )}
-                </CardTitle>
+                <CardTitle className="text-lg">Tools</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Save/Delete actions for loaded maze */}
-                {loadedMazeId && (
-                  <div className="flex gap-2 pb-2 border-b">
-                    {isCustomized(loadedMazeId) && (
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="flex-1 text-xs"
-                        onClick={handleResetToDefault}
-                      >
-                        <RotateCcw className="w-3 h-3 mr-1" /> Reset
-                      </Button>
-                    )}
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      className="flex-1 text-xs text-destructive"
-                      onClick={handleDeleteMaze}
-                    >
-                      <Trash2 className="w-3 h-3 mr-1" /> Delete
-                    </Button>
-                  </div>
-                )}
-
                 {/* Cell Type Tools */}
                 <div className="space-y-2">
                   <Label>Paint Tool</Label>
@@ -1104,360 +736,348 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                   );
                 })()}
 
-                {/* Schema Actions */}
-                <div className="space-y-2 pt-4 border-t">
-                  <Button onClick={copyToClipboard} className="w-full" variant="outline" size="sm">
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy Schema
-                  </Button>
-                  <Button onClick={downloadSchema} className="w-full" variant="outline" size="sm">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Schema
-                  </Button>
-                  <Button onClick={clearGrid} className="w-full" variant="destructive" size="sm">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Clear Grid
+                {/* Quick Actions */}
+                <div className="pt-2 border-t flex gap-2">
+                  <Button onClick={clearGrid} size="sm" variant="destructive" className="flex-1">
+                    Clear
                   </Button>
                 </div>
               </CardContent>
             </Card>
 
             {/* Grid Editor */}
-            <Card className="lg:col-span-2 overflow-auto">
+            <Card className="lg:col-span-2">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">
-                  {loadedMazeId ? config.name : 'New Maze'} ({width}x{height})
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <span>Grid ({grid[0]?.length || 0} x {grid.length})</span>
+                  {placingCharacterId && (
+                    <span className="text-sm text-primary animate-pulse">
+                      Click to place character...
+                    </span>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div 
-                  className="inline-grid gap-0 border border-amber-800 select-none"
-                  style={{ 
-                    gridTemplateColumns: `repeat(${grid[0]?.length || 0}, minmax(0, 1fr))`,
-                  }}
+                  className="overflow-auto max-h-[60vh] border rounded-lg p-2 bg-white"
+                  style={{ touchAction: 'none' }}
                 >
-                  {grid.map((row, y) =>
-                    row.map((cell, x) => {
-                      const cellDialogue = getCellDialogue(x, y);
-                      const cellCharacter = getCharacterAtCell(x, y);
-                      const isSelectedDialogueCell = cellDialogue?.id === selectedDialogueId;
-                      const dialogueIndex = cellDialogue ? getDialogueIndex(cellDialogue.id) + 1 : null;
-                      const dialogueColor = cellDialogue ? getDialogueColor(cellDialogue.id) : null;
-                      const isPlacingMode = !!placingCharacterId;
-                      const bgColor = CELL_COLORS[cell];
-                      
-                      return (
-                        <div
-                          key={`${x}-${y}`}
-                          className={`w-5 h-5 border cursor-pointer transition-colors flex items-center justify-center text-[8px] font-bold relative ${
-                            isSelectedDialogueCell 
-                              ? 'border-2 border-white ring-2 ring-yellow-300 z-10' 
-                              : isPlacingMode 
-                                ? 'border-amber-400 hover:border-amber-600' 
-                                : 'border-amber-900/20'
-                          } ${bgColor}`}
-                          onMouseDown={() => handleMouseDown(x, y)}
-                          onMouseEnter={() => handleMouseEnter(x, y)}
-                          title={
-                            cellCharacter 
-                              ? `${cellCharacter.emoji} ${cellCharacter.name}` 
-                              : cellDialogue 
-                                ? `#${dialogueIndex}: ${cellDialogue.speaker} - "${cellDialogue.message.slice(0, 30)}..."` 
-                                : undefined
-                          }
-                        >
-                          {cellCharacter ? (
-                            <span className="text-sm">{cellCharacter.emoji}</span>
-                          ) : (
-                            <span className="text-white">{cell !== '#' && cell !== ' ' ? cell : ''}</span>
-                          )}
-                          
-                          {dialogueIndex && dialogueColor && (
-                            <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${dialogueColor} flex items-center justify-center text-[6px] text-white font-bold border border-white`}>
-                              {dialogueIndex}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {/* Legend */}
-                <div className="mt-4 flex flex-wrap gap-3 text-xs">
-                  {(Object.keys(CELL_LABELS) as CellType[]).map(cell => (
-                    <div key={cell} className="flex items-center gap-1">
-                      <div className={`w-4 h-4 ${CELL_COLORS[cell]} border border-amber-900/30`} />
-                      <span>{CELL_LABELS[cell]}</span>
-                    </div>
-                  ))}
+                  <div 
+                    className="inline-grid gap-[1px]"
+                    style={{ 
+                      gridTemplateColumns: `repeat(${grid[0]?.length || 0}, minmax(16px, 1fr))`,
+                    }}
+                  >
+                    {grid.map((row, y) =>
+                      row.map((cell, x) => {
+                        const dialogue = getCellDialogue(x, y);
+                        const character = getCharacterAtCell(x, y);
+                        const isDialogueCell = !!dialogue;
+                        const dialogueColor = dialogue ? getDialogueColor(dialogue.id) : '';
+                        const isSelectedDialogue = dialogue?.id === selectedDialogueId;
+                        
+                        return (
+                          <div
+                            key={`${x}-${y}`}
+                            className={`
+                              w-4 h-4 md:w-5 md:h-5 cursor-crosshair transition-colors relative
+                              ${character ? 'ring-2 ring-purple-600' : ''}
+                              ${isDialogueCell ? dialogueColor : CELL_COLORS[cell]}
+                              ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-black' : ''}
+                            `}
+                            onMouseDown={() => handleMouseDown(x, y)}
+                            onMouseEnter={() => handleMouseEnter(x, y)}
+                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${dialogue ? ` - ${dialogue.speaker}` : ''}${character ? ` - ${character.name}` : ''}`}
+                          >
+                            {character && (
+                              <span className="absolute inset-0 flex items-center justify-center text-[10px]">
+                                {character.emoji}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Character Panel */}
-            {showCharacterPanel && (
-              <Card className="lg:col-span-1">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center justify-between">
-                    <span>Characters</span>
-                    <Button size="sm" onClick={addCharacter}>
-                      <Plus className="w-4 h-4 mr-1" /> Add
+            {/* Preview Panel */}
+            <Card className="lg:col-span-1">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <span>Schema Output</span>
+                  <div className="flex gap-1">
+                    <Button size="icon" variant="ghost" onClick={copyToClipboard} title="Copy to clipboard">
+                      <Copy className="w-4 h-4" />
                     </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 max-h-[400px] overflow-y-auto">
-                  {characters.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-2">
-                      No characters. Click "Add" to create one.
-                    </p>
-                  ) : (
-                    characters.map(char => (
-                      <div 
-                        key={char.id} 
-                        className={`p-3 rounded-lg border-2 space-y-2 ${
-                          selectedCharacterId === char.id 
-                            ? 'ring-2 ring-blue-400 border-gray-400 bg-white' 
-                            : 'border-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">{char.emoji}</span>
-                            <span className="font-semibold text-sm">{char.name}</span>
-                            {char.position && (
-                              <span className="text-xs text-muted-foreground">
-                                ({char.position.x}, {char.position.y})
-                              </span>
-                            )}
-                          </div>
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            onClick={() => removeCharacter(char.id)}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label className="text-xs">Name</Label>
-                            <Input
-                              value={char.name}
-                              onChange={e => updateCharacter(char.id, { name: e.target.value })}
-                              className="h-8 text-xs"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Emoji</Label>
-                            <Input
-                              value={char.emoji}
-                              onChange={e => updateCharacter(char.id, { emoji: e.target.value })}
-                              className="h-8 text-xs"
-                            />
-                          </div>
-                        </div>
+                    <Button size="icon" variant="ghost" onClick={downloadSchema} title="Download">
+                      <Download className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={generateSchema()}
+                  readOnly
+                  className="font-mono text-xs h-[50vh] resize-none"
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  Copy this schema and paste it into src/data/mazes.ts
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label className="text-xs">Model</Label>
-                            <Select
-                              value={char.model}
-                              onValueChange={v => updateCharacter(char.id, { model: v })}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {AVAILABLE_MODELS.map(model => (
-                                  <SelectItem key={model} value={model}>{model.replace('.glb', '')}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label className="text-xs">Animation</Label>
-                            <Select
-                              value={char.animation}
-                              onValueChange={v => updateCharacter(char.id, { animation: v })}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {AVAILABLE_ANIMATIONS.map(anim => (
-                                  <SelectItem key={anim} value={anim}>{anim}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <Button
-                          size="sm"
-                          variant={placingCharacterId === char.id ? 'default' : 'outline'}
-                          className="w-full h-7 text-xs"
-                          onClick={() => {
-                            setPlacingCharacterId(placingCharacterId === char.id ? null : char.id);
-                            setSelectedCharacterId(char.id);
-                          }}
-                        >
-                          {placingCharacterId === char.id ? 'Click grid to place...' : (char.position ? 'Reposition' : 'Place on Grid')}
+        {/* Character Panel */}
+        {showCharacterPanel && (
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center justify-between">
+                <span>Characters</span>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={addCharacter}>
+                    <Plus className="w-4 h-4 mr-1" /> Add Character
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setShowCharacterPanel(false)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {characters.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No characters yet. Add one to place on the grid.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {characters.map(char => (
+                    <Card 
+                      key={char.id} 
+                      className={`p-3 ${selectedCharacterId === char.id ? 'ring-2 ring-primary' : ''}`}
+                      onClick={() => setSelectedCharacterId(char.id)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xl">{char.emoji}</span>
+                        <Button size="icon" variant="ghost" onClick={() => removeCharacter(char.id)}>
+                          <X className="w-4 h-4" />
                         </Button>
                       </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                      <div className="space-y-2">
+                        <Input
+                          placeholder="Name"
+                          value={char.name}
+                          onChange={e => updateCharacter(char.id, { name: e.target.value })}
+                          className="text-sm"
+                        />
+                        <Input
+                          placeholder="Emoji"
+                          value={char.emoji}
+                          onChange={e => updateCharacter(char.id, { emoji: e.target.value })}
+                          className="text-sm"
+                        />
+                        <Select
+                          value={char.model}
+                          onValueChange={v => updateCharacter(char.id, { model: v })}
+                        >
+                          <SelectTrigger className="text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AVAILABLE_MODELS.map(m => (
+                              <SelectItem key={m} value={m}>{m}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={char.animation}
+                          onValueChange={v => updateCharacter(char.id, { animation: v })}
+                        >
+                          <SelectTrigger className="text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AVAILABLE_ANIMATIONS.map(a => (
+                              <SelectItem key={a} value={a}>{a}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant={placingCharacterId === char.id ? 'default' : 'outline'}
+                            className="flex-1"
+                            onClick={() => setPlacingCharacterId(placingCharacterId === char.id ? null : char.id)}
+                          >
+                            {char.position ? `(${char.position.x}, ${char.position.y})` : 'Place'}
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-            {/* Dialogue Panel */}
-            {showDialoguePanel && (
-              <Card className="lg:col-span-1">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center justify-between">
-                    <span>Dialogues</span>
-                    <Button size="sm" onClick={addDialogue}>
-                      <Plus className="w-4 h-4 mr-1" /> Add
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 max-h-[600px] overflow-y-auto">
-                  {dialogues.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No dialogues yet. Click "Add" to create one.
-                    </p>
-                  ) : (
-                    dialogues.map((dialogue, index) => (
-                      <div 
+        {/* Dialogue Panel */}
+        {showDialoguePanel && (
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center justify-between">
+                <span>Dialogues</span>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={addDialogue}>
+                    <Plus className="w-4 h-4 mr-1" /> Add Dialogue
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setShowDialoguePanel(false)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dialogues.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No dialogues yet. Add one and click cells to set trigger zones.</p>
+              ) : (
+                <div className="space-y-4">
+                  {/* Required dialogues selector */}
+                  <div className="p-3 bg-muted rounded-lg">
+                    <Label className="text-sm font-semibold">Required for Completion:</Label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {dialogues.map(d => (
+                        <Button
+                          key={d.id}
+                          size="sm"
+                          variant={config.requiredDialogues?.includes(d.id) ? 'default' : 'outline'}
+                          onClick={() => {
+                            const isRequired = config.requiredDialogues?.includes(d.id);
+                            setConfig(c => ({
+                              ...c,
+                              requiredDialogues: isRequired
+                                ? c.requiredDialogues?.filter(id => id !== d.id)
+                                : [...(c.requiredDialogues || []), d.id]
+                            }));
+                          }}
+                        >
+                          {d.speaker}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {dialogues.map((dialogue, index) => (
+                      <Card 
                         key={dialogue.id} 
-                        className={`p-3 rounded-lg border-2 space-y-2 cursor-pointer ${
-                          selectedDialogueId === dialogue.id 
-                            ? 'ring-2 ring-yellow-400 border-gray-400 bg-white' 
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
+                        className={`p-3 ${selectedDialogueId === dialogue.id ? 'ring-2 ring-primary' : ''} ${DIALOGUE_COLORS[index % DIALOGUE_COLORS.length].replace('bg-', 'border-l-4 border-')}`}
                         onClick={() => {
                           setSelectedDialogueId(dialogue.id);
                           setSelectedTool('D');
                         }}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded flex items-center justify-center text-white font-bold text-sm ${getDialogueColor(dialogue.id)}`}>
-                              {index + 1}
-                            </div>
-                            <span className="font-semibold text-sm">{dialogue.speakerEmoji} {dialogue.speaker}</span>
-                          </div>
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            onClick={(e) => { e.stopPropagation(); removeDialogue(dialogue.id); }}
-                          >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-sm">{dialogue.speaker}</span>
+                          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); removeDialogue(dialogue.id); }}>
                             <X className="w-4 h-4" />
                           </Button>
                         </div>
-                        
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          <span className={`w-3 h-3 rounded ${getDialogueColor(dialogue.id)}`}></span>
-                          {dialogue.cells.length} trigger cell{dialogue.cells.length !== 1 ? 's' : ''} placed
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label className="text-xs">Speaker</Label>
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
                             <Input
+                              placeholder="Speaker"
                               value={dialogue.speaker}
                               onChange={e => updateDialogue(dialogue.id, { speaker: e.target.value })}
-                              className="h-8 text-xs"
+                              className="flex-1 text-sm"
                               onClick={e => e.stopPropagation()}
                             />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Emoji</Label>
                             <Input
+                              placeholder="🧑"
                               value={dialogue.speakerEmoji}
                               onChange={e => updateDialogue(dialogue.id, { speakerEmoji: e.target.value })}
-                              className="h-8 text-xs"
+                              className="w-16 text-sm"
                               onClick={e => e.stopPropagation()}
                             />
                           </div>
-                        </div>
-
-                        <div>
-                          <Label className="text-xs">Message</Label>
                           <Textarea
+                            placeholder="Message..."
                             value={dialogue.message}
                             onChange={e => updateDialogue(dialogue.id, { message: e.target.value })}
-                            className="h-12 text-xs"
+                            className="text-sm"
+                            rows={2}
                             onClick={e => e.stopPropagation()}
                           />
+                          <div className="flex gap-2">
+                            <Select
+                              value={dialogue.speakerCharacterId || 'none'}
+                              onValueChange={v => updateDialogue(dialogue.id, { 
+                                speakerCharacterId: v === 'none' ? undefined : v,
+                                characterModel: v === 'none' ? dialogue.characterModel : undefined
+                              })}
+                            >
+                              <SelectTrigger className="text-sm" onClick={e => e.stopPropagation()}>
+                                <SelectValue placeholder="Link to character..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">No linked character</SelectItem>
+                                {characters.filter(c => c.position).map(c => (
+                                  <SelectItem key={c.id} value={c.id}>
+                                    {c.emoji} {c.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {!dialogue.speakerCharacterId && (
+                            <Select
+                              value={dialogue.characterModel || 'Farmer.glb'}
+                              onValueChange={v => updateDialogue(dialogue.id, { characterModel: v })}
+                            >
+                              <SelectTrigger className="text-sm" onClick={e => e.stopPropagation()}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {AVAILABLE_MODELS.map(m => (
+                                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          <div className="text-xs text-muted-foreground">
+                            Trigger cells: {dialogue.cells.length === 0 ? 'Click grid to add' : dialogue.cells.map(c => `(${c.x},${c.y})`).join(' ')}
+                          </div>
+                          <div className="flex gap-2">
+                            <Select
+                              value={dialogue.requires?.join(',') || 'none'}
+                              onValueChange={v => updateDialogue(dialogue.id, { 
+                                requires: v === 'none' ? undefined : v.split(',').filter(Boolean)
+                              })}
+                            >
+                              <SelectTrigger className="text-sm" onClick={e => e.stopPropagation()}>
+                                <SelectValue placeholder="Requires..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">No prerequisites</SelectItem>
+                                {dialogues.filter(d => d.id !== dialogue.id).map(d => (
+                                  <SelectItem key={d.id} value={d.id}>
+                                    After: {d.speaker}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-
-                        <div>
-                          <Label className="text-xs">Speaker Character</Label>
-                          <Select
-                            value={dialogue.speakerCharacterId || 'none'}
-                            onValueChange={v => updateDialogue(dialogue.id, { 
-                              speakerCharacterId: v === 'none' ? undefined : v
-                            })}
-                          >
-                            <SelectTrigger className="h-8 text-xs" onClick={e => e.stopPropagation()}>
-                              <SelectValue placeholder="None" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None (spawn new)</SelectItem>
-                              {characters.filter(c => c.position).map(char => (
-                                <SelectItem key={char.id} value={char.id}>
-                                  {char.emoji} {char.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={config.requiredDialogues?.includes(dialogue.id) || false}
-                            onChange={e => {
-                              if (e.target.checked) {
-                                setConfig(c => ({
-                                  ...c,
-                                  requiredDialogues: [...(c.requiredDialogues || []), dialogue.id]
-                                }));
-                              } else {
-                                setConfig(c => ({
-                                  ...c,
-                                  requiredDialogues: c.requiredDialogues?.filter(d => d !== dialogue.id)
-                                }));
-                              }
-                              setHasUnsavedChanges(true);
-                            }}
-                            onClick={e => e.stopPropagation()}
-                          />
-                          <Label className="text-xs">Required to complete</Label>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
-
-        {/* Schema Preview */}
-        <Card className="mt-4">
-          <CardHeader className="py-2">
-            <CardTitle className="text-sm">Generated Schema</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-auto text-xs max-h-40">
-              {generateSchema()}
-            </pre>
-          </CardContent>
-        </Card>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
