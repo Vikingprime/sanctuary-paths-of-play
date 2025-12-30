@@ -92,6 +92,11 @@ export const MobileControls = ({
     setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
   }, [yawRateRef, throttleRef, isMovingRef, mobileTouchActiveRef]);
 
+  // Track last known orientation to detect actual orientation changes
+  const lastOrientationRef = useRef<'portrait' | 'landscape'>(
+    window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
+  );
+
   // Add game-active class to html when mounted, remove on unmount
   // Also handle orientation changes and prevent all browser gestures
   useEffect(() => {
@@ -110,14 +115,17 @@ export const MobileControls = ({
       }
     };
     
-    // Reset controls on orientation change
-    const handleOrientationChange = () => {
-      resetControls();
+    // Only reset on actual orientation change, not minor resize events
+    const handleResize = () => {
+      const currentOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+      if (currentOrientation !== lastOrientationRef.current) {
+        lastOrientationRef.current = currentOrientation;
+        resetControls();
+      }
     };
     
-    // Use capture phase to intercept events before browser can handle them
-    window.addEventListener('resize', handleOrientationChange);
-    window.addEventListener('orientationchange', handleOrientationChange);
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', resetControls);
     
     document.addEventListener('touchstart', preventGestures, { passive: false, capture: true });
     document.addEventListener('touchmove', preventGestures, { passive: false, capture: true });
@@ -127,8 +135,8 @@ export const MobileControls = ({
       document.documentElement.classList.remove('game-active');
       document.body.style.overscrollBehavior = '';
       document.documentElement.style.overscrollBehavior = '';
-      window.removeEventListener('resize', handleOrientationChange);
-      window.removeEventListener('orientationchange', handleOrientationChange);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', resetControls);
       document.removeEventListener('touchstart', preventGestures, { capture: true });
       document.removeEventListener('touchmove', preventGestures, { capture: true });
       document.removeEventListener('touchend', preventGestures, { capture: true });
