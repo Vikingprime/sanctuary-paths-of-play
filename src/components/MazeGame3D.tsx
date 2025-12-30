@@ -689,9 +689,6 @@ export const MazeGame3D = ({
               <Button variant="default" size="lg" onClick={handleRestart}>
                 Try Again
               </Button>
-              <Button variant="ghost" size="lg" onClick={onQuit}>
-                ✕ Quit
-              </Button>
             </div>
             
             {/* Sound toggle */}
@@ -770,6 +767,7 @@ export const MazeGame3D = ({
             maze={maze}
             timeLeft={previewTimeLeft}
             onPreviewEnd={() => setIsPreviewing(false)}
+            onQuit={onQuit}
             isMuted={isMuted}
             onToggleMute={handleToggleMute}
           />

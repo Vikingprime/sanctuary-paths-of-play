@@ -6,6 +6,7 @@ interface MazePreviewProps {
   maze: Maze;
   timeLeft: number;
   onPreviewEnd: () => void;
+  onQuit?: () => void;
   isMuted?: boolean;
   onToggleMute?: () => void;
 }
@@ -14,6 +15,7 @@ export const MazePreview = ({
   maze, 
   timeLeft, 
   onPreviewEnd,
+  onQuit,
   isMuted = false,
   onToggleMute 
 }: MazePreviewProps) => {
@@ -37,6 +39,16 @@ export const MazePreview = ({
         >
           {isMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
           <span className="hidden sm:inline">{isMuted ? 'Muted' : 'Sound'}</span>
+        </button>
+      )}
+
+      {/* Quit button in top left */}
+      {onQuit && (
+        <button
+          onClick={onQuit}
+          className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-card/90 backdrop-blur-sm rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 shadow-lg font-display text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          ✕ Quit
         </button>
       )}
 
