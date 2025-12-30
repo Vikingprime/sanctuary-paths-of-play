@@ -38,7 +38,9 @@ interface Maze3DSceneProps {
   isMovingRef: MutableRefObject<boolean>;
   collectedPowerUps?: Set<string>;
   keysPressed: MutableRefObject<Set<string>>;
-  rotationIntensityRef?: MutableRefObject<number>;
+  // Mobile controls - absolute target heading system
+  mobileTargetYawRef?: MutableRefObject<number | null>;
+  mobileIsMovingRef?: MutableRefObject<boolean>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1107,7 +1109,8 @@ const RefBasedPlayer = ({
   isMovingRef,
   maze,
   keysPressed,
-  rotationIntensityRef,
+  mobileTargetYawRef,
+  mobileIsMovingRef,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1121,7 +1124,8 @@ const RefBasedPlayer = ({
   isMovingRef: MutableRefObject<boolean>;
   maze: Maze;
   keysPressed: MutableRefObject<Set<string>>;
-  rotationIntensityRef?: MutableRefObject<number>;
+  mobileTargetYawRef?: MutableRefObject<number | null>;
+  mobileIsMovingRef?: MutableRefObject<boolean>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1137,6 +1141,18 @@ const RefBasedPlayer = ({
   const positionInitialized = useRef(false);
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   
+  // Mobile steering config
+  const TURN_RESPONSIVENESS = 8; // Higher = faster response to target yaw
+  
+  // Helper: lerp between angles (handles wraparound)
+  const lerpAngle = (from: number, to: number, t: number): number => {
+    let diff = to - from;
+    // Normalize difference to [-PI, PI]
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    return from + diff * t;
+  };
+  
   useFrame((state, delta) => {
     if (!groupRef.current) return;
     
@@ -1145,32 +1161,71 @@ const RefBasedPlayer = ({
       // Clamp delta to prevent large jumps on frame drops
       const clampedDelta = Math.min(delta, 0.05);
       
-      // Build input from pressed keys (arrow keys + WASD)
-      const isKeyboardRotation = keysPressed.current.has('arrowleft') || keysPressed.current.has('a') || 
-                                 keysPressed.current.has('arrowright') || keysPressed.current.has('d');
-      const input: MovementInput = {
-        forward: keysPressed.current.has('arrowup') || keysPressed.current.has('w'),
-        backward: keysPressed.current.has('arrowdown') || keysPressed.current.has('s'),
-        rotateLeft: keysPressed.current.has('arrowleft') || keysPressed.current.has('a'),
-        rotateRight: keysPressed.current.has('arrowright') || keysPressed.current.has('d'),
-        // Use full intensity for keyboard, ref value for mobile touch
-        rotationIntensity: isKeyboardRotation ? 1.0 : (rotationIntensityRef?.current ?? 1.0),
-      };
+      // Check if mobile touch is active (absolute target heading mode)
+      const mobileActive = mobileTargetYawRef?.current !== null && mobileTargetYawRef?.current !== undefined;
       
-      // Update isMoving ref
-      isMovingRef.current = input.forward || input.backward;
+      let input: MovementInput;
       
-      // Calculate movement with clamped delta (smooth per-frame updates)
-      const prev = playerStateRef.current;
-      const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-      playerStateRef.current = newState;
+      if (mobileActive) {
+        // MOBILE MODE: Absolute target heading
+        // Smoothly interpolate current rotation toward target yaw
+        const targetYaw = mobileTargetYawRef!.current!;
+        const currentYaw = playerStateRef.current.rotation;
+        
+        // Use exponential smoothing for responsive but smooth steering
+        const smoothingFactor = 1 - Math.exp(-clampedDelta * TURN_RESPONSIVENESS);
+        const newRotation = lerpAngle(currentYaw, targetYaw, smoothingFactor);
+        
+        // Directly set the rotation (bypassing the accumulation system)
+        playerStateRef.current = {
+          ...playerStateRef.current,
+          rotation: newRotation
+        };
+        
+        // Build input with forward from mobile ref, no rotation flags
+        // (rotation already handled above)
+        input = {
+          forward: mobileIsMovingRef?.current ?? false,
+          backward: false,
+          rotateLeft: false,
+          rotateRight: false,
+          rotationIntensity: 0, // Not used in absolute mode
+        };
+        
+        // Update isMoving ref
+        isMovingRef.current = input.forward;
+        
+        // Calculate movement (position only, rotation already set)
+        const prev = playerStateRef.current;
+        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+        playerStateRef.current = newState;
+      } else {
+        // KEYBOARD MODE: Original per-frame rotation accumulation
+        const isKeyboardRotation = keysPressed.current.has('arrowleft') || keysPressed.current.has('a') || 
+                                   keysPressed.current.has('arrowright') || keysPressed.current.has('d');
+        input = {
+          forward: keysPressed.current.has('arrowup') || keysPressed.current.has('w'),
+          backward: keysPressed.current.has('arrowdown') || keysPressed.current.has('s'),
+          rotateLeft: keysPressed.current.has('arrowleft') || keysPressed.current.has('a'),
+          rotateRight: keysPressed.current.has('arrowright') || keysPressed.current.has('d'),
+          rotationIntensity: isKeyboardRotation ? 1.0 : 1.0,
+        };
+        
+        // Update isMoving ref
+        isMovingRef.current = input.forward || input.backward;
+        
+        // Calculate movement with clamped delta (smooth per-frame updates)
+        const prev = playerStateRef.current;
+        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+        playerStateRef.current = newState;
+      }
       
       // Only check interactions when entering a new cell
-      const currentCellX = Math.floor(newState.x);
-      const currentCellY = Math.floor(newState.y);
+      const currentCellX = Math.floor(playerStateRef.current.x);
+      const currentCellY = Math.floor(playerStateRef.current.y);
       if (currentCellX !== lastCellRef.current.x || currentCellY !== lastCellRef.current.y) {
         lastCellRef.current = { x: currentCellX, y: currentCellY };
-        onCellInteraction(newState.x, newState.y);
+        onCellInteraction(playerStateRef.current.x, playerStateRef.current.y);
       }
     } else {
       // When paused (including dialogue), freeze movement
@@ -1867,7 +1922,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, rotationIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileIsMovingRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2066,7 +2121,8 @@ return (
         isMovingRef={isMovingRef}
         maze={maze}
         keysPressed={keysPressed}
-        rotationIntensityRef={rotationIntensityRef}
+        mobileTargetYawRef={mobileTargetYawRef}
+        mobileIsMovingRef={mobileIsMovingRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}

@@ -100,7 +100,9 @@ export const MazeGame3D = ({
   const [showCollisionDebug, setShowCollisionDebug] = useState(debugMode);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
-  const rotationIntensityRef = useRef(0);
+  // Mobile controls - absolute target heading system
+  const mobileTargetYawRef = useRef<number | null>(null);
+  const mobileIsMovingRef = useRef(false);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   
   // Dialogue state
@@ -513,26 +515,7 @@ export const MazeGame3D = ({
     };
   }, []);
 
-  // Mobile controls - add/remove keys directly for continuous movement
-  const handleMobileStart = useCallback((direction: 'forward' | 'back' | 'left' | 'right') => {
-    const keyMap = {
-      forward: 'arrowup',
-      back: 'arrowdown',
-      left: 'arrowleft',
-      right: 'arrowright',
-    };
-    keysPressed.current.add(keyMap[direction]);
-  }, []);
-
-  const handleMobileEnd = useCallback((direction: 'forward' | 'back' | 'left' | 'right') => {
-    const keyMap = {
-      forward: 'arrowup',
-      back: 'arrowdown',
-      left: 'arrowleft',
-      right: 'arrowright',
-    };
-    keysPressed.current.delete(keyMap[direction]);
-  }, []);
+  // Mobile controls now handled by MobileControls component with refs
 
   // Use ability - wraps pure executeAbility
   const useAbility = () => {
@@ -726,7 +709,8 @@ export const MazeGame3D = ({
         isMovingRef={isMovingRef}
         collectedPowerUps={collectedPowerUps}
         keysPressed={keysPressed}
-        rotationIntensityRef={rotationIntensityRef}
+        mobileTargetYawRef={mobileTargetYawRef}
+        mobileIsMovingRef={mobileIsMovingRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
@@ -808,7 +792,12 @@ export const MazeGame3D = ({
       )}
 
       {/* Mobile Controls */}
-      <MobileControls onMoveStart={handleMobileStart} onMoveEnd={handleMobileEnd} rotationIntensityRef={rotationIntensityRef} />
+      <MobileControls 
+        playerStateRef={playerStateRef}
+        targetYawRef={mobileTargetYawRef}
+        isMovingRef={mobileIsMovingRef}
+        debugMode={debugMode}
+      />
 
       {/* Map Station Button - appears when station is available but not viewing or in dialogue */}
       {mapStationAvailable && !showMiniMap && !showMapOptions && mapCountdown === null && !activeDialogue && (

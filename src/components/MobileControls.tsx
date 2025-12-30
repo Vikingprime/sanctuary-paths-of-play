@@ -1,150 +1,152 @@
 import { useRef, useCallback, useEffect, MutableRefObject } from 'react';
+import { PlayerState } from '@/game/GameLogic';
+
+// Tuning knobs - exposed for easy adjustment
+export const MOBILE_CONTROL_CONFIG = {
+  turnRadiusPx: 200,        // Pixels needed for full turn - bigger = less sensitive
+  maxTurnRadians: 0.8,      // Max turn per swipe (~45 degrees)
+  deadzonePx: 12,           // Kills micro jitter
+  throttleRadiusPx: 100,    // Pixels for full forward speed
+  straightSwipeRatio: 0.35, // If |dx| < |dy| * ratio, treat as straight forward
+};
 
 interface MobileControlsProps {
-  onMoveStart: (direction: 'forward' | 'back' | 'left' | 'right') => void;
-  onMoveEnd: (direction: 'forward' | 'back' | 'left' | 'right') => void;
-  rotationIntensityRef?: MutableRefObject<number>;
+  playerStateRef: MutableRefObject<PlayerState>;  // Player state ref (read rotation on touch start)
+  targetYawRef: MutableRefObject<number | null>;  // Target yaw to steer toward (null = no touch active)
+  isMovingRef: MutableRefObject<boolean>;         // Whether player should move forward
+  debugMode?: boolean;
 }
 
-export const MobileControls = ({ onMoveStart, onMoveEnd, rotationIntensityRef }: MobileControlsProps) => {
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const activeDirectionsRef = useRef<Set<'forward' | 'back' | 'left' | 'right'>>(new Set());
-  const touchIdRef = useRef<number | null>(null);
-  
-  // Very sensitive joystick-style controls for easy one-thumb steering
-  const DEADZONE = 8; // Very small deadzone - start moving almost immediately
-  const MAX_DISTANCE = 60; // Smaller max distance - less thumb movement needed
-  const FORWARD_THRESHOLD = 0.15; // Much lower - easier to go straight while turning
+export const MobileControls = ({ 
+  playerStateRef, 
+  targetYawRef, 
+  isMovingRef,
+  debugMode = false
+}: MobileControlsProps) => {
+  // Swipe state
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const startYawRef = useRef<number>(0);
+  const activePointerIdRef = useRef<number | null>(null);
+  const lastDebugLogRef = useRef<number>(0);
 
-  const updateDirections = useCallback((dx: number, dy: number) => {
-    const newDirections = new Set<'forward' | 'back' | 'left' | 'right'>();
-    
-    // Calculate distance from touch start
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    // Inside deadzone - no movement
-    if (distance < DEADZONE) {
-      if (rotationIntensityRef) {
-        rotationIntensityRef.current = 0;
-      }
-      activeDirectionsRef.current.forEach(dir => onMoveEnd(dir));
-      activeDirectionsRef.current = new Set();
-      return;
-    }
-    
-    // Normalize direction
-    const normalizedX = dx / distance;
-    const normalizedY = dy / distance;
-    
-    // Calculate effective distance (0 at deadzone, 1 at max) - reaches max faster
-    const effectiveDistance = Math.min(1, (distance - DEADZONE) / (MAX_DISTANCE - DEADZONE));
-    
-    // Forward/back based on Y (negative = up = forward)
-    // Very low threshold means forward activates easily when dragging up-left or up-right
-    if (normalizedY < -FORWARD_THRESHOLD) {
-      newDirections.add('forward');
-    } else if (normalizedY > 0.4) { // Higher threshold for back - avoid accidental backwards
-      newDirections.add('back');
-    }
-    
-    // Left/right rotation - very sensitive for easy steering
-    // Even small horizontal movement triggers turning
-    if (Math.abs(normalizedX) > 0.1) {
-      if (normalizedX < 0) newDirections.add('left');
-      if (normalizedX > 0) newDirections.add('right');
-      
-      // Rotation intensity: use smooth curve for precise control
-      // Low horizontal = gentle turn, high horizontal = sharp turn
-      const baseIntensity = Math.abs(normalizedX);
-      // Apply smooth curve: starts slow, accelerates
-      const curvedIntensity = baseIntensity * baseIntensity * 0.8 + baseIntensity * 0.2;
-      const rotationIntensity = curvedIntensity * Math.min(1, effectiveDistance * 1.5);
-      
-      if (rotationIntensityRef) {
-        rotationIntensityRef.current = rotationIntensity;
-      }
-    } else {
-      // Moving mostly forward/back - no rotation
-      if (rotationIntensityRef) {
-        rotationIntensityRef.current = 0;
-      }
-    }
-    
-    const prev = activeDirectionsRef.current;
-    
-    // End directions no longer active
-    prev.forEach(dir => {
-      if (!newDirections.has(dir)) {
-        onMoveEnd(dir);
-      }
-    });
-    
-    // Start new directions
-    newDirections.forEach(dir => {
-      if (!prev.has(dir)) {
-        onMoveStart(dir);
-      }
-    });
-    
-    activeDirectionsRef.current = newDirections;
-  }, [onMoveStart, onMoveEnd, rotationIntensityRef]);
-
-  const handleTouchStart = useCallback((e: TouchEvent) => {
+  const handlePointerDown = useCallback((e: PointerEvent) => {
     // Don't capture if touch is on UI elements
     const target = e.target as HTMLElement;
     if (target.closest('button, [role="button"], .z-50, .z-40, .z-30')) return;
     
-    if (touchIdRef.current !== null) return;
+    // Only capture first pointer
+    if (activePointerIdRef.current !== null) return;
     
-    const touch = e.touches[0];
-    touchIdRef.current = touch.identifier;
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-  }, []);
-
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (touchIdRef.current === null || !touchStartRef.current) return;
+    // Store swipe start and capture pointer
+    activePointerIdRef.current = e.pointerId;
+    swipeStartRef.current = { x: e.clientX, y: e.clientY };
     
-    const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
-    if (!touch) return;
+    // CRITICAL: Capture the player's current rotation as startYaw
+    // This anchors the swipe to the heading at touch-start, preventing drift
+    startYawRef.current = playerStateRef.current.rotation;
     
-    const dx = touch.clientX - touchStartRef.current.x;
-    const dy = touch.clientY - touchStartRef.current.y;
+    // Set target yaw to current rotation (no turn initially)
+    targetYawRef.current = startYawRef.current;
     
-    updateDirections(dx, dy);
-  }, [updateDirections]);
-
-  const handleTouchEnd = useCallback((e: TouchEvent) => {
-    if (touchIdRef.current === null) return;
+    // Capture pointer for reliable tracking
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     
-    const touchStillActive = Array.from(e.touches).some(t => t.identifier === touchIdRef.current);
-    if (touchStillActive) return;
-    
-    touchIdRef.current = null;
-    touchStartRef.current = null;
-    
-    // End all active directions and reset intensity
-    activeDirectionsRef.current.forEach(dir => onMoveEnd(dir));
-    activeDirectionsRef.current.clear();
-    
-    if (rotationIntensityRef) {
-      rotationIntensityRef.current = 0;
+    if (debugMode) {
+      console.log('[MobileControls] pointerdown - startYaw:', startYawRef.current.toFixed(3));
     }
-  }, [onMoveEnd, rotationIntensityRef]);
+  }, [playerStateRef, targetYawRef, debugMode]);
+
+  const handlePointerMove = useCallback((e: PointerEvent) => {
+    // Only respond to our active pointer
+    if (activePointerIdRef.current !== e.pointerId) return;
+    if (!swipeStartRef.current) return;
+    
+    const { turnRadiusPx, maxTurnRadians, deadzonePx, throttleRadiusPx, straightSwipeRatio } = MOBILE_CONTROL_CONFIG;
+    
+    // Calculate ABSOLUTE displacement from touch start (not delta from last frame!)
+    const dx = e.clientX - swipeStartRef.current.x;
+    const dy = e.clientY - swipeStartRef.current.y;
+    
+    // Inside deadzone - no movement
+    if (Math.abs(dx) < deadzonePx && Math.abs(dy) < deadzonePx) {
+      targetYawRef.current = startYawRef.current;
+      isMovingRef.current = false;
+      return;
+    }
+    
+    // Determine if this is a "straight swipe" (lane lock)
+    // If horizontal displacement is much smaller than vertical, treat as pure forward
+    const isStraightSwipe = Math.abs(dx) < Math.abs(dy) * straightSwipeRatio;
+    
+    let targetYaw: number;
+    
+    if (isStraightSwipe) {
+      // Lane lock: keep heading straight, no turning
+      targetYaw = startYawRef.current;
+    } else {
+      // Calculate turn amount from horizontal displacement
+      // Clamp to [-1, 1] range
+      const turn = Math.max(-1, Math.min(1, dx / turnRadiusPx));
+      
+      // Apply turn to startYaw (NOT current yaw - this prevents drift!)
+      targetYaw = startYawRef.current + turn * maxTurnRadians;
+    }
+    
+    // Set target yaw for the movement system to smoothly interpolate toward
+    targetYawRef.current = targetYaw;
+    
+    // Forward movement based on vertical displacement (up = forward)
+    // Negative dy = swiping up = forward
+    const forwardAmount = -dy / throttleRadiusPx;
+    isMovingRef.current = forwardAmount > 0.1; // Small threshold to start moving
+    
+    // Debug logging (throttled to once per 500ms)
+    if (debugMode && Date.now() - lastDebugLogRef.current > 500) {
+      lastDebugLogRef.current = Date.now();
+      const turn = dx / turnRadiusPx;
+      console.log('[MobileControls] dx:', dx.toFixed(0), 
+                  'turn:', turn.toFixed(2), 
+                  'startYaw:', startYawRef.current.toFixed(3),
+                  'targetYaw:', targetYaw.toFixed(3),
+                  'playerYaw:', playerStateRef.current.rotation.toFixed(3),
+                  'straight:', isStraightSwipe);
+    }
+  }, [targetYawRef, isMovingRef, playerStateRef, debugMode]);
+
+  const handlePointerEnd = useCallback((e: PointerEvent) => {
+    // Only respond to our active pointer
+    if (activePointerIdRef.current !== e.pointerId) return;
+    
+    // Clear active pointer
+    activePointerIdRef.current = null;
+    swipeStartRef.current = null;
+    
+    // Clear target yaw (signals no touch active)
+    targetYawRef.current = null;
+    isMovingRef.current = false;
+    
+    // Release pointer capture
+    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+    
+    if (debugMode) {
+      console.log('[MobileControls] pointerup - cleared');
+    }
+  }, [targetYawRef, isMovingRef, debugMode]);
 
   useEffect(() => {
-    // Attach to document for full-screen touch capture
-    document.addEventListener('touchstart', handleTouchStart, { passive: true });
-    document.addEventListener('touchmove', handleTouchMove, { passive: true });
-    document.addEventListener('touchend', handleTouchEnd, { passive: true });
-    document.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    // Use pointer events for better cross-platform support
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerEnd);
+    document.addEventListener('pointercancel', handlePointerEnd);
     
     return () => {
-      document.removeEventListener('touchstart', handleTouchStart);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
-      document.removeEventListener('touchcancel', handleTouchEnd);
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerEnd);
+      document.removeEventListener('pointercancel', handlePointerEnd);
     };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
+  }, [handlePointerDown, handlePointerMove, handlePointerEnd]);
 
   // No visible UI - completely invisible control layer
   return null;
