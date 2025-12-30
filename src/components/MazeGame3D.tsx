@@ -867,8 +867,8 @@ export const MazeGame3D = ({
           : activeDialogue.messages?.[dialogueMessageIndex - 1] || { speaker: activeDialogue.speaker, speakerEmoji: activeDialogue.speakerEmoji, message: activeDialogue.message };
         
         return (
-          <div className="fixed inset-0 z-30 flex items-end justify-center p-2 sm:p-4 pointer-events-none animate-fade-in">
-            <div className="bg-card/95 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-warm-lg max-w-lg w-full mb-4 sm:mb-8 pointer-events-auto">
+          <div className="fixed inset-0 z-30 flex items-end justify-center p-2 sm:p-4 pointer-events-none animate-fade-in landscape:items-center landscape:justify-end landscape:pr-4">
+            <div className="bg-card/80 backdrop-blur-md rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-warm-lg max-w-lg w-full mb-4 sm:mb-8 pointer-events-auto landscape:max-w-xs landscape:mb-0 landscape:mr-2">
               <div className="flex items-start gap-3 sm:gap-4">
                 <div className="text-3xl sm:text-4xl flex-shrink-0">
                   {currentMessage.speakerEmoji}
