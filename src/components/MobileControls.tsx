@@ -1,50 +1,33 @@
-import { useRef, useCallback, MutableRefObject } from 'react';
+import { useRef, useCallback, MutableRefObject, useState } from 'react';
 import { PlayerState } from '@/game/GameLogic';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 
 // Tuning knobs - exposed for easy adjustment
 export const MOBILE_CONTROL_CONFIG = {
-  // Throttle hysteresis thresholds (pixels)
-  forwardThreshold: 18,      // dy < -18 to enter forward mode
-  reverseThreshold: 40,      // dy > 40 to enter reverse mode  
-  forwardExitThreshold: 8,   // dy > 8 to exit forward mode
-  reverseExitThreshold: 20,  // dy < 20 to exit reverse mode
-  throttleRadiusPx: 140,     // Pixels for full throttle
+  // Steering settings - dx ONLY
+  turnRadiusPx: 85,           // Thumb-friendly turn radius
+  maxTurnRate: 2.8,           // Radians per second (sharp turning)
+  deadzonePx: 6,              // Ignore dx below this threshold
   
-  // Steering settings
-  turnRadiusPxMoving: 220,   // Turn radius when moving
-  turnRadiusPxStationary: 340, // Turn radius when stationary (less sensitive)
-  maxTurnRadMoving: 0.95,    // Max turn angle when moving (~55 degrees)
-  maxTurnRadStationary: 0.55, // Max turn angle when stationary (~31 degrees)
-  steerCurveExponent: 1.6,   // Steering curve (higher = more forgiving near center)
-  
-  // Lane lock (only for forward)
-  laneLockDxThreshold: 25,   // Max dx for lane lock when forward
-  
-  reverseSpeedMultiplier: 0.55, // Reverse is slower than forward
-  turnResponsiveness: 16,    // Smoothing factor for steering
+  // Movement is controlled by buttons, NOT by dy
+  forwardSpeed: 1.0,          // Forward speed multiplier
+  reverseSpeed: 0.55,         // Reverse is slower
 };
-
-type DriveMode = 'idle' | 'forward' | 'reverse';
 
 interface MobileControlsProps {
   playerStateRef: MutableRefObject<PlayerState>;
   targetYawRef: MutableRefObject<number>;
+  yawRateRef: MutableRefObject<number>;  // NEW: yaw rate instead of absolute yaw
   isMovingRef: MutableRefObject<boolean>;
   throttleRef: MutableRefObject<number>;
   mobileTouchActiveRef: MutableRefObject<boolean>;
   debugMode?: boolean;
 }
 
-// Normalize angle to [-PI, PI]
-const normalizeAngle = (angle: number): number => {
-  while (angle > Math.PI) angle -= Math.PI * 2;
-  while (angle < -Math.PI) angle += Math.PI * 2;
-  return angle;
-};
-
 export const MobileControls = ({ 
   playerStateRef, 
   targetYawRef, 
+  yawRateRef,
   isMovingRef,
   throttleRef,
   mobileTouchActiveRef,
@@ -53,17 +36,19 @@ export const MobileControls = ({
   // Refs for control state
   const overlayRef = useRef<HTMLDivElement>(null);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
-  const startYawRef = useRef<number>(0);
   const activePointerIdRef = useRef<number | null>(null);
-  const driveModeRef = useRef<DriveMode>('idle');
   const lastDebugLogRef = useRef<number>(0);
+  
+  // State for movement buttons
+  const [isForwardPressed, setIsForwardPressed] = useState(false);
+  const [isReversePressed, setIsReversePressed] = useState(false);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Don't capture if touch is on UI elements
+    // Don't capture if touch is on UI elements (buttons, etc)
     const target = e.target as HTMLElement;
-    if (target.closest('button, [role="button"], .z-50, .z-40, .z-30')) return;
+    if (target.closest('button, [role="button"], .z-50, .z-40, .z-30, .mobile-move-button')) return;
     
-    // Only capture first pointer
+    // Only capture first pointer for steering
     if (activePointerIdRef.current !== null) return;
     
     e.preventDefault();
@@ -72,24 +57,18 @@ export const MobileControls = ({
     // Store swipe start and capture pointer
     activePointerIdRef.current = e.pointerId;
     swipeStartRef.current = { x: e.clientX, y: e.clientY };
-    driveModeRef.current = 'idle';
     
-    // CRITICAL: Capture the player's current rotation as startYaw (normalized)
-    startYawRef.current = normalizeAngle(playerStateRef.current.rotation);
-    
-    // Set target yaw to current rotation (no turn initially)
-    targetYawRef.current = startYawRef.current;
-    
-    // Activate touch
+    // Activate touch for steering (movement controlled by buttons)
     mobileTouchActiveRef.current = true;
+    yawRateRef.current = 0; // Start with no turn
     
     // Capture pointer for reliable tracking
     e.currentTarget.setPointerCapture(e.pointerId);
     
     if (debugMode) {
-      console.log('[MobileControls] pointerdown - startYaw:', startYawRef.current.toFixed(3));
+      console.log('[MobileControls] pointerdown - steering active');
     }
-  }, [playerStateRef, targetYawRef, mobileTouchActiveRef, debugMode]);
+  }, [mobileTouchActiveRef, yawRateRef, debugMode]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     // Only respond to our active pointer
@@ -99,90 +78,29 @@ export const MobileControls = ({
     e.preventDefault();
     e.stopPropagation();
     
-    const { 
-      forwardThreshold, reverseThreshold, forwardExitThreshold, reverseExitThreshold,
-      throttleRadiusPx, turnRadiusPxMoving, turnRadiusPxStationary,
-      maxTurnRadMoving, maxTurnRadStationary, steerCurveExponent, laneLockDxThreshold
-    } = MOBILE_CONTROL_CONFIG;
+    const { turnRadiusPx, maxTurnRate, deadzonePx } = MOBILE_CONTROL_CONFIG;
     
-    // Calculate ABSOLUTE displacement from touch start
+    // Calculate ONLY horizontal displacement (steering)
     const dx = e.clientX - swipeStartRef.current.x;
-    const dy = e.clientY - swipeStartRef.current.y;
     
-    // === THROTTLE with hysteresis ===
-    const currentMode = driveModeRef.current;
-    let newMode: DriveMode = currentMode;
-    
-    // Check mode transitions
-    if (currentMode === 'idle') {
-      if (dy < -forwardThreshold) {
-        newMode = 'forward';
-      } else if (dy > reverseThreshold) {
-        newMode = 'reverse';
-      }
-    } else if (currentMode === 'forward') {
-      // Stay in forward until dy > forwardExitThreshold
-      if (dy > forwardExitThreshold) {
-        newMode = 'idle';
-      }
-    } else if (currentMode === 'reverse') {
-      // Stay in reverse until dy < reverseExitThreshold
-      if (dy < reverseExitThreshold) {
-        newMode = 'idle';
-      }
+    // Apply deadzone
+    let turn = 0;
+    if (Math.abs(dx) > deadzonePx) {
+      // Normalize dx to [-1, 1] range
+      turn = Math.max(-1, Math.min(1, dx / turnRadiusPx));
     }
     
-    driveModeRef.current = newMode;
+    // Set yaw RATE (not absolute angle) - player will rotate by this amount per second
+    yawRateRef.current = turn * maxTurnRate;
     
-    // Calculate throttle amount based on mode
-    let throttle = 0;
-    if (newMode === 'forward') {
-      // Forward: throttle increases as dy goes more negative
-      throttle = Math.min(1, (-dy - forwardThreshold) / throttleRadiusPx);
-      throttle = Math.max(0, throttle);
-    } else if (newMode === 'reverse') {
-      // Reverse: throttle increases as dy goes more positive
-      throttle = -Math.min(1, (dy - reverseThreshold) / throttleRadiusPx);
-      throttle = Math.min(0, throttle);
-    }
-    
-    throttleRef.current = throttle;
-    isMovingRef.current = newMode !== 'idle';
-    
-    // === STEERING (decoupled from throttle) ===
-    const isMoving = newMode !== 'idle';
-    const turnRadiusPx = isMoving ? turnRadiusPxMoving : turnRadiusPxStationary;
-    const maxTurnRad = isMoving ? maxTurnRadMoving : maxTurnRadStationary;
-    
-    // Apply steering curve
-    let t = Math.max(-1, Math.min(1, dx / turnRadiusPx));
-    t = Math.sign(t) * Math.pow(Math.abs(t), steerCurveExponent);
-    
-    // Lane lock: only for forward mode with small dx
-    const shouldLaneLock = newMode === 'forward' && dy < -forwardThreshold && Math.abs(dx) < laneLockDxThreshold;
-    
-    let targetYaw: number;
-    if (shouldLaneLock) {
-      // Lane lock: keep heading straight
-      targetYaw = startYawRef.current;
-    } else {
-      // Apply turn to startYaw
-      targetYaw = normalizeAngle(startYawRef.current + t * maxTurnRad);
-    }
-    
-    targetYawRef.current = targetYaw;
-    
-    // Debug logging (throttled to once per 300ms)
+    // Debug logging (throttled)
     if (debugMode && Date.now() - lastDebugLogRef.current > 300) {
       lastDebugLogRef.current = Date.now();
       console.log('[MobileControls] dx:', dx.toFixed(0), 
-                  'dy:', dy.toFixed(0),
-                  'mode:', newMode,
-                  'throttle:', throttle.toFixed(2),
-                  'targetYaw:', targetYaw.toFixed(3),
-                  'laneLock:', shouldLaneLock);
+                  'turn:', turn.toFixed(2),
+                  'yawRate:', yawRateRef.current.toFixed(3));
     }
-  }, [targetYawRef, isMovingRef, throttleRef, debugMode]);
+  }, [yawRateRef, debugMode]);
 
   const handlePointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     // Only respond to our active pointer
@@ -194,12 +112,14 @@ export const MobileControls = ({
     // Clear active pointer
     activePointerIdRef.current = null;
     swipeStartRef.current = null;
-    driveModeRef.current = 'idle';
     
-    // Deactivate touch and stop moving
-    mobileTouchActiveRef.current = false;
-    isMovingRef.current = false;
-    throttleRef.current = 0;
+    // Stop turning but keep mobile active if buttons pressed
+    yawRateRef.current = 0;
+    
+    // Only deactivate if no movement buttons pressed
+    if (!isForwardPressed && !isReversePressed) {
+      mobileTouchActiveRef.current = false;
+    }
     
     // Release pointer capture
     try {
@@ -209,31 +129,144 @@ export const MobileControls = ({
     }
     
     if (debugMode) {
-      console.log('[MobileControls] pointerup - cleared');
+      console.log('[MobileControls] pointerup - steering stopped');
     }
-  }, [mobileTouchActiveRef, isMovingRef, throttleRef, debugMode]);
+  }, [mobileTouchActiveRef, yawRateRef, isForwardPressed, isReversePressed, debugMode]);
 
-  // Full-screen invisible control overlay
+  // Movement button handlers
+  const handleForwardStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsForwardPressed(true);
+    setIsReversePressed(false); // Can't be both
+    mobileTouchActiveRef.current = true;
+    isMovingRef.current = true;
+    throttleRef.current = MOBILE_CONTROL_CONFIG.forwardSpeed;
+  }, [mobileTouchActiveRef, isMovingRef, throttleRef]);
+
+  const handleForwardEnd = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsForwardPressed(false);
+    if (!isReversePressed) {
+      isMovingRef.current = false;
+      throttleRef.current = 0;
+      // Only deactivate mobile if not steering
+      if (activePointerIdRef.current === null) {
+        mobileTouchActiveRef.current = false;
+      }
+    }
+  }, [mobileTouchActiveRef, isMovingRef, throttleRef, isReversePressed]);
+
+  const handleReverseStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsReversePressed(true);
+    setIsForwardPressed(false); // Can't be both
+    mobileTouchActiveRef.current = true;
+    isMovingRef.current = true;
+    throttleRef.current = -MOBILE_CONTROL_CONFIG.reverseSpeed;
+  }, [mobileTouchActiveRef, isMovingRef, throttleRef]);
+
+  const handleReverseEnd = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsReversePressed(false);
+    if (!isForwardPressed) {
+      isMovingRef.current = false;
+      throttleRef.current = 0;
+      // Only deactivate mobile if not steering
+      if (activePointerIdRef.current === null) {
+        mobileTouchActiveRef.current = false;
+      }
+    }
+  }, [mobileTouchActiveRef, isMovingRef, throttleRef, isForwardPressed]);
+
   return (
-    <div
-      ref={overlayRef}
-      id="mobileControlSurface"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerEnd}
-      onPointerCancel={handlePointerEnd}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 10,
-        touchAction: 'none',
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-        background: 'transparent',
-      }}
-    />
+    <>
+      {/* Full-screen invisible steering surface */}
+      <div
+        ref={overlayRef}
+        id="mobileControlSurface"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 10,
+          touchAction: 'none',  // CRITICAL: prevents browser from stealing gestures
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          background: 'transparent',
+        }}
+      />
+      
+      {/* Movement buttons - bottom right corner */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          zIndex: 20,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          pointerEvents: 'auto',
+        }}
+      >
+        {/* Forward button */}
+        <button
+          className="mobile-move-button"
+          onTouchStart={handleForwardStart}
+          onTouchEnd={handleForwardEnd}
+          onMouseDown={handleForwardStart}
+          onMouseUp={handleForwardEnd}
+          onMouseLeave={handleForwardEnd}
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: '50%',
+            backgroundColor: isForwardPressed ? 'rgba(74, 222, 128, 0.8)' : 'rgba(255, 255, 255, 0.3)',
+            border: '3px solid rgba(255, 255, 255, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            touchAction: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <ArrowUp size={32} color="white" />
+        </button>
+        
+        {/* Reverse button */}
+        <button
+          className="mobile-move-button"
+          onTouchStart={handleReverseStart}
+          onTouchEnd={handleReverseEnd}
+          onMouseDown={handleReverseStart}
+          onMouseUp={handleReverseEnd}
+          onMouseLeave={handleReverseEnd}
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: '50%',
+            backgroundColor: isReversePressed ? 'rgba(248, 113, 113, 0.8)' : 'rgba(255, 255, 255, 0.3)',
+            border: '3px solid rgba(255, 255, 255, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            touchAction: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <ArrowDown size={32} color="white" />
+        </button>
+      </div>
+    </>
   );
 };
