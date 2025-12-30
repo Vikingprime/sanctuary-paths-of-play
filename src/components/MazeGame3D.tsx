@@ -98,8 +98,9 @@ export const MazeGame3D = ({
   const [verboseLogging, setVerboseLogging] = useState(false);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
-  // Mobile controls - absolute target heading system
-  const mobileTargetYawRef = useRef<number>(startRotation); // Always a number, initialized to start
+  // Mobile controls - yaw rate system (steering)
+  const mobileTargetYawRef = useRef<number>(startRotation); // Legacy - not used in new system
+  const mobileYawRateRef = useRef(0); // Yaw rate in radians/sec from steering
   const mobileIsMovingRef = useRef(false);
   const mobileThrottleRef = useRef(0); // Throttle: -1 (reverse) to 1 (forward)
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
@@ -721,6 +722,7 @@ export const MazeGame3D = ({
         collectedPowerUps={collectedPowerUps}
         keysPressed={keysPressed}
         mobileTargetYawRef={mobileTargetYawRef}
+        mobileYawRateRef={mobileYawRateRef}
         mobileIsMovingRef={mobileIsMovingRef}
         mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
@@ -791,6 +793,7 @@ export const MazeGame3D = ({
       <MobileControls 
         playerStateRef={playerStateRef}
         targetYawRef={mobileTargetYawRef}
+        yawRateRef={mobileYawRateRef}
         isMovingRef={mobileIsMovingRef}
         throttleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
