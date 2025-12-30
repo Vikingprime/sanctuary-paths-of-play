@@ -12,8 +12,9 @@ export const MOBILE_CONTROL_CONFIG = {
 
 interface MobileControlsProps {
   playerStateRef: MutableRefObject<PlayerState>;  // Player state ref (read rotation on touch start)
-  targetYawRef: MutableRefObject<number | null>;  // Target yaw to steer toward (null = no touch active)
+  targetYawRef: MutableRefObject<number>;         // Target yaw to steer toward (always a number)
   isMovingRef: MutableRefObject<boolean>;         // Whether player should move forward
+  mobileTouchActiveRef: MutableRefObject<boolean>; // Whether touch is currently active
   debugMode?: boolean;
 }
 
@@ -21,15 +22,18 @@ export const MobileControls = ({
   playerStateRef, 
   targetYawRef, 
   isMovingRef,
+  mobileTouchActiveRef,
   debugMode = false
 }: MobileControlsProps) => {
-  // Swipe state
+  // Refs for control state
+  const overlayRef = useRef<HTMLDivElement>(null);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const startYawRef = useRef<number>(0);
   const activePointerIdRef = useRef<number | null>(null);
+  const exceededDeadzoneRef = useRef(false);
   const lastDebugLogRef = useRef<number>(0);
 
-  const handlePointerDown = useCallback((e: PointerEvent) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     // Don't capture if touch is on UI elements
     const target = e.target as HTMLElement;
     if (target.closest('button, [role="button"], .z-50, .z-40, .z-30')) return;
@@ -37,45 +41,62 @@ export const MobileControls = ({
     // Only capture first pointer
     if (activePointerIdRef.current !== null) return;
     
+    e.preventDefault();
+    e.stopPropagation();
+    
     // Store swipe start and capture pointer
     activePointerIdRef.current = e.pointerId;
     swipeStartRef.current = { x: e.clientX, y: e.clientY };
+    exceededDeadzoneRef.current = false;
     
     // CRITICAL: Capture the player's current rotation as startYaw
-    // This anchors the swipe to the heading at touch-start, preventing drift
     startYawRef.current = playerStateRef.current.rotation;
     
     // Set target yaw to current rotation (no turn initially)
     targetYawRef.current = startYawRef.current;
     
+    // Activate touch
+    mobileTouchActiveRef.current = true;
+    
     // Capture pointer for reliable tracking
-    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    e.currentTarget.setPointerCapture(e.pointerId);
     
     if (debugMode) {
       console.log('[MobileControls] pointerdown - startYaw:', startYawRef.current.toFixed(3));
     }
-  }, [playerStateRef, targetYawRef, debugMode]);
+  }, [playerStateRef, targetYawRef, mobileTouchActiveRef, debugMode]);
 
-  const handlePointerMove = useCallback((e: PointerEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     // Only respond to our active pointer
     if (activePointerIdRef.current !== e.pointerId) return;
     if (!swipeStartRef.current) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
     
     const { turnRadiusPx, maxTurnRadians, deadzonePx, throttleRadiusPx, straightSwipeRatio } = MOBILE_CONTROL_CONFIG;
     
     // Calculate ABSOLUTE displacement from touch start (not delta from last frame!)
     const dx = e.clientX - swipeStartRef.current.x;
     const dy = e.clientY - swipeStartRef.current.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
     
-    // Inside deadzone - no movement
-    if (Math.abs(dx) < deadzonePx && Math.abs(dy) < deadzonePx) {
+    // Check if we've exceeded the deadzone (latching behavior)
+    if (!exceededDeadzoneRef.current && dist > deadzonePx) {
+      exceededDeadzoneRef.current = true;
+    }
+    
+    // If we haven't exceeded deadzone yet, don't move
+    if (!exceededDeadzoneRef.current) {
       targetYawRef.current = startYawRef.current;
       isMovingRef.current = false;
       return;
     }
     
+    // Once deadzone is exceeded, always move while touch is active
+    isMovingRef.current = true;
+    
     // Determine if this is a "straight swipe" (lane lock)
-    // If horizontal displacement is much smaller than vertical, treat as pure forward
     const isStraightSwipe = Math.abs(dx) < Math.abs(dy) * straightSwipeRatio;
     
     let targetYaw: number;
@@ -85,7 +106,6 @@ export const MobileControls = ({
       targetYaw = startYawRef.current;
     } else {
       // Calculate turn amount from horizontal displacement
-      // Clamp to [-1, 1] range
       const turn = Math.max(-1, Math.min(1, dx / turnRadiusPx));
       
       // Apply turn to startYaw (NOT current yaw - this prevents drift!)
@@ -95,59 +115,71 @@ export const MobileControls = ({
     // Set target yaw for the movement system to smoothly interpolate toward
     targetYawRef.current = targetYaw;
     
-    // Forward movement based on vertical displacement (up = forward)
-    // Negative dy = swiping up = forward
-    const forwardAmount = -dy / throttleRadiusPx;
-    isMovingRef.current = forwardAmount > 0.1; // Small threshold to start moving
-    
-    // Debug logging (throttled to once per 500ms)
-    if (debugMode && Date.now() - lastDebugLogRef.current > 500) {
+    // Debug logging (throttled to once per 300ms)
+    if (debugMode && Date.now() - lastDebugLogRef.current > 300) {
       lastDebugLogRef.current = Date.now();
       const turn = dx / turnRadiusPx;
-      console.log('[MobileControls] dx:', dx.toFixed(0), 
+      console.log('[MobileControls] pointermove - dx:', dx.toFixed(0), 
+                  'dy:', dy.toFixed(0),
                   'turn:', turn.toFixed(2), 
+                  'mobileTouchActive:', mobileTouchActiveRef.current,
+                  'isMoving:', isMovingRef.current,
                   'startYaw:', startYawRef.current.toFixed(3),
                   'targetYaw:', targetYaw.toFixed(3),
-                  'playerYaw:', playerStateRef.current.rotation.toFixed(3),
                   'straight:', isStraightSwipe);
     }
-  }, [targetYawRef, isMovingRef, playerStateRef, debugMode]);
+  }, [targetYawRef, isMovingRef, mobileTouchActiveRef, debugMode]);
 
-  const handlePointerEnd = useCallback((e: PointerEvent) => {
+  const handlePointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     // Only respond to our active pointer
     if (activePointerIdRef.current !== e.pointerId) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
     
     // Clear active pointer
     activePointerIdRef.current = null;
     swipeStartRef.current = null;
+    exceededDeadzoneRef.current = false;
     
-    // Clear target yaw (signals no touch active)
-    targetYawRef.current = null;
+    // Deactivate touch and stop moving
+    mobileTouchActiveRef.current = false;
     isMovingRef.current = false;
     
     // Release pointer capture
-    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (err) {
+      // Ignore - pointer may already be released
+    }
     
     if (debugMode) {
       console.log('[MobileControls] pointerup - cleared');
     }
-  }, [targetYawRef, isMovingRef, debugMode]);
+  }, [mobileTouchActiveRef, isMovingRef, debugMode]);
 
-  useEffect(() => {
-    // Use pointer events for better cross-platform support
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('pointermove', handlePointerMove);
-    document.addEventListener('pointerup', handlePointerEnd);
-    document.addEventListener('pointercancel', handlePointerEnd);
-    
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', handlePointerEnd);
-      document.removeEventListener('pointercancel', handlePointerEnd);
-    };
-  }, [handlePointerDown, handlePointerMove, handlePointerEnd]);
-
-  // No visible UI - completely invisible control layer
-  return null;
+  // Full-screen invisible control overlay
+  return (
+    <div
+      ref={overlayRef}
+      id="mobileControlSurface"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 10, // Above canvas, below UI (z-20+)
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        // Invisible but captures all touches
+        background: 'transparent',
+      }}
+    />
+  );
 };
