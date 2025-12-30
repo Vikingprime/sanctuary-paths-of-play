@@ -11,15 +11,15 @@ export const MobileControls = ({ onMoveStart, onMoveEnd, rotationIntensityRef }:
   const activeDirectionsRef = useRef<Set<'forward' | 'back' | 'left' | 'right'>>(new Set());
   const touchIdRef = useRef<number | null>(null);
   
-  // Joystick-style controls: center deadzone, then proportional steering
-  const DEADZONE = 20; // Small deadzone in center
-  const MAX_DISTANCE = 120; // Max drag distance for full effect
-  const FORWARD_THRESHOLD = 0.3; // Normalized Y threshold to move forward (lower = easier to go straight)
+  // Very sensitive joystick-style controls for easy one-thumb steering
+  const DEADZONE = 8; // Very small deadzone - start moving almost immediately
+  const MAX_DISTANCE = 60; // Smaller max distance - less thumb movement needed
+  const FORWARD_THRESHOLD = 0.15; // Much lower - easier to go straight while turning
 
   const updateDirections = useCallback((dx: number, dy: number) => {
     const newDirections = new Set<'forward' | 'back' | 'left' | 'right'>();
     
-    // Calculate distance and angle from center (joystick-style)
+    // Calculate distance from touch start
     const distance = Math.sqrt(dx * dx + dy * dy);
     
     // Inside deadzone - no movement
@@ -27,7 +27,6 @@ export const MobileControls = ({ onMoveStart, onMoveEnd, rotationIntensityRef }:
       if (rotationIntensityRef) {
         rotationIntensityRef.current = 0;
       }
-      // End all active directions
       activeDirectionsRef.current.forEach(dir => onMoveEnd(dir));
       activeDirectionsRef.current = new Set();
       return;
@@ -37,28 +36,32 @@ export const MobileControls = ({ onMoveStart, onMoveEnd, rotationIntensityRef }:
     const normalizedX = dx / distance;
     const normalizedY = dy / distance;
     
-    // Calculate effective distance (0 at deadzone, 1 at max)
+    // Calculate effective distance (0 at deadzone, 1 at max) - reaches max faster
     const effectiveDistance = Math.min(1, (distance - DEADZONE) / (MAX_DISTANCE - DEADZONE));
     
     // Forward/back based on Y (negative = up = forward)
-    // Use a threshold so slight vertical movement still goes forward when turning
+    // Very low threshold means forward activates easily when dragging up-left or up-right
     if (normalizedY < -FORWARD_THRESHOLD) {
       newDirections.add('forward');
-    } else if (normalizedY > FORWARD_THRESHOLD) {
+    } else if (normalizedY > 0.4) { // Higher threshold for back - avoid accidental backwards
       newDirections.add('back');
     }
     
-    // Left/right rotation with proportional intensity
-    // Allow turning while moving forward (simultaneous)
-    if (Math.abs(normalizedX) > 0.2) {
+    // Left/right rotation - very sensitive for easy steering
+    // Even small horizontal movement triggers turning
+    if (Math.abs(normalizedX) > 0.1) {
       if (normalizedX < 0) newDirections.add('left');
       if (normalizedX > 0) newDirections.add('right');
       
-      // Rotation intensity based on how far left/right (not total distance)
-      // This allows forward + gentle turn vs forward + sharp turn
-      const rotationIntensity = Math.abs(normalizedX) * effectiveDistance;
+      // Rotation intensity: use smooth curve for precise control
+      // Low horizontal = gentle turn, high horizontal = sharp turn
+      const baseIntensity = Math.abs(normalizedX);
+      // Apply smooth curve: starts slow, accelerates
+      const curvedIntensity = baseIntensity * baseIntensity * 0.8 + baseIntensity * 0.2;
+      const rotationIntensity = curvedIntensity * Math.min(1, effectiveDistance * 1.5);
+      
       if (rotationIntensityRef) {
-        rotationIntensityRef.current = rotationIntensity * rotationIntensity; // Quadratic easing
+        rotationIntensityRef.current = rotationIntensity;
       }
     } else {
       // Moving mostly forward/back - no rotation
@@ -89,7 +92,7 @@ export const MobileControls = ({ onMoveStart, onMoveEnd, rotationIntensityRef }:
   const handleTouchStart = useCallback((e: TouchEvent) => {
     // Don't capture if touch is on UI elements
     const target = e.target as HTMLElement;
-    if (target.closest('button, [role="button"], .z-50')) return;
+    if (target.closest('button, [role="button"], .z-50, .z-40, .z-30')) return;
     
     if (touchIdRef.current !== null) return;
     

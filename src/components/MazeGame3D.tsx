@@ -689,6 +689,9 @@ export const MazeGame3D = ({
               <Button variant="default" size="lg" onClick={handleRestart}>
                 Try Again
               </Button>
+              <Button variant="ghost" size="lg" onClick={onQuit}>
+                ✕ Quit
+              </Button>
             </div>
             
             {/* Sound toggle */}
@@ -717,7 +720,7 @@ export const MazeGame3D = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black">
+    <div className="fixed inset-0 bg-black overflow-hidden">
       {/* 3D Scene - always renders, movement paused during preview */}
       <Maze3DCanvas
         maze={maze}
@@ -879,24 +882,24 @@ export const MazeGame3D = ({
           : activeDialogue.messages?.[dialogueMessageIndex - 1] || { speaker: activeDialogue.speaker, speakerEmoji: activeDialogue.speakerEmoji, message: activeDialogue.message };
         
         return (
-          <div className="fixed inset-0 z-30 flex items-end justify-center p-4 pointer-events-none animate-fade-in">
-            <div className="bg-card/95 backdrop-blur-sm rounded-2xl p-6 shadow-warm-lg max-w-lg w-full mb-8 pointer-events-auto">
-              <div className="flex items-start gap-4">
-                <div className="text-4xl flex-shrink-0">
+          <div className="fixed inset-0 z-30 flex items-end justify-center p-2 sm:p-4 pointer-events-none animate-fade-in">
+            <div className="bg-card/95 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-warm-lg max-w-lg w-full mb-4 sm:mb-8 pointer-events-auto">
+              <div className="flex items-start gap-3 sm:gap-4">
+                <div className="text-3xl sm:text-4xl flex-shrink-0">
                   {currentMessage.speakerEmoji}
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-display font-bold text-foreground mb-2">
+                  <h4 className="font-display font-bold text-foreground text-sm sm:text-base mb-1 sm:mb-2">
                     {currentMessage.speaker}
                   </h4>
-                  <p className="text-foreground/90 text-lg leading-relaxed">
+                  <p className="text-foreground/90 text-sm sm:text-lg leading-relaxed">
                     {currentMessage.message}
                   </p>
                 </div>
               </div>
               <Button
                 onClick={handleDialogueContinue}
-                className="mt-4 w-full py-3"
+                className="mt-3 sm:mt-4 w-full py-2 sm:py-3"
               >
                 Continue
               </Button>
