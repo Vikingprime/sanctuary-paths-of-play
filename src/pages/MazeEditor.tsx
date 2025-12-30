@@ -10,6 +10,7 @@ import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft } from
 import { toast } from 'sonner';
 import { useMazeStorage, createGrid, gridToLayout } from '@/hooks/useMazeStorage';
 import { Maze } from '@/types/game';
+import { useBackButton } from '@/hooks/useBackButton';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -129,6 +130,9 @@ const MazeEditor: React.FC = () => {
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
   const [showMazeList, setShowMazeList] = useState(true);
+
+  // Hardware back button - navigate back to home
+  useBackButton(() => navigate('/'), true);
 
   function createEmptyGrid(w: number, h: number): CellType[][] {
     return Array.from({ length: h }, (_, y) =>

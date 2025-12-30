@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AnimalType, Maze, MedalType } from '@/types/game';
 import { animals } from '@/data/animals';
 import { useMazeStorage } from '@/hooks/useMazeStorage';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useSave } from '@/hooks/useSave';
+import { useBackButton } from '@/hooks/useBackButton';
 import { Volume2, VolumeX } from 'lucide-react';
 
 type GameScreen = 'home' | 'levels' | 'playing';
@@ -83,7 +84,17 @@ const Index = () => {
     setSelectedMaze(null);
   };
 
-  // Full screen game view
+  // Hardware back button handler
+  const handleHardwareBack = useCallback(() => {
+    if (screen === 'levels') {
+      handleBackToHome();
+    }
+    // Note: 'playing' screen handles its own back button in MazeGame3D
+    // 'home' screen - do nothing (let system handle it)
+  }, [screen]);
+
+  // Enable back button handling for levels screen
+  useBackButton(handleHardwareBack, screen === 'levels');
   if (screen === 'playing' && selectedAnimal && selectedMaze) {
     return (
       <MazeGame3D
