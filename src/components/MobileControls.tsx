@@ -301,7 +301,8 @@ export const MobileControls = ({
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    if (target.closest('button, [role="button"], .z-50, .z-40, .z-30')) return;
+    // Only block touches on actual interactive elements, not HUD panels
+    if (target.closest('button, [role="button"], a, input, select, textarea')) return;
     
     if (activePointerIdRef.current !== null) return;
     
