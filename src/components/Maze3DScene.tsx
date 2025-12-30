@@ -1156,13 +1156,17 @@ const RefBasedPlayer = ({
   const TURN_RESPONSIVENESS = 16; // Higher = faster response to target yaw
   const REVERSE_SPEED_MULT = 0.55; // Reverse is slower than forward
   
+  // Helper: normalize angle to [-PI, PI]
+  const normalizeAngle = (angle: number): number => {
+    while (angle > Math.PI) angle -= Math.PI * 2;
+    while (angle < -Math.PI) angle += Math.PI * 2;
+    return angle;
+  };
+  
   // Helper: lerp between angles (handles wraparound)
   const lerpAngle = (from: number, to: number, t: number): number => {
-    let diff = to - from;
-    // Normalize difference to [-PI, PI]
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    return from + diff * t;
+    const diff = normalizeAngle(to - from);
+    return normalizeAngle(from + diff * t);
   };
   
   useFrame((state, delta) => {
@@ -1181,17 +1185,17 @@ const RefBasedPlayer = ({
       if (mobileActive) {
         // MOBILE MODE: Absolute target heading with throttle support
         // Smoothly interpolate current rotation toward target yaw
-        const targetYaw = mobileTargetYawRef?.current ?? playerStateRef.current.rotation;
-        const currentYaw = playerStateRef.current.rotation;
+        const targetYaw = normalizeAngle(mobileTargetYawRef?.current ?? playerStateRef.current.rotation);
+        const currentYaw = normalizeAngle(playerStateRef.current.rotation);
         
         // Use exponential smoothing for responsive but smooth steering
         const smoothingFactor = 1 - Math.exp(-clampedDelta * TURN_RESPONSIVENESS);
         const newRotation = lerpAngle(currentYaw, targetYaw, smoothingFactor);
         
-        // Directly set the rotation (bypassing the accumulation system)
+        // Directly set the rotation (bypassing the accumulation system), normalized to prevent drift
         playerStateRef.current = {
           ...playerStateRef.current,
-          rotation: newRotation
+          rotation: normalizeAngle(newRotation)
         };
         
         // Get throttle value (-1 to 1, supports reverse)

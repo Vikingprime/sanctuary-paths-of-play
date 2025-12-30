@@ -1,26 +1,46 @@
-import { useRef, useCallback, useEffect, MutableRefObject } from 'react';
+import { useRef, useCallback, MutableRefObject } from 'react';
 import { PlayerState } from '@/game/GameLogic';
 
-// Tuning knobs - exposed for easy adjustment (thumb-friendly values)
+// Tuning knobs - exposed for easy adjustment
 export const MOBILE_CONTROL_CONFIG = {
-  turnRadiusPx: 110,        // Pixels needed for full turn - smaller for thumb reach
-  maxTurnRadians: 1.2,      // Max turn per swipe (~69 degrees) - more responsive
-  deadzoneX: 6,             // Horizontal deadzone (steering)
-  deadzoneY: 8,             // Vertical deadzone (throttle)
-  throttleRadiusPx: 140,    // Pixels for full forward/reverse speed
-  straightSwipeRatio: 0.12, // Relaxed lane lock - only for very straight swipes
+  // Throttle hysteresis thresholds (pixels)
+  forwardThreshold: 18,      // dy < -18 to enter forward mode
+  reverseThreshold: 40,      // dy > 40 to enter reverse mode  
+  forwardExitThreshold: 8,   // dy > 8 to exit forward mode
+  reverseExitThreshold: 20,  // dy < 20 to exit reverse mode
+  throttleRadiusPx: 140,     // Pixels for full throttle
+  
+  // Steering settings
+  turnRadiusPxMoving: 220,   // Turn radius when moving
+  turnRadiusPxStationary: 340, // Turn radius when stationary (less sensitive)
+  maxTurnRadMoving: 0.95,    // Max turn angle when moving (~55 degrees)
+  maxTurnRadStationary: 0.55, // Max turn angle when stationary (~31 degrees)
+  steerCurveExponent: 1.6,   // Steering curve (higher = more forgiving near center)
+  
+  // Lane lock (only for forward)
+  laneLockDxThreshold: 25,   // Max dx for lane lock when forward
+  
   reverseSpeedMultiplier: 0.55, // Reverse is slower than forward
-  turnResponsiveness: 16,   // Smoothing factor for steering (higher = faster response)
+  turnResponsiveness: 16,    // Smoothing factor for steering
 };
 
+type DriveMode = 'idle' | 'forward' | 'reverse';
+
 interface MobileControlsProps {
-  playerStateRef: MutableRefObject<PlayerState>;  // Player state ref (read rotation on touch start)
-  targetYawRef: MutableRefObject<number>;         // Target yaw to steer toward (always a number)
-  isMovingRef: MutableRefObject<boolean>;         // Whether player should move (forward or backward)
-  throttleRef: MutableRefObject<number>;          // Throttle value: -1 (full reverse) to 1 (full forward)
-  mobileTouchActiveRef: MutableRefObject<boolean>; // Whether touch is currently active
+  playerStateRef: MutableRefObject<PlayerState>;
+  targetYawRef: MutableRefObject<number>;
+  isMovingRef: MutableRefObject<boolean>;
+  throttleRef: MutableRefObject<number>;
+  mobileTouchActiveRef: MutableRefObject<boolean>;
   debugMode?: boolean;
 }
+
+// Normalize angle to [-PI, PI]
+const normalizeAngle = (angle: number): number => {
+  while (angle > Math.PI) angle -= Math.PI * 2;
+  while (angle < -Math.PI) angle += Math.PI * 2;
+  return angle;
+};
 
 export const MobileControls = ({ 
   playerStateRef, 
@@ -35,7 +55,7 @@ export const MobileControls = ({
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const startYawRef = useRef<number>(0);
   const activePointerIdRef = useRef<number | null>(null);
-  const exceededDeadzoneRef = useRef(false);
+  const driveModeRef = useRef<DriveMode>('idle');
   const lastDebugLogRef = useRef<number>(0);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -52,10 +72,10 @@ export const MobileControls = ({
     // Store swipe start and capture pointer
     activePointerIdRef.current = e.pointerId;
     swipeStartRef.current = { x: e.clientX, y: e.clientY };
-    exceededDeadzoneRef.current = false;
+    driveModeRef.current = 'idle';
     
-    // CRITICAL: Capture the player's current rotation as startYaw
-    startYawRef.current = playerStateRef.current.rotation;
+    // CRITICAL: Capture the player's current rotation as startYaw (normalized)
+    startYawRef.current = normalizeAngle(playerStateRef.current.rotation);
     
     // Set target yaw to current rotation (no turn initially)
     targetYawRef.current = startYawRef.current;
@@ -79,71 +99,90 @@ export const MobileControls = ({
     e.preventDefault();
     e.stopPropagation();
     
-    const { turnRadiusPx, maxTurnRadians, deadzoneX, deadzoneY, throttleRadiusPx, straightSwipeRatio } = MOBILE_CONTROL_CONFIG;
+    const { 
+      forwardThreshold, reverseThreshold, forwardExitThreshold, reverseExitThreshold,
+      throttleRadiusPx, turnRadiusPxMoving, turnRadiusPxStationary,
+      maxTurnRadMoving, maxTurnRadStationary, steerCurveExponent, laneLockDxThreshold
+    } = MOBILE_CONTROL_CONFIG;
     
-    // Calculate ABSOLUTE displacement from touch start (not delta from last frame!)
-    let dx = e.clientX - swipeStartRef.current.x;
-    let dy = e.clientY - swipeStartRef.current.y;
+    // Calculate ABSOLUTE displacement from touch start
+    const dx = e.clientX - swipeStartRef.current.x;
+    const dy = e.clientY - swipeStartRef.current.y;
     
-    // Apply separate deadzones for dx and dy
-    if (Math.abs(dx) < deadzoneX) dx = 0;
-    if (Math.abs(dy) < deadzoneY) dy = 0;
+    // === THROTTLE with hysteresis ===
+    const currentMode = driveModeRef.current;
+    let newMode: DriveMode = currentMode;
     
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    
-    // Check if we've exceeded the deadzone (latching behavior)
-    if (!exceededDeadzoneRef.current && dist > Math.max(deadzoneX, deadzoneY)) {
-      exceededDeadzoneRef.current = true;
+    // Check mode transitions
+    if (currentMode === 'idle') {
+      if (dy < -forwardThreshold) {
+        newMode = 'forward';
+      } else if (dy > reverseThreshold) {
+        newMode = 'reverse';
+      }
+    } else if (currentMode === 'forward') {
+      // Stay in forward until dy > forwardExitThreshold
+      if (dy > forwardExitThreshold) {
+        newMode = 'idle';
+      }
+    } else if (currentMode === 'reverse') {
+      // Stay in reverse until dy < reverseExitThreshold
+      if (dy < reverseExitThreshold) {
+        newMode = 'idle';
+      }
     }
     
-    // If we haven't exceeded deadzone yet, don't move
-    if (!exceededDeadzoneRef.current) {
-      targetYawRef.current = startYawRef.current;
-      isMovingRef.current = false;
-      throttleRef.current = 0;
-      return;
+    driveModeRef.current = newMode;
+    
+    // Calculate throttle amount based on mode
+    let throttle = 0;
+    if (newMode === 'forward') {
+      // Forward: throttle increases as dy goes more negative
+      throttle = Math.min(1, (-dy - forwardThreshold) / throttleRadiusPx);
+      throttle = Math.max(0, throttle);
+    } else if (newMode === 'reverse') {
+      // Reverse: throttle increases as dy goes more positive
+      throttle = -Math.min(1, (dy - reverseThreshold) / throttleRadiusPx);
+      throttle = Math.min(0, throttle);
     }
     
-    // Calculate throttle from vertical displacement: up = forward (+), down = reverse (-)
-    // dy negative = swipe up = forward; dy positive = swipe down = reverse
-    const throttle = Math.max(-1, Math.min(1, -dy / throttleRadiusPx));
     throttleRef.current = throttle;
+    isMovingRef.current = newMode !== 'idle';
     
-    // Moving if throttle is non-zero
-    isMovingRef.current = Math.abs(throttle) > 0.01;
+    // === STEERING (decoupled from throttle) ===
+    const isMoving = newMode !== 'idle';
+    const turnRadiusPx = isMoving ? turnRadiusPxMoving : turnRadiusPxStationary;
+    const maxTurnRad = isMoving ? maxTurnRadMoving : maxTurnRadStationary;
     
-    // Determine if this is a "straight swipe" (lane lock) - only for very straight swipes
-    const isStraightSwipe = Math.abs(dx) < Math.abs(dy) * straightSwipeRatio;
+    // Apply steering curve
+    let t = Math.max(-1, Math.min(1, dx / turnRadiusPx));
+    t = Math.sign(t) * Math.pow(Math.abs(t), steerCurveExponent);
+    
+    // Lane lock: only for forward mode with small dx
+    const shouldLaneLock = newMode === 'forward' && dy < -forwardThreshold && Math.abs(dx) < laneLockDxThreshold;
     
     let targetYaw: number;
-    
-    if (isStraightSwipe) {
-      // Lane lock: keep heading straight, no turning
+    if (shouldLaneLock) {
+      // Lane lock: keep heading straight
       targetYaw = startYawRef.current;
     } else {
-      // Calculate turn amount from horizontal displacement
-      const turn = Math.max(-1, Math.min(1, dx / turnRadiusPx));
-      
-      // Apply turn to startYaw (NOT current yaw - this prevents drift!)
-      targetYaw = startYawRef.current + turn * maxTurnRadians;
+      // Apply turn to startYaw
+      targetYaw = normalizeAngle(startYawRef.current + t * maxTurnRad);
     }
     
-    // Set target yaw for the movement system to smoothly interpolate toward
     targetYawRef.current = targetYaw;
     
     // Debug logging (throttled to once per 300ms)
     if (debugMode && Date.now() - lastDebugLogRef.current > 300) {
       lastDebugLogRef.current = Date.now();
-      const turn = dx / turnRadiusPx;
-      console.log('[MobileControls] pointermove - dx:', dx.toFixed(0), 
+      console.log('[MobileControls] dx:', dx.toFixed(0), 
                   'dy:', dy.toFixed(0),
-                  'turn:', turn.toFixed(2), 
+                  'mode:', newMode,
                   'throttle:', throttle.toFixed(2),
-                  'startYaw:', startYawRef.current.toFixed(3),
                   'targetYaw:', targetYaw.toFixed(3),
-                  'straight:', isStraightSwipe);
+                  'laneLock:', shouldLaneLock);
     }
-  }, [targetYawRef, isMovingRef, throttleRef, mobileTouchActiveRef, debugMode]);
+  }, [targetYawRef, isMovingRef, throttleRef, debugMode]);
 
   const handlePointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     // Only respond to our active pointer
@@ -155,7 +194,7 @@ export const MobileControls = ({
     // Clear active pointer
     activePointerIdRef.current = null;
     swipeStartRef.current = null;
-    exceededDeadzoneRef.current = false;
+    driveModeRef.current = 'idle';
     
     // Deactivate touch and stop moving
     mobileTouchActiveRef.current = false;
@@ -172,7 +211,7 @@ export const MobileControls = ({
     if (debugMode) {
       console.log('[MobileControls] pointerup - cleared');
     }
-  }, [mobileTouchActiveRef, isMovingRef, debugMode]);
+  }, [mobileTouchActiveRef, isMovingRef, throttleRef, debugMode]);
 
   // Full-screen invisible control overlay
   return (
@@ -189,11 +228,10 @@ export const MobileControls = ({
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 10, // Above canvas, below UI (z-20+)
+        zIndex: 10,
         touchAction: 'none',
         userSelect: 'none',
         WebkitUserSelect: 'none',
-        // Invisible but captures all touches
         background: 'transparent',
       }}
     />
