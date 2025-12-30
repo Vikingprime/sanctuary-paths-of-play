@@ -2154,6 +2154,7 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
   const { gl, scene } = useThree();
   const lastUpdate = useRef(0);
   const frameTimesRef = useRef<number[]>([]);
+  const frameCountRef = useRef(0);
   const lastFrameTime = useRef(performance.now());
   
   useFrame(() => {
@@ -2168,18 +2169,20 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
     }
     
     if (onRendererInfo) {
+      // Accumulate frame count for per-frame averaging
+      frameCountRef.current++;
+      
       if (now - lastUpdate.current > 250) { // Update every 250ms for more responsive metrics
+        const frameCount = frameCountRef.current;
         lastUpdate.current = now;
+        frameCountRef.current = 0;
         
         // Calculate average frame time
         const avgFrameTime = frameTimesRef.current.reduce((a, b) => a + b, 0) / frameTimesRef.current.length;
         
-        // Read metrics BEFORE resetting (frameMetrics is already imported at top of file)
-        const currentMetrics = {
-          raycastCount: frameMetrics.raycastCount,
-          activeFadedCells: frameMetrics.activeFadedCells,
-          collisionChecks: frameMetrics.collisionChecks,
-        };
+        // Read metrics and calculate per-frame averages
+        const perFrameRaycasts = frameCount > 0 ? Math.round(frameMetrics.raycastCount / frameCount) : 0;
+        const perFrameCollisions = frameCount > 0 ? Math.round(frameMetrics.collisionChecks / frameCount) : 0;
         
         onRendererInfo({
           drawCalls: gl.info.render.calls,
@@ -2188,7 +2191,9 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
           textures: gl.info.memory.textures,
           programs: gl.info.programs?.length || 0,
           frameTime: avgFrameTime,
-          ...currentMetrics,
+          raycastCount: perFrameRaycasts,
+          activeFadedCells: frameMetrics.activeFadedCells,
+          collisionChecks: perFrameCollisions,
         });
         
         // Reset metrics for next interval
