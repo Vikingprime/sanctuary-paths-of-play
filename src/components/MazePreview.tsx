@@ -30,27 +30,27 @@ export const MazePreview = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center p-2 sm:p-4 overflow-auto">
-      {/* Mute toggle in top right */}
-      {onToggleMute && (
-        <button
-          onClick={onToggleMute}
-          className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-card/90 backdrop-blur-sm rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 shadow-lg font-display text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 sm:gap-2"
-          title={isMuted ? 'Unmute' : 'Mute'}
-        >
-          {isMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
-          <span className="hidden sm:inline">{isMuted ? 'Muted' : 'Sound'}</span>
-        </button>
-      )}
-
-      {/* Quit button in top left */}
-      {onQuit && (
-        <button
-          onClick={onQuit}
-          className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-card/90 backdrop-blur-sm rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 shadow-lg font-display text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          ✕ Quit
-        </button>
-      )}
+      {/* Top right controls */}
+      <div className="absolute top-2 right-2 sm:top-4 sm:right-4 flex flex-col gap-1 sm:gap-2">
+        {onToggleMute && (
+          <button
+            onClick={onToggleMute}
+            className="bg-card/90 backdrop-blur-sm rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 shadow-lg font-display text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 sm:gap-2"
+            title={isMuted ? 'Unmute' : 'Mute'}
+          >
+            {isMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
+            <span className="hidden sm:inline">{isMuted ? 'Muted' : 'Sound'}</span>
+          </button>
+        )}
+        {onQuit && (
+          <button
+            onClick={onQuit}
+            className="bg-card/90 backdrop-blur-sm rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 shadow-lg font-display text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ✕ Quit
+          </button>
+        )}
+      </div>
 
       {/* Header - compact in landscape */}
       <div className="text-center mb-2 sm:mb-6 animate-fade-in">
