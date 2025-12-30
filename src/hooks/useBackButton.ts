@@ -24,10 +24,6 @@ export const useBackButton = (onBack: () => void, enabled: boolean = true) => {
     
     return () => {
       window.removeEventListener('popstate', handlePopState);
-      // Clean up by going back if we pushed a state
-      if (window.history.state?.id === stateId) {
-        window.history.back();
-      }
     };
   }, [onBack, enabled]);
 };
