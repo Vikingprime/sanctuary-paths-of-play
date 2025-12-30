@@ -25,6 +25,7 @@ export interface MovementInput {
   rotateLeft: boolean;
   rotateRight: boolean;
   rotationIntensity?: number; // 0-1, for proportional mobile rotation
+  speedMultiplier?: number;   // 0-1, for proportional mobile speed (defaults to 1)
 }
 
 export interface GameStateData {
@@ -722,9 +723,11 @@ export function calculateMovement(
 
   const capsule = getAnimalCapsule(animalType);
   
-  const moveSpeed = speedBoostActive
+  // Calculate effective speed (with optional multiplier for mobile throttle control)
+  const baseSpeed = speedBoostActive
     ? GameConfig.BOOSTED_MOVE_SPEED
     : GameConfig.BASE_MOVE_SPEED;
+  const moveSpeed = baseSpeed * (input.speedMultiplier ?? 1.0);
 
   const rotationSpeed = GameConfig.ROTATION_SPEED;
 

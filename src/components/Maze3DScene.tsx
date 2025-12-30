@@ -41,6 +41,7 @@ interface Maze3DSceneProps {
   // Mobile controls - absolute target heading system
   mobileTargetYawRef?: MutableRefObject<number>;
   mobileIsMovingRef?: MutableRefObject<boolean>;
+  mobileThrottleRef?: MutableRefObject<number>;  // -1 (reverse) to 1 (forward)
   mobileTouchActiveRef?: MutableRefObject<boolean>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
@@ -1112,6 +1113,7 @@ const RefBasedPlayer = ({
   keysPressed,
   mobileTargetYawRef,
   mobileIsMovingRef,
+  mobileThrottleRef,
   mobileTouchActiveRef,
   speedBoostActive,
   onCellInteraction,
@@ -1128,6 +1130,7 @@ const RefBasedPlayer = ({
   keysPressed: MutableRefObject<Set<string>>;
   mobileTargetYawRef?: MutableRefObject<number>;
   mobileIsMovingRef?: MutableRefObject<boolean>;
+  mobileThrottleRef?: MutableRefObject<number>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
@@ -1144,8 +1147,9 @@ const RefBasedPlayer = ({
   const positionInitialized = useRef(false);
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   
-  // Mobile steering config
-  const TURN_RESPONSIVENESS = 8; // Higher = faster response to target yaw
+  // Mobile steering config - use values from MobileControls
+  const TURN_RESPONSIVENESS = 16; // Higher = faster response to target yaw
+  const REVERSE_SPEED_MULT = 0.55; // Reverse is slower than forward
   
   // Helper: lerp between angles (handles wraparound)
   const lerpAngle = (from: number, to: number, t: number): number => {
@@ -1170,7 +1174,7 @@ const RefBasedPlayer = ({
       let input: MovementInput;
       
       if (mobileActive) {
-        // MOBILE MODE: Absolute target heading
+        // MOBILE MODE: Absolute target heading with throttle support
         // Smoothly interpolate current rotation toward target yaw
         const targetYaw = mobileTargetYawRef?.current ?? playerStateRef.current.rotation;
         const currentYaw = playerStateRef.current.rotation;
@@ -1185,18 +1189,26 @@ const RefBasedPlayer = ({
           rotation: newRotation
         };
         
-        // Build input with forward from mobile ref, no rotation flags
+        // Get throttle value (-1 to 1, supports reverse)
+        const throttle = mobileThrottleRef?.current ?? 0;
+        const isMoving = mobileIsMovingRef?.current ?? false;
+        const isForward = throttle > 0;
+        const isBackward = throttle < 0;
+        
+        // Build input with forward/backward from throttle
         // (rotation already handled above)
         input = {
-          forward: mobileIsMovingRef?.current ?? false,
-          backward: false,
+          forward: isMoving && isForward,
+          backward: isMoving && isBackward,
           rotateLeft: false,
           rotateRight: false,
           rotationIntensity: 0, // Not used in absolute mode
+          // Pass throttle magnitude for speed control (with reverse penalty)
+          speedMultiplier: isBackward ? Math.abs(throttle) * REVERSE_SPEED_MULT : Math.abs(throttle),
         };
         
         // Update isMoving ref
-        isMovingRef.current = input.forward;
+        isMovingRef.current = isMoving;
         
         // Calculate movement (position only, rotation already set)
         const prev = playerStateRef.current;
@@ -1925,7 +1937,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileIsMovingRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2126,6 +2138,7 @@ return (
         keysPressed={keysPressed}
         mobileTargetYawRef={mobileTargetYawRef}
         mobileIsMovingRef={mobileIsMovingRef}
+        mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
