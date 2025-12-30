@@ -17,7 +17,7 @@ import { Volume2, VolumeX } from 'lucide-react';
 type GameScreen = 'home' | 'levels' | 'playing';
 
 const Index = () => {
-  const { save, loading, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
+  const { save, loading, refresh, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
   const { getAllMazes, isLoaded: mazesLoaded } = useMazeStorage();
   const [screen, setScreen] = useState<GameScreen>('home');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
@@ -252,6 +252,7 @@ const Index = () => {
             save={save}
             isMazeUnlocked={isMazeUnlocked}
             unlockMazeWithCurrency={unlockMazeWithCurrency}
+            onRefreshSave={refresh}
           />
         )}
       </main>
