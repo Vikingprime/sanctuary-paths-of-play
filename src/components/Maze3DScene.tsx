@@ -1376,6 +1376,10 @@ const OverShoulderCameraController = ({
   // Corn fading state - track cells that are currently faded
   const fadedCellsRef = useRef<Map<string, { opacity: number; lastHitTime: number }>>(new Map());
   
+  // Cached camera blockers to avoid traversing every frame
+  const cachedCameraBlockers = useRef<Object3D[]>([]);
+  const lastFoliageChildCount = useRef<number>(0);
+  
   // Reset camera state when restartKey changes
   useEffect(() => {
     if (restartKey !== lastRestartKey.current) {
@@ -1491,38 +1495,19 @@ const OverShoulderCameraController = ({
       rayDir.current.copy(targetPos.current).sub(headPos).normalize();
       const rayLength = headPos.distanceTo(targetPos.current);
       
-      // Find camera collider meshes - these are invisible boxes for raycasting
-      // The foliageGroupRef points to the cameraColliders group which contains individual Mesh objects
-      const cameraBlockers: Object3D[] = [];
-      
-      // Collect all mesh children from the cameraColliders group
-      foliageGroupRef.current.traverse((child) => {
-        const mesh = child as Mesh;
-        if (mesh.isMesh) {
-          cameraBlockers.push(child);
-        }
-      });
-      
-      // Debug: throttled logging
-      const debugLogRef = (window as any).__autopushDebugLog || { lastLog: 0, loggedOnce: false };
-      (window as any).__autopushDebugLog = debugLogRef;
-      
-      // One-time debug: log ref contents
-      if (!debugLogRef.loggedOnce) {
-        debugLogRef.loggedOnce = true;
-        const childInfo: string[] = [];
+      // Cache camera blockers - only rebuild when foliage group changes
+      const currentChildCount = foliageGroupRef.current.children.length;
+      if (currentChildCount !== lastFoliageChildCount.current) {
+        lastFoliageChildCount.current = currentChildCount;
+        cachedCameraBlockers.current = [];
         foliageGroupRef.current.traverse((child) => {
-          childInfo.push(`${child.name || 'unnamed'} (${child.type})`);
-        });
-        console.log('[AUTOPUSH DEBUG] foliageGroupRef:', {
-          name: foliageGroupRef.current.name,
-          type: foliageGroupRef.current.type,
-          childCount: foliageGroupRef.current.children.length,
-          allDescendants: childInfo.slice(0, 10),
-          blockerCount: cameraBlockers.length,
+          const mesh = child as Mesh;
+          if (mesh.isMesh) {
+            cachedCameraBlockers.current.push(child);
+          }
         });
       }
-      
+      const cameraBlockers = cachedCameraBlockers.current;
       // Perform raycasts (1 or 3 rays)
       let closestHitDist = rayLength;
       let hitObjectName = '';
@@ -1626,29 +1611,7 @@ const OverShoulderCameraController = ({
       let targetDist = rayLength; // Default: no blocking, use full distance
       const desiredDistForAutopush = rayLength;
       
-      // Calculate debug values
-      const hitDist = closestHitDist;
-      const pushedDist = hitDist < rayLength ? Math.max(hitDist - autopush.padding, autopush.minDist) : rayLength;
-      const rawObstruction = desiredDistForAutopush - hitDist;
-      const accepted = rawObstruction > autopush.minPushDelta;
       const hasHit = closestHitDist < rayLength;
-      
-      // Throttled debug log (every 500ms)
-      if (now - debugLogRef.lastLog > 500) {
-        debugLogRef.lastLog = now;
-        console.log('[AUTOPUSH]', {
-          blockerCount: cameraBlockers.length,
-          rayOriginY: headPos.y.toFixed(2),
-          desiredDist: rayLength.toFixed(2),
-          hitDist: hasHit ? hitDist.toFixed(2) : 'none',
-          hitObject: hasHit ? hitObjectName : 'none',
-          pushedDist: pushedDist.toFixed(2),
-          rawObstruction: rawObstruction.toFixed(2),
-          minPushDelta: autopush.minPushDelta,
-          accepted,
-          currentAutopushDist: currentAutopushDist.current?.toFixed(2) ?? 'null',
-        });
-      }
       
       if (closestHitDist < rayLength) {
         // We have a hit - camera should be IN FRONT of the wall, not behind it

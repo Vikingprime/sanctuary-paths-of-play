@@ -109,24 +109,6 @@ export const LOSCornFader = ({
     const hitCellsThisFrame = new Set<string>();
     let raysHit = 0;
     
-    // Debug: log blocker count and registry stats periodically
-    if (Math.random() < 0.01) {
-      const stats = getCellRegistryStats();
-      console.log('[LOS_CORN_FADER] Camera blockers:', cameraBlockers.length, 'Registry cells:', stats.cellCount, 'Sample:', stats.sampleCells);
-      
-      // Log ray setup info
-      console.log('[LOS_CORN_FADER] Ray setup:', {
-        camPos: { x: camPos.current.x.toFixed(2), y: camPos.current.y.toFixed(2), z: camPos.current.z.toFixed(2) },
-        focusPoint: { x: focusPoint.current.x.toFixed(2), y: focusPoint.current.y.toFixed(2), z: focusPoint.current.z.toFixed(2) },
-        distToFocus: distToFocus.toFixed(2),
-        firstBlockerPos: cameraBlockers.length > 0 ? {
-          x: (cameraBlockers[0] as any).position?.x?.toFixed(2),
-          y: (cameraBlockers[0] as any).position?.y?.toFixed(2),
-          z: (cameraBlockers[0] as any).position?.z?.toFixed(2),
-          name: (cameraBlockers[0] as any).name,
-        } : 'none'
-      });
-    }
     
     // Cast multiple rays - center, left, right, and upper variants
     const rayConfigs = [
@@ -165,15 +147,6 @@ export const LOSCornFader = ({
           const cellZ = Math.floor(hit.point.z);
           const cellKey = `${cellX},${cellZ}`;
           
-          // Debug: log hit info
-          if (Math.random() < 0.02) {
-            console.log('[LOS_CORN_FADER] Ray hit!', {
-              cellKey,
-              hitPoint: { x: hit.point.x.toFixed(2), z: hit.point.z.toFixed(2) },
-              objectName: hit.object.name,
-            });
-          }
-          
           hitCellsThisFrame.add(cellKey);
           
           // Update or create fade state for this cell
@@ -198,10 +171,6 @@ export const LOSCornFader = ({
     // Determine if we're occluded (enough rays hit)
     const isOccluded = raysHit >= LOS_CONFIG.occlusionThreshold;
     
-    // Debug: log ray hit stats
-    if (raysHit > 0 && Math.random() < 0.05) {
-      console.log('[LOS_CORN_FADER] Rays hit:', raysHit, '/', rayConfigs.length, 'isOccluded:', isOccluded, 'hitCells:', Array.from(hitCellsThisFrame));
-    }
     
     // Update fade states and directly set instance opacity
     cellFadeStates.forEach((state, key) => {

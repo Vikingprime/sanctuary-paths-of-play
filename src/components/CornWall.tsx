@@ -109,7 +109,6 @@ export function clearMeshFromRegistry(mesh: ThreeInstancedMesh) {
 
 // Clear all registrations (call when recreating meshes)
 export function clearCellRegistry() {
-  console.log('[CORN_WALL] Clearing cell registry. Had', cellToInstances.size, 'cells');
   cellToInstances.clear();
   opacityAttributesNeedingUpdate.clear();
   colorAttributesNeedingUpdate.clear();
@@ -128,21 +127,7 @@ export function setCellOpacity(cellX: number, cellZ: number, opacity: number) {
   const key = `${cellX},${cellZ}`;
   const instances = cellToInstances.get(key);
   
-  // Debug: log opacity updates
-  if (opacity < 0.9 && Math.random() < 0.1) {
-    console.log('[CORN_WALL] setCellOpacity', { 
-      cellKey: key, 
-      opacity: opacity.toFixed(2), 
-      instanceCount: instances?.length ?? 0,
-      totalCells: cellToInstances.size
-    });
-  }
-  
   if (!instances) {
-    // Debug: log when cell is not found
-    if (opacity < 0.9 && Math.random() < 0.2) {
-      console.log('[CORN_WALL] Cell not found in registry!', key, 'Available cells:', cellToInstances.size);
-    }
     return;
   }
   
@@ -215,8 +200,6 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
   const originalOnBeforeCompile = mat.onBeforeCompile;
   
   mat.onBeforeCompile = (shader: any) => {
-    console.log('[SHADER] onBeforeCompile triggered for material');
-    
     if (originalOnBeforeCompile) {
       originalOnBeforeCompile(shader);
     }
@@ -230,7 +213,6 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
     
     // Store shader reference
     mat.userData.shader = shader;
-    console.log('[SHADER] Shader modified, stored in userData');
     
     // Inject attribute and varying in vertex shader (opacity + color)
     shader.vertexShader = shader.vertexShader.replace(
