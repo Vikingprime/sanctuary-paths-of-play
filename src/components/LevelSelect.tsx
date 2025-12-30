@@ -4,8 +4,10 @@ import { Maze, MedalType } from '@/types/game';
 import { SaveData } from '@/types/save';
 import { Button } from '@/components/ui/button';
 import { cn, formatTime } from '@/lib/utils';
-import { Lock, Pencil } from 'lucide-react';
+import { Lock, Pencil, Bug, Trash2 } from 'lucide-react';
 import { HowToPlayPanel } from './HowToPlayPanel';
+import { SaveManager } from '@/services/SaveManager';
+import { toast } from 'sonner';
 
 interface LevelSelectProps {
   mazes: Maze[];
@@ -14,6 +16,7 @@ interface LevelSelectProps {
   save: SaveData;
   isMazeUnlocked: (maze: Maze) => Promise<boolean>;
   unlockMazeWithCurrency: (maze: Maze) => Promise<boolean>;
+  onRefreshSave?: () => void;
 }
 
 const medalEmoji: Record<string, string> = {
@@ -28,11 +31,19 @@ export const LevelSelect = ({
   onBack, 
   save, 
   isMazeUnlocked,
-  unlockMazeWithCurrency 
+  unlockMazeWithCurrency,
+  onRefreshSave
 }: LevelSelectProps) => {
   const navigate = useNavigate();
   const [unlockedStatus, setUnlockedStatus] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+
+  const handleClearMazeData = async (mazeId: number) => {
+    await SaveManager.clearMazeData(mazeId);
+    toast.success(`Cleared data for maze ${mazeId}`);
+    onRefreshSave?.();
+  };
 
   // Helper to get maze name from props
   const getMazeName = (mazeId: number): string => {
@@ -122,9 +133,48 @@ export const LevelSelect = ({
           <HowToPlayPanel defaultExpanded={Object.keys(save.levels).length === 0} />
         </div>
         
-        <Button variant="ghost" onClick={onBack} className="mb-2">
-          ← Back to Animals
-        </Button>
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <Button variant="ghost" onClick={onBack}>
+            ← Back to Animals
+          </Button>
+          {save.settings.debugMode && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowDebugPanel(!showDebugPanel)}
+            >
+              <Bug className="w-4 h-4 mr-1" />
+              Save Data
+            </Button>
+          )}
+        </div>
+
+        {/* Debug Panel for viewing/fixing save data */}
+        {showDebugPanel && save.settings.debugMode && (
+          <div className="max-w-md mx-auto mb-4 p-4 bg-card rounded-lg border text-left text-xs">
+            <h4 className="font-bold mb-2">Save Data (levels):</h4>
+            {Object.entries(save.levels).map(([mazeId, data]) => (
+              <div key={mazeId} className="flex items-center justify-between py-1 border-b border-border/50">
+                <div>
+                  <span className="font-mono">Maze {mazeId}:</span>
+                  <span className="ml-2 text-muted-foreground">
+                    attempts={data.attempts}, best={data.bestTime}s, medal={data.medal || 'none'}
+                  </span>
+                </div>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={() => handleClearMazeData(Number(mazeId))}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            ))}
+            {Object.keys(save.levels).length === 0 && (
+              <p className="text-muted-foreground">No level data saved yet.</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Scrollable maze list */}

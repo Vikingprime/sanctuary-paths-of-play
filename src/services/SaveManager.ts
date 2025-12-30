@@ -287,6 +287,15 @@ class SaveManagerClass {
     const save = await this.load();
     return JSON.stringify(save, null, 2);
   }
+
+  // Clear data for a specific maze (useful for fixing corrupted save data)
+  async clearMazeData(mazeId: number): Promise<void> {
+    const save = await this.load();
+    if (save.levels[mazeId]) {
+      delete save.levels[mazeId];
+      await this.save(save);
+    }
+  }
 }
 
 export const SaveManager = new SaveManagerClass();
