@@ -47,10 +47,11 @@ export const MobileControls = ({
   // Hysteresis state for throttle
   const throttleStateRef = useRef<'idle' | 'forward' | 'reverse'>('idle');
 
-  // Prevent default on touchstart at document level to stop browser gestures
+  // Add game-active class to html when mounted, remove on unmount
   useEffect(() => {
+    document.documentElement.classList.add('game-active');
+    
     const preventGestures = (e: TouchEvent) => {
-      // Only prevent if touch started on our overlay
       const target = e.target as HTMLElement;
       if (target.id === 'mobileControlSurface' || target.closest('#mobileControlSurface')) {
         e.preventDefault();
@@ -61,6 +62,7 @@ export const MobileControls = ({
     document.addEventListener('touchmove', preventGestures, { passive: false });
     
     return () => {
+      document.documentElement.classList.remove('game-active');
       document.removeEventListener('touchstart', preventGestures);
       document.removeEventListener('touchmove', preventGestures);
     };

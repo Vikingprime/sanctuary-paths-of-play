@@ -17,8 +17,8 @@
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
     
     <style>
-      /* Prevent browser gestures from stealing touch events */
-      html, body {
+      /* Game mode touch prevention - applied via class by MobileControls */
+      html.game-active, html.game-active body {
         touch-action: none;
         overscroll-behavior: none;
         -webkit-overflow-scrolling: auto;
