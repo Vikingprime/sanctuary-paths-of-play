@@ -10,6 +10,7 @@ import { PlayerState, MovementInput, calculateMovement, generateRockPositions, R
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight } from '@/game/CharacterConfig';
 import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
+import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics } from '@/lib/debug';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 // Extended performance info type
 export interface PerformanceInfo {
@@ -20,6 +21,10 @@ export interface PerformanceInfo {
   programs: number;
   frameTime: number;
   gpuTime?: number;
+  // Per-frame debug metrics
+  raycastCount?: number;
+  activeFadedCells?: number;
+  collisionChecks?: number;
 }
 
 // === PERFORMANCE TOGGLES (for testing) ===
@@ -1490,7 +1495,10 @@ const OverShoulderCameraController = ({
     // === AUTOPUSH LOGIC ===
     let finalTargetPos = targetPos.current.clone();
     
-    if (autopush.enabled && foliageGroupRef?.current && !DEBUG_OVERHEAD_VIEW && !groundLevelCamera) {
+    // Check if autopush is enabled via debug toggle
+    const autopushEnabled = getAutopushEnabled();
+    
+    if (autopush.enabled && autopushEnabled && foliageGroupRef?.current && !DEBUG_OVERHEAD_VIEW && !groundLevelCamera) {
       // Calculate direction from head to desired camera position
       rayDir.current.copy(targetPos.current).sub(headPos).normalize();
       const rayLength = headPos.distanceTo(targetPos.current);
@@ -1561,6 +1569,7 @@ const OverShoulderCameraController = ({
       
       // Center ray - collect hits for both autopush AND fading
       performRaycast(rayDir.current);
+      frameMetrics.raycastCount++; // Track raycasts for debug
       hitCells.forEach(cell => centerRayHitCells.add(cell));
       
       // Side rays (if enabled) - only for autopush, NOT for fading
@@ -1580,6 +1589,7 @@ const OverShoulderCameraController = ({
           rayDir.current.z + perpZ * autopush.raySpread
         ).normalize();
         performRaycast(tempVec.current);
+        frameMetrics.raycastCount++;
         
         // Right ray
         tempVec.current.set(
@@ -1588,7 +1598,7 @@ const OverShoulderCameraController = ({
           rayDir.current.z - perpZ * autopush.raySpread
         ).normalize();
         performRaycast(tempVec.current);
-        
+        frameMetrics.raycastCount++;
         // Restore only center ray hits for fading
         hitCells.clear();
         centerRayHitCells.forEach(cell => hitCells.add(cell));
@@ -1642,6 +1652,7 @@ const OverShoulderCameraController = ({
             // Mark hit cells as needing fade only after camera settles
             // Check if we already have faded cells (autopush already active)
             const hasExistingFadedCells = fadedCellsRef.current.size > 0;
+            frameMetrics.activeFadedCells = fadedCellsRef.current.size; // Track for debug
             
             for (const cellKey of hitCells) {
               const existing = fadedCellsRef.current.get(cellKey);
@@ -2163,6 +2174,9 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
         // Calculate average frame time
         const avgFrameTime = frameTimesRef.current.reduce((a, b) => a + b, 0) / frameTimesRef.current.length;
         
+        // Import frame metrics from debug module
+        const { frameMetrics, resetFrameMetrics } = require('@/lib/debug');
+        
         onRendererInfo({
           drawCalls: gl.info.render.calls,
           triangles: gl.info.render.triangles,
@@ -2170,7 +2184,13 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
           textures: gl.info.memory.textures,
           programs: gl.info.programs?.length || 0,
           frameTime: avgFrameTime,
+          raycastCount: frameMetrics.raycastCount,
+          activeFadedCells: frameMetrics.activeFadedCells,
+          collisionChecks: frameMetrics.collisionChecks,
         });
+        
+        // Reset metrics for next interval
+        resetFrameMetrics();
       }
     }
   });

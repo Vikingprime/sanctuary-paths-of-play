@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Confetti } from '@/components/Confetti';
 import { animals } from '@/data/animals';
 import { formatTime } from '@/lib/utils';
+import { setAutopushEnabled, setLOSFaderEnabled, setVerboseLogging } from '@/lib/debug';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -88,16 +89,13 @@ export const MazeGame3D = ({
   const [restartKey, setRestartKey] = useState(0); // Increment to force camera reset
   const [completionResult, setCompletionResult] = useState<CompletionResult | null>(null);
   const [finalTime, setFinalTime] = useState(0); // Time used to complete
-  // Corn optimization settings
-  const [shadowOptEnabled, setShadowOptEnabled] = useState(true);
-  const [distanceCullEnabled, setDistanceCullEnabled] = useState(true);
-  const [dynamicFogEnabled, setDynamicFogEnabled] = useState(true);
-  const [edgeCornCullEnabled, setEdgeCornCullEnabled] = useState(true); // Enabled for performance
-  const [lowPixelRatio, setLowPixelRatio] = useState(false);
   // Debug toggles
   const [topDownCamera, setTopDownCamera] = useState(false);
   const [groundLevelCamera, setGroundLevelCamera] = useState(false);
   const [showCollisionDebug, setShowCollisionDebug] = useState(debugMode);
+  const [autopushEnabled, setAutopushEnabled] = useState(true);
+  const [losFaderEnabled, setLosFaderEnabled] = useState(true);
+  const [verboseLogging, setVerboseLogging] = useState(false);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
   // Mobile controls - absolute target heading system
@@ -189,7 +187,18 @@ export const MazeGame3D = ({
     });
   }, [onMuteChange]);
 
-  // Track pressed keys for smooth movement
+  // Sync debug toggles to debug module
+  useEffect(() => {
+    setAutopushEnabled(autopushEnabled);
+  }, [autopushEnabled]);
+  
+  useEffect(() => {
+    setLOSFaderEnabled(losFaderEnabled);
+  }, [losFaderEnabled]);
+  
+  useEffect(() => {
+    setVerboseLogging(verboseLogging);
+  }, [verboseLogging]);
   const keysPressed = useRef<Set<string>>(new Set());
   const animationFrameRef = useRef<number>();
 
@@ -720,7 +729,6 @@ export const MazeGame3D = ({
         isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
         isMuted={isMuted}
         onSceneReady={() => setSceneReady(true)}
-        lowPixelRatio={lowPixelRatio}
         onRendererInfo={setRendererInfo}
         debugMode={debugMode}
         restartKey={restartKey}
@@ -731,18 +739,6 @@ export const MazeGame3D = ({
             speakerZ: pos?.y ?? playerStateRef.current.y 
           };
         })() : null}
-        cornOptimizationSettings={{
-          shadowRadius: 8,
-          cullDistance: 18,
-          lodDistance: 6,
-          farMaterialDistance: 5,
-          enableShadowOptimization: shadowOptEnabled,
-          enableDistanceCulling: distanceCullEnabled,
-          enableLOD: true,
-          enableFarMaterialOptimization: true,
-          enableDynamicFog: dynamicFogEnabled,
-          enableEdgeCornCulling: edgeCornCullEnabled,
-        }}
         topDownCamera={topDownCamera}
         groundLevelCamera={groundLevelCamera}
         showCollisionDebug={showCollisionDebug}
@@ -775,16 +771,6 @@ export const MazeGame3D = ({
           debugMode={debugMode}
           isMuted={isMuted}
           onToggleMute={handleToggleMute}
-          shadowOptEnabled={shadowOptEnabled}
-          distanceCullEnabled={distanceCullEnabled}
-          onToggleShadowOpt={() => setShadowOptEnabled(prev => !prev)}
-          onToggleDistanceCull={() => setDistanceCullEnabled(prev => !prev)}
-          dynamicFogEnabled={dynamicFogEnabled}
-          onToggleDynamicFog={() => setDynamicFogEnabled(prev => !prev)}
-          edgeCornCullEnabled={edgeCornCullEnabled}
-          onToggleEdgeCornCull={() => setEdgeCornCullEnabled(prev => !prev)}
-          lowPixelRatio={lowPixelRatio}
-          onTogglePixelRatio={() => setLowPixelRatio(prev => !prev)}
           performanceInfo={rendererInfo}
           topDownCamera={topDownCamera}
           onToggleTopDownCamera={() => setTopDownCamera(prev => !prev)}
@@ -792,6 +778,12 @@ export const MazeGame3D = ({
           onToggleGroundLevelCamera={() => setGroundLevelCamera(prev => !prev)}
           showCollisionDebug={showCollisionDebug}
           onToggleCollisionDebug={() => setShowCollisionDebug(prev => !prev)}
+          autopushEnabled={autopushEnabled}
+          onToggleAutopush={() => setAutopushEnabled(prev => !prev)}
+          losFaderEnabled={losFaderEnabled}
+          onToggleLOSFader={() => setLosFaderEnabled(prev => !prev)}
+          verboseLogging={verboseLogging}
+          onToggleVerboseLogging={() => setVerboseLogging(prev => !prev)}
         />
       )}
 

@@ -8,6 +8,21 @@
 // Global debug settings
 let isDebugModeEnabled = false;
 let isVerboseLoggingEnabled = false;
+let isAutopushEnabled = true;
+let isLOSFaderEnabled = true;
+
+// Per-frame metrics (reset each frame)
+export const frameMetrics = {
+  raycastCount: 0,
+  activeFadedCells: 0,
+  collisionChecks: 0,
+};
+
+export function resetFrameMetrics() {
+  frameMetrics.raycastCount = 0;
+  frameMetrics.activeFadedCells = 0;
+  frameMetrics.collisionChecks = 0;
+}
 
 // Throttling state
 const throttleTimers = new Map<string, number>();
@@ -30,6 +45,28 @@ export function setVerboseLogging(enabled: boolean) {
 // Expose for checking in hot paths
 export function getVerboseLogging(): boolean {
   return isVerboseLoggingEnabled;
+}
+
+/**
+ * Enable/disable autopush raycasting
+ */
+export function setAutopushEnabled(enabled: boolean) {
+  isAutopushEnabled = enabled;
+}
+
+export function getAutopushEnabled(): boolean {
+  return isAutopushEnabled;
+}
+
+/**
+ * Enable/disable LOS corn fader
+ */
+export function setLOSFaderEnabled(enabled: boolean) {
+  isLOSFaderEnabled = enabled;
+}
+
+export function getLOSFaderEnabled(): boolean {
+  return isLOSFaderEnabled;
 }
 
 /**
