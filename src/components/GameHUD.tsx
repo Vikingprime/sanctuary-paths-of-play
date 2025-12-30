@@ -232,7 +232,7 @@ export const GameHUD = ({
 
       {/* Full Performance Profiler Panel - only in debug mode */}
       {debugMode && performanceInfo && (
-        <div className="block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[220px]">
+        <div className="block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[220px] pointer-events-none">
           <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">PERF PROFILER</div>
           
           {/* Frame timing */}
