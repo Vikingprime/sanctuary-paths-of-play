@@ -78,7 +78,22 @@ export const MobileControls = ({
     knobY: number;
   }>({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
 
+  // Reset all control state - used on orientation change
+  const resetControls = useCallback(() => {
+    activePointerIdRef.current = null;
+    anchorRef.current = null;
+    fingerRef.current = null;
+    smoothedThrottleRef.current = 0;
+    smoothedYawRateRef.current = 0;
+    yawRateRef.current = 0;
+    throttleRef.current = 0;
+    isMovingRef.current = false;
+    mobileTouchActiveRef.current = false;
+    setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
+  }, [yawRateRef, throttleRef, isMovingRef, mobileTouchActiveRef]);
+
   // Add game-active class to html when mounted, remove on unmount
+  // Also handle orientation changes
   useEffect(() => {
     document.documentElement.classList.add('game-active');
     
@@ -89,18 +104,29 @@ export const MobileControls = ({
       }
     };
     
+    // Reset controls on orientation change
+    const handleOrientationChange = () => {
+      resetControls();
+    };
+    
+    // Listen for both resize and orientation change
+    window.addEventListener('resize', handleOrientationChange);
+    window.addEventListener('orientationchange', handleOrientationChange);
+    
     document.addEventListener('touchstart', preventGestures, { passive: false });
     document.addEventListener('touchmove', preventGestures, { passive: false });
     
     return () => {
       document.documentElement.classList.remove('game-active');
+      window.removeEventListener('resize', handleOrientationChange);
+      window.removeEventListener('orientationchange', handleOrientationChange);
       document.removeEventListener('touchstart', preventGestures);
       document.removeEventListener('touchmove', preventGestures);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, []);
+  }, [resetControls]);
 
   // Animation loop for drift anchor and controls update
   useEffect(() => {
