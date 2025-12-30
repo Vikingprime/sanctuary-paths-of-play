@@ -103,6 +103,7 @@ export const MazeGame3D = ({
   // Mobile controls - absolute target heading system
   const mobileTargetYawRef = useRef<number>(startRotation); // Always a number, initialized to start
   const mobileIsMovingRef = useRef(false);
+  const mobileThrottleRef = useRef(0); // Throttle: -1 (reverse) to 1 (forward)
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   
@@ -712,6 +713,7 @@ export const MazeGame3D = ({
         keysPressed={keysPressed}
         mobileTargetYawRef={mobileTargetYawRef}
         mobileIsMovingRef={mobileIsMovingRef}
+        mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
@@ -798,6 +800,7 @@ export const MazeGame3D = ({
         playerStateRef={playerStateRef}
         targetYawRef={mobileTargetYawRef}
         isMovingRef={mobileIsMovingRef}
+        throttleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
         debugMode={debugMode}
       />
