@@ -39,8 +39,9 @@ interface Maze3DSceneProps {
   collectedPowerUps?: Set<string>;
   keysPressed: MutableRefObject<Set<string>>;
   // Mobile controls - absolute target heading system
-  mobileTargetYawRef?: MutableRefObject<number | null>;
+  mobileTargetYawRef?: MutableRefObject<number>;
   mobileIsMovingRef?: MutableRefObject<boolean>;
+  mobileTouchActiveRef?: MutableRefObject<boolean>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1111,6 +1112,7 @@ const RefBasedPlayer = ({
   keysPressed,
   mobileTargetYawRef,
   mobileIsMovingRef,
+  mobileTouchActiveRef,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1124,8 +1126,9 @@ const RefBasedPlayer = ({
   isMovingRef: MutableRefObject<boolean>;
   maze: Maze;
   keysPressed: MutableRefObject<Set<string>>;
-  mobileTargetYawRef?: MutableRefObject<number | null>;
+  mobileTargetYawRef?: MutableRefObject<number>;
   mobileIsMovingRef?: MutableRefObject<boolean>;
+  mobileTouchActiveRef?: MutableRefObject<boolean>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1161,15 +1164,15 @@ const RefBasedPlayer = ({
       // Clamp delta to prevent large jumps on frame drops
       const clampedDelta = Math.min(delta, 0.05);
       
-      // Check if mobile touch is active (absolute target heading mode)
-      const mobileActive = mobileTargetYawRef?.current !== null && mobileTargetYawRef?.current !== undefined;
+      // Check if mobile touch is active (use boolean ref, not null check)
+      const mobileActive = mobileTouchActiveRef?.current ?? false;
       
       let input: MovementInput;
       
       if (mobileActive) {
         // MOBILE MODE: Absolute target heading
         // Smoothly interpolate current rotation toward target yaw
-        const targetYaw = mobileTargetYawRef!.current!;
+        const targetYaw = mobileTargetYawRef?.current ?? playerStateRef.current.rotation;
         const currentYaw = playerStateRef.current.rotation;
         
         // Use exponential smoothing for responsive but smooth steering
@@ -1922,7 +1925,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileIsMovingRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileIsMovingRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2123,6 +2126,7 @@ return (
         keysPressed={keysPressed}
         mobileTargetYawRef={mobileTargetYawRef}
         mobileIsMovingRef={mobileIsMovingRef}
+        mobileTouchActiveRef={mobileTouchActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}

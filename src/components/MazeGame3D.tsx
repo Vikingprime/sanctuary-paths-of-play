@@ -101,8 +101,9 @@ export const MazeGame3D = ({
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
   // Mobile controls - absolute target heading system
-  const mobileTargetYawRef = useRef<number | null>(null);
+  const mobileTargetYawRef = useRef<number>(startRotation); // Always a number, initialized to start
   const mobileIsMovingRef = useRef(false);
+  const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   
   // Dialogue state
@@ -711,6 +712,7 @@ export const MazeGame3D = ({
         keysPressed={keysPressed}
         mobileTargetYawRef={mobileTargetYawRef}
         mobileIsMovingRef={mobileIsMovingRef}
+        mobileTouchActiveRef={mobileTouchActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
@@ -796,6 +798,7 @@ export const MazeGame3D = ({
         playerStateRef={playerStateRef}
         targetYawRef={mobileTargetYawRef}
         isMovingRef={mobileIsMovingRef}
+        mobileTouchActiveRef={mobileTouchActiveRef}
         debugMode={debugMode}
       />
 
