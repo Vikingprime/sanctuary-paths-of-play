@@ -2174,8 +2174,12 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
         // Calculate average frame time
         const avgFrameTime = frameTimesRef.current.reduce((a, b) => a + b, 0) / frameTimesRef.current.length;
         
-        // Import frame metrics from debug module
-        const { frameMetrics, resetFrameMetrics } = require('@/lib/debug');
+        // Read metrics BEFORE resetting (frameMetrics is already imported at top of file)
+        const currentMetrics = {
+          raycastCount: frameMetrics.raycastCount,
+          activeFadedCells: frameMetrics.activeFadedCells,
+          collisionChecks: frameMetrics.collisionChecks,
+        };
         
         onRendererInfo({
           drawCalls: gl.info.render.calls,
@@ -2184,13 +2188,13 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
           textures: gl.info.memory.textures,
           programs: gl.info.programs?.length || 0,
           frameTime: avgFrameTime,
-          raycastCount: frameMetrics.raycastCount,
-          activeFadedCells: frameMetrics.activeFadedCells,
-          collisionChecks: frameMetrics.collisionChecks,
+          ...currentMetrics,
         });
         
         // Reset metrics for next interval
-        resetFrameMetrics();
+        frameMetrics.raycastCount = 0;
+        frameMetrics.activeFadedCells = 0;
+        frameMetrics.collisionChecks = 0;
       }
     }
   });

@@ -8,6 +8,7 @@
 import { Maze, AnimalType } from '@/types/game';
 import { GameConfig } from './GameConfig';
 import { isWall, getCell } from './MazeUtils';
+import { frameMetrics } from '@/lib/debug';
 
 // ============================================
 // TYPES (duplicate in Unity as C# structs/classes)
@@ -208,8 +209,7 @@ export function checkCharacterCollision(
   useRotationRadius: boolean = false,
   debugLabel?: string
 ): boolean {
-  // Import metrics for tracking
-  const { frameMetrics } = require('@/lib/debug');
+  // Track collision checks for debug metrics
   frameMetrics.collisionChecks++;
   
   for (const char of characters) {
