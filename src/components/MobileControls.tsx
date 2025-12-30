@@ -3,21 +3,15 @@ import { PlayerState } from '@/game/GameLogic';
 
 // Tuning knobs - exposed for easy adjustment
 export const MOBILE_CONTROL_CONFIG = {
-  // Movement thresholds (dy = vertical swipe distance)
-  forwardThreshold: 15,       // Reduced for easier forward trigger
-  reverseThreshold: 40,       // Swipe down this much to reverse
-  
-  // Steering settings - different for stationary vs moving
-  stationaryTurnRadiusPx: 280,  // Wider radius when stationary (more precise)
-  movingTurnRadiusPx: 180,      // Tighter radius while moving (sharper turns)
-  maxTurnRateStationary: 2.8,   // Radians per second when stationary
-  maxTurnRateMoving: 4.5,       // Radians per second while moving
-  deadzonePx: 6,                // Ignore dx below this threshold
-  laneLockThreshold: 20,        // If |dx| < this, lock to straight line
+  // Movement thresholds
+  moveThreshold: 20,           // Minimum swipe distance to start moving
   
   // Speed settings
   forwardSpeed: 1.0,
   reverseSpeed: 0.5,
+  
+  // Turn rate - how fast the animal rotates to match finger direction
+  turnRate: 4.0,               // Radians per second
 };
 
 interface MobileControlsProps {
@@ -40,12 +34,9 @@ export const MobileControls = ({
   debugMode = false
 }: MobileControlsProps) => {
   const overlayRef = useRef<HTMLDivElement>(null);
-  const swipeStartRef = useRef<{ x: number; y: number; startYaw: number } | null>(null);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
   const lastDebugLogRef = useRef<number>(0);
-  
-  // Hysteresis state for throttle
-  const throttleStateRef = useRef<'idle' | 'forward' | 'reverse'>('idle');
 
   // Add game-active class to html when mounted, remove on unmount
   useEffect(() => {
@@ -80,18 +71,12 @@ export const MobileControls = ({
     e.stopPropagation();
     
     activePointerIdRef.current = e.pointerId;
-    // Store start position AND current player rotation
-    swipeStartRef.current = { 
-      x: e.clientX, 
-      y: e.clientY,
-      startYaw: playerStateRef.current.rotation
-    };
+    swipeStartRef.current = { x: e.clientX, y: e.clientY };
     
     mobileTouchActiveRef.current = true;
     yawRateRef.current = 0;
     throttleRef.current = 0;
     isMovingRef.current = false;
-    throttleStateRef.current = 'idle';
     
     // Capture pointer for reliable tracking
     try {
@@ -101,9 +86,9 @@ export const MobileControls = ({
     }
     
     if (debugMode) {
-      console.log('[Mobile] pointerdown at', e.clientX.toFixed(0), e.clientY.toFixed(0), 'startYaw:', swipeStartRef.current.startYaw.toFixed(2));
+      console.log('[Mobile] pointerdown at', e.clientX.toFixed(0), e.clientY.toFixed(0));
     }
-  }, [mobileTouchActiveRef, yawRateRef, throttleRef, isMovingRef, playerStateRef, debugMode]);
+  }, [mobileTouchActiveRef, yawRateRef, throttleRef, isMovingRef, debugMode]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (activePointerIdRef.current !== e.pointerId) return;
@@ -112,86 +97,76 @@ export const MobileControls = ({
     e.preventDefault();
     e.stopPropagation();
     
-    const { 
-      forwardThreshold, reverseThreshold, 
-      stationaryTurnRadiusPx, movingTurnRadiusPx,
-      maxTurnRateStationary, maxTurnRateMoving,
-      deadzonePx, laneLockThreshold,
-      forwardSpeed, reverseSpeed 
-    } = MOBILE_CONTROL_CONFIG;
+    const { moveThreshold, forwardSpeed, reverseSpeed, turnRate } = MOBILE_CONTROL_CONFIG;
     
     const dx = e.clientX - swipeStartRef.current.x;
     const dy = e.clientY - swipeStartRef.current.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
     
-    // MOVEMENT: dy controls forward/reverse with hysteresis
-    // Negative dy = swiped UP = forward
-    // Positive dy = swiped DOWN = reverse
-    let throttle = 0;
-    let moving = false;
-    
-    const currentState = throttleStateRef.current;
-    
-    // Hysteresis logic - different thresholds for entering vs exiting states
-    if (currentState === 'idle') {
-      if (dy < -forwardThreshold) {
-        throttleStateRef.current = 'forward';
-      } else if (dy > reverseThreshold) {
-        throttleStateRef.current = 'reverse';
-      }
-    } else if (currentState === 'forward') {
-      // Stay forward until dy goes back above half the threshold
-      if (dy > -forwardThreshold * 0.5) {
-        throttleStateRef.current = 'idle';
-      }
-    } else if (currentState === 'reverse') {
-      // Stay reverse until dy drops below half the threshold
-      if (dy < reverseThreshold * 0.5) {
-        throttleStateRef.current = 'idle';
-      }
+    // Not moving if finger hasn't moved enough
+    if (distance < moveThreshold) {
+      isMovingRef.current = false;
+      throttleRef.current = 0;
+      yawRateRef.current = 0;
+      return;
     }
     
-    // Apply throttle based on state
-    if (throttleStateRef.current === 'forward') {
-      throttle = forwardSpeed;
-      moving = true;
-    } else if (throttleStateRef.current === 'reverse') {
-      throttle = -reverseSpeed;
-      moving = true;
+    // Calculate the angle from start to current finger position
+    // atan2 gives us angle where: right=0, down=PI/2, left=PI/-PI, up=-PI/2
+    // We want: up=forward (0), right=PI/2, down=PI (backward), left=-PI/2
+    const fingerAngle = Math.atan2(dx, -dy); // Note: -dy so up is 0
+    
+    // Determine forward vs backward based on vertical component
+    // If finger is above start point (dy < 0), we're moving forward
+    // If finger is below start point (dy > 0), we're moving backward
+    const isForward = dy < 0;
+    
+    // Set throttle based on direction
+    throttleRef.current = isForward ? forwardSpeed : -reverseSpeed;
+    isMovingRef.current = true;
+    
+    // For the target heading:
+    // When going forward, the finger angle directly becomes the target heading
+    // When going backward, we flip it by PI so the animal backs in that direction
+    let targetHeading = fingerAngle;
+    if (!isForward) {
+      // When reversing, we want the animal's BACK to point toward the finger
+      // So we add PI to flip the heading
+      targetHeading = fingerAngle + Math.PI;
     }
     
-    isMovingRef.current = moving;
-    throttleRef.current = throttle;
+    // Normalize to [-PI, PI]
+    while (targetHeading > Math.PI) targetHeading -= 2 * Math.PI;
+    while (targetHeading < -Math.PI) targetHeading += 2 * Math.PI;
     
-    // STEERING: dx controls turn rate
-    // Use different sensitivity based on movement state
-    const turnRadiusPx = moving ? movingTurnRadiusPx : stationaryTurnRadiusPx;
-    const maxTurnRate = moving ? maxTurnRateMoving : maxTurnRateStationary;
+    // Calculate the shortest angular difference between current heading and target
+    const currentYaw = playerStateRef.current.rotation;
+    let angleDiff = targetHeading - currentYaw;
     
-    let turn = 0;
+    // Normalize angle difference to [-PI, PI] for shortest path
+    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
     
-    // Lane lock: if horizontal displacement is small relative to vertical, don't steer
-    const isLaneLocked = Math.abs(dx) < laneLockThreshold && Math.abs(dy) > forwardThreshold;
+    // Set yaw rate proportional to the difference, clamped to max turn rate
+    // This creates smooth turning that's faster for big differences
+    const turnStrength = Math.min(1, Math.abs(angleDiff) / (Math.PI / 4)); // Full speed at 45+ degrees
+    const desiredRate = Math.sign(angleDiff) * turnStrength * turnRate;
+    yawRateRef.current = desiredRate;
     
-    if (!isLaneLocked && Math.abs(dx) > deadzonePx) {
-      // Power curve for more precise small adjustments, sharp big turns
-      const normalizedDx = Math.max(-1, Math.min(1, dx / turnRadiusPx));
-      const sign = Math.sign(normalizedDx);
-      const magnitude = Math.pow(Math.abs(normalizedDx), 1.5); // Power curve
-      turn = sign * magnitude;
-    }
-    
-    yawRateRef.current = turn * maxTurnRate;
+    // Store target yaw for the player movement system
+    targetYawRef.current = targetHeading;
     
     // Debug logging (throttled)
     if (debugMode && Date.now() - lastDebugLogRef.current > 200) {
       lastDebugLogRef.current = Date.now();
       console.log('[Mobile] dx:', dx.toFixed(0), 'dy:', dy.toFixed(0), 
-                  'state:', throttleStateRef.current,
-                  'throttle:', throttle.toFixed(2),
-                  'turn:', turn.toFixed(2),
-                  'laneLock:', isLaneLocked);
+                  'fingerAngle:', (fingerAngle * 180 / Math.PI).toFixed(0) + '°',
+                  'forward:', isForward,
+                  'targetHeading:', (targetHeading * 180 / Math.PI).toFixed(0) + '°',
+                  'currentYaw:', (currentYaw * 180 / Math.PI).toFixed(0) + '°',
+                  'yawRate:', yawRateRef.current.toFixed(2));
     }
-  }, [yawRateRef, throttleRef, isMovingRef, debugMode]);
+  }, [yawRateRef, throttleRef, isMovingRef, targetYawRef, playerStateRef, debugMode]);
 
   const handlePointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (activePointerIdRef.current !== e.pointerId) return;
@@ -201,7 +176,6 @@ export const MobileControls = ({
     
     activePointerIdRef.current = null;
     swipeStartRef.current = null;
-    throttleStateRef.current = 'idle';
     
     yawRateRef.current = 0;
     throttleRef.current = 0;
