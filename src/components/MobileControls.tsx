@@ -1,13 +1,13 @@
 import { useRef, useCallback, MutableRefObject, useEffect, useState } from 'react';
 import { PlayerState } from '@/game/GameLogic';
 
-// Tuning knobs - exposed for easy adjustment
+// Tuning knobs - now using normalized values (0-1 as percentage of screen height)
 export const MOBILE_CONTROL_CONFIG = {
-  // Dead zone - minimum distance to register input
-  deadZone: 15,
+  // Dead zone as percentage of screen height
+  deadZonePercent: 0.02,
   
-  // Maximum joystick radius before drift kicks in
-  maxRadius: 50,
+  // Maximum joystick radius as percentage of screen height
+  maxRadiusPercent: 0.06,
   
   // Drift lerp speed (how fast anchor slides toward finger)
   driftSpeed: 0.08,
@@ -19,20 +19,16 @@ export const MOBILE_CONTROL_CONFIG = {
   // Turn rate - how fast the animal rotates based on X offset
   turnRate: 3.0,
   
-  // Visual sizes
-  baseRadius: 60,
-  knobRadius: 30,
+  // Visual sizes as percentage of screen height
+  baseRadiusPercent: 0.07,
+  knobRadiusPercent: 0.035,
   
   // Forward momentum bias settings
-  // If X input is above this threshold (0-1), ignore small backward inputs
   turnThreshold: 0.6,
-  // Maximum backward Y that gets ignored when turning sharply
   reverseIgnoreThreshold: 0.3,
-  // Minimum forward speed maintained during sharp turns (0-1)
   minTurnSpeed: 0.3,
   
   // Speed-sensitive steering
-  // At low speeds, turning is faster (pivot behavior)
   pivotTurnMultiplier: 2.0,
   
   // Input smoothing (lerp factor per frame, 0-1, lower = smoother)
@@ -65,6 +61,9 @@ export const MobileControls = ({
   const lastDebugLogRef = useRef<number>(0);
   const animationFrameRef = useRef<number | null>(null);
   
+  // Track screen dimensions for normalization
+  const screenDimensionsRef = useRef({ width: window.innerWidth, height: window.innerHeight });
+  
   // Smoothed input values for lerp
   const smoothedThrottleRef = useRef<number>(0);
   const smoothedYawRateRef = useRef<number>(0);
@@ -78,6 +77,17 @@ export const MobileControls = ({
     knobY: number;
   }>({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
 
+  // Calculate pixel values from percentage-based config
+  const getPixelValues = useCallback(() => {
+    const screenHeight = screenDimensionsRef.current.height;
+    return {
+      deadZone: screenHeight * MOBILE_CONTROL_CONFIG.deadZonePercent,
+      maxRadius: screenHeight * MOBILE_CONTROL_CONFIG.maxRadiusPercent,
+      baseRadius: screenHeight * MOBILE_CONTROL_CONFIG.baseRadiusPercent,
+      knobRadius: screenHeight * MOBILE_CONTROL_CONFIG.knobRadiusPercent,
+    };
+  }, []);
+
   // Reset all control state - used on orientation change
   const resetControls = useCallback(() => {
     activePointerIdRef.current = null;
@@ -90,6 +100,9 @@ export const MobileControls = ({
     isMovingRef.current = false;
     mobileTouchActiveRef.current = false;
     setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
+    
+    // Update screen dimensions
+    screenDimensionsRef.current = { width: window.innerWidth, height: window.innerHeight };
   }, [yawRateRef, throttleRef, isMovingRef, mobileTouchActiveRef]);
 
   // Track last known orientation to detect actual orientation changes
@@ -106,8 +119,10 @@ export const MobileControls = ({
     document.body.style.overscrollBehavior = 'none';
     document.documentElement.style.overscrollBehavior = 'none';
     
+    // Initialize screen dimensions
+    screenDimensionsRef.current = { width: window.innerWidth, height: window.innerHeight };
+    
     const preventGestures = (e: TouchEvent) => {
-      // Prevent all touch gestures on the control surface
       const target = e.target as HTMLElement;
       if (target.id === 'mobileControlSurface' || target.closest('#mobileControlSurface')) {
         e.preventDefault();
@@ -115,9 +130,14 @@ export const MobileControls = ({
       }
     };
     
-    // Only reset on actual orientation change, not minor resize events
+    // Handle resize/orientation changes
     const handleResize = () => {
       const currentOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+      
+      // Update screen dimensions regardless
+      screenDimensionsRef.current = { width: window.innerWidth, height: window.innerHeight };
+      
+      // Only reset controls on actual orientation change
       if (currentOrientation !== lastOrientationRef.current) {
         lastOrientationRef.current = currentOrientation;
         resetControls();
@@ -125,7 +145,7 @@ export const MobileControls = ({
     };
     
     window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', resetControls);
+    window.addEventListener('orientationchange', handleResize);
     
     document.addEventListener('touchstart', preventGestures, { passive: false, capture: true });
     document.addEventListener('touchmove', preventGestures, { passive: false, capture: true });
@@ -136,7 +156,7 @@ export const MobileControls = ({
       document.body.style.overscrollBehavior = '';
       document.documentElement.style.overscrollBehavior = '';
       window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', resetControls);
+      window.removeEventListener('orientationchange', handleResize);
       document.removeEventListener('touchstart', preventGestures, { capture: true });
       document.removeEventListener('touchmove', preventGestures, { capture: true });
       document.removeEventListener('touchend', preventGestures, { capture: true });
@@ -149,10 +169,11 @@ export const MobileControls = ({
   // Animation loop for drift anchor and controls update
   useEffect(() => {
     const updateLoop = () => {
-      const { 
-        deadZone, maxRadius, driftSpeed, forwardSpeed, reverseSpeed, turnRate,
-        turnThreshold, reverseIgnoreThreshold, minTurnSpeed, pivotTurnMultiplier, inputSmoothing
-      } = MOBILE_CONTROL_CONFIG;
+      const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, turnThreshold, 
+              reverseIgnoreThreshold, minTurnSpeed, pivotTurnMultiplier, inputSmoothing } = MOBILE_CONTROL_CONFIG;
+      
+      // Get current pixel values based on screen height
+      const { deadZone, maxRadius } = getPixelValues();
       
       if (anchorRef.current && fingerRef.current) {
         // Calculate offset from anchor to finger
@@ -191,26 +212,25 @@ export const MobileControls = ({
         
         // Dead zone check
         if (currentDistance >= deadZone) {
-          // Tank controls: Y = forward/backward, X = steering
-          
           // Normalize offset to -1 to 1 range (clamped at maxRadius)
-          const rawNormalizedY = Math.max(-1, Math.min(1, -dy / maxRadius)); // Negative because screen Y is inverted
+          const rawNormalizedY = Math.max(-1, Math.min(1, -dy / maxRadius));
           const normalizedX = Math.max(-1, Math.min(1, dx / maxRadius));
           const absX = Math.abs(normalizedX);
           
-          // === FORWARD MOMENTUM BIAS ===
-          // If turning sharply (X > turnThreshold), ignore small backward inputs
-          let effectiveY = rawNormalizedY;
+          // === SENSITIVITY CURVE (Y * abs(Y)) ===
+          // Apply power curve for finer control at low values
+          const curvedY = rawNormalizedY * Math.abs(rawNormalizedY);
+          const curvedX = normalizedX * Math.abs(normalizedX);
           
-          if (absX >= turnThreshold && rawNormalizedY < 0 && rawNormalizedY > -reverseIgnoreThreshold) {
-            // Sharp turn with small backward input - treat as forward/neutral
+          // === FORWARD MOMENTUM BIAS ===
+          let effectiveY = curvedY;
+          
+          if (absX >= turnThreshold && curvedY < 0 && curvedY > -reverseIgnoreThreshold) {
             effectiveY = 0;
           }
           
           // === WIDE ARC LOGIC ===
-          // When X input is high, maintain minimum forward speed
           if (absX >= turnThreshold && effectiveY >= 0) {
-            // During sharp turns, ensure minimum forward movement
             effectiveY = Math.max(effectiveY, minTurnSpeed);
           }
           
@@ -218,35 +238,27 @@ export const MobileControls = ({
           if (effectiveY > 0) {
             targetThrottle = effectiveY * forwardSpeed;
           } else if (effectiveY < 0) {
-            // Only reverse if we have significant backward input (not ignored by bias)
             targetThrottle = effectiveY * reverseSpeed;
           }
           
           // === SPEED-SENSITIVE STEERING ===
-          // Turn sharper at low speeds, enabling pivot turns
           const speedFactor = Math.abs(targetThrottle);
-          // At low speed (< 0.3), multiply turn rate; at high speed, use normal rate
           const pivotFactor = speedFactor < 0.3 
             ? pivotTurnMultiplier * (1 - speedFactor / 0.3) + 1 
             : 1;
           
-          // If near Y-center with high X, allow pivot turn (spin in place)
-          const isPivoting = absX > 0.5 && Math.abs(effectiveY) < 0.2;
+          const isPivoting = Math.abs(curvedX) > 0.5 && Math.abs(effectiveY) < 0.2;
           
           if (isPivoting) {
-            // Pivot turn: spin in place with boosted turn rate
-            targetYawRate = normalizedX * turnRate * pivotTurnMultiplier;
-            // Small forward nudge to prevent complete stop feeling
+            targetYawRate = curvedX * turnRate * pivotTurnMultiplier;
             targetThrottle = Math.max(targetThrottle, 0.1);
           } else if (Math.abs(targetThrottle) > 0.05) {
-            // Normal movement: steer based on direction
             const steerDirection = targetThrottle < 0 ? -1 : 1;
-            targetYawRate = normalizedX * turnRate * pivotFactor * steerDirection;
+            targetYawRate = curvedX * turnRate * pivotFactor * steerDirection;
           }
         }
         
         // === INPUT SMOOTHING (LERP) ===
-        // Smooth transition between current and target values
         smoothedThrottleRef.current += (targetThrottle - smoothedThrottleRef.current) * inputSmoothing;
         smoothedYawRateRef.current += (targetYawRate - smoothedYawRateRef.current) * inputSmoothing;
         
@@ -260,7 +272,8 @@ export const MobileControls = ({
           lastDebugLogRef.current = Date.now();
           console.log('[Mobile] dx:', dx.toFixed(0), 'dy:', dy.toFixed(0),
                       'throttle:', throttleRef.current.toFixed(2),
-                      'yawRate:', yawRateRef.current.toFixed(2));
+                      'yawRate:', yawRateRef.current.toFixed(2),
+                      'screenH:', screenDimensionsRef.current.height);
         }
       } else {
         // No touch active - smoothly decay to zero
@@ -284,14 +297,12 @@ export const MobileControls = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [debugMode, isMovingRef, throttleRef, yawRateRef]);
+  }, [debugMode, isMovingRef, throttleRef, yawRateRef, getPixelValues]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Don't capture if touch is on UI elements
     const target = e.target as HTMLElement;
     if (target.closest('button, [role="button"], .z-50, .z-40, .z-30')) return;
     
-    // Only capture first pointer
     if (activePointerIdRef.current !== null) return;
     
     e.preventDefault();
@@ -314,7 +325,6 @@ export const MobileControls = ({
       knobY: e.clientY,
     });
     
-    // Capture pointer for reliable tracking
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch (err) {
@@ -333,7 +343,6 @@ export const MobileControls = ({
     e.preventDefault();
     e.stopPropagation();
     
-    // Just update finger position - the animation loop handles the rest
     fingerRef.current = { x: e.clientX, y: e.clientY };
   }, []);
 
@@ -365,7 +374,8 @@ export const MobileControls = ({
     }
   }, [mobileTouchActiveRef, yawRateRef, throttleRef, isMovingRef, debugMode]);
 
-  const { baseRadius, knobRadius } = MOBILE_CONTROL_CONFIG;
+  // Get current pixel values for rendering
+  const { baseRadius, knobRadius } = getPixelValues();
 
   return (
     <>
