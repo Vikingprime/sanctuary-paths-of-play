@@ -208,6 +208,10 @@ export function checkCharacterCollision(
   useRotationRadius: boolean = false,
   debugLabel?: string
 ): boolean {
+  // Import metrics for tracking
+  const { frameMetrics } = require('@/lib/debug');
+  frameMetrics.collisionChecks++;
+  
   for (const char of characters) {
     // Characters are rendered at grid position + 0.5 (center of cell)
     const charX = char.x + 0.5;

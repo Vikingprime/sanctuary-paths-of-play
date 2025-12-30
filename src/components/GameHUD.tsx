@@ -27,28 +27,22 @@ interface GameHUDProps {
   // Sound control
   isMuted?: boolean;
   onToggleMute?: () => void;
-  // Corn optimization toggles
-  shadowOptEnabled?: boolean;
-  distanceCullEnabled?: boolean;
-  onToggleShadowOpt?: () => void;
-  onToggleDistanceCull?: () => void;
-  // Dynamic fog toggle
-  dynamicFogEnabled?: boolean;
-  onToggleDynamicFog?: () => void;
-  // Edge corn culling toggle
-  edgeCornCullEnabled?: boolean;
-  onToggleEdgeCornCull?: () => void;
   // Performance debug
-  lowPixelRatio?: boolean;
-  onTogglePixelRatio?: () => void;
   performanceInfo?: PerformanceInfo;
-  // Camera and collision debug toggles
+  // Camera and collision debug toggles (kept)
   topDownCamera?: boolean;
   onToggleTopDownCamera?: () => void;
   groundLevelCamera?: boolean;
   onToggleGroundLevelCamera?: () => void;
   showCollisionDebug?: boolean;
   onToggleCollisionDebug?: () => void;
+  // New debug toggles
+  autopushEnabled?: boolean;
+  onToggleAutopush?: () => void;
+  verboseLogging?: boolean;
+  onToggleVerboseLogging?: () => void;
+  losFaderEnabled?: boolean;
+  onToggleLOSFader?: () => void;
 }
 
 export const GameHUD = ({
@@ -62,16 +56,6 @@ export const GameHUD = ({
   debugMode = false,
   isMuted = false,
   onToggleMute,
-  shadowOptEnabled = true,
-  distanceCullEnabled = true,
-  onToggleShadowOpt,
-  onToggleDistanceCull,
-  dynamicFogEnabled = true,
-  onToggleDynamicFog,
-  edgeCornCullEnabled = true,
-  onToggleEdgeCornCull,
-  lowPixelRatio = false,
-  onTogglePixelRatio,
   performanceInfo,
   topDownCamera = false,
   onToggleTopDownCamera,
@@ -79,6 +63,12 @@ export const GameHUD = ({
   onToggleGroundLevelCamera,
   showCollisionDebug = true,
   onToggleCollisionDebug,
+  autopushEnabled = true,
+  onToggleAutopush,
+  verboseLogging = false,
+  onToggleVerboseLogging,
+  losFaderEnabled = true,
+  onToggleLOSFader,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -157,75 +147,16 @@ export const GameHUD = ({
             ✕ <span className="hidden landscape:hidden sm:inline">Quit</span>
           </button>
           
-          {/* Corn optimization toggles - only in debug mode */}
+          {/* Debug toggles - only in debug mode */}
           {debugMode && (
             <div className="flex flex-col gap-2">
-              {onToggleShadowOpt && (
-                <button
-                  onClick={onToggleShadowOpt}
-                  className={cn(
-                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                    shadowOptEnabled ? 'text-green-500' : 'text-red-500'
-                  )}
-                  title="Shadow optimization (boundary corn has no shadows)"
-                >
-                  🌑 {shadowOptEnabled ? 'On' : 'Off'}
-                </button>
-              )}
-              {onToggleDistanceCull && (
-                <button
-                  onClick={onToggleDistanceCull}
-                  className={cn(
-                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                    distanceCullEnabled ? 'text-green-500' : 'text-red-500'
-                  )}
-                  title="Distance culling"
-                >
-                  📏 {distanceCullEnabled ? 'On' : 'Off'}
-                </button>
-              )}
-              {onToggleDynamicFog && (
-                <button
-                  onClick={onToggleDynamicFog}
-                  className={cn(
-                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                    dynamicFogEnabled ? 'text-green-500' : 'text-red-500'
-                  )}
-                  title="Dynamic fog (hides outer corn when far)"
-                >
-                  🌫️ {dynamicFogEnabled ? 'On' : 'Off'}
-                </button>
-              )}
-              {onToggleEdgeCornCull && (
-                <button
-                  onClick={onToggleEdgeCornCull}
-                  className={cn(
-                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                    edgeCornCullEnabled ? 'text-green-500' : 'text-red-500'
-                  )}
-                  title="Edge corn culling (hides distant edge corn)"
-                >
-                  🌽 {edgeCornCullEnabled ? 'On' : 'Off'}
-                </button>
-              )}
-              {onTogglePixelRatio && (
-                <button
-                  onClick={onTogglePixelRatio}
-                  className={cn(
-                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                    lowPixelRatio ? 'text-yellow-500' : 'text-green-500'
-                  )}
-                  title="Pixel ratio (low = better performance)"
-                >
-                  🖼️ {lowPixelRatio ? '0.5x' : '1x'}
-                </button>
-              )}
+              {/* Camera view toggles (kept) */}
               {onToggleTopDownCamera && (
                 <button
                   onClick={onToggleTopDownCamera}
                   className={cn(
                     'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                    topDownCamera ? 'text-cyan-500' : 'text-green-500'
+                    topDownCamera ? 'text-cyan-500' : 'text-muted-foreground'
                   )}
                   title="Toggle camera view"
                 >
@@ -237,13 +168,14 @@ export const GameHUD = ({
                   onClick={onToggleGroundLevelCamera}
                   className={cn(
                     'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                    groundLevelCamera ? 'text-orange-500' : 'text-green-500'
+                    groundLevelCamera ? 'text-orange-500' : 'text-muted-foreground'
                   )}
                   title="Ground level camera (debug height)"
                 >
                   👁️ {groundLevelCamera ? 'Ground' : 'Normal'}
                 </button>
               )}
+              {/* Collision capsule toggle (kept) */}
               {onToggleCollisionDebug && (
                 <button
                   onClick={onToggleCollisionDebug}
@@ -253,7 +185,44 @@ export const GameHUD = ({
                   )}
                   title="Show collision debug spheres"
                 >
-                  🔴 {showCollisionDebug ? 'On' : 'Off'}
+                  🔴 Capsule {showCollisionDebug ? 'On' : 'Off'}
+                </button>
+              )}
+              {/* New toggles */}
+              {onToggleAutopush && (
+                <button
+                  onClick={onToggleAutopush}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    autopushEnabled ? 'text-green-500' : 'text-red-500'
+                  )}
+                  title="Camera autopush raycasting"
+                >
+                  📡 Autopush {autopushEnabled ? 'On' : 'Off'}
+                </button>
+              )}
+              {onToggleLOSFader && (
+                <button
+                  onClick={onToggleLOSFader}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    losFaderEnabled ? 'text-green-500' : 'text-red-500'
+                  )}
+                  title="LOS corn fading"
+                >
+                  🌽 LOSFader {losFaderEnabled ? 'On' : 'Off'}
+                </button>
+              )}
+              {onToggleVerboseLogging && (
+                <button
+                  onClick={onToggleVerboseLogging}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    verboseLogging ? 'text-yellow-500' : 'text-muted-foreground'
+                  )}
+                  title="Verbose collision/autopush logging"
+                >
+                  📝 Verbose {verboseLogging ? 'On' : 'Off'}
                 </button>
               )}
             </div>
@@ -263,7 +232,7 @@ export const GameHUD = ({
 
       {/* Full Performance Profiler Panel - only in debug mode */}
       {debugMode && performanceInfo && (
-        <div className="block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[200px]">
+        <div className="block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[220px]">
           <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">PERF PROFILER</div>
           
           {/* Frame timing */}
@@ -275,6 +244,22 @@ export const GameHUD = ({
               Frame: {performanceInfo.frameTime.toFixed(1)}ms ({(1000 / performanceInfo.frameTime).toFixed(0)} fps)
             </div>
           )}
+          
+          {/* Per-frame metrics */}
+          <div className="mt-1 text-gray-400 text-[10px]">--- Per Frame ---</div>
+          <div className={cn(
+            (performanceInfo.raycastCount ?? 0) > 10 ? 'text-yellow-400' : 'text-white'
+          )}>
+            Raycasts: {performanceInfo.raycastCount ?? 0}
+          </div>
+          <div className="text-white">
+            Faded cells: {performanceInfo.activeFadedCells ?? 0}
+          </div>
+          <div className={cn(
+            (performanceInfo.collisionChecks ?? 0) > 20 ? 'text-yellow-400' : 'text-white'
+          )}>
+            Collision checks: {performanceInfo.collisionChecks ?? 0}
+          </div>
           
           {/* GPU/CPU indicators */}
           <div className="mt-1 text-gray-400 text-[10px]">--- GPU Load ---</div>
