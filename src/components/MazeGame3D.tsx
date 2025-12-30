@@ -11,6 +11,7 @@ import { Confetti } from '@/components/Confetti';
 import { animals } from '@/data/animals';
 import { formatTime } from '@/lib/utils';
 import { setAutopushEnabled, setLOSFaderEnabled, setVerboseLogging } from '@/lib/debug';
+import { useBackButton } from '@/hooks/useBackButton';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -604,6 +605,9 @@ export const MazeGame3D = ({
 
   const animal = animals.find((a) => a.id === animalType)!;
 
+  // Hardware back button - quits game and goes back to home
+  useBackButton(onQuit, !gameOver);
+
   // Show preview overlay on top of the 3D scene (which renders in background)
   const showPreviewOverlay = isPreviewing && sceneReady;
 
@@ -789,16 +793,18 @@ export const MazeGame3D = ({
         />
       )}
 
-      {/* Mobile Controls */}
-      <MobileControls 
-        playerStateRef={playerStateRef}
-        targetYawRef={mobileTargetYawRef}
-        yawRateRef={mobileYawRateRef}
-        isMovingRef={mobileIsMovingRef}
-        throttleRef={mobileThrottleRef}
-        mobileTouchActiveRef={mobileTouchActiveRef}
-        debugMode={debugMode}
-      />
+      {/* Mobile Controls - only render after preview ends to not block preview buttons */}
+      {!isPreviewing && (
+        <MobileControls 
+          playerStateRef={playerStateRef}
+          targetYawRef={mobileTargetYawRef}
+          yawRateRef={mobileYawRateRef}
+          isMovingRef={mobileIsMovingRef}
+          throttleRef={mobileThrottleRef}
+          mobileTouchActiveRef={mobileTouchActiveRef}
+          debugMode={debugMode}
+        />
+      )}
 
       {/* Map Station Button - appears when station is available but not viewing or in dialogue */}
       {mapStationAvailable && !showMiniMap && !showMapOptions && mapCountdown === null && !activeDialogue && (
