@@ -93,14 +93,20 @@ export const MobileControls = ({
   }, [yawRateRef, throttleRef, isMovingRef, mobileTouchActiveRef]);
 
   // Add game-active class to html when mounted, remove on unmount
-  // Also handle orientation changes
+  // Also handle orientation changes and prevent all browser gestures
   useEffect(() => {
     document.documentElement.classList.add('game-active');
     
+    // Prevent pull-to-refresh and other overscroll behaviors
+    document.body.style.overscrollBehavior = 'none';
+    document.documentElement.style.overscrollBehavior = 'none';
+    
     const preventGestures = (e: TouchEvent) => {
+      // Prevent all touch gestures on the control surface
       const target = e.target as HTMLElement;
       if (target.id === 'mobileControlSurface' || target.closest('#mobileControlSurface')) {
         e.preventDefault();
+        e.stopPropagation();
       }
     };
     
@@ -109,19 +115,23 @@ export const MobileControls = ({
       resetControls();
     };
     
-    // Listen for both resize and orientation change
+    // Use capture phase to intercept events before browser can handle them
     window.addEventListener('resize', handleOrientationChange);
     window.addEventListener('orientationchange', handleOrientationChange);
     
-    document.addEventListener('touchstart', preventGestures, { passive: false });
-    document.addEventListener('touchmove', preventGestures, { passive: false });
+    document.addEventListener('touchstart', preventGestures, { passive: false, capture: true });
+    document.addEventListener('touchmove', preventGestures, { passive: false, capture: true });
+    document.addEventListener('touchend', preventGestures, { passive: false, capture: true });
     
     return () => {
       document.documentElement.classList.remove('game-active');
+      document.body.style.overscrollBehavior = '';
+      document.documentElement.style.overscrollBehavior = '';
       window.removeEventListener('resize', handleOrientationChange);
       window.removeEventListener('orientationchange', handleOrientationChange);
-      document.removeEventListener('touchstart', preventGestures);
-      document.removeEventListener('touchmove', preventGestures);
+      document.removeEventListener('touchstart', preventGestures, { capture: true });
+      document.removeEventListener('touchmove', preventGestures, { capture: true });
+      document.removeEventListener('touchend', preventGestures, { capture: true });
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
