@@ -119,25 +119,25 @@ const Index = () => {
       />
       <main className="container max-w-4xl mx-auto px-4 py-8">
         {screen === 'home' && (
-          <div className="space-y-8">
-            {/* Hero Section */}
-            <div className="text-center space-y-4 animate-fade-in">
-              <div className="text-6xl mb-4">🐷🐮🐔</div>
-              <h1 className="font-display text-4xl md:text-5xl font-bold text-gradient">
+          <div className="space-y-4 md:space-y-6">
+            {/* Hero Section - Compact on mobile */}
+            <div className="text-center space-y-2 md:space-y-4 animate-fade-in">
+              <div className="text-4xl md:text-6xl mb-2 md:mb-4">🐷🐮🐔</div>
+              <h1 className="font-display text-3xl md:text-5xl font-bold text-gradient">
                 Foggy Farm
               </h1>
-              <p className="text-lg text-muted-foreground max-w-md mx-auto">
+              <p className="text-sm md:text-lg text-muted-foreground max-w-md mx-auto">
                 Navigate 3D corn mazes with adorable farm animals and help unlock
                 real meals for sanctuary residents!
               </p>
             </div>
 
-            {/* Animal Selection */}
-            <div className="space-y-4">
-              <h2 className="font-display text-2xl font-bold text-foreground text-center">
+            {/* Animal Selection - Compact on mobile */}
+            <div className="space-y-2 md:space-y-4">
+              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground text-center">
                 Choose Your Animal
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
                 {animals.map((animal, index) => (
                   <AnimalCard
                     key={animal.id}
@@ -151,8 +151,8 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Start Button */}
-            <div className="flex flex-col items-center gap-4 animate-fade-in-delay-3">
+            {/* Start Button - Always visible, sticky on mobile */}
+            <div className="flex flex-col items-center gap-3 md:gap-4 animate-fade-in-delay-3 sticky bottom-4 md:static bg-background/95 backdrop-blur-sm py-3 md:py-0 -mx-4 px-4 md:mx-0 md:px-0 md:bg-transparent z-10">
               <Button
                 variant="sunset"
                 size="xl"

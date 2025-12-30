@@ -221,11 +221,6 @@ export function checkCharacterCollision(
       : char.radius;
     const collisionDist = playerRadius + effectiveRadius;
     
-    // Debug logging for stations
-    if (char.isStation && dist < 1.5 && debugLabel) {
-      console.log(`[${debugLabel}] Station collision check: dist=${dist.toFixed(3)}, threshold=${collisionDist.toFixed(3)}, collides=${dist < collisionDist}`);
-    }
-    
     if (dist < collisionDist) {
       return true;
     }
@@ -823,13 +818,6 @@ export function calculateMovement(
       newX = sweepResult.x;
       newY = sweepResult.y;
       
-      console.log('[COLLISION] Blocked!', {
-        hitType: sweepResult.hitType,
-        normal: sweepResult.normal,
-        moveInput: { x: moveX.toFixed(4), y: moveY.toFixed(4) },
-        stoppedAt: { x: newX.toFixed(3), y: newY.toFixed(3) }
-      });
-      
       // TRUE PER-FRAME SLIDING (no jerks, no discrete corrections)
       if (sweepResult.normal) {
         const nx = sweepResult.normal.x;
@@ -842,7 +830,7 @@ export function calculateMovement(
         // Dot product of desired movement with collision normal
         const dotIntoSurface = moveX * nx + moveY * ny;
         
-        console.log('[SLIDE] dotIntoSurface:', dotIntoSurface.toFixed(4));
+        
         
         // Only slide if pushing into surface
         if (dotIntoSurface < 0) {
@@ -859,8 +847,6 @@ export function calculateMovement(
           slideY *= slideFriction;
           
           let slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
-          
-          console.log('[SLIDE] isSlideable:', isSlideable, 'friction:', slideFriction, 'baseSlide:', { x: slideX.toFixed(4), y: slideY.toFixed(4), mag: slideMag.toFixed(4) });
           
           // Create a unique key for this collider based on hit position/normal
           const colliderKey = `${Math.round(nx * 100)}_${Math.round(ny * 100)}`;
@@ -884,7 +870,6 @@ export function calculateMovement(
               headOnSideSign = 1; // Default right turn when head-on
             }
             slideBlockedCounter = 0; // Reset blocked counter on new contact
-            console.log('[SLIDE] First contact - set headOnSideSign:', headOnSideSign, 'cross was:', cross.toFixed(4));
           }
           
           if (isSlideable) {
@@ -901,12 +886,6 @@ export function calculateMovement(
               slideY = boostedSlideY + tangentY * assistMag;
               slideMag = Math.sqrt(slideX * slideX + slideY * slideY);
               
-              console.log('[SLIDE] TOWER/CHAR assist applied:', {
-                persistedSideSign: headOnSideSign,
-                tangent: { x: tangentX.toFixed(4), y: tangentY.toFixed(4) },
-                assistMag: assistMag.toFixed(4),
-                finalSlide: { x: slideX.toFixed(4), y: slideY.toFixed(4), mag: slideMag.toFixed(4) }
-              });
             }
           }
           
@@ -923,16 +902,6 @@ export function calculateMovement(
               capsule, maze, rocks, characters, animalType
             );
             
-            const slideApplied = {
-              dx: (slideResult.x - newX).toFixed(4),
-              dy: (slideResult.y - newY).toFixed(4)
-            };
-            console.log('[SLIDE] Second sweep result:', {
-              blocked: slideResult.blocked,
-              pushedAway: pushAwayDist,
-              slideApplied,
-              finalPos: { x: slideResult.x.toFixed(3), y: slideResult.y.toFixed(3) }
-            });
             
             // Always increment stuck counter when blocked, regardless of tiny progress
             // This handles corner cases where player ping-pongs between obstacles
@@ -945,7 +914,7 @@ export function calculateMovement(
               if (slideBlockedCounter >= FLIP_THRESHOLD && headOnSideSign !== 0) {
                 headOnSideSign = -headOnSideSign;
                 slideBlockedCounter = 0; // Reset counter after flip
-                console.log('[SLIDE] Flipping side after being stuck:', headOnSideSign);
+                
               }
               
               // Second sweep made no progress - APPLY ROTATION to turn toward gap
@@ -962,14 +931,6 @@ export function calculateMovement(
               
               const rotationNudge = ROTATION_NUDGE_STRENGTH * (1 + stuckMultiplier) * headOnSideSign * directionMultiplier;
               newRotation += rotationNudge;
-              console.log('[SLIDE] Rotation nudge (blocked slide):', {
-                sideSign: headOnSideSign,
-                isBackward: isMovingBackward,
-                blockedFrames: slideBlockedCounter,
-                stuckMultiplier: stuckMultiplier.toFixed(2),
-                rotationNudge: rotationNudge.toFixed(4),
-                newRotation: newRotation.toFixed(3)
-              });
               
               // Don't force translation - let the rotation guide the player
               // Just stay at pushed position (slightly away from collider)
@@ -981,14 +942,8 @@ export function calculateMovement(
               newX = slideResult.x;
               newY = slideResult.y;
             }
-          } else {
-            console.log('[SLIDE] Slide too small, not applied');
           }
-        } else {
-          console.log('[SLIDE] Not pushing into surface, no slide');
         }
-      } else {
-        console.log('[COLLISION] No normal returned!');
       }
     }
   } else {
