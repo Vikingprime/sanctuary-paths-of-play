@@ -1,44 +1,32 @@
 import { useRef, useCallback, MutableRefObject, useEffect, useState } from 'react';
 import { PlayerState } from '@/game/GameLogic';
 
-// Tuning knobs - simplified angle-based directional controls
+// Tuning knobs - simplified controls
 export const MOBILE_CONTROL_CONFIG = {
-  // Dead zone as percentage of screen height
-  deadZonePercent: 0.15,
+  // Dead zone - tiny! Only stop if truly centered
+  deadZonePercent: 0.02,
   
   // Maximum joystick radius as percentage of screen height
-  maxRadiusPercent: 0.12,
+  maxRadiusPercent: 0.15,
   
-  // Drift lerp speed (how fast anchor slides toward finger)
+  // Drift lerp speed
   driftSpeed: 0.08,
   
-  // Fixed speeds (binary: 0 or this value)
+  // Speeds
   forwardSpeed: 1.0,
   reverseSpeed: 0.5,
   
-  // Turn rate - base rotation speed
+  // Turn rate
   turnRate: 3.0,
+  maxTurnRate: 3.0,
   
-  // Visual sizes as percentage of screen height
+  // Visual sizes
   baseRadiusPercent: 0.06,
   knobRadiusPercent: 0.03,
   
-  // === ANGLE-BASED DIRECTION ===
-  // Reverse zone: only reverse when joystick angle is in bottom wedge
-  // 135° to 225° (measured from right, counterclockwise)
-  // In radians: ~2.36 to ~3.93 rad (or -135° to -225° which is -2.36 to -3.93)
-  reverseAngleMin: 135, // degrees from right (pointing down-left)
-  reverseAngleMax: 225, // degrees from right (pointing down-right)
-  
-  // Maximum turn rate cap (radians/sec)
-  maxTurnRate: 3.0,
-  
-  // Angular drag - how quickly rotation stops when joystick centered
-  angularDrag: 0.4,
-  
-  // Cardinal snapping
-  cardinalSnapThreshold: 0.087,
-  cardinalSnapStrength: 0.03,
+  // Reverse zone: 135° to 225° (bottom wedge only)
+  reverseAngleMin: 135,
+  reverseAngleMax: 225,
 };
 
 interface MobileControlsProps {
@@ -177,7 +165,7 @@ export const MobileControls = ({
     const updateLoop = () => {
       const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, 
               reverseAngleMin, reverseAngleMax,
-              maxTurnRate, angularDrag } = MOBILE_CONTROL_CONFIG;
+              maxTurnRate } = MOBILE_CONTROL_CONFIG;
       
       // Get current pixel values based on screen height
       const { deadZone, maxRadius } = getPixelValues();
@@ -272,12 +260,7 @@ export const MobileControls = ({
       } else {
         // No touch active - stop immediately
         throttleRef.current = 0;
-        
-        // Angular drag for rotation
-        smoothedYawRateRef.current *= (1 - angularDrag);
-        if (Math.abs(smoothedYawRateRef.current) < 0.01) smoothedYawRateRef.current = 0;
-        yawRateRef.current = smoothedYawRateRef.current;
-        
+        yawRateRef.current = 0;
         isMovingRef.current = false;
       }
       

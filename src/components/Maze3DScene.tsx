@@ -1190,7 +1190,8 @@ const RefBasedPlayer = ({
         
         // === ANGULAR SNAPPING (Cardinal Alignment Assist) ===
         // If rotation is within ~5 degrees of a cardinal direction and not actively turning hard
-        const { cardinalSnapThreshold, cardinalSnapStrength } = MOBILE_CONTROL_CONFIG;
+        const cardinalSnapThreshold = 0.087; // ~5 degrees
+        const cardinalSnapStrength = 0.03;
         const absYawRate = Math.abs(yawRate);
         
         // Only snap when not turning hard (yaw rate < 0.5)
