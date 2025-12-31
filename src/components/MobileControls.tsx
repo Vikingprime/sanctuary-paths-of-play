@@ -322,20 +322,6 @@ export const MobileControls = ({
   }, [debugMode, isMovingRef, throttleRef, yawRateRef, getPixelValues]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Check what element is actually at this point (underneath our overlay)
-    // Temporarily hide overlay to check
-    const overlay = overlayRef.current;
-    if (overlay) {
-      overlay.style.pointerEvents = 'none';
-      const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
-      overlay.style.pointerEvents = 'auto';
-      
-      // If there's an interactive element below, let it handle the click
-      if (elementBelow?.closest('button, [role="button"], a, input, select, textarea, [data-interactive]')) {
-        return;
-      }
-    }
-    
     if (activePointerIdRef.current !== null) return;
     
     e.preventDefault();
@@ -425,7 +411,7 @@ export const MobileControls = ({
           left: 0,
           right: 0,
           bottom: 0,
-          zIndex: 50,
+          zIndex: 10,
           touchAction: 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
@@ -448,7 +434,7 @@ export const MobileControls = ({
               background: 'rgba(255, 255, 255, 0.15)',
               border: '2px solid rgba(255, 255, 255, 0.3)',
               pointerEvents: 'none',
-              zIndex: 51,
+              zIndex: 11,
             }}
           />
           {/* Joystick Knob */}
@@ -463,7 +449,7 @@ export const MobileControls = ({
               background: 'rgba(255, 255, 255, 0.5)',
               border: '2px solid rgba(255, 255, 255, 0.7)',
               pointerEvents: 'none',
-              zIndex: 52,
+              zIndex: 12,
             }}
           />
         </>
