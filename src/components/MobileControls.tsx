@@ -1,13 +1,13 @@
 import { useRef, useCallback, MutableRefObject, useEffect, useState } from 'react';
 import { PlayerState } from '@/game/GameLogic';
 
-// Tuning knobs - simplified for fixed-speed directional controls
+// Tuning knobs - simplified angle-based directional controls
 export const MOBILE_CONTROL_CONFIG = {
   // Dead zone as percentage of screen height
-  deadZonePercent: 0.02,
+  deadZonePercent: 0.15,
   
   // Maximum joystick radius as percentage of screen height
-  maxRadiusPercent: 0.06,
+  maxRadiusPercent: 0.12,
   
   // Drift lerp speed (how fast anchor slides toward finger)
   driftSpeed: 0.08,
@@ -20,27 +20,21 @@ export const MOBILE_CONTROL_CONFIG = {
   turnRate: 3.0,
   
   // Visual sizes as percentage of screen height
-  baseRadiusPercent: 0.07,
-  knobRadiusPercent: 0.035,
+  baseRadiusPercent: 0.06,
+  knobRadiusPercent: 0.03,
   
-  // === FIXED SPEED THRESHOLDS ===
-  // Y threshold to trigger forward movement (joystick pushed up past this %)
-  forwardThreshold: 0.2,
-  // Y threshold to trigger reverse movement (joystick pushed down past this %)
-  reverseThreshold: -0.3,
-  
-  // === STEERING ===
-  // Horizontal deadzone: ignore X input below this threshold
-  horizontalDeadzone: 0.10,
+  // === ANGLE-BASED DIRECTION ===
+  // Reverse zone: only reverse when joystick angle is in bottom wedge
+  // 135° to 225° (measured from right, counterclockwise)
+  // In radians: ~2.36 to ~3.93 rad (or -135° to -225° which is -2.36 to -3.93)
+  reverseAngleMin: 135, // degrees from right (pointing down-left)
+  reverseAngleMax: 225, // degrees from right (pointing down-right)
   
   // Maximum turn rate cap (radians/sec)
-  maxTurnRate: 3.5,
+  maxTurnRate: 3.0,
   
   // Angular drag - how quickly rotation stops when joystick centered
-  angularDrag: 0.5,
-  
-  // Progressive steering wind-up (0-1, lower = faster)
-  steeringWindUp: 0.2,
+  angularDrag: 0.4,
   
   // Cardinal snapping
   cardinalSnapThreshold: 0.087,
@@ -182,8 +176,8 @@ export const MobileControls = ({
   useEffect(() => {
     const updateLoop = () => {
       const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, 
-              forwardThreshold, reverseThreshold,
-              horizontalDeadzone, maxTurnRate, angularDrag, steeringWindUp } = MOBILE_CONTROL_CONFIG;
+              reverseAngleMin, reverseAngleMax,
+              maxTurnRate, angularDrag } = MOBILE_CONTROL_CONFIG;
       
       // Get current pixel values based on screen height
       const { deadZone, maxRadius } = getPixelValues();
@@ -223,40 +217,39 @@ export const MobileControls = ({
         let targetThrottle = 0;
         let targetYawRate = 0;
         
-        // Dead zone check
+        // Dead zone check - outside deadzone = movement
         if (currentDistance >= deadZone) {
-          // Normalize offset to -1 to 1 range
-          const normalizedY = Math.max(-1, Math.min(1, -dy / maxRadius));
-          let normalizedX = Math.max(-1, Math.min(1, dx / maxRadius));
+          // === ANGLE-BASED DIRECTION ===
+          // Calculate angle of joystick (0° = right, 90° = down, 180° = left, 270° = up)
+          // atan2(dy, dx) gives angle from right, positive = down (screen coords)
+          let angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+          // Normalize to 0-360
+          if (angleDeg < 0) angleDeg += 360;
           
-          // === HORIZONTAL DEADZONE ===
-          if (Math.abs(normalizedX) < horizontalDeadzone) {
-            normalizedX = 0;
+          // Check if in reverse zone (bottom 90° wedge: 135° to 225°)
+          const isReverse = angleDeg >= reverseAngleMin && angleDeg <= reverseAngleMax;
+          
+          // Fixed speed: 100% forward or reverse based on angle
+          if (isReverse) {
+            targetThrottle = -reverseSpeed;
           } else {
-            const sign = normalizedX > 0 ? 1 : -1;
-            normalizedX = sign * (Math.abs(normalizedX) - horizontalDeadzone) / (1 - horizontalDeadzone);
+            targetThrottle = forwardSpeed;
           }
-          
-          // === FIXED SPEED MOVEMENT (Binary: 0% or 100%) ===
-          // Forward if Y is above threshold
-          if (normalizedY > forwardThreshold) {
-            targetThrottle = forwardSpeed; // Full speed forward
-          }
-          // Reverse if Y is below threshold
-          else if (normalizedY < reverseThreshold) {
-            targetThrottle = -reverseSpeed; // Full speed reverse
-          }
-          // Otherwise: no movement (just turning in place allowed)
           
           // === STEERING ===
-          // Use X² curve for smoother control (preserve sign)
-          const curvedX = normalizedX * Math.abs(normalizedX);
+          // Use X component directly for steering
+          const normalizedX = dx / maxRadius;
+          // Clamp to -1 to 1
+          const clampedX = Math.max(-1, Math.min(1, normalizedX));
+          
+          // Simple squared curve for smooth control
+          const curvedX = clampedX * Math.abs(clampedX);
           
           // Calculate turn rate
           let rawTurnRate = curvedX * turnRate;
           
           // Invert steering when reversing
-          if (targetThrottle < 0) {
+          if (isReverse) {
             rawTurnRate = -rawTurnRate;
           }
           
@@ -264,12 +257,9 @@ export const MobileControls = ({
           targetYawRate = Math.max(-maxTurnRate, Math.min(maxTurnRate, rawTurnRate));
         }
         
-        // Apply values directly (minimal smoothing for responsive feel)
+        // Apply values directly
         throttleRef.current = targetThrottle;
-        
-        // Smooth steering slightly for natural feel
-        smoothedYawRateRef.current += (targetYawRate - smoothedYawRateRef.current) * steeringWindUp;
-        yawRateRef.current = smoothedYawRateRef.current;
+        yawRateRef.current = targetYawRate;
         
         isMovingRef.current = Math.abs(throttleRef.current) > 0.05;
         
