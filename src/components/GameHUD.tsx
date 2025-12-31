@@ -76,10 +76,10 @@ export const GameHUD = ({
 
   return (
     <>
-    <div className="absolute inset-x-0 top-0 z-40 p-2 sm:p-4">
+    <div className="absolute inset-x-0 top-0 z-40 p-2 sm:p-4 pointer-events-none">
       <div className="flex items-start justify-between max-w-4xl mx-auto">
         {/* Left: Animal & Level Info */}
-        <div className="bg-card/90 backdrop-blur-sm rounded-xl p-2 sm:p-3 shadow-lg flex items-center gap-2 sm:gap-3">
+        <div className="bg-card/90 backdrop-blur-sm rounded-xl p-2 sm:p-3 shadow-lg flex items-center gap-2 sm:gap-3 pointer-events-auto">
           <span className="text-2xl sm:text-3xl">{animal.emoji}</span>
           <div>
             <div className="font-display font-bold text-foreground text-xs sm:text-sm">
@@ -109,7 +109,7 @@ export const GameHUD = ({
         </div>
 
         {/* Right: Controls */}
-        <div className="flex flex-col gap-1 sm:gap-2">
+        <div className="flex flex-col gap-1 sm:gap-2 pointer-events-auto">
           <button
             onClick={onUseAbility}
             disabled={abilityUsed}
@@ -310,7 +310,7 @@ export const GameHUD = ({
       )}
 
       {/* Controls hint */}
-      <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4">
+      <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 pointer-events-auto">
         <div className="bg-card/80 backdrop-blur-sm rounded-full px-3 py-1.5 sm:px-4 sm:py-2 shadow-lg text-[10px] sm:text-xs text-muted-foreground">
           <span className="hidden md:inline">Use Arrow Keys or WASD to move • Q/E to rotate</span>
           <span className="md:hidden">Drag anywhere to move</span>
