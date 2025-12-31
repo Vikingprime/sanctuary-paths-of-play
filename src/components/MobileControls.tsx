@@ -23,16 +23,20 @@ export const MOBILE_CONTROL_CONFIG = {
   baseRadiusPercent: 0.07,
   knobRadiusPercent: 0.035,
   
-  // Forward momentum bias settings
-  turnThreshold: 0.6,
-  reverseIgnoreThreshold: 0.3,
-  minTurnSpeed: 0.3,
+  // Arc-based movement settings
+  // Minimum forward speed when joystick magnitude > 0.5 (40% of max)
+  minArcSpeed: 0.4,
+  // Magnitude threshold for arc movement
+  arcMagnitudeThreshold: 0.5,
   
   // Speed-sensitive steering
   pivotTurnMultiplier: 2.0,
   
   // Input smoothing (lerp factor per frame, 0-1, lower = smoother)
   inputSmoothing: 0.15,
+  
+  // Banking/leaning intensity (radians at max turn)
+  maxBankAngle: 0.15,
 };
 
 interface MobileControlsProps {
@@ -169,8 +173,8 @@ export const MobileControls = ({
   // Animation loop for drift anchor and controls update
   useEffect(() => {
     const updateLoop = () => {
-      const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, turnThreshold, 
-              reverseIgnoreThreshold, minTurnSpeed, pivotTurnMultiplier, inputSmoothing } = MOBILE_CONTROL_CONFIG;
+      const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, 
+              minArcSpeed, arcMagnitudeThreshold, pivotTurnMultiplier, inputSmoothing } = MOBILE_CONTROL_CONFIG;
       
       // Get current pixel values based on screen height
       const { deadZone, maxRadius } = getPixelValues();
@@ -215,46 +219,64 @@ export const MobileControls = ({
           // Normalize offset to -1 to 1 range (clamped at maxRadius)
           const rawNormalizedY = Math.max(-1, Math.min(1, -dy / maxRadius));
           const normalizedX = Math.max(-1, Math.min(1, dx / maxRadius));
-          const absX = Math.abs(normalizedX);
+          
+          // Calculate joystick magnitude (0 to 1)
+          const magnitude = Math.min(1, currentDistance / maxRadius);
           
           // === SENSITIVITY CURVE (Y * abs(Y)) ===
           // Apply power curve for finer control at low values
           const curvedY = rawNormalizedY * Math.abs(rawNormalizedY);
           const curvedX = normalizedX * Math.abs(normalizedX);
           
-          // === FORWARD MOMENTUM BIAS ===
-          let effectiveY = curvedY;
+          // === ARC-BASED MOVEMENT ===
+          // Instead of allowing pivot-only, always maintain forward motion during turns
           
-          if (absX >= turnThreshold && curvedY < 0 && curvedY > -reverseIgnoreThreshold) {
-            effectiveY = 0;
+          // Base forward speed from Y input
+          let effectiveForward = curvedY;
+          
+          // If magnitude is above threshold and we're turning, maintain minimum forward speed
+          // This eliminates "pivot-only" state and creates arc movement
+          if (magnitude >= arcMagnitudeThreshold) {
+            const absX = Math.abs(curvedX);
+            
+            // If turning significantly (X > 0.3), enforce minimum forward speed
+            if (absX > 0.3) {
+              // Scale min speed by how much we're turning (more turn = more forward boost)
+              const turnIntensity = Math.min(1, absX / 0.8);
+              const requiredMinSpeed = minArcSpeed * turnIntensity;
+              
+              // Only apply if current forward would be less than minimum
+              // This prevents pivot-in-place during sharp turns
+              if (effectiveForward >= 0 && effectiveForward < requiredMinSpeed) {
+                effectiveForward = requiredMinSpeed;
+              }
+              // For slight backward + turn, convert to forward arc
+              else if (effectiveForward < 0 && effectiveForward > -0.2 && absX > 0.5) {
+                effectiveForward = requiredMinSpeed * 0.5;
+              }
+            }
           }
           
-          // === WIDE ARC LOGIC ===
-          if (absX >= turnThreshold && effectiveY >= 0) {
-            effectiveY = Math.max(effectiveY, minTurnSpeed);
+          // Calculate throttle based on effective forward
+          if (effectiveForward > 0) {
+            targetThrottle = effectiveForward * forwardSpeed;
+          } else if (effectiveForward < 0) {
+            targetThrottle = effectiveForward * reverseSpeed;
           }
           
-          // Calculate throttle
-          if (effectiveY > 0) {
-            targetThrottle = effectiveY * forwardSpeed;
-          } else if (effectiveY < 0) {
-            targetThrottle = effectiveY * reverseSpeed;
-          }
-          
-          // === SPEED-SENSITIVE STEERING ===
+          // === TURN RATE ===
+          // Turn rate scales with how much we're moving forward
+          // Faster movement = slightly reduced turn rate for stability
           const speedFactor = Math.abs(targetThrottle);
-          const pivotFactor = speedFactor < 0.3 
-            ? pivotTurnMultiplier * (1 - speedFactor / 0.3) + 1 
-            : 1;
+          const turnDamping = speedFactor > 0.7 ? 0.8 : 1.0;
           
-          const isPivoting = Math.abs(curvedX) > 0.5 && Math.abs(effectiveY) < 0.2;
-          
-          if (isPivoting) {
-            targetYawRate = curvedX * turnRate * pivotTurnMultiplier;
-            targetThrottle = Math.max(targetThrottle, 0.1);
-          } else if (Math.abs(targetThrottle) > 0.05) {
+          // Apply turn rate - steering is inverted when reversing
+          if (Math.abs(targetThrottle) > 0.05) {
             const steerDirection = targetThrottle < 0 ? -1 : 1;
-            targetYawRate = curvedX * turnRate * pivotFactor * steerDirection;
+            targetYawRate = curvedX * turnRate * turnDamping * steerDirection;
+          } else if (magnitude < arcMagnitudeThreshold) {
+            // Only allow slow pivot when barely touching joystick (in deadzone-ish area)
+            targetYawRate = curvedX * turnRate * 0.3;
           }
         }
         
@@ -393,7 +415,7 @@ export const MobileControls = ({
           left: 0,
           right: 0,
           bottom: 0,
-          zIndex: 10,
+          zIndex: 50,
           touchAction: 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
@@ -416,7 +438,7 @@ export const MobileControls = ({
               background: 'rgba(255, 255, 255, 0.15)',
               border: '2px solid rgba(255, 255, 255, 0.3)',
               pointerEvents: 'none',
-              zIndex: 11,
+              zIndex: 51,
             }}
           />
           {/* Joystick Knob */}
@@ -431,7 +453,7 @@ export const MobileControls = ({
               background: 'rgba(255, 255, 255, 0.5)',
               border: '2px solid rgba(255, 255, 255, 0.7)',
               pointerEvents: 'none',
-              zIndex: 12,
+              zIndex: 52,
             }}
           />
         </>
