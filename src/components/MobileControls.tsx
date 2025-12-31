@@ -16,7 +16,7 @@ export const MOBILE_CONTROL_CONFIG = {
   forwardSpeed: 1.0,
   reverseSpeed: 0.5,
   
-  // Turn rate - how fast the animal rotates based on X offset
+  // Turn rate - base rotation speed (capped by maxTurnRate)
   turnRate: 3.0,
   
   // Visual sizes as percentage of screen height
@@ -37,6 +37,28 @@ export const MOBILE_CONTROL_CONFIG = {
   
   // Banking/leaning intensity (radians at max turn)
   maxBankAngle: 0.15,
+  
+  // === STEERING STABILITY ===
+  
+  // Horizontal deadzone: ignore X input below this threshold (10% = 0.1)
+  horizontalDeadzone: 0.10,
+  
+  // Maximum turn rate cap (radians/sec) - the "minimum turning circle"
+  maxTurnRate: 2.5,
+  
+  // Angular drag - how quickly rotation stops when joystick centered (0-1, higher = faster stop)
+  angularDrag: 0.4,
+  
+  // Adaptive turning: turn speed reduction at high speeds (0-1, 0 = no reduction)
+  speedTurnReduction: 0.5,
+  
+  // Progressive steering wind-up time factor (0-1, lower = faster wind-up)
+  steeringWindUp: 0.25,
+  
+  // Cardinal snapping: angle threshold in radians (~5 degrees)
+  cardinalSnapThreshold: 0.087, // ~5 degrees in radians
+  // Snap strength: how fast we align to cardinal (0-1)
+  cardinalSnapStrength: 0.03,
 };
 
 interface MobileControlsProps {
@@ -174,7 +196,8 @@ export const MobileControls = ({
   useEffect(() => {
     const updateLoop = () => {
       const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, 
-              minArcSpeed, arcMagnitudeThreshold, pivotTurnMultiplier, inputSmoothing } = MOBILE_CONTROL_CONFIG;
+              minArcSpeed, arcMagnitudeThreshold, inputSmoothing,
+              horizontalDeadzone, maxTurnRate, angularDrag, speedTurnReduction, steeringWindUp } = MOBILE_CONTROL_CONFIG;
       
       // Get current pixel values based on screen height
       const { deadZone, maxRadius } = getPixelValues();
@@ -218,15 +241,27 @@ export const MobileControls = ({
         if (currentDistance >= deadZone) {
           // Normalize offset to -1 to 1 range (clamped at maxRadius)
           const rawNormalizedY = Math.max(-1, Math.min(1, -dy / maxRadius));
-          const normalizedX = Math.max(-1, Math.min(1, dx / maxRadius));
+          let normalizedX = Math.max(-1, Math.min(1, dx / maxRadius));
+          
+          // === HORIZONTAL DEADZONE (Straight-Away Buffer) ===
+          // Treat small X inputs as zero for easier straight movement
+          if (Math.abs(normalizedX) < horizontalDeadzone) {
+            normalizedX = 0;
+          } else {
+            // Remap X so it starts from 0 after deadzone
+            const sign = normalizedX > 0 ? 1 : -1;
+            normalizedX = sign * (Math.abs(normalizedX) - horizontalDeadzone) / (1 - horizontalDeadzone);
+          }
           
           // Calculate joystick magnitude (0 to 1)
           const magnitude = Math.min(1, currentDistance / maxRadius);
           
-          // === SENSITIVITY CURVE (Y * abs(Y)) ===
-          // Apply power curve for finer control at low values
+          // === DYNAMIC INPUT SENSITIVITY (Power Curve) ===
+          // Use X³ for rotation - subtle near center, fast at extremes
+          const curvedX = normalizedX * normalizedX * normalizedX;
+          
+          // Apply power curve for forward control (Y * abs(Y))
           const curvedY = rawNormalizedY * Math.abs(rawNormalizedY);
-          const curvedX = normalizedX * Math.abs(normalizedX);
           
           // === ARC-BASED MOVEMENT ===
           // Instead of allowing pivot-only, always maintain forward motion during turns
@@ -264,25 +299,33 @@ export const MobileControls = ({
             targetThrottle = effectiveForward * reverseSpeed;
           }
           
-          // === TURN RATE ===
-          // Turn rate scales with how much we're moving forward
-          // Faster movement = slightly reduced turn rate for stability
+          // === ADAPTIVE TURNING (Speed-Based) ===
+          // Reduce turn rate at higher speeds for stability
           const speedFactor = Math.abs(targetThrottle);
-          const turnDamping = speedFactor > 0.7 ? 0.8 : 1.0;
+          // At full speed, turn rate is reduced by speedTurnReduction (e.g., 50%)
+          const adaptiveTurnDamping = 1.0 - (speedFactor * speedTurnReduction);
           
+          // === CALCULATE RAW TURN RATE ===
           // Apply turn rate - steering is inverted when reversing
+          let rawTurnRate = 0;
           if (Math.abs(targetThrottle) > 0.05) {
             const steerDirection = targetThrottle < 0 ? -1 : 1;
-            targetYawRate = curvedX * turnRate * turnDamping * steerDirection;
+            rawTurnRate = curvedX * turnRate * adaptiveTurnDamping * steerDirection;
           } else if (magnitude < arcMagnitudeThreshold) {
             // Only allow slow pivot when barely touching joystick (in deadzone-ish area)
-            targetYawRate = curvedX * turnRate * 0.3;
+            rawTurnRate = curvedX * turnRate * 0.3;
           }
+          
+          // === ROTATION SPEED CAP (Minimum Turning Circle) ===
+          targetYawRate = Math.max(-maxTurnRate, Math.min(maxTurnRate, rawTurnRate));
         }
         
-        // === INPUT SMOOTHING (LERP) ===
+        // === INPUT SMOOTHING (LERP) for throttle ===
         smoothedThrottleRef.current += (targetThrottle - smoothedThrottleRef.current) * inputSmoothing;
-        smoothedYawRateRef.current += (targetYawRate - smoothedYawRateRef.current) * inputSmoothing;
+        
+        // === PROGRESSIVE STEERING WIND-UP ===
+        // Yaw rate lerps slower for smooth turn entry
+        smoothedYawRateRef.current += (targetYawRate - smoothedYawRateRef.current) * steeringWindUp;
         
         // Apply smoothed values
         throttleRef.current = smoothedThrottleRef.current;
@@ -298,9 +341,12 @@ export const MobileControls = ({
                       'screenH:', screenDimensionsRef.current.height);
         }
       } else {
-        // No touch active - smoothly decay to zero
+        // No touch active - apply angular drag (fast stop for rotation)
         smoothedThrottleRef.current *= (1 - inputSmoothing);
-        smoothedYawRateRef.current *= (1 - inputSmoothing);
+        
+        // === ANGULAR DRAG (Weighted Feel) ===
+        // Rotation stops faster than throttle when joystick released
+        smoothedYawRateRef.current *= (1 - angularDrag);
         
         if (Math.abs(smoothedThrottleRef.current) < 0.01) smoothedThrottleRef.current = 0;
         if (Math.abs(smoothedYawRateRef.current) < 0.01) smoothedYawRateRef.current = 0;

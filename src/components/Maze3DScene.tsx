@@ -11,6 +11,7 @@ import { getCharacterScale, getCharacterYOffset, getCharacterHeight } from '@/ga
 import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics } from '@/lib/debug';
+import { MOBILE_CONTROL_CONFIG } from './MobileControls';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 // Extended performance info type
 export interface PerformanceInfo {
@@ -1185,7 +1186,31 @@ const RefBasedPlayer = ({
       if (mobileActive) {
         // MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)
         const yawRate = mobileYawRateRef?.current ?? 0;
-        const newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
+        let newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
+        
+        // === ANGULAR SNAPPING (Cardinal Alignment Assist) ===
+        // If rotation is within ~5 degrees of a cardinal direction and not actively turning hard
+        const { cardinalSnapThreshold, cardinalSnapStrength } = MOBILE_CONTROL_CONFIG;
+        const absYawRate = Math.abs(yawRate);
+        
+        // Only snap when not turning hard (yaw rate < 0.5)
+        if (absYawRate < 0.5) {
+          // Cardinal directions: 0, π/2, π, 3π/2 (N, E, S, W)
+          const cardinals = [0, Math.PI / 2, Math.PI, Math.PI * 1.5, Math.PI * 2];
+          
+          for (const cardinal of cardinals) {
+            let diff = newRotation - cardinal;
+            // Normalize diff to -π to π
+            if (diff > Math.PI) diff -= Math.PI * 2;
+            if (diff < -Math.PI) diff += Math.PI * 2;
+            
+            if (Math.abs(diff) < cardinalSnapThreshold) {
+              // Snap toward cardinal direction
+              newRotation = normalizeAngle(newRotation - diff * cardinalSnapStrength);
+              break;
+            }
+          }
+        }
         
         playerStateRef.current = {
           ...playerStateRef.current,
