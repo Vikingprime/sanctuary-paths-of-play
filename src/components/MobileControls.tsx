@@ -23,14 +23,18 @@ export const MOBILE_CONTROL_CONFIG = {
   baseRadiusPercent: 0.07,
   knobRadiusPercent: 0.035,
   
-  // Arc-based movement settings
-  // Minimum forward speed when joystick magnitude > 0.5 (40% of max)
-  minArcSpeed: 0.4,
-  // Magnitude threshold for arc movement
-  arcMagnitudeThreshold: 0.5,
+  // === MOMENTUM LOCKING (Arc-Based Movement) ===
   
-  // Speed-sensitive steering
-  pivotTurnMultiplier: 2.0,
+  // Minimum forward speed when joystick is outside deadzone (30% = 0.3)
+  // This prevents "pivot-in-place" and keeps the animal moving in arcs
+  minForwardVelocity: 0.3,
+  
+  // Use joystick magnitude for speed (circular input mapping)
+  // Speed = magnitude, so even pushing 100% right gives full speed
+  useMagnitudeForSpeed: true,
+  
+  // Velocity preservation during sharp turns (maintain at least 40% forward speed)
+  velocityPreservation: 0.4,
   
   // Input smoothing (lerp factor per frame, 0-1, lower = smoother)
   inputSmoothing: 0.15,
@@ -43,13 +47,15 @@ export const MOBILE_CONTROL_CONFIG = {
   // Horizontal deadzone: ignore X input below this threshold (10% = 0.1)
   horizontalDeadzone: 0.10,
   
-  // Maximum turn rate cap (radians/sec) - the "minimum turning circle"
-  maxTurnRate: 2.5,
+  // Maximum turn rate cap (radians/sec) - "minimum turning circle"
+  // 2π radians / 1.5 seconds = ~4.19 rad/s for full 360° in 1.5s
+  maxTurnRate: 4.19,
   
   // Angular drag - how quickly rotation stops when joystick centered (0-1, higher = faster stop)
   angularDrag: 0.4,
   
   // Adaptive turning: turn speed reduction at high speeds (0-1, 0 = no reduction)
+  // At full speed, turn rate is reduced by this factor for wider, more stable arcs
   speedTurnReduction: 0.5,
   
   // Progressive steering wind-up time factor (0-1, lower = faster wind-up)
@@ -196,7 +202,7 @@ export const MobileControls = ({
   useEffect(() => {
     const updateLoop = () => {
       const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, 
-              minArcSpeed, arcMagnitudeThreshold, inputSmoothing,
+              minForwardVelocity, velocityPreservation, inputSmoothing,
               horizontalDeadzone, maxTurnRate, angularDrag, speedTurnReduction, steeringWindUp } = MOBILE_CONTROL_CONFIG;
       
       // Get current pixel values based on screen height
@@ -239,6 +245,11 @@ export const MobileControls = ({
         
         // Dead zone check
         if (currentDistance >= deadZone) {
+          // === CIRCULAR INPUT MAPPING ===
+          // Use joystick magnitude for base speed (0 to 1)
+          // This ensures even pushing 100% right (X=1, Y=0) still has magnitude=1
+          const magnitude = Math.min(1, currentDistance / maxRadius);
+          
           // Normalize offset to -1 to 1 range (clamped at maxRadius)
           const rawNormalizedY = Math.max(-1, Math.min(1, -dy / maxRadius));
           let normalizedX = Math.max(-1, Math.min(1, dx / maxRadius));
@@ -253,70 +264,68 @@ export const MobileControls = ({
             normalizedX = sign * (Math.abs(normalizedX) - horizontalDeadzone) / (1 - horizontalDeadzone);
           }
           
-          // Calculate joystick magnitude (0 to 1)
-          const magnitude = Math.min(1, currentDistance / maxRadius);
-          
           // === DYNAMIC INPUT SENSITIVITY (Power Curve) ===
           // Use X³ for rotation - subtle near center, fast at extremes
           const curvedX = normalizedX * normalizedX * normalizedX;
           
-          // Apply power curve for forward control (Y * abs(Y))
-          const curvedY = rawNormalizedY * Math.abs(rawNormalizedY);
+          // === MOMENTUM LOCKING (Force Forward Velocity) ===
+          // Rule: If joystick is outside deadzone, animal must have minimum forward velocity
+          // This prevents "pivot-in-place" and ensures arc-based movement like a bicycle
           
-          // === ARC-BASED MOVEMENT ===
-          // Instead of allowing pivot-only, always maintain forward motion during turns
+          // Determine base direction from Y
+          const isReversing = rawNormalizedY < -0.3;
           
-          // Base forward speed from Y input
-          let effectiveForward = curvedY;
+          // Calculate effective forward from Y input (with slight power curve)
+          let effectiveForward = rawNormalizedY * Math.abs(rawNormalizedY) * 0.5 + rawNormalizedY * 0.5;
           
-          // If magnitude is above threshold and we're turning, maintain minimum forward speed
-          // This eliminates "pivot-only" state and creates arc movement
-          if (magnitude >= arcMagnitudeThreshold) {
+          // For forward movement or neutral, enforce minimum forward velocity
+          if (!isReversing) {
+            // If turning (any X input), force at least minForwardVelocity
             const absX = Math.abs(curvedX);
-            
-            // If turning significantly (X > 0.3), enforce minimum forward speed
-            if (absX > 0.3) {
-              // Scale min speed by how much we're turning (more turn = more forward boost)
-              const turnIntensity = Math.min(1, absX / 0.8);
-              const requiredMinSpeed = minArcSpeed * turnIntensity;
+            if (absX > 0.1) {
+              // Scale min velocity by turn intensity - sharper turn = more forward boost
+              // This creates arc-based movement
+              const turnIntensity = Math.min(1, absX);
+              const requiredMinSpeed = minForwardVelocity * (0.5 + 0.5 * turnIntensity);
               
-              // Only apply if current forward would be less than minimum
-              // This prevents pivot-in-place during sharp turns
-              if (effectiveForward >= 0 && effectiveForward < requiredMinSpeed) {
+              // Enforce minimum - never let speed drop below this while turning
+              if (effectiveForward < requiredMinSpeed) {
                 effectiveForward = requiredMinSpeed;
               }
-              // For slight backward + turn, convert to forward arc
-              else if (effectiveForward < 0 && effectiveForward > -0.2 && absX > 0.5) {
-                effectiveForward = requiredMinSpeed * 0.5;
-              }
+            }
+            
+            // Also use magnitude to boost speed (circular input mapping)
+            // If player pushes mostly sideways (high X, low Y), magnitude keeps speed up
+            if (magnitude > 0.3) {
+              const magnitudeBoost = magnitude * velocityPreservation;
+              effectiveForward = Math.max(effectiveForward, magnitudeBoost);
             }
           }
           
-          // Calculate throttle based on effective forward
-          if (effectiveForward > 0) {
-            targetThrottle = effectiveForward * forwardSpeed;
-          } else if (effectiveForward < 0) {
+          // Calculate throttle
+          if (effectiveForward > 0 || !isReversing) {
+            targetThrottle = Math.max(effectiveForward, 0) * forwardSpeed;
+          }
+          if (isReversing) {
             targetThrottle = effectiveForward * reverseSpeed;
           }
           
           // === ADAPTIVE TURNING (Speed-Based) ===
-          // Reduce turn rate at higher speeds for stability
+          // Turn speed is inversely proportional to forward speed
+          // At high speed: wider, more majestic turns
+          // At low speed: sharper, more agile turns
           const speedFactor = Math.abs(targetThrottle);
-          // At full speed, turn rate is reduced by speedTurnReduction (e.g., 50%)
           const adaptiveTurnDamping = 1.0 - (speedFactor * speedTurnReduction);
           
-          // === CALCULATE RAW TURN RATE ===
-          // Apply turn rate - steering is inverted when reversing
+          // === CALCULATE RAW TURN RATE (Arc-Based) ===
+          // Steering is inverted when reversing for intuitive control
           let rawTurnRate = 0;
-          if (Math.abs(targetThrottle) > 0.05) {
-            const steerDirection = targetThrottle < 0 ? -1 : 1;
-            rawTurnRate = curvedX * turnRate * adaptiveTurnDamping * steerDirection;
-          } else if (magnitude < arcMagnitudeThreshold) {
-            // Only allow slow pivot when barely touching joystick (in deadzone-ish area)
-            rawTurnRate = curvedX * turnRate * 0.3;
-          }
+          const steerDirection = targetThrottle < 0 ? -1 : 1;
+          rawTurnRate = curvedX * turnRate * adaptiveTurnDamping * steerDirection;
           
           // === ROTATION SPEED CAP (Minimum Turning Circle) ===
+          // Cap to maxTurnRate - ensures 1.5+ seconds for full 360° rotation
+          // This prevents "snapping" into tight spirals
           targetYawRate = Math.max(-maxTurnRate, Math.min(maxTurnRate, rawTurnRate));
         }
         
@@ -324,7 +333,7 @@ export const MobileControls = ({
         smoothedThrottleRef.current += (targetThrottle - smoothedThrottleRef.current) * inputSmoothing;
         
         // === PROGRESSIVE STEERING WIND-UP ===
-        // Yaw rate lerps slower for smooth turn entry
+        // Yaw rate lerps slower for smooth turn entry (prevents snapping into curves)
         smoothedYawRateRef.current += (targetYawRate - smoothedYawRateRef.current) * steeringWindUp;
         
         // Apply smoothed values
@@ -345,7 +354,7 @@ export const MobileControls = ({
         smoothedThrottleRef.current *= (1 - inputSmoothing);
         
         // === ANGULAR DRAG (Weighted Feel) ===
-        // Rotation stops faster than throttle when joystick released
+        // Rotation stops immediately when joystick released (no momentum carry-over)
         smoothedYawRateRef.current *= (1 - angularDrag);
         
         if (Math.abs(smoothedThrottleRef.current) < 0.01) smoothedThrottleRef.current = 0;
