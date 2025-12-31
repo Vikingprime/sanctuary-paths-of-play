@@ -20,6 +20,11 @@ export const MOBILE_CONTROL_CONFIG = {
   turnRate: 3.0,
   maxTurnRate: 3.0,
   
+  // Counter-Steer Dampening
+  dampeningDuration: 0.2,     // Seconds to dampen turn rate after direction flip
+  dampeningRecovery: 0.1,     // Seconds to lerp back to full turn rate
+  dampeningFactor: 0.3,       // Reduce to 30% turn rate during dampening (70% reduction)
+  
   // Visual sizes
   baseRadiusPercent: 0.06,
   knobRadiusPercent: 0.03,
@@ -57,6 +62,11 @@ export const MobileControls = ({
   // Smoothed input values for lerp
   const smoothedThrottleRef = useRef<number>(0);
   const smoothedYawRateRef = useRef<number>(0);
+  
+  // Counter-Steer Dampening state
+  const lastXSignRef = useRef<number>(0); // -1, 0, or 1
+  const dampeningStartTimeRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number>(performance.now());
   
   // Visual state for joystick
   const [joystickState, setJoystickState] = useState<{
@@ -159,7 +169,13 @@ export const MobileControls = ({
   // Animation loop for drift anchor and controls update
   useEffect(() => {
     const updateLoop = () => {
-      const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, maxTurnRate } = MOBILE_CONTROL_CONFIG;
+      const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, maxTurnRate, 
+              dampeningDuration, dampeningRecovery, dampeningFactor } = MOBILE_CONTROL_CONFIG;
+      
+      // Calculate delta time for dampening timers
+      const now = performance.now();
+      const deltaTime = (now - lastFrameTimeRef.current) / 1000;
+      lastFrameTimeRef.current = now;
       
       // Get current pixel values based on screen height
       const { deadZone, maxRadius } = getPixelValues();
@@ -223,8 +239,43 @@ export const MobileControls = ({
           // Simple squared curve for smooth control
           const curvedX = clampedX * Math.abs(clampedX);
           
-          // Calculate turn rate
-          let rawTurnRate = curvedX * turnRate;
+          // === COUNTER-STEER DAMPENING ===
+          // Detect direction flip (sign change in X input)
+          const currentXSign = clampedX > 0.1 ? 1 : clampedX < -0.1 ? -1 : 0;
+          
+          // Check for direction flip (sign changed and both are non-zero)
+          if (currentXSign !== 0 && lastXSignRef.current !== 0 && currentXSign !== lastXSignRef.current) {
+            // Trigger dampening window
+            dampeningStartTimeRef.current = now;
+          }
+          
+          // Update last X sign (only if significant input)
+          if (currentXSign !== 0) {
+            lastXSignRef.current = currentXSign;
+          }
+          
+          // Calculate turn rate multiplier based on dampening state
+          let turnRateMultiplier = 1.0;
+          
+          if (dampeningStartTimeRef.current !== null) {
+            const elapsed = (now - dampeningStartTimeRef.current) / 1000;
+            
+            if (elapsed < dampeningDuration) {
+              // In dampening window - reduce turn rate
+              turnRateMultiplier = dampeningFactor;
+            } else if (elapsed < dampeningDuration + dampeningRecovery) {
+              // In recovery phase - lerp back to 100%
+              const recoveryProgress = (elapsed - dampeningDuration) / dampeningRecovery;
+              turnRateMultiplier = dampeningFactor + (1.0 - dampeningFactor) * recoveryProgress;
+            } else {
+              // Dampening complete
+              dampeningStartTimeRef.current = null;
+              turnRateMultiplier = 1.0;
+            }
+          }
+          
+          // Calculate turn rate with dampening applied
+          let rawTurnRate = curvedX * turnRate * turnRateMultiplier;
           
           // Invert steering when reversing
           if (isReverse) {
@@ -233,6 +284,9 @@ export const MobileControls = ({
           
           // Cap turn rate
           targetYawRate = Math.max(-maxTurnRate, Math.min(maxTurnRate, rawTurnRate));
+        } else {
+          // In dead zone - reset X sign tracking
+          lastXSignRef.current = 0;
         }
         
         // Apply values directly
@@ -248,10 +302,12 @@ export const MobileControls = ({
                       'yawRate:', yawRateRef.current.toFixed(2));
         }
       } else {
-        // No touch active - stop immediately
+        // No touch active - stop immediately and reset dampening
         throttleRef.current = 0;
         yawRateRef.current = 0;
         isMovingRef.current = false;
+        lastXSignRef.current = 0;
+        dampeningStartTimeRef.current = null;
       }
       
       animationFrameRef.current = requestAnimationFrame(updateLoop);
