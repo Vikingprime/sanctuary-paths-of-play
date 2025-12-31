@@ -2326,8 +2326,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
         </div>
       )}
       
-      <Canvas 
-        key={`canvas-${orientation}`}
+      <Canvas
         shadows 
         gl={{ 
           logarithmicDepthBuffer: true, 

@@ -23,10 +23,6 @@ export const MOBILE_CONTROL_CONFIG = {
   // Visual sizes
   baseRadiusPercent: 0.06,
   knobRadiusPercent: 0.03,
-  
-  // Reverse zone: 135° to 225° (bottom wedge only)
-  reverseAngleMin: 135,
-  reverseAngleMax: 225,
 };
 
 interface MobileControlsProps {
@@ -163,9 +159,7 @@ export const MobileControls = ({
   // Animation loop for drift anchor and controls update
   useEffect(() => {
     const updateLoop = () => {
-      const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, 
-              reverseAngleMin, reverseAngleMax,
-              maxTurnRate } = MOBILE_CONTROL_CONFIG;
+      const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, maxTurnRate } = MOBILE_CONTROL_CONFIG;
       
       // Get current pixel values based on screen height
       const { deadZone, maxRadius } = getPixelValues();
@@ -207,17 +201,13 @@ export const MobileControls = ({
         
         // Dead zone check - outside deadzone = movement
         if (currentDistance >= deadZone) {
-          // === ANGLE-BASED DIRECTION ===
-          // Calculate angle of joystick (0° = right, 90° = down, 180° = left, 270° = up)
-          // atan2(dy, dx) gives angle from right, positive = down (screen coords)
-          let angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
-          // Normalize to 0-360
-          if (angleDeg < 0) angleDeg += 360;
+          // === SIMPLE DIRECTION LOGIC ===
+          // Dragging down (positive dy in screen coords) = reverse
+          // Dragging up/left/right = forward
+          // Use a simple threshold: if dy > 60% of distance, it's reverse
+          const isReverse = dy > 0 && dy > currentDistance * 0.6;
           
-          // Check if in reverse zone (bottom 90° wedge: 135° to 225°)
-          const isReverse = angleDeg >= reverseAngleMin && angleDeg <= reverseAngleMax;
-          
-          // Fixed speed: 100% forward or reverse based on angle
+          // Fixed speed: 100% forward or reverse based on direction
           if (isReverse) {
             targetThrottle = -reverseSpeed;
           } else {
