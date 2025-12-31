@@ -11,17 +11,35 @@ let isVerboseLoggingEnabled = false;
 let isAutopushEnabled = true;
 let isLOSFaderEnabled = true;
 
-// Per-frame metrics (reset each frame)
+// Per-frame metrics (reset each interval in RendererInfoTracker)
 export const frameMetrics = {
   raycastCount: 0,
   activeFadedCells: 0,
   collisionChecks: 0,
+  // New diagnostic metrics
+  opacityBufferUpdates: 0,
+  shadowLightMoves: 0,
+  animationMixerUpdates: 0,
+  gcSpikes: 0,  // Frame time > 50ms
 };
+
+// Track GC spike detection
+let lastGcCheckTime = performance.now();
+
+export function checkGcSpike(frameTime: number) {
+  if (frameTime > 50) {
+    frameMetrics.gcSpikes++;
+  }
+}
 
 export function resetFrameMetrics() {
   frameMetrics.raycastCount = 0;
   frameMetrics.activeFadedCells = 0;
   frameMetrics.collisionChecks = 0;
+  frameMetrics.opacityBufferUpdates = 0;
+  frameMetrics.shadowLightMoves = 0;
+  frameMetrics.animationMixerUpdates = 0;
+  // gcSpikes NOT reset here - it's reset in RendererInfoTracker after reporting
 }
 
 // Throttling state

@@ -97,6 +97,12 @@ export const MazeGame3D = ({
   const [autopushEnabled, setAutopushEnabled] = useState(true);
   const [losFaderEnabled, setLosFaderEnabled] = useState(true);
   const [verboseLogging, setVerboseLogging] = useState(false);
+  // Feature toggles for performance testing
+  const [shadowsEnabled, setShadowsEnabled] = useState(true);
+  const [grassEnabled, setGrassEnabled] = useState(true);
+  const [rocksEnabled, setRocksEnabled] = useState(true);
+  const [animationsEnabled, setAnimationsEnabled] = useState(true);
+  const [opacityFadeEnabled, setOpacityFadeEnabled] = useState(true);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
   // Mobile controls - yaw rate system (steering)
@@ -790,6 +796,17 @@ export const MazeGame3D = ({
           onToggleLOSFader={() => setLosFaderEnabled(prev => !prev)}
           verboseLogging={verboseLogging}
           onToggleVerboseLogging={() => setVerboseLogging(prev => !prev)}
+          // Feature toggles
+          shadowsEnabled={shadowsEnabled}
+          onToggleShadows={() => setShadowsEnabled(prev => !prev)}
+          grassEnabled={grassEnabled}
+          onToggleGrass={() => setGrassEnabled(prev => !prev)}
+          rocksEnabled={rocksEnabled}
+          onToggleRocks={() => setRocksEnabled(prev => !prev)}
+          animationsEnabled={animationsEnabled}
+          onToggleAnimations={() => setAnimationsEnabled(prev => !prev)}
+          opacityFadeEnabled={opacityFadeEnabled}
+          onToggleOpacityFade={() => setOpacityFadeEnabled(prev => !prev)}
         />
       )}
 

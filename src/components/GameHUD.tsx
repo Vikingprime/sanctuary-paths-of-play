@@ -43,6 +43,17 @@ interface GameHUDProps {
   onToggleVerboseLogging?: () => void;
   losFaderEnabled?: boolean;
   onToggleLOSFader?: () => void;
+  // Feature toggles for performance testing
+  shadowsEnabled?: boolean;
+  onToggleShadows?: () => void;
+  grassEnabled?: boolean;
+  onToggleGrass?: () => void;
+  rocksEnabled?: boolean;
+  onToggleRocks?: () => void;
+  animationsEnabled?: boolean;
+  onToggleAnimations?: () => void;
+  opacityFadeEnabled?: boolean;
+  onToggleOpacityFade?: () => void;
 }
 
 export const GameHUD = ({
@@ -69,6 +80,17 @@ export const GameHUD = ({
   onToggleVerboseLogging,
   losFaderEnabled = true,
   onToggleLOSFader,
+  // New feature toggles
+  shadowsEnabled = true,
+  onToggleShadows,
+  grassEnabled = true,
+  onToggleGrass,
+  rocksEnabled = true,
+  onToggleRocks,
+  animationsEnabled = true,
+  onToggleAnimations,
+  opacityFadeEnabled = true,
+  onToggleOpacityFade,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -232,8 +254,15 @@ export const GameHUD = ({
 
       {/* Full Performance Profiler Panel - only in debug mode */}
       {debugMode && performanceInfo && (
-        <div className="block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[220px] pointer-events-none">
+        <div className="block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[280px] pointer-events-auto">
           <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">PERF PROFILER</div>
+          
+          {/* Player Position */}
+          {performanceInfo.playerX !== undefined && (
+            <div className="text-cyan-300">
+              Pos: ({performanceInfo.playerX?.toFixed(1)}, {performanceInfo.playerZ?.toFixed(1)})
+            </div>
+          )}
           
           {/* Frame timing */}
           {performanceInfo.frameTime !== undefined && (
@@ -244,6 +273,13 @@ export const GameHUD = ({
               Frame: {performanceInfo.frameTime.toFixed(1)}ms ({(1000 / performanceInfo.frameTime).toFixed(0)} fps)
             </div>
           )}
+          
+          {/* GC Spikes indicator */}
+          <div className={cn(
+            (performanceInfo.gcSpikes ?? 0) > 0 ? 'text-red-400' : 'text-gray-500'
+          )}>
+            GC Spikes: {performanceInfo.gcSpikes ?? 0}
+          </div>
           
           {/* Per-frame metrics */}
           <div className="mt-1 text-gray-400 text-[10px]">--- Per Frame ---</div>
@@ -259,6 +295,17 @@ export const GameHUD = ({
             (performanceInfo.collisionChecks ?? 0) > 20 ? 'text-yellow-400' : 'text-white'
           )}>
             Collision checks: {performanceInfo.collisionChecks ?? 0}
+          </div>
+          <div className={cn(
+            (performanceInfo.opacityUpdates ?? 0) > 50 ? 'text-yellow-400' : 'text-white'
+          )}>
+            Opacity updates: {performanceInfo.opacityUpdates ?? 0}
+          </div>
+          <div className="text-white">
+            Shadow moves: {performanceInfo.shadowMoves ?? 0}
+          </div>
+          <div className="text-white">
+            Anim mixers: {performanceInfo.animationUpdates ?? 0}
           </div>
           
           {/* GPU/CPU indicators */}
@@ -304,6 +351,68 @@ export const GameHUD = ({
                performanceInfo.triangles > 400000 ? '⚠️ GPU (geometry)' :
                performanceInfo.frameTime > 33 ? '🔍 Unknown - toggle features' :
                '✓ Balanced'}
+            </div>
+          </div>
+          
+          {/* Feature Toggles */}
+          <div className="mt-2 pt-2 border-t border-gray-600">
+            <div className="text-[10px] text-gray-400 mb-1">--- Feature Toggles ---</div>
+            <div className="flex flex-wrap gap-1">
+              {onToggleShadows && (
+                <button
+                  onClick={onToggleShadows}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    shadowsEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Shadows
+                </button>
+              )}
+              {onToggleGrass && (
+                <button
+                  onClick={onToggleGrass}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    grassEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Grass
+                </button>
+              )}
+              {onToggleRocks && (
+                <button
+                  onClick={onToggleRocks}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    rocksEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Rocks
+                </button>
+              )}
+              {onToggleAnimations && (
+                <button
+                  onClick={onToggleAnimations}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    animationsEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Anims
+                </button>
+              )}
+              {onToggleOpacityFade && (
+                <button
+                  onClick={onToggleOpacityFade}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    opacityFadeEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Opacity
+                </button>
+              )}
             </div>
           </div>
         </div>
