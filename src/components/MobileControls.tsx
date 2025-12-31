@@ -322,9 +322,19 @@ export const MobileControls = ({
   }, [debugMode, isMovingRef, throttleRef, yawRateRef, getPixelValues]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    // Only block touches on actual interactive elements, not HUD panels
-    if (target.closest('button, [role="button"], a, input, select, textarea')) return;
+    // Check what element is actually at this point (underneath our overlay)
+    // Temporarily hide overlay to check
+    const overlay = overlayRef.current;
+    if (overlay) {
+      overlay.style.pointerEvents = 'none';
+      const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
+      overlay.style.pointerEvents = 'auto';
+      
+      // If there's an interactive element below, let it handle the click
+      if (elementBelow?.closest('button, [role="button"], a, input, select, textarea, [data-interactive]')) {
+        return;
+      }
+    }
     
     if (activePointerIdRef.current !== null) return;
     
