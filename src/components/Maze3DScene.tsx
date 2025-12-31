@@ -2247,16 +2247,45 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
 export const Maze3DCanvas = (props: Maze3DSceneProps) => {
   const [fps, setFps] = useState(0);
   const [cullStats, setCullStats] = useState<CullStats | null>(null);
-  
-  // Detect mobile for pixel ratio capping
+
+  // Track orientation to force recalculation on change
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(
+    () => (typeof window !== 'undefined' && window.innerWidth > window.innerHeight) ? 'landscape' : 'portrait'
+  );
+
+  // Listen for orientation changes
+  useEffect(() => {
+    const handleOrientationChange = () => {
+      const newOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+      setOrientation(prev => prev !== newOrientation ? newOrientation : prev);
+    };
+    window.addEventListener('resize', handleOrientationChange);
+    window.addEventListener('orientationchange', handleOrientationChange);
+    return () => {
+      window.removeEventListener('resize', handleOrientationChange);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }, []);
+
+  // Recalculate mobile detection when orientation changes
   const isMobile = useMemo(() => {
     if (typeof window === 'undefined') return false;
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
-      || window.innerWidth < 768;
-  }, []);
-  
-  // Pixel ratio: use low (0.5) if testing, otherwise auto-detect
-  const basePixelRatio = isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio;
+      || (orientation === 'portrait' && window.innerWidth < 768)
+      || (orientation === 'landscape' && window.innerHeight < 768);
+  }, [orientation]);
+
+  // Cap pixel ratio more aggressively for mobile, especially in landscape
+  const basePixelRatio = useMemo(() => {
+    if (isMobile) {
+      // In landscape, screen has more pixels - cap more aggressively
+      return orientation === 'landscape' 
+        ? Math.min(window.devicePixelRatio, 1.0)
+        : Math.min(window.devicePixelRatio, 1.5);
+    }
+    return window.devicePixelRatio;
+  }, [isMobile, orientation]);
+
   const pixelRatio = props.lowPixelRatio ? 0.5 : basePixelRatio;
   
   return (
@@ -2297,6 +2326,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
       )}
       
       <Canvas 
+        key={`canvas-${orientation}`}
         shadows 
         gl={{ 
           logarithmicDepthBuffer: true, 
