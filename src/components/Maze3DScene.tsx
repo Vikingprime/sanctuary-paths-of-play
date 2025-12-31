@@ -10,7 +10,7 @@ import { PlayerState, MovementInput, calculateMovement, generateRockPositions, R
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight } from '@/game/CharacterConfig';
 import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
-import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics } from '@/lib/debug';
+import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics, checkGcSpike } from '@/lib/debug';
 import { MOBILE_CONTROL_CONFIG } from './MobileControls';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 // Extended performance info type
@@ -26,11 +26,17 @@ export interface PerformanceInfo {
   raycastCount?: number;
   activeFadedCells?: number;
   collisionChecks?: number;
+  // New diagnostic metrics
+  playerX?: number;
+  playerZ?: number;
+  opacityUpdates?: number;
+  shadowMoves?: number;
+  animationUpdates?: number;
+  gcSpikes?: number;
 }
 
 // === PERFORMANCE TOGGLES (for testing) ===
-const ENABLE_3D_ROCKS = true;         // 3D rock meshes scattered in scene
-const ENABLE_3D_GRASS = true;         // 3D grass tuft meshes
+// Now controlled via props from MazeGame3D
 
 interface DialogueTarget {
   speakerX: number;
@@ -65,6 +71,12 @@ interface Maze3DSceneProps {
   topDownCamera?: boolean; // Toggle between normal and top-down camera
   groundLevelCamera?: boolean; // Toggle to ground-level camera for debugging heights
   showCollisionDebug?: boolean; // Show collision debug spheres
+  // Feature toggles for performance testing
+  shadowsEnabled?: boolean;
+  grassEnabled?: boolean;
+  rocksEnabled?: boolean;
+  animationsEnabled?: boolean;
+  opacityFadeEnabled?: boolean;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -636,7 +648,13 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
 };
 
 // Ground with grass/path differentiation based on wall data
-const Ground = ({ maze, rocks, playerStateRef }: { maze: Maze; rocks: RockPosition[]; playerStateRef: MutableRefObject<PlayerState> }) => {
+const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled = true }: { 
+  maze: Maze; 
+  rocks: RockPosition[]; 
+  playerStateRef: MutableRefObject<PlayerState>;
+  rocksEnabled?: boolean;
+  grassEnabled?: boolean;
+}) => {
   const width = maze.grid[0].length;
   const height = maze.grid.length;
   const planeWidth = width + 10;
@@ -666,8 +684,8 @@ const Ground = ({ maze, rocks, playerStateRef }: { maze: Maze; rocks: RockPositi
       </mesh>
       
       {/* 3D Props for visual depth (toggleable for performance testing) */}
-      {ENABLE_3D_ROCKS && <ScatteredRocks rocks={rocks} playerStateRef={playerStateRef} />}
-      {ENABLE_3D_GRASS && <GrassTufts maze={maze} playerStateRef={playerStateRef} />}
+      {rocksEnabled && <ScatteredRocks rocks={rocks} playerStateRef={playerStateRef} />}
+      {grassEnabled && <GrassTufts maze={maze} playerStateRef={playerStateRef} />}
     </group>
   );
 };
@@ -1949,7 +1967,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2092,7 +2110,7 @@ return (
       <fogExp2 attach="fog" args={['#B8B0A0', 0.14]} />
       
       {/* Ground */}
-      <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} />
+      <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} />
       
       {/* Maze Walls (corn) with optimizations */}
       <MazeWalls 
@@ -2188,7 +2206,13 @@ return (
 };
 
 // Component to track and report renderer info (throttled to avoid state churn)
-const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: PerformanceInfo) => void }) => {
+const RendererInfoTracker = ({ 
+  onRendererInfo, 
+  playerStateRef 
+}: { 
+  onRendererInfo?: (info: PerformanceInfo) => void;
+  playerStateRef?: MutableRefObject<PlayerState>;
+}) => {
   const { gl, scene } = useThree();
   const lastUpdate = useRef(0);
   const frameTimesRef = useRef<number[]>([]);
@@ -2199,6 +2223,9 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
     const now = performance.now();
     const frameTime = now - lastFrameTime.current;
     lastFrameTime.current = now;
+    
+    // Track GC spikes (frame time > 50ms)
+    checkGcSpike(frameTime);
     
     // Keep last 30 frame times for averaging
     frameTimesRef.current.push(frameTime);
@@ -2221,6 +2248,8 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
         // Read metrics and calculate per-frame averages
         const perFrameRaycasts = frameCount > 0 ? Math.round(frameMetrics.raycastCount / frameCount) : 0;
         const perFrameCollisions = frameCount > 0 ? Math.round(frameMetrics.collisionChecks / frameCount) : 0;
+        const perFrameOpacityUpdates = frameCount > 0 ? Math.round(frameMetrics.opacityBufferUpdates / frameCount) : 0;
+        const perFrameAnimations = frameCount > 0 ? Math.round(frameMetrics.animationMixerUpdates / frameCount) : 0;
         
         onRendererInfo({
           drawCalls: gl.info.render.calls,
@@ -2232,12 +2261,23 @@ const RendererInfoTracker = ({ onRendererInfo }: { onRendererInfo?: (info: Perfo
           raycastCount: perFrameRaycasts,
           activeFadedCells: frameMetrics.activeFadedCells,
           collisionChecks: perFrameCollisions,
+          // New metrics
+          playerX: playerStateRef?.current.x,
+          playerZ: playerStateRef?.current.y,
+          opacityUpdates: perFrameOpacityUpdates,
+          shadowMoves: frameMetrics.shadowLightMoves,
+          animationUpdates: perFrameAnimations,
+          gcSpikes: frameMetrics.gcSpikes,
         });
         
         // Reset metrics for next interval
         frameMetrics.raycastCount = 0;
         frameMetrics.activeFadedCells = 0;
         frameMetrics.collisionChecks = 0;
+        frameMetrics.opacityBufferUpdates = 0;
+        frameMetrics.shadowLightMoves = 0;
+        frameMetrics.animationMixerUpdates = 0;
+        frameMetrics.gcSpikes = 0;
       }
     }
   });
@@ -2342,7 +2382,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
         <PerspectiveCamera makeDefault fov={60} near={0.1} far={100} />
         <Scene {...props} onCullStats={setCullStats} />
         <FPSTracker onFpsUpdate={setFps} />
-        <RendererInfoTracker onRendererInfo={props.onRendererInfo} />
+        <RendererInfoTracker onRendererInfo={props.onRendererInfo} playerStateRef={props.playerStateRef} />
       </Canvas>
     </div>
   );
