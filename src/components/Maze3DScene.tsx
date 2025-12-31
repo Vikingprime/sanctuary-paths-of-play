@@ -1152,6 +1152,7 @@ const RefBasedPlayer = ({
   const smoothPositionZ = useRef(0);
   const positionInitialized = useRef(false);
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
+  const smoothBankAngle = useRef(0); // For banking/leaning during turns
   
   // Mobile steering no longer uses these (yaw rate system instead)
   
@@ -1281,6 +1282,21 @@ const RefBasedPlayer = ({
     if (smoothRotation.current < 0) smoothRotation.current += Math.PI * 2;
     
     groupRef.current.rotation.y = smoothRotation.current;
+    
+    // === BANKING / LEANING ===
+    // Bank angle is based on yaw rate - lean into turns
+    const MAX_BANK_ANGLE = 0.18; // ~10 degrees max lean
+    const yawRate = mobileYawRateRef?.current ?? 0;
+    
+    // Target bank is opposite of turn direction (lean into the turn)
+    const targetBank = -yawRate * 0.08; // Scale yaw rate to bank angle
+    const clampedTargetBank = Math.max(-MAX_BANK_ANGLE, Math.min(MAX_BANK_ANGLE, targetBank));
+    
+    // Smooth the bank angle
+    smoothBankAngle.current += (clampedTargetBank - smoothBankAngle.current) * 0.15;
+    
+    // Apply bank (Z-axis rotation for roll)
+    groupRef.current.rotation.z = smoothBankAngle.current;
   });
   
   return (
