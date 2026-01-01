@@ -43,7 +43,7 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
   },
   'Pig.glb': {
     scale: 0.0064,
-    yOffset: 0.25, // Lowered from 0.30
+    yOffset: 0.20,
     height: 0.5,
     debugPlaneColor: '#ff8800',
   },
