@@ -1497,8 +1497,14 @@ const OverShoulderCameraController = ({
   const ROTATION_SMOOTHING = 0.05;  // Slower rotation follow
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
   const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
+  const ROTATION_DELAY = 0.15; // Seconds to wait before camera starts following rotation
   
-  useFrame(() => {
+  // Track rotation delay
+  const lastPlayerRotation = useRef<number | null>(null);
+  const rotationDelayTimer = useRef(0);
+  const delayedRotationTarget = useRef<number | null>(null);
+  
+  useFrame((_, delta) => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
     // Store initial position on first frame (after initialization)
@@ -1529,6 +1535,8 @@ const OverShoulderCameraController = ({
     if (!initialized.current) {
       smoothRotation.current = playerRotation;
       initialPlayerPos.current = { x: playerX, z: playerZ };
+      lastPlayerRotation.current = playerRotation;
+      delayedRotationTarget.current = playerRotation;
       const rot = playerRotation;
       // Set camera position immediately without interpolation (start close)
       currentPosition.current.set(
@@ -1544,8 +1552,30 @@ const OverShoulderCameraController = ({
       initialized.current = true;
     }
     
-    // Smoothly interpolate rotation using shortest path
-    let rotDiff = playerRotation - smoothRotation.current;
+    // Rotation delay system: camera waits before following player rotation
+    // Detect if player rotation has changed
+    const rotationChanged = lastPlayerRotation.current !== null && 
+      Math.abs(playerRotation - lastPlayerRotation.current) > 0.001;
+    
+    if (rotationChanged) {
+      // Player is turning - reset delay timer
+      rotationDelayTimer.current = ROTATION_DELAY;
+    }
+    lastPlayerRotation.current = playerRotation;
+    
+    // Count down delay timer
+    if (rotationDelayTimer.current > 0) {
+      rotationDelayTimer.current -= delta;
+    }
+    
+    // Update delayed rotation target only after delay expires
+    if (rotationDelayTimer.current <= 0) {
+      delayedRotationTarget.current = playerRotation;
+    }
+    
+    // Smoothly interpolate rotation toward the delayed target
+    const targetRot = delayedRotationTarget.current ?? playerRotation;
+    let rotDiff = targetRot - smoothRotation.current;
     // Handle wrap-around (shortest path)
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
