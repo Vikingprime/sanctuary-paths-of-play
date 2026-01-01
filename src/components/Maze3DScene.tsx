@@ -77,6 +77,8 @@ interface Maze3DSceneProps {
   rocksEnabled?: boolean;
   animationsEnabled?: boolean;
   opacityFadeEnabled?: boolean;
+  // Camera-relative movement mode
+  cameraRelativeMovement?: boolean;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -1165,6 +1167,8 @@ const RefBasedPlayer = ({
   rocks,
   characters,
   showCollisionDebug = true,
+  cameraRelativeMovement = false,
+  cameraRotationRef,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1182,6 +1186,8 @@ const RefBasedPlayer = ({
   rocks: RockPosition[];
   characters: CharacterPosition[];
   showCollisionDebug?: boolean;
+  cameraRelativeMovement?: boolean;
+  cameraRotationRef?: MutableRefObject<number>;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
@@ -1219,30 +1225,63 @@ const RefBasedPlayer = ({
       
       let input: MovementInput;
       
-      if (mobileActive) {
-        // MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)
+      if (cameraRelativeMovement && cameraRotationRef) {
+        // CAMERA-RELATIVE MODE: Movement relative to camera direction
+        // Works for both mobile and keyboard
+        let inputX = 0;
+        let inputY = 0;
+        
+        if (mobileTouchActiveRef?.current) {
+          // Mobile: use yaw rate for horizontal, throttle for vertical
+          const yawRate = mobileYawRateRef?.current ?? 0;
+          const throttle = mobileThrottleRef?.current ?? 0;
+          // Map yaw rate to inputX (scale appropriately)
+          inputX = Math.max(-1, Math.min(1, yawRate / 2.5)); // Normalize yaw rate
+          inputY = throttle; // Already -1 to 1
+        } else {
+          // Keyboard: WASD for directional input
+          if (keysPressed.current.has('arrowup') || keysPressed.current.has('w')) inputY += 1;
+          if (keysPressed.current.has('arrowdown') || keysPressed.current.has('s')) inputY -= 1;
+          if (keysPressed.current.has('arrowleft') || keysPressed.current.has('a')) inputX -= 1;
+          if (keysPressed.current.has('arrowright') || keysPressed.current.has('d')) inputX += 1;
+        }
+        
+        const inputMag = Math.sqrt(inputX * inputX + inputY * inputY);
+        isMovingRef.current = inputMag > 0.1;
+        
+        input = {
+          forward: false,
+          backward: false,
+          rotateLeft: false,
+          rotateRight: false,
+          cameraRelative: true,
+          cameraRotation: cameraRotationRef.current,
+          inputX,
+          inputY,
+          speedMultiplier: Math.min(inputMag, 1),
+        };
+        
+        // Calculate movement
+        const prev = playerStateRef.current;
+        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+        playerStateRef.current = newState;
+      } else if (mobileTouchActiveRef?.current) {
+        // MOBILE MODE (animal-relative): Yaw rate steering
         const yawRate = mobileYawRateRef?.current ?? 0;
         let newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
         
         // === ANGULAR SNAPPING (Cardinal Alignment Assist) ===
-        // If rotation is within ~5 degrees of a cardinal direction and not actively turning hard
         const cardinalSnapThreshold = 0.087; // ~5 degrees
         const cardinalSnapStrength = 0.03;
         const absYawRate = Math.abs(yawRate);
         
-        // Only snap when not turning hard (yaw rate < 0.5)
         if (absYawRate < 0.5) {
-          // Cardinal directions: 0, π/2, π, 3π/2 (N, E, S, W)
           const cardinals = [0, Math.PI / 2, Math.PI, Math.PI * 1.5, Math.PI * 2];
-          
           for (const cardinal of cardinals) {
             let diff = newRotation - cardinal;
-            // Normalize diff to -π to π
             if (diff > Math.PI) diff -= Math.PI * 2;
             if (diff < -Math.PI) diff += Math.PI * 2;
-            
             if (Math.abs(diff) < cardinalSnapThreshold) {
-              // Snap toward cardinal direction
               newRotation = normalizeAngle(newRotation - diff * cardinalSnapStrength);
               break;
             }
@@ -1254,14 +1293,11 @@ const RefBasedPlayer = ({
           rotation: newRotation
         };
         
-        // Get throttle value (-1 to 1, supports reverse)
         const throttle = mobileThrottleRef?.current ?? 0;
         const isMoving = mobileIsMovingRef?.current ?? false;
         const isForward = throttle > 0;
         const isBackward = throttle < 0;
         
-        // Build input with forward/backward from throttle
-        // (rotation already handled above)
         input = {
           forward: isMoving && isForward,
           backward: isMoving && isBackward,
@@ -1271,15 +1307,13 @@ const RefBasedPlayer = ({
           speedMultiplier: Math.abs(throttle),
         };
         
-        // Update isMoving ref
         isMovingRef.current = isMoving;
         
-        // Calculate movement (position only, rotation already set)
         const prev = playerStateRef.current;
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         playerStateRef.current = newState;
       } else {
-        // KEYBOARD MODE: Original per-frame rotation accumulation
+        // KEYBOARD MODE (animal-relative): Original per-frame rotation
         const isKeyboardRotation = keysPressed.current.has('arrowleft') || keysPressed.current.has('a') || 
                                    keysPressed.current.has('arrowright') || keysPressed.current.has('d');
         input = {
@@ -1290,10 +1324,8 @@ const RefBasedPlayer = ({
           rotationIntensity: isKeyboardRotation ? 1.0 : 1.0,
         };
         
-        // Update isMoving ref
         isMovingRef.current = input.forward || input.backward;
         
-        // Calculate movement with clamped delta (smooth per-frame updates)
         const prev = playerStateRef.current;
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         playerStateRef.current = newState;
@@ -1416,6 +1448,7 @@ const OverShoulderCameraController = ({
   autopush = DEFAULT_AUTOPUSH,
   animalType,
   maze,
+  cameraRotationRef,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
@@ -1425,6 +1458,7 @@ const OverShoulderCameraController = ({
   autopush?: AutopushConfig;
   animalType?: AnimalType;
   maze?: Maze;
+  cameraRotationRef?: MutableRefObject<number>;
 }) => {
   const { camera, scene } = useThree();
   
@@ -1584,6 +1618,11 @@ const OverShoulderCameraController = ({
     smoothRotation.current = ((smoothRotation.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     
     const rot = smoothRotation.current;
+    
+    // Update shared camera rotation ref for camera-relative movement
+    if (cameraRotationRef) {
+      cameraRotationRef.current = rot;
+    }
     
     // Calculate desired camera position behind player (reuse vector to avoid GC)
     const desiredDist = currentDistance.current;
@@ -2015,12 +2054,15 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cameraRelativeMovement = false }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
   // Ref for corn walls - used by camera autopush raycasting
   const foliageGroupRef = useRef<Group>(null);
+  
+  // Shared camera rotation ref for camera-relative movement mode
+  const cameraRotationRef = useRef<number>(0);
   
   useFrame(() => {
     if (!hasSignaled.current && onSceneReady) {
@@ -2227,6 +2269,8 @@ return (
         rocks={rocks}
         characters={characterPositions}
         showCollisionDebug={showCollisionDebug}
+        cameraRelativeMovement={cameraRelativeMovement}
+        cameraRotationRef={cameraRotationRef}
       />
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
@@ -2247,6 +2291,7 @@ return (
             foliageGroupRef={foliageGroupRef}
             animalType={animalType}
             maze={maze}
+            cameraRotationRef={cameraRotationRef}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
         </>
