@@ -1,9 +1,10 @@
 import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Clone } from '@react-three/drei';
-import { AnimationMixer, LoopRepeat, LoopOnce } from 'three';
+import { AnimationMixer, LoopRepeat, LoopOnce, DoubleSide } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
+import { getCharacterDebugPlaneColor } from '@/game/CharacterConfig';
 
 // Play chicken sound on spawn
 const playChickenSound = () => {
@@ -328,25 +329,33 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
           <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, PIG_Y_OFFSET, 0]} />
         </group>
         
-        {/* Debug capsule collider */}
+        {/* Debug ground plane - shows y=0 level to help adjust yOffset */}
         {showCollisionDebug && (
-          <group rotation={[0, rotation, 0]}>
-            {/* Tail sphere (red) */}
-            <mesh position={[0, DEBUG_Y, CAPSULE_START]} renderOrder={999}>
-              <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
-              <meshBasicMaterial color="#ff0000" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+          <>
+            <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1000}>
+              <planeGeometry args={[0.6, 0.6]} />
+              <meshBasicMaterial color={getCharacterDebugPlaneColor('Pig.glb')} transparent opacity={0.5} depthTest={false} depthWrite={false} side={DoubleSide} />
             </mesh>
-            {/* Body cylinder (orange) */}
-            <mesh position={[0, DEBUG_Y, (CAPSULE_START + CAPSULE_END) / 2]} rotation={[Math.PI / 2, 0, 0]} renderOrder={998}>
-              <cylinderGeometry args={[CAPSULE_RADIUS, CAPSULE_RADIUS, CAPSULE_END - CAPSULE_START, 12]} />
-              <meshBasicMaterial color="#ff8800" transparent opacity={0.3} depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Head sphere (yellow) */}
-            <mesh position={[0, DEBUG_Y, CAPSULE_END]} renderOrder={999}>
-              <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
-              <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
-            </mesh>
-          </group>
+            
+            {/* Debug capsule collider */}
+            <group rotation={[0, rotation, 0]}>
+              {/* Tail sphere (red) */}
+              <mesh position={[0, DEBUG_Y, CAPSULE_START]} renderOrder={999}>
+                <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
+                <meshBasicMaterial color="#ff0000" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+              </mesh>
+              {/* Body cylinder (orange) */}
+              <mesh position={[0, DEBUG_Y, (CAPSULE_START + CAPSULE_END) / 2]} rotation={[Math.PI / 2, 0, 0]} renderOrder={998}>
+                <cylinderGeometry args={[CAPSULE_RADIUS, CAPSULE_RADIUS, CAPSULE_END - CAPSULE_START, 12]} />
+                <meshBasicMaterial color="#ff8800" transparent opacity={0.3} depthTest={false} depthWrite={false} />
+              </mesh>
+              {/* Head sphere (yellow) */}
+              <mesh position={[0, DEBUG_Y, CAPSULE_END]} renderOrder={999}>
+                <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
+                <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+              </mesh>
+            </group>
+          </>
         )}
       </group>
     );
@@ -368,31 +377,39 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
           <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.3, 0]} />
         </group>
         
-        {/* Debug capsule collider - rotate with cow using rotation prop */}
+        {/* Debug ground plane - shows y=0 level to help adjust yOffset */}
         {showCollisionDebug && (
-          <group rotation={[0, rotation, 0]}>
-            {/* Capsule body - represented as cylinder with spherical ends */}
-            {/* Tail sphere (red) */}
-            <mesh position={[0, DEBUG_Y, CAPSULE_START]} renderOrder={999}>
-              <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
-              <meshBasicMaterial color="#ff0000" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+          <>
+            <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1000}>
+              <planeGeometry args={[0.6, 0.6]} />
+              <meshBasicMaterial color={getCharacterDebugPlaneColor('Cow.glb')} transparent opacity={0.5} depthTest={false} depthWrite={false} side={DoubleSide} />
             </mesh>
-            {/* Body cylinder (orange, transparent) */}
-            <mesh position={[0, DEBUG_Y, (CAPSULE_START + CAPSULE_END) / 2]} rotation={[Math.PI / 2, 0, 0]} renderOrder={998}>
-              <cylinderGeometry args={[CAPSULE_RADIUS, CAPSULE_RADIUS, CAPSULE_END - CAPSULE_START, 12]} />
-              <meshBasicMaterial color="#ff8800" transparent opacity={0.3} depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Neck/body end sphere (yellow) */}
-            <mesh position={[0, DEBUG_Y, CAPSULE_END]} renderOrder={999}>
-              <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
-              <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
-            </mesh>
-            {/* Head sphere (green) */}
-            <mesh position={[0, DEBUG_Y, HEAD_OFFSET]} renderOrder={999}>
-              <sphereGeometry args={[HEAD_RADIUS, 12, 12]} />
-              <meshBasicMaterial color="#00ff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
-            </mesh>
-          </group>
+            
+            {/* Debug capsule collider - rotate with cow using rotation prop */}
+            <group rotation={[0, rotation, 0]}>
+              {/* Capsule body - represented as cylinder with spherical ends */}
+              {/* Tail sphere (red) */}
+              <mesh position={[0, DEBUG_Y, CAPSULE_START]} renderOrder={999}>
+                <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
+                <meshBasicMaterial color="#ff0000" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+              </mesh>
+              {/* Body cylinder (orange, transparent) */}
+              <mesh position={[0, DEBUG_Y, (CAPSULE_START + CAPSULE_END) / 2]} rotation={[Math.PI / 2, 0, 0]} renderOrder={998}>
+                <cylinderGeometry args={[CAPSULE_RADIUS, CAPSULE_RADIUS, CAPSULE_END - CAPSULE_START, 12]} />
+                <meshBasicMaterial color="#ff8800" transparent opacity={0.3} depthTest={false} depthWrite={false} />
+              </mesh>
+              {/* Neck/body end sphere (yellow) */}
+              <mesh position={[0, DEBUG_Y, CAPSULE_END]} renderOrder={999}>
+                <sphereGeometry args={[CAPSULE_RADIUS, 12, 12]} />
+                <meshBasicMaterial color="#ffff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+              </mesh>
+              {/* Head sphere (green) */}
+              <mesh position={[0, DEBUG_Y, HEAD_OFFSET]} renderOrder={999}>
+                <sphereGeometry args={[HEAD_RADIUS, 12, 12]} />
+                <meshBasicMaterial color="#00ff00" transparent opacity={0.5} depthTest={false} depthWrite={false} />
+              </mesh>
+            </group>
+          </>
         )}
       </group>
     );
@@ -419,10 +436,10 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
       {/* Debug grounding visualization */}
       {showCollisionDebug && (
         <>
-          {/* Y=0 ground plane reference (green) */}
-          <mesh position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1000}>
+          {/* Y=0 ground plane reference - color from CharacterConfig */}
+          <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1000}>
             <planeGeometry args={[0.5, 0.5]} />
-            <meshBasicMaterial color="#00ff00" transparent opacity={0.4} depthTest={false} depthWrite={false} side={2} />
+            <meshBasicMaterial color={getCharacterDebugPlaneColor('Hen.glb')} transparent opacity={0.5} depthTest={false} depthWrite={false} side={DoubleSide} />
           </mesh>
           
           {/* Capsule collider visualization */}

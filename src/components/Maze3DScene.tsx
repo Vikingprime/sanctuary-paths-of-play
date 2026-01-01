@@ -7,7 +7,7 @@ import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
-import { getCharacterScale, getCharacterYOffset, getCharacterHeight } from '@/game/CharacterConfig';
+import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor } from '@/game/CharacterConfig';
 import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics, checkGcSpike } from '@/lib/debug';
@@ -902,6 +902,7 @@ interface CharacterRendererProps {
   isGoalMarker?: boolean; // If true, renders invisible collision trigger
   alwaysFacePlayer?: boolean; // If true, character always faces player even outside dialogue
   maze: Maze; // Required for raycasting initial facing direction
+  showCollisionDebug?: boolean; // Show debug ground plane under character
 }
 
 const CharacterRenderer = ({
@@ -913,6 +914,7 @@ const CharacterRenderer = ({
   isGoalMarker = false,
   alwaysFacePlayer = false,
   maze,
+  showCollisionDebug = false,
 }: CharacterRendererProps) => {
   const groupRef = useRef<Group>(null);
   const mixerRef = useRef<AnimationMixer | null>(null);
@@ -924,6 +926,7 @@ const CharacterRenderer = ({
   // Get character scale and Y offset from centralized config
   const characterScale = getCharacterScale(modelFile);
   const characterYOffset = getCharacterYOffset(modelFile);
+  const debugPlaneColor = getCharacterDebugPlaneColor(modelFile);
   
   // Calculate initial facing direction using same approach as dialogue code
   // findBestDirectionAngle returns angle from +X axis (0 = +X, π/2 = +Z)
@@ -1039,6 +1042,13 @@ const CharacterRenderer = ({
       <group ref={groupRef}>
         <primitive object={model} scale={characterScale} />
       </group>
+      {/* Debug ground plane - shows y=0 level to help adjust yOffset */}
+      {showCollisionDebug && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005 - characterYOffset, 0]} renderOrder={1000}>
+          <planeGeometry args={[0.6, 0.6]} />
+          <meshBasicMaterial color={debugPlaneColor} transparent opacity={0.5} depthTest={false} depthWrite={false} side={DoubleSide} />
+        </mesh>
+      )}
       {/* Invisible collision trigger for goal marker */}
       {isGoalMarker && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} visible={false}>
@@ -1051,11 +1061,12 @@ const CharacterRenderer = ({
 };
 
 // GoalMarker - wraps CharacterRenderer for the end farmer
-const GoalMarker = ({ position, playerStateRef, isDialogueActive, maze }: { 
+const GoalMarker = ({ position, playerStateRef, isDialogueActive, maze, showCollisionDebug }: { 
   position: [number, number, number];
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive?: boolean;
   maze: Maze;
+  showCollisionDebug?: boolean;
 }) => {
   return (
     <CharacterRenderer
@@ -1066,6 +1077,7 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive, maze }: {
       isDialogueActive={isDialogueActive || false}
       isGoalMarker={true}
       maze={maze}
+      showCollisionDebug={showCollisionDebug}
     />
   );
 };
@@ -1076,11 +1088,13 @@ const PlacedCharacter = ({
   playerStateRef,
   isDialogueActive,
   maze,
+  showCollisionDebug,
 }: { 
   character: MazeCharacter;
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive: boolean;
   maze: Maze;
+  showCollisionDebug?: boolean;
 }) => {
   return (
     <CharacterRenderer
@@ -1091,6 +1105,7 @@ const PlacedCharacter = ({
       isDialogueActive={isDialogueActive}
       alwaysFacePlayer={character.alwaysFacePlayer}
       maze={maze}
+      showCollisionDebug={showCollisionDebug}
     />
   );
 };
@@ -1101,11 +1116,13 @@ const DialogueCharacter = ({
   playerStateRef,
   isActiveDialogue,
   maze,
+  showCollisionDebug,
 }: { 
   dialogue: DialogueTrigger;
   playerStateRef?: MutableRefObject<PlayerState>;
   isActiveDialogue: boolean;
   maze: Maze;
+  showCollisionDebug?: boolean;
 }) => {
   const position = useMemo(() => {
     if (dialogue.speakerPosition) {
@@ -1125,6 +1142,7 @@ const DialogueCharacter = ({
       playerStateRef={playerStateRef}
       isDialogueActive={isActiveDialogue}
       maze={maze}
+      showCollisionDebug={showCollisionDebug}
     />
   );
 };
@@ -2143,6 +2161,7 @@ return (
             Math.abs(dialogueTarget.speakerZ - character.position.y) < 0.5
           }
           maze={maze}
+          showCollisionDebug={showCollisionDebug}
         />
       ))}
       
@@ -2154,6 +2173,7 @@ return (
           playerStateRef={playerStateRef}
           isActiveDialogue={dialogueTarget !== null && dialogueTarget !== undefined}
           maze={maze}
+          showCollisionDebug={showCollisionDebug}
         />
       ))}
       
