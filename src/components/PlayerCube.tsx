@@ -314,11 +314,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   // Pig uses GLB model
   if (animalType === 'pig') {
     // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
-    // Extended significantly to cover snout (front) and rear (back) fully
-    const CAPSULE_START = -0.30;  // Extended back for rear/tail
-    const CAPSULE_END = 0.55;     // Extended far forward for snout
-    const CAPSULE_RADIUS = 0.15;  // Slightly larger radius
-    const DEBUG_Y = 0.45;  // Raised more to match model offset
+    // Adjusted: shorter length, larger radius, lower Y
+    const CAPSULE_START = -0.25;  // Moved inward from -0.30
+    const CAPSULE_END = 0.45;     // Shortened from 0.55
+    const CAPSULE_RADIUS = 0.18;  // Increased from 0.15
+    const DEBUG_Y = 0.35;  // Lowered from 0.45
     
     // Use centralized yOffset and scale from CharacterConfig
     const pigYOffset = getCharacterYOffset('Pig.glb');
