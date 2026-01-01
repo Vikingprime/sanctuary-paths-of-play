@@ -1493,8 +1493,8 @@ const OverShoulderCameraController = ({
   const LOOK_AHEAD = 1.3;
   const LOOK_HEIGHT_START = 0.0;
   const LOOK_HEIGHT_NORMAL = targetHeight; // Use character-scaled look height
-  const POSITION_SMOOTHING = 0.15;
-  const ROTATION_SMOOTHING = 0.12;
+  const POSITION_SMOOTHING = 0.06;  // Slower camera follow for smoother feel
+  const ROTATION_SMOOTHING = 0.05;  // Slower rotation follow
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
   const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
   
