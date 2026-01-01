@@ -1040,7 +1040,7 @@ const CharacterRenderer = ({
   return (
     <group position={[position.x + 0.5, characterYOffset, position.y + 0.5]}>
       <group ref={groupRef}>
-        <primitive object={model} scale={characterScale} />
+        <primitive object={model} scale={characterScale} castShadow receiveShadow />
       </group>
       {/* Debug ground plane - shows y=0 level to help adjust yOffset */}
       {showCollisionDebug && (
