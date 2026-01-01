@@ -184,31 +184,35 @@ export const MobileControls = ({
         
         // Dead zone check - outside deadzone = movement
         if (clampedDistance >= deadZone) {
-          // === DIRECTIONAL MOVEMENT ===
-          // Convert screen drag direction to world direction
-          // Screen: +X is right, +Y is down
-          // Game world: rotation 0 = north (-Z), PI/2 = east (+X), PI = south (+Z)
-          // 
-          // Drag UP (dy < 0) → go north (rotation 0)
-          // Drag RIGHT (dx > 0) → go east (rotation PI/2)
-          // Drag DOWN (dy > 0) → go south (rotation PI)
-          // Drag LEFT (dx < 0) → go west (rotation -PI/2)
+          // === RELATIVE DIRECTIONAL MOVEMENT ===
+          // Joystick direction is RELATIVE to current facing:
+          // - Drag UP = move forward (where chicken is facing)
+          // - Drag RIGHT = turn right relative to current facing
+          // - Drag DOWN = turn around
+          // - Drag LEFT = turn left relative to current facing
           //
-          // atan2(dx, -dy) gives: up=0, right=PI/2, down=PI, left=-PI/2
-          const targetDirection = Math.atan2(clampedDx, -clampedDy);
+          // Screen coords: +X is right, +Y is down
+          // atan2(-dy, dx) gives: up=PI/2, right=0, down=-PI/2, left=PI
+          // We want: up=0, right=PI/2, down=PI, left=-PI/2
+          // So use atan2(dx, -dy): up=0, right=PI/2, down=PI, left=-PI/2
+          const relativeAngle = Math.atan2(clampedDx, -clampedDy);
           
-          // Set target direction for the movement system to rotate toward
+          // Target direction = current rotation + relative joystick angle
+          const currentRotation = playerStateRef.current.rotation;
+          let targetDirection = currentRotation + relativeAngle;
+          
+          // Normalize to [-PI, PI]
+          while (targetDirection > Math.PI) targetDirection -= Math.PI * 2;
+          while (targetDirection < -Math.PI) targetDirection += Math.PI * 2;
+          
+          // Set target direction for the movement system
           if (targetDirectionRef) {
             targetDirectionRef.current = targetDirection;
           }
           
           // Calculate yaw rate to turn toward target direction
-          const currentRotation = playerStateRef.current.rotation;
-          let angleDiff = targetDirection - currentRotation;
-          
-          // Normalize angle difference to [-PI, PI]
-          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          // angleDiff is simply the relative angle from joystick
+          let angleDiff = relativeAngle;
           
           // Use a proportional controller with clamping
           let rawYawRate = angleDiff * turnRate;
@@ -228,8 +232,7 @@ export const MobileControls = ({
           // Debug logging (throttled)
           if (debugMode && Date.now() - lastDebugLogRef.current > 200) {
             lastDebugLogRef.current = Date.now();
-            console.log('[Mobile] target:', (targetDirection * 180 / Math.PI).toFixed(0) + '°',
-                        'current:', (currentRotation * 180 / Math.PI).toFixed(0) + '°',
+            console.log('[Mobile] relAngle:', (relativeAngle * 180 / Math.PI).toFixed(0) + '°',
                         'yawRate:', yawRateRef.current.toFixed(2));
           }
         } else {
