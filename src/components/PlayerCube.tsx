@@ -4,7 +4,7 @@ import { useGLTF, Clone } from '@react-three/drei';
 import { AnimationMixer, LoopRepeat, LoopOnce, DoubleSide } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
-import { getCharacterDebugPlaneColor, getCharacterYOffset } from '@/game/CharacterConfig';
+import { getCharacterDebugPlaneColor, getCharacterYOffset, getCharacterScale } from '@/game/CharacterConfig';
 
 // Play chicken sound on spawn
 const playChickenSound = () => {
@@ -425,13 +425,14 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   const CAPSULE_RADIUS = 0.08;
   const DEBUG_Y = 0.25;  // Raised to match model offset
   
-  // Use centralized yOffset from CharacterConfig
+  // Use centralized yOffset and scale from CharacterConfig
   const chickenYOffset = getCharacterYOffset('Hen.glb');
+  const chickenScale = getCharacterScale('Hen.glb');
   
   return (
     <group position={position}>
       <group ref={innerGroupRef}>
-        <primitive object={clonedHenScene} scale={[0.008, 0.008, 0.008]} position={[0, chickenYOffset, 0]} />
+        <primitive object={clonedHenScene} scale={[chickenScale, chickenScale, chickenScale]} position={[0, chickenYOffset, 0]} />
       </group>
       
       {/* Debug grounding visualization */}
