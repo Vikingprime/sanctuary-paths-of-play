@@ -1220,27 +1220,55 @@ const RefBasedPlayer = ({
       let input: MovementInput;
       
       if (mobileActive) {
-        // MOBILE MODE: Directional movement - turn toward joystick direction and move forward
+        // MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)
         const yawRate = mobileYawRateRef?.current ?? 0;
-        const newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
+        let newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
+        
+        // === ANGULAR SNAPPING (Cardinal Alignment Assist) ===
+        // If rotation is within ~5 degrees of a cardinal direction and not actively turning hard
+        const cardinalSnapThreshold = 0.087; // ~5 degrees
+        const cardinalSnapStrength = 0.03;
+        const absYawRate = Math.abs(yawRate);
+        
+        // Only snap when not turning hard (yaw rate < 0.5)
+        if (absYawRate < 0.5) {
+          // Cardinal directions: 0, π/2, π, 3π/2 (N, E, S, W)
+          const cardinals = [0, Math.PI / 2, Math.PI, Math.PI * 1.5, Math.PI * 2];
+          
+          for (const cardinal of cardinals) {
+            let diff = newRotation - cardinal;
+            // Normalize diff to -π to π
+            if (diff > Math.PI) diff -= Math.PI * 2;
+            if (diff < -Math.PI) diff += Math.PI * 2;
+            
+            if (Math.abs(diff) < cardinalSnapThreshold) {
+              // Snap toward cardinal direction
+              newRotation = normalizeAngle(newRotation - diff * cardinalSnapStrength);
+              break;
+            }
+          }
+        }
         
         playerStateRef.current = {
           ...playerStateRef.current,
           rotation: newRotation
         };
         
-        // Get throttle value (always positive now - no reverse)
+        // Get throttle value (-1 to 1, supports reverse)
         const throttle = mobileThrottleRef?.current ?? 0;
         const isMoving = mobileIsMovingRef?.current ?? false;
+        const isForward = throttle > 0;
+        const isBackward = throttle < 0;
         
-        // Build input - always forward when moving
+        // Build input with forward/backward from throttle
+        // (rotation already handled above)
         input = {
-          forward: isMoving && throttle > 0,
-          backward: false, // No backward movement
+          forward: isMoving && isForward,
+          backward: isMoving && isBackward,
           rotateLeft: false,
           rotateRight: false,
           rotationIntensity: 0,
-          speedMultiplier: throttle,
+          speedMultiplier: Math.abs(throttle),
         };
         
         // Update isMoving ref
@@ -1466,7 +1494,7 @@ const OverShoulderCameraController = ({
   const LOOK_HEIGHT_START = 0.0;
   const LOOK_HEIGHT_NORMAL = targetHeight; // Use character-scaled look height
   const POSITION_SMOOTHING = 0.15;
-  const ROTATION_SMOOTHING = 0.06; // Slower camera rotation for smooth turnarounds
+  const ROTATION_SMOOTHING = 0.12;
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
   const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
   
