@@ -21,47 +21,47 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
   // rotationOffset corrects model's default facing direction to match raycast expectations
   'Farmer.glb': {
     scale: 0.55,
-    yOffset: 0.15, // Raised from -0.05 to align feet with ground
-    height: 1.8, // Tall human
-    rotationOffset: Math.PI, // Farmer model faces opposite direction, rotate 180°
-    debugPlaneColor: '#00ff00', // Green - goal character
+    yOffset: 0.0, // Lowered from 0.15 - was floating
+    height: 1.8,
+    rotationOffset: Math.PI,
+    debugPlaneColor: '#00ff00',
   },
   'Animated_Woman.glb': {
     scale: 0.20,
-    yOffset: 0.15, // Raised from -0.15 to align feet with ground
-    height: 1.7, // Tall human
-    rotationOffset: Math.PI, // Same correction as Farmer
-    debugPlaneColor: '#ff00ff', // Magenta - female NPC
+    yOffset: -0.10, // Lowered significantly from 0.15 - was way too high
+    height: 1.7,
+    rotationOffset: Math.PI,
+    debugPlaneColor: '#ff00ff',
   },
   
   // Animals (player-controlled) - these offsets are applied in PlayerCube.tsx
   'Cow.glb': {
     scale: 0.4,
-    yOffset: 0.05, // Raised from 0 to align hooves with ground
-    height: 1.4, // Large animal
-    debugPlaneColor: '#0088ff', // Blue - cow player
+    yOffset: 0.12, // Raised from 0.05 - needs a bit more
+    height: 1.4,
+    debugPlaneColor: '#0088ff',
   },
   'Pig.glb': {
     scale: 0.35,
-    yOffset: 0.40, // Raised significantly from 0 - pig was half under ground
-    height: 0.5, // Small animal - needs close camera framing
-    debugPlaneColor: '#ff8800', // Orange - pig player
+    yOffset: 0.20, // Lowered from 0.40 - was too high
+    height: 0.5,
+    debugPlaneColor: '#ff8800',
   },
   'Hen.glb': {
     scale: 0.25,
-    yOffset: 0.25, // Raised from 0 - chicken feet were under ground
-    height: 0.35, // Very small - needs very close camera framing
-    debugPlaneColor: '#ffff00', // Yellow - chicken player
+    yOffset: 0.30, // Raised from 0.25 - needs a bit more
+    height: 0.35,
+    debugPlaneColor: '#ffff00',
   },
   'Hen_idle.glb': {
     scale: 0.25,
-    yOffset: 0.25,
+    yOffset: 0.30,
     height: 0.35,
     debugPlaneColor: '#ffff00',
   },
   'Hen_walk.glb': {
     scale: 0.25,
-    yOffset: 0.25,
+    yOffset: 0.30,
     height: 0.35,
     debugPlaneColor: '#ffff00',
   },
