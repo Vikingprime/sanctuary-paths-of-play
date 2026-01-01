@@ -27,11 +27,6 @@ export interface MovementInput {
   rotateRight: boolean;
   rotationIntensity?: number; // 0-1, for proportional mobile rotation
   speedMultiplier?: number;   // 0-1, for proportional mobile speed (defaults to 1)
-  // Camera-relative movement mode
-  cameraRelative?: boolean;   // If true, movement is relative to camera direction
-  cameraRotation?: number;    // Camera's Y rotation in radians (required if cameraRelative)
-  inputX?: number;            // -1 to 1, horizontal input (left/right)
-  inputY?: number;            // -1 to 1, vertical input (forward/backward)
 }
 
 export interface GameStateData {
@@ -755,89 +750,50 @@ export function calculateMovement(
   let newRotation = currentState.rotation;
 
   // ========================================
-  // STEP 2: ROTATION AND TRANSLATION
-  // Different logic for camera-relative vs animal-relative mode
+  // STEP 2: SWEPT ROTATION
+  // Apply rotation in small increments, stop if overlap
   // ========================================
+  const isMoving = input.forward || input.backward;
+  const baseMultiplier = isMoving ? 0.5 : 1.0;
+  const intensity = input.rotationIntensity ?? 1.0;
+  const rotationMultiplier = baseMultiplier * intensity;
   
-  let moveX = 0;
-  let moveY = 0;
-  
-  if (input.cameraRelative && input.cameraRotation !== undefined) {
-    // CAMERA-RELATIVE MODE: Movement direction based on camera, animal auto-rotates to face movement
-    const camRot = input.cameraRotation;
-    const inputX = input.inputX ?? 0;
-    const inputY = input.inputY ?? 0;
-    const inputMag = Math.sqrt(inputX * inputX + inputY * inputY);
-    
-    if (inputMag > 0.1) {
-      // Calculate world movement direction from camera + input
-      // Camera rotation: 0 = looking -Z (north)
-      // inputY: positive = forward (toward camera look), negative = backward
-      // inputX: positive = right, negative = left
-      const moveAngle = camRot + Math.atan2(inputX, inputY);
-      
-      moveX = Math.sin(moveAngle) * moveSpeed * deltaTime * Math.min(inputMag, 1);
-      moveY = -Math.cos(moveAngle) * moveSpeed * deltaTime * Math.min(inputMag, 1);
-      
-      // Auto-rotate animal to face movement direction (smooth)
-      const targetRotation = moveAngle;
-      let rotDiff = targetRotation - newRotation;
-      // Normalize to -π to π
-      while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-      while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-      
-      // Smooth rotation toward movement direction (faster for responsive feel)
-      const autoRotateSpeed = 8.0; // radians per second
-      const maxRotateThisFrame = autoRotateSpeed * deltaTime;
-      if (Math.abs(rotDiff) > maxRotateThisFrame) {
-        newRotation += Math.sign(rotDiff) * maxRotateThisFrame;
-      } else {
-        newRotation = targetRotation;
-      }
-    }
-    // No input = no movement, no rotation change
-  } else {
-    // ANIMAL-RELATIVE MODE: Original behavior
-    const isMoving = input.forward || input.backward;
-    const baseMultiplier = isMoving ? 0.5 : 1.0;
-    const intensity = input.rotationIntensity ?? 1.0;
-    const rotationMultiplier = baseMultiplier * intensity;
-    
-    let desiredRotation = newRotation;
-    if (input.rotateLeft) {
-      desiredRotation -= rotationSpeed * rotationMultiplier * deltaTime;
-    }
-    if (input.rotateRight) {
-      desiredRotation += rotationSpeed * rotationMultiplier * deltaTime;
-    }
-    
-    // Sweep rotation to find safe angle
-    newRotation = sweepRotation(
-      newX, 
-      newY, 
-      newRotation, 
-      desiredRotation, 
-      capsule, 
-      maze, 
-      rocks, 
-      characters, 
-      animalType
-    );
-
-    if (input.forward) {
-      moveX += Math.sin(newRotation) * moveSpeed * deltaTime;
-      moveY -= Math.cos(newRotation) * moveSpeed * deltaTime;
-    }
-    if (input.backward) {
-      moveX -= Math.sin(newRotation) * moveSpeed * deltaTime;
-      moveY += Math.cos(newRotation) * moveSpeed * deltaTime;
-    }
+  let desiredRotation = newRotation;
+  if (input.rotateLeft) {
+    desiredRotation -= rotationSpeed * rotationMultiplier * deltaTime;
   }
+  if (input.rotateRight) {
+    desiredRotation += rotationSpeed * rotationMultiplier * deltaTime;
+  }
+  
+  // Sweep rotation to find safe angle
+  newRotation = sweepRotation(
+    newX, 
+    newY, 
+    newRotation, 
+    desiredRotation, 
+    capsule, 
+    maze, 
+    rocks, 
+    characters, 
+    animalType
+  );
 
   // ========================================
   // STEP 3: SWEPT TRANSLATION
   // Use binary search to find safe position along movement
   // ========================================
+  let moveX = 0;
+  let moveY = 0;
+
+  if (input.forward) {
+    moveX += Math.sin(newRotation) * moveSpeed * deltaTime;
+    moveY -= Math.cos(newRotation) * moveSpeed * deltaTime;
+  }
+  if (input.backward) {
+    moveX -= Math.sin(newRotation) * moveSpeed * deltaTime;
+    moveY += Math.cos(newRotation) * moveSpeed * deltaTime;
+  }
 
   if (moveX !== 0 || moveY !== 0) {
     const sweepResult = sweepTranslation(
