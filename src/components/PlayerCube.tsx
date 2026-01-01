@@ -320,13 +320,14 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     const CAPSULE_RADIUS = 0.15;  // Slightly larger radius
     const DEBUG_Y = 0.45;  // Raised more to match model offset
     
-    // Use centralized yOffset from CharacterConfig
+    // Use centralized yOffset and scale from CharacterConfig
     const pigYOffset = getCharacterYOffset('Pig.glb');
+    const pigScale = getCharacterScale('Pig.glb');
     
     return (
       <group position={position}>
         <group ref={innerGroupRef}>
-          <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, pigYOffset, 0]} />
+          <primitive object={clonedPigScene} scale={[pigScale, pigScale, pigScale]} position={[0, pigYOffset, 0]} />
         </group>
         
         {/* Debug ground plane - shows y=0 level to help adjust yOffset */}
