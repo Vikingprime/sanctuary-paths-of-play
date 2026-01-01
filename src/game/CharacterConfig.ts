@@ -21,14 +21,14 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
   // rotationOffset corrects model's default facing direction to match raycast expectations
   'Farmer.glb': {
     scale: 0.55,
-    yOffset: 0.15, // Raised from 0.0 - feet were under ground
+    yOffset: 0.05, // Lowered from 0.15
     height: 1.8,
     rotationOffset: Math.PI,
     debugPlaneColor: '#00ff00',
   },
   'Animated_Woman.glb': {
     scale: 0.20,
-    yOffset: 0.10, // Raised from -0.10 - feet were under ground
+    yOffset: 0.05, // Lowered from 0.10
     height: 1.7,
     rotationOffset: Math.PI,
     debugPlaneColor: '#ff00ff',
@@ -42,25 +42,25 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     debugPlaneColor: '#0088ff',
   },
   'Pig.glb': {
-    scale: 0.30, // Reduced from 0.35 - make smaller
-    yOffset: 0.30, // Raised from 0.20 - was under ground
+    scale: 0.25, // Reduced from 0.30 - make even smaller
+    yOffset: 0.30,
     height: 0.5,
     debugPlaneColor: '#ff8800',
   },
   'Hen.glb': {
-    scale: 0.20, // Reduced from 0.25 - make smaller
+    scale: 0.15, // Reduced from 0.20 - make even smaller
     yOffset: 0.30,
     height: 0.35,
     debugPlaneColor: '#ffff00',
   },
   'Hen_idle.glb': {
-    scale: 0.20,
+    scale: 0.15,
     yOffset: 0.30,
     height: 0.35,
     debugPlaneColor: '#ffff00',
   },
   'Hen_walk.glb': {
-    scale: 0.20,
+    scale: 0.15,
     yOffset: 0.30,
     height: 0.35,
     debugPlaneColor: '#ffff00',
