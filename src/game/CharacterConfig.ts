@@ -21,14 +21,14 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
   // rotationOffset corrects model's default facing direction to match raycast expectations
   'Farmer.glb': {
     scale: 0.55,
-    yOffset: 0.05, // Lowered from 0.15
+    yOffset: 0,
     height: 1.8,
     rotationOffset: Math.PI,
     debugPlaneColor: '#00ff00',
   },
   'Animated_Woman.glb': {
     scale: 0.20,
-    yOffset: 0.05, // Lowered from 0.10
+    yOffset: 0,
     height: 1.7,
     rotationOffset: Math.PI,
     debugPlaneColor: '#ff00ff',
