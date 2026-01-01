@@ -754,7 +754,7 @@ export const MazeGame3D = ({
         topDownCamera={topDownCamera}
         groundLevelCamera={groundLevelCamera}
         showCollisionDebug={showCollisionDebug}
-        cameraRelativeMovement={true}  // EXPERIMENTAL: Camera-relative movement mode
+        cameraRelativeMovement={false}  // EXPERIMENTAL: Camera-relative movement mode
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
