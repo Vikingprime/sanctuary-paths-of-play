@@ -3,13 +3,17 @@
  * 
  * Centralized configuration for character model sizes and settings.
  * Use this to ensure consistent character sizing across the game.
+ * 
+ * DEBUG: Enable debug mode to see colored ground planes under each character.
+ * Use this to fine-tune yOffset values so models' feet touch the ground.
  */
 
 export interface CharacterModelConfig {
   scale: number;
-  yOffset?: number; // Optional vertical offset
+  yOffset?: number; // Vertical offset - adjust so feet touch ground (y=0)
   height?: number; // Approximate world-space height of the character (for camera framing)
   rotationOffset?: number; // Rotation offset in radians to correct model's default facing direction
+  debugPlaneColor?: string; // Color for debug ground plane (HSL format preferred)
 }
 
 export const CharacterConfig: Record<string, CharacterModelConfig> = {
@@ -20,39 +24,46 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     yOffset: -0.05,
     height: 1.8, // Tall human
     rotationOffset: Math.PI, // Farmer model faces opposite direction, rotate 180°
+    debugPlaneColor: '#00ff00', // Green - goal character
   },
   'Animated_Woman.glb': {
     scale: 0.20,
     yOffset: -0.15,
     height: 1.7, // Tall human
     rotationOffset: Math.PI, // Same correction as Farmer
+    debugPlaneColor: '#ff00ff', // Magenta - female NPC
   },
   
-  // Animals
+  // Animals (player-controlled)
   'Cow.glb': {
     scale: 0.4,
     yOffset: 0,
     height: 1.4, // Large animal
+    debugPlaneColor: '#0088ff', // Blue - cow player
   },
   'Pig.glb': {
     scale: 0.35,
     yOffset: 0,
     height: 0.5, // Small animal - needs close camera framing
+    debugPlaneColor: '#ff8800', // Orange - pig player
   },
   'Hen.glb': {
     scale: 0.25,
     yOffset: 0,
     height: 0.35, // Very small - needs very close camera framing
+    debugPlaneColor: '#ffff00', // Yellow - chicken player
   },
   'Hen_idle.glb': {
     scale: 0.25,
     yOffset: 0,
     height: 0.35,
+    debugPlaneColor: '#ffff00',
   },
   'Hen_walk.glb': {
     scale: 0.25,
     yOffset: 0,
     height: 0.35,
+    debugPlaneColor: '#ffff00',
   },
 } as const;
 
@@ -87,4 +98,12 @@ export function getCharacterHeight(modelFile: string): number {
  */
 export function getCharacterRotationOffset(modelFile: string): number {
   return CharacterConfig[modelFile]?.rotationOffset ?? 0;
+}
+
+/**
+ * Get the debug plane color for a character model.
+ * Falls back to white if not specified.
+ */
+export function getCharacterDebugPlaneColor(modelFile: string): string {
+  return CharacterConfig[modelFile]?.debugPlaneColor ?? '#ffffff';
 }
