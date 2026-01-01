@@ -48,19 +48,19 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     debugPlaneColor: '#ff8800',
   },
   'Hen.glb': {
-    scale: 0.075, // Halved from 0.15
+    scale: 0.004,
     yOffset: 0.30,
     height: 0.35,
     debugPlaneColor: '#ffff00',
   },
   'Hen_idle.glb': {
-    scale: 0.075,
+    scale: 0.004,
     yOffset: 0.30,
     height: 0.35,
     debugPlaneColor: '#ffff00',
   },
   'Hen_walk.glb': {
-    scale: 0.075,
+    scale: 0.004,
     yOffset: 0.30,
     height: 0.35,
     debugPlaneColor: '#ffff00',
