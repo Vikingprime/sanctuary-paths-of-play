@@ -1905,7 +1905,7 @@ const CutsceneCameraController = ({
 }) => {
   const { camera } = useThree();
   
-  const CAMERA_HEIGHT = 1.0;  // Lower camera for better framing
+  const CAMERA_HEIGHT = 1.5;  // Raised 0.5 units for better character visibility
   const LOOK_HEIGHT = 0.9;   // Look at farmer's chest/face level
   const ZOOM_DISTANCE = 1.8; // Closer to center the farmer
   
