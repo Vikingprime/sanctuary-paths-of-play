@@ -1,29 +1,20 @@
 import { useRef, useCallback, MutableRefObject, useEffect, useState } from 'react';
 import { PlayerState } from '@/game/GameLogic';
 
-// Tuning knobs - simplified controls
+// Tuning knobs - directional movement controls
 export const MOBILE_CONTROL_CONFIG = {
-  // Dead zone - tiny! Only stop if truly centered
-  deadZonePercent: 0.02,
+  // Dead zone - small zone where no movement occurs
+  deadZonePercent: 0.03,
   
   // Maximum joystick radius as percentage of screen height
   maxRadiusPercent: 0.15,
   
-  // Drift lerp speed
-  driftSpeed: 0.08,
-  
   // Speeds
-  forwardSpeed: 1.0,
-  reverseSpeed: 0.5,
+  moveSpeed: 1.0,
   
-  // Turn rate
-  turnRate: 3.0,
-  maxTurnRate: 3.0,
-  
-  // Counter-Steer Dampening
-  dampeningDuration: 0.2,     // Seconds to dampen turn rate after direction flip
-  dampeningRecovery: 0.1,     // Seconds to lerp back to full turn rate
-  dampeningFactor: 0.3,       // Reduce to 30% turn rate during dampening (70% reduction)
+  // Turn rate for smooth rotation toward target direction
+  turnRate: 4.0,       // How fast to turn toward target direction (rad/s)
+  maxTurnRate: 4.0,
   
   // Visual sizes
   baseRadiusPercent: 0.06,
@@ -37,6 +28,7 @@ interface MobileControlsProps {
   isMovingRef: MutableRefObject<boolean>;
   throttleRef: MutableRefObject<number>;
   mobileTouchActiveRef: MutableRefObject<boolean>;
+  targetDirectionRef?: MutableRefObject<number | null>; // Target direction to face (radians)
   debugMode?: boolean;
 }
 
@@ -47,6 +39,7 @@ export const MobileControls = ({
   isMovingRef,
   throttleRef,
   mobileTouchActiveRef,
+  targetDirectionRef,
   debugMode = false
 }: MobileControlsProps) => {
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -58,15 +51,6 @@ export const MobileControls = ({
   
   // Track screen dimensions for normalization
   const screenDimensionsRef = useRef({ width: window.innerWidth, height: window.innerHeight });
-  
-  // Smoothed input values for lerp
-  const smoothedThrottleRef = useRef<number>(0);
-  const smoothedYawRateRef = useRef<number>(0);
-  
-  // Counter-Steer Dampening state
-  const lastXSignRef = useRef<number>(0); // -1, 0, or 1
-  const dampeningStartTimeRef = useRef<number | null>(null);
-  const lastFrameTimeRef = useRef<number>(performance.now());
   
   // Visual state for joystick
   const [joystickState, setJoystickState] = useState<{
@@ -93,17 +77,18 @@ export const MobileControls = ({
     activePointerIdRef.current = null;
     anchorRef.current = null;
     fingerRef.current = null;
-    smoothedThrottleRef.current = 0;
-    smoothedYawRateRef.current = 0;
     yawRateRef.current = 0;
     throttleRef.current = 0;
     isMovingRef.current = false;
     mobileTouchActiveRef.current = false;
+    if (targetDirectionRef) {
+      targetDirectionRef.current = null;
+    }
     setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
     
     // Update screen dimensions
     screenDimensionsRef.current = { width: window.innerWidth, height: window.innerHeight };
-  }, [yawRateRef, throttleRef, isMovingRef, mobileTouchActiveRef]);
+  }, [yawRateRef, throttleRef, isMovingRef, mobileTouchActiveRef, targetDirectionRef]);
 
   // Track last known orientation to detect actual orientation changes
   const lastOrientationRef = useRef<'portrait' | 'landscape'>(
@@ -166,148 +151,116 @@ export const MobileControls = ({
     };
   }, [resetControls]);
 
-  // Animation loop for drift anchor and controls update
+  // Animation loop for controls update
   useEffect(() => {
     const updateLoop = () => {
-      const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, maxTurnRate, 
-              dampeningDuration, dampeningRecovery, dampeningFactor } = MOBILE_CONTROL_CONFIG;
-      
-      // Calculate delta time for dampening timers
-      const now = performance.now();
-      const deltaTime = (now - lastFrameTimeRef.current) / 1000;
-      lastFrameTimeRef.current = now;
+      const { moveSpeed, turnRate, maxTurnRate } = MOBILE_CONTROL_CONFIG;
       
       // Get current pixel values based on screen height
       const { deadZone, maxRadius } = getPixelValues();
       
       if (anchorRef.current && fingerRef.current) {
-        // Calculate offset from anchor to finger
-        let dx = fingerRef.current.x - anchorRef.current.x;
-        let dy = fingerRef.current.y - anchorRef.current.y;
+        // Calculate offset from anchor to finger (anchor is FIXED, no drifting)
+        const dx = fingerRef.current.x - anchorRef.current.x;
+        const dy = fingerRef.current.y - anchorRef.current.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // Drift anchor if beyond max radius
+        // Clamp knob position to max radius for visuals
+        let clampedKnobX = fingerRef.current.x;
+        let clampedKnobY = fingerRef.current.y;
+        
         if (distance > maxRadius) {
-          const excess = distance - maxRadius;
-          const normalizedDx = dx / distance;
-          const normalizedDy = dy / distance;
-          
-          anchorRef.current.x += normalizedDx * excess * driftSpeed;
-          anchorRef.current.y += normalizedDy * excess * driftSpeed;
-          
-          // Recalculate offset after drift
-          dx = fingerRef.current.x - anchorRef.current.x;
-          dy = fingerRef.current.y - anchorRef.current.y;
+          const scale = maxRadius / distance;
+          clampedKnobX = anchorRef.current.x + dx * scale;
+          clampedKnobY = anchorRef.current.y + dy * scale;
         }
         
-        const currentDistance = Math.sqrt(dx * dx + dy * dy);
-        
-        // Update visuals
+        // Update visuals with clamped knob position
         setJoystickState({
           visible: true,
           baseX: anchorRef.current.x,
           baseY: anchorRef.current.y,
-          knobX: fingerRef.current.x,
-          knobY: fingerRef.current.y,
+          knobX: clampedKnobX,
+          knobY: clampedKnobY,
         });
         
-        // Target values
-        let targetThrottle = 0;
-        let targetYawRate = 0;
-        
         // Dead zone check - outside deadzone = movement
-        if (currentDistance >= deadZone) {
-          // === SIMPLE DIRECTION LOGIC ===
-          // Dragging down (positive dy in screen coords) = reverse
-          // Dragging up/left/right = forward
-          // Use a simple threshold: if dy > 60% of distance, it's reverse
-          const isReverse = dy > 0 && dy > currentDistance * 0.6;
+        if (distance >= deadZone) {
+          // === DIRECTIONAL MOVEMENT ===
+          // Convert screen drag direction to world direction
+          // Screen: +X is right, +Y is down
+          // World: rotation 0 = facing north (-Z), rotation increases clockwise
+          // Joystick down (dy > 0) = south = rotation PI
+          // Joystick right (dx > 0) = east = rotation PI/2
           
-          // Fixed speed: 100% forward or reverse based on direction
-          if (isReverse) {
-            targetThrottle = -reverseSpeed;
-          } else {
-            targetThrottle = forwardSpeed;
+          // Calculate target direction from joystick
+          // atan2(dx, dy) gives angle where down=0, right=PI/2
+          // We need to convert to world where north=0
+          // Screen down = world south (PI), so add PI
+          const joystickAngle = Math.atan2(dx, dy);
+          const targetDirection = joystickAngle + Math.PI;
+          
+          // Normalize to [-PI, PI]
+          let normalizedTarget = targetDirection;
+          while (normalizedTarget > Math.PI) normalizedTarget -= Math.PI * 2;
+          while (normalizedTarget < -Math.PI) normalizedTarget += Math.PI * 2;
+          
+          // Set target direction for the movement system to rotate toward
+          if (targetDirectionRef) {
+            targetDirectionRef.current = normalizedTarget;
           }
           
-          // === STEERING ===
-          // Use X component directly for steering
-          const normalizedX = dx / maxRadius;
-          // Clamp to -1 to 1
-          const clampedX = Math.max(-1, Math.min(1, normalizedX));
+          // Calculate yaw rate to turn toward target direction
+          const currentRotation = playerStateRef.current.rotation;
+          let angleDiff = normalizedTarget - currentRotation;
           
-          // Simple squared curve for smooth control
-          const curvedX = clampedX * Math.abs(clampedX);
+          // Normalize angle difference to [-PI, PI]
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
           
-          // === COUNTER-STEER DAMPENING ===
-          // Detect direction flip (sign change in X input)
-          const currentXSign = clampedX > 0.1 ? 1 : clampedX < -0.1 ? -1 : 0;
+          // Calculate yaw rate proportional to angle difference
+          // Faster turn when far from target, slower when close
+          const absAngleDiff = Math.abs(angleDiff);
           
-          // Check for direction flip (sign changed and both are non-zero)
-          if (currentXSign !== 0 && lastXSignRef.current !== 0 && currentXSign !== lastXSignRef.current) {
-            // Trigger dampening window
-            dampeningStartTimeRef.current = now;
+          // Use a proportional controller with clamping
+          let rawYawRate = angleDiff * turnRate;
+          
+          // Clamp to max turn rate
+          rawYawRate = Math.max(-maxTurnRate, Math.min(maxTurnRate, rawYawRate));
+          
+          yawRateRef.current = rawYawRate;
+          
+          // Always move forward (in the direction we're facing)
+          // Speed scales with joystick distance
+          const speedScale = Math.min(distance / maxRadius, 1.0);
+          throttleRef.current = moveSpeed * speedScale;
+          
+          isMovingRef.current = true;
+          
+          // Debug logging (throttled)
+          if (debugMode && Date.now() - lastDebugLogRef.current > 200) {
+            lastDebugLogRef.current = Date.now();
+            console.log('[Mobile] target:', (normalizedTarget * 180 / Math.PI).toFixed(0) + '°',
+                        'current:', (currentRotation * 180 / Math.PI).toFixed(0) + '°',
+                        'yawRate:', yawRateRef.current.toFixed(2));
           }
-          
-          // Update last X sign (only if significant input)
-          if (currentXSign !== 0) {
-            lastXSignRef.current = currentXSign;
-          }
-          
-          // Calculate turn rate multiplier based on dampening state
-          let turnRateMultiplier = 1.0;
-          
-          if (dampeningStartTimeRef.current !== null) {
-            const elapsed = (now - dampeningStartTimeRef.current) / 1000;
-            
-            if (elapsed < dampeningDuration) {
-              // In dampening window - reduce turn rate
-              turnRateMultiplier = dampeningFactor;
-            } else if (elapsed < dampeningDuration + dampeningRecovery) {
-              // In recovery phase - lerp back to 100%
-              const recoveryProgress = (elapsed - dampeningDuration) / dampeningRecovery;
-              turnRateMultiplier = dampeningFactor + (1.0 - dampeningFactor) * recoveryProgress;
-            } else {
-              // Dampening complete
-              dampeningStartTimeRef.current = null;
-              turnRateMultiplier = 1.0;
-            }
-          }
-          
-          // Calculate turn rate with dampening applied
-          let rawTurnRate = curvedX * turnRate * turnRateMultiplier;
-          
-          // Invert steering when reversing
-          if (isReverse) {
-            rawTurnRate = -rawTurnRate;
-          }
-          
-          // Cap turn rate
-          targetYawRate = Math.max(-maxTurnRate, Math.min(maxTurnRate, rawTurnRate));
         } else {
-          // In dead zone - reset X sign tracking
-          lastXSignRef.current = 0;
-        }
-        
-        // Apply values directly
-        throttleRef.current = targetThrottle;
-        yawRateRef.current = targetYawRate;
-        
-        isMovingRef.current = Math.abs(throttleRef.current) > 0.05;
-        
-        // Debug logging (throttled)
-        if (debugMode && Date.now() - lastDebugLogRef.current > 200) {
-          lastDebugLogRef.current = Date.now();
-          console.log('[Mobile] throttle:', throttleRef.current.toFixed(2),
-                      'yawRate:', yawRateRef.current.toFixed(2));
+          // In dead zone - no movement
+          throttleRef.current = 0;
+          yawRateRef.current = 0;
+          isMovingRef.current = false;
+          if (targetDirectionRef) {
+            targetDirectionRef.current = null;
+          }
         }
       } else {
-        // No touch active - stop immediately and reset dampening
+        // No touch active - stop
         throttleRef.current = 0;
         yawRateRef.current = 0;
         isMovingRef.current = false;
-        lastXSignRef.current = 0;
-        dampeningStartTimeRef.current = null;
+        if (targetDirectionRef) {
+          targetDirectionRef.current = null;
+        }
       }
       
       animationFrameRef.current = requestAnimationFrame(updateLoop);
@@ -320,7 +273,7 @@ export const MobileControls = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [debugMode, isMovingRef, throttleRef, yawRateRef, getPixelValues]);
+  }, [debugMode, isMovingRef, throttleRef, yawRateRef, targetDirectionRef, playerStateRef, getPixelValues]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (activePointerIdRef.current !== null) return;
@@ -329,6 +282,7 @@ export const MobileControls = ({
     e.stopPropagation();
     
     activePointerIdRef.current = e.pointerId;
+    // Anchor is FIXED at initial touch point
     anchorRef.current = { x: e.clientX, y: e.clientY };
     fingerRef.current = { x: e.clientX, y: e.clientY };
     
@@ -363,6 +317,7 @@ export const MobileControls = ({
     e.preventDefault();
     e.stopPropagation();
     
+    // Only update finger position, anchor stays fixed
     fingerRef.current = { x: e.clientX, y: e.clientY };
   }, []);
 
@@ -380,6 +335,9 @@ export const MobileControls = ({
     throttleRef.current = 0;
     isMovingRef.current = false;
     mobileTouchActiveRef.current = false;
+    if (targetDirectionRef) {
+      targetDirectionRef.current = null;
+    }
     
     setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
     
@@ -392,7 +350,7 @@ export const MobileControls = ({
     if (debugMode) {
       console.log('[Mobile] pointerup - stopped');
     }
-  }, [mobileTouchActiveRef, yawRateRef, throttleRef, isMovingRef, debugMode]);
+  }, [mobileTouchActiveRef, yawRateRef, throttleRef, isMovingRef, targetDirectionRef, debugMode]);
 
   // Get current pixel values for rendering
   const { baseRadius, knobRadius } = getPixelValues();
