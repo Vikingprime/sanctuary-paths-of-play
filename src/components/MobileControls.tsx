@@ -394,6 +394,28 @@ export const MobileControls = ({
     }
   }, [mobileTouchActiveRef, yawRateRef, throttleRef, isMovingRef, debugMode]);
 
+  // Handle pointer leaving the window - clears stuck drag state
+  const handlePointerLeave = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    // Only reset if we have an active pointer that matches
+    if (activePointerIdRef.current === null) return;
+    
+    // Clear everything to prevent stuck state
+    activePointerIdRef.current = null;
+    anchorRef.current = null;
+    fingerRef.current = null;
+    
+    yawRateRef.current = 0;
+    throttleRef.current = 0;
+    isMovingRef.current = false;
+    mobileTouchActiveRef.current = false;
+    
+    setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
+    
+    if (debugMode) {
+      console.log('[Mobile] pointerleave - cleared stuck state');
+    }
+  }, [mobileTouchActiveRef, yawRateRef, throttleRef, isMovingRef, debugMode]);
+
   // Get current pixel values for rendering
   const { baseRadius, knobRadius } = getPixelValues();
 
@@ -406,6 +428,7 @@ export const MobileControls = ({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
         onPointerCancel={handlePointerEnd}
+        onPointerLeave={handlePointerLeave}
         style={{
           position: 'fixed',
           top: 0,
