@@ -769,8 +769,14 @@ export const InstancedWalls = ({
           ? mesh.material.map(m => optimizeMaterial(m.clone(), playerPosUniform))
           : optimizeMaterial(mesh.material.clone(), playerPosUniform);
         
+        // Clone geometry - scale down corn cobs to 0.75x
+        const clonedGeometry = mesh.geometry.clone();
+        if (isCornCob) {
+          clonedGeometry.scale(0.75, 0.75, 0.75);
+        }
+        
         const meshData = {
-          geometry: mesh.geometry.clone(),
+          geometry: clonedGeometry,
           material: optimizedMaterial
         };
         
