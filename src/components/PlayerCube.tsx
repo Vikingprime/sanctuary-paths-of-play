@@ -315,7 +315,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   if (animalType === 'pig') {
     // Debug capsule collider - matches GameLogic.ts getAnimalCapsule
     // Adjusted: shorter length, larger radius, lower Y
-    const CAPSULE_START = -0.25;  // Moved inward from -0.30
+    const CAPSULE_START = -0.32;  // Extended back a bit more
     const CAPSULE_END = 0.45;     // Shortened from 0.55
     const CAPSULE_RADIUS = 0.18;  // Increased from 0.15
     const DEBUG_Y = 0.35;  // Lowered from 0.45
