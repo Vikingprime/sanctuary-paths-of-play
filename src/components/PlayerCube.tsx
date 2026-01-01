@@ -318,7 +318,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     const CAPSULE_START = -0.30;  // Extended back for rear/tail
     const CAPSULE_END = 0.55;     // Extended far forward for snout
     const CAPSULE_RADIUS = 0.15;  // Slightly larger radius
-    const DEBUG_Y = 0.35;  // Raised to match model offset
+    const DEBUG_Y = 0.45;  // Raised more to match model offset
     
     // Use centralized yOffset from CharacterConfig
     const pigYOffset = getCharacterYOffset('Pig.glb');
@@ -369,7 +369,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     const CAPSULE_RADIUS = 0.18;  // Body radius
     const HEAD_OFFSET = 0.95;     // Extra head sphere
     const HEAD_RADIUS = 0.15;
-    const DEBUG_Y = 0.55;  // Raised to match model offset
+    const DEBUG_Y = 0.65;  // Raised more to overlap with head
     
     // Use centralized yOffset from CharacterConfig
     const cowYOffset = getCharacterYOffset('Cow.glb');
