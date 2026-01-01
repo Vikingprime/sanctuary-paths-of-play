@@ -354,7 +354,7 @@ const generateEdgeTransforms = (
         const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
         
         const baseScale = 100;
-        const heightMultiplier = 0.81; // Reduced from 0.9 (0.9 * 0.9)
+        const heightMultiplier = 0.891; // 0.81 * 1.1
         const widthMultiplier = 0.7;
         const heightVariation = 1.2 + seededRandom(stalkSeed + 3) * 0.05;
         const widthScale = baseScale * heightVariation * widthMultiplier;
@@ -416,7 +416,7 @@ const generateWallTransforms = (
         
         const rotation = seededRandom(stalkSeed + 2) * Math.PI * 2;
         const baseScale = 100;
-        const heightMultiplier = 0.81; // Reduced from 0.9 (0.9 * 0.9)
+        const heightMultiplier = 0.891; // 0.81 * 1.1
         const widthMultiplier = 0.7;
         const heightVariation = 1.2 + seededRandom(stalkSeed + 3) * 0.05;
         const widthScale = baseScale * heightVariation * widthMultiplier;
@@ -478,7 +478,7 @@ const generateBoundaryTransforms = (
         }
         
         const baseScale = 100;
-        const heightMultiplier = 0.81; // Reduced from 0.9 (0.9 * 0.9)
+        const heightMultiplier = 0.891; // 0.81 * 1.1
         const widthMultiplier = 0.7;
         const heightVariation = 1.2 + seededRandom(stalkSeed + 3) * 0.05;
         const widthScale = baseScale * heightVariation * widthMultiplier;
