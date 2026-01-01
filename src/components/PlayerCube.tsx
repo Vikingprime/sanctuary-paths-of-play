@@ -4,7 +4,7 @@ import { useGLTF, Clone } from '@react-three/drei';
 import { AnimationMixer, LoopRepeat, LoopOnce, DoubleSide } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
-import { getCharacterDebugPlaneColor } from '@/game/CharacterConfig';
+import { getCharacterDebugPlaneColor, getCharacterYOffset } from '@/game/CharacterConfig';
 
 // Play chicken sound on spawn
 const playChickenSound = () => {
@@ -320,13 +320,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     const CAPSULE_RADIUS = 0.15;  // Slightly larger radius
     const DEBUG_Y = 0.3;
     
-    // FIX: Raise pig model so feet touch ground at y=0
-    const PIG_Y_OFFSET = 0.05;
+    // Use centralized yOffset from CharacterConfig
+    const pigYOffset = getCharacterYOffset('Pig.glb');
     
     return (
       <group position={position}>
         <group ref={innerGroupRef}>
-          <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, PIG_Y_OFFSET, 0]} />
+          <primitive object={clonedPigScene} scale={[0.008, 0.008, 0.008]} position={[0, pigYOffset, 0]} />
         </group>
         
         {/* Debug ground plane - shows y=0 level to help adjust yOffset */}
@@ -371,10 +371,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     const HEAD_RADIUS = 0.15;
     const DEBUG_Y = 0.5;
     
+    // Use centralized yOffset from CharacterConfig
+    const cowYOffset = getCharacterYOffset('Cow.glb');
+    
     return (
       <group position={position}>
-        <group ref={cowGroupRef} position={[0, 0.15, 0]}>
-          <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.3, 0]} />
+        <group ref={cowGroupRef} position={[0, cowYOffset, 0]}>
+          <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.15, 0]} />
         </group>
         
         {/* Debug ground plane - shows y=0 level to help adjust yOffset */}
@@ -422,15 +425,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   const CAPSULE_RADIUS = 0.08;
   const DEBUG_Y = 0.2;
   
-  // FIX: The chicken model's origin is at its body center, not feet.
-  // We need a positive Y offset to raise the model so feet touch ground.
-  // At scale 0.008, the model's visual half-height is roughly 0.15-0.2 units.
-  const CHICKEN_Y_OFFSET = 0.15;
+  // Use centralized yOffset from CharacterConfig
+  const chickenYOffset = getCharacterYOffset('Hen.glb');
   
   return (
     <group position={position}>
       <group ref={innerGroupRef}>
-        <primitive object={clonedHenScene} scale={[0.008, 0.008, 0.008]} position={[0, CHICKEN_Y_OFFSET, 0]} />
+        <primitive object={clonedHenScene} scale={[0.008, 0.008, 0.008]} position={[0, chickenYOffset, 0]} />
       </group>
       
       {/* Debug grounding visualization */}
