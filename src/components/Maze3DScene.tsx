@@ -2101,7 +2101,7 @@ return (
         position={[15, 35, 15]}
         intensity={3.5}
         color="#FFFDF5"
-        castShadow
+        castShadow={shadowsEnabled}
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={0.5}
         shadow-camera-far={100}
