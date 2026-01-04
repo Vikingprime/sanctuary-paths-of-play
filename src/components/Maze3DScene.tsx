@@ -77,6 +77,7 @@ interface Maze3DSceneProps {
   rocksEnabled?: boolean;
   animationsEnabled?: boolean;
   opacityFadeEnabled?: boolean;
+  cornEnabled?: boolean;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -1220,39 +1221,43 @@ const RefBasedPlayer = ({
       let input: MovementInput;
       
       if (mobileActive) {
-        // MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)
+        // MOBILE MODE: Gesture-relative steering
+        // MobileControls now sets playerStateRef.current.rotation directly
+        // yawRateRef.current = 0 signals that rotation is already handled
         const yawRate = mobileYawRateRef?.current ?? 0;
-        let newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
         
-        // === ANGULAR SNAPPING (Cardinal Alignment Assist) ===
-        // If rotation is within ~5 degrees of a cardinal direction and not actively turning hard
-        const cardinalSnapThreshold = 0.087; // ~5 degrees
-        const cardinalSnapStrength = 0.03;
-        const absYawRate = Math.abs(yawRate);
-        
-        // Only snap when not turning hard (yaw rate < 0.5)
-        if (absYawRate < 0.5) {
-          // Cardinal directions: 0, π/2, π, 3π/2 (N, E, S, W)
-          const cardinals = [0, Math.PI / 2, Math.PI, Math.PI * 1.5, Math.PI * 2];
+        // Only apply cardinal snapping if yawRate is non-zero (legacy mode)
+        // In gesture-relative mode (yawRate = 0), skip rotation handling entirely
+        if (Math.abs(yawRate) > 0.001) {
+          let newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
           
-          for (const cardinal of cardinals) {
-            let diff = newRotation - cardinal;
-            // Normalize diff to -π to π
-            if (diff > Math.PI) diff -= Math.PI * 2;
-            if (diff < -Math.PI) diff += Math.PI * 2;
+          // === ANGULAR SNAPPING (Cardinal Alignment Assist) ===
+          const cardinalSnapThreshold = 0.087; // ~5 degrees
+          const cardinalSnapStrength = 0.03;
+          const absYawRate = Math.abs(yawRate);
+          
+          // Only snap when not turning hard (yaw rate < 0.5)
+          if (absYawRate < 0.5) {
+            const cardinals = [0, Math.PI / 2, Math.PI, Math.PI * 1.5, Math.PI * 2];
             
-            if (Math.abs(diff) < cardinalSnapThreshold) {
-              // Snap toward cardinal direction
-              newRotation = normalizeAngle(newRotation - diff * cardinalSnapStrength);
-              break;
+            for (const cardinal of cardinals) {
+              let diff = newRotation - cardinal;
+              if (diff > Math.PI) diff -= Math.PI * 2;
+              if (diff < -Math.PI) diff += Math.PI * 2;
+              
+              if (Math.abs(diff) < cardinalSnapThreshold) {
+                newRotation = normalizeAngle(newRotation - diff * cardinalSnapStrength);
+                break;
+              }
             }
           }
+          
+          playerStateRef.current = {
+            ...playerStateRef.current,
+            rotation: newRotation
+          };
         }
-        
-        playerStateRef.current = {
-          ...playerStateRef.current,
-          rotation: newRotation
-        };
+        // If yawRate is 0, rotation was already set by MobileControls - don't touch it
         
         // Get throttle value (-1 to 1, supports reverse)
         const throttle = mobileThrottleRef?.current ?? 0;
@@ -1985,7 +1990,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2130,14 +2135,16 @@ return (
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} />
       
-      {/* Maze Walls (corn) with optimizations */}
-      <MazeWalls 
-        ref={foliageGroupRef}
-        maze={maze} 
-        playerStateRef={playerStateRef}
-        optimizationSettings={cornOptimizationSettings}
-        onCullStats={onCullStats}
-      />
+      {/* Maze Walls (corn) with optimizations - toggleable for performance testing */}
+      {cornEnabled && (
+        <MazeWalls 
+          ref={foliageGroupRef}
+          maze={maze} 
+          playerStateRef={playerStateRef}
+          optimizationSettings={cornOptimizationSettings}
+          onCullStats={onCullStats}
+        />
+      )}
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (
