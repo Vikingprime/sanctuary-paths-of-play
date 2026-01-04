@@ -17,9 +17,9 @@ export const MOBILE_CONTROL_CONFIG = {
   reverseSpeed: 0.5,
   
   // Gesture-relative turning config
-  maxTurnPx: 100,        // Pixels of drag for full turn angle
-  maxTurnAngle: Math.PI * 0.75, // Maximum turn angle from baseline (135 degrees)
-  turnLerpSpeed: 0.15,   // Light smoothing for heading assignment
+  maxTurnPx: 150,        // Pixels of drag for full turn angle (increased for less sensitivity)
+  maxTurnAngle: Math.PI * 0.35, // Maximum turn angle from baseline (63 degrees - much tighter)
+  turnLerpSpeed: 0.12,   // Light smoothing for heading assignment
   
   // Visual sizes
   baseRadiusPercent: 0.06,
