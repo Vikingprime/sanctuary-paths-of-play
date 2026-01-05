@@ -130,8 +130,8 @@ function isPositionBlocked(
 
 /**
  * Check if a position WITH A SPECIFIC DIRECTION is blocked
- * This simulates the cow's capsule collider (head and tail) based on travel direction
- * Used near obstacles to ensure the cow can actually fit through at the given angle
+ * This simulates the cow's full capsule collider based on travel direction
+ * Checks head, tail, AND side points to ensure the cow can actually fit through
  */
 function isPositionBlockedWithDirection(
   maze: Maze,
@@ -151,33 +151,52 @@ function isPositionBlockedWithDirection(
   
   // Calculate rotation from direction (direction 0 = moving north = -Y)
   const rotation = directionToRadians(direction);
+  const sinRot = Math.sin(rotation);
+  const cosRot = Math.cos(rotation);
   
-  // Calculate head and tail positions based on direction
-  // sin(rotation) gives X component, -cos(rotation) gives Y component for our coord system
-  const headX = worldX + Math.sin(rotation) * COW_HEAD_OFFSET;
-  const headY = worldY - Math.cos(rotation) * COW_HEAD_OFFSET;
-  const tailX = worldX - Math.sin(rotation) * COW_TAIL_OFFSET;
-  const tailY = worldY + Math.cos(rotation) * COW_TAIL_OFFSET;
+  // Generate capsule check points: head, tail, and sides
+  // Forward/back direction: sin(rot) for X, -cos(rot) for Y
+  // Side direction (perpendicular): cos(rot) for X, sin(rot) for Y
+  const capsulePoints = [
+    // Head
+    { x: worldX + sinRot * COW_HEAD_OFFSET, y: worldY - cosRot * COW_HEAD_OFFSET },
+    // Tail
+    { x: worldX - sinRot * COW_TAIL_OFFSET, y: worldY + cosRot * COW_TAIL_OFFSET },
+    // Left side (midpoint)
+    { x: worldX - cosRot * COW_BODY_RADIUS, y: worldY - sinRot * COW_BODY_RADIUS },
+    // Right side (midpoint)
+    { x: worldX + cosRot * COW_BODY_RADIUS, y: worldY + sinRot * COW_BODY_RADIUS },
+    // Front-left
+    { x: worldX + sinRot * (COW_HEAD_OFFSET * 0.5) - cosRot * COW_BODY_RADIUS, 
+      y: worldY - cosRot * (COW_HEAD_OFFSET * 0.5) - sinRot * COW_BODY_RADIUS },
+    // Front-right
+    { x: worldX + sinRot * (COW_HEAD_OFFSET * 0.5) + cosRot * COW_BODY_RADIUS, 
+      y: worldY - cosRot * (COW_HEAD_OFFSET * 0.5) + sinRot * COW_BODY_RADIUS },
+    // Back-left
+    { x: worldX - sinRot * (COW_TAIL_OFFSET * 0.5) - cosRot * COW_BODY_RADIUS, 
+      y: worldY + cosRot * (COW_TAIL_OFFSET * 0.5) - sinRot * COW_BODY_RADIUS },
+    // Back-right
+    { x: worldX - sinRot * (COW_TAIL_OFFSET * 0.5) + cosRot * COW_BODY_RADIUS, 
+      y: worldY + cosRot * (COW_TAIL_OFFSET * 0.5) + sinRot * COW_BODY_RADIUS },
+  ];
   
-  // Check if head position collides with walls
-  if (isWall(maze, Math.floor(headX), Math.floor(headY))) return true;
-  if (isWall(maze, Math.floor(tailX), Math.floor(tailY))) return true;
+  // Check all capsule points against walls
+  for (const pt of capsulePoints) {
+    if (isWall(maze, Math.floor(pt.x), Math.floor(pt.y))) return true;
+  }
   
-  // Check if head/tail collide with obstacles (characters/stations)
+  // Check capsule points against obstacles (characters/stations)
   for (const blocked of blockedPositions) {
     const obstacleRadius = blocked.radius ?? 0.4;
-    const minClearance = COW_BODY_RADIUS + obstacleRadius;
+    // Use smaller clearance for capsule points since we're checking multiple points
+    const minClearance = 0.15 + obstacleRadius;
     const minClearanceSq = minClearance * minClearance;
     
-    // Check head
-    const headDx = headX - blocked.x;
-    const headDy = headY - blocked.y;
-    if (headDx * headDx + headDy * headDy < minClearanceSq) return true;
-    
-    // Check tail
-    const tailDx = tailX - blocked.x;
-    const tailDy = tailY - blocked.y;
-    if (tailDx * tailDx + tailDy * tailDy < minClearanceSq) return true;
+    for (const pt of capsulePoints) {
+      const dx = pt.x - blocked.x;
+      const dy = pt.y - blocked.y;
+      if (dx * dx + dy * dy < minClearanceSq) return true;
+    }
   }
   
   return false;
