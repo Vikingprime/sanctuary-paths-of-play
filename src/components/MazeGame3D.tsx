@@ -955,18 +955,20 @@ export const MazeGame3D = ({
               // else: fall through to pathfinding for medium-distance side taps
             }
             
-            // Build blocked positions from characters AND stations (for pathfinding to route around)
+            // Build blocked positions from characters AND stations with proper radii
+            // Using radius-based collision allows pathfinding to squeeze past when there's space
             const blockedPositions: BlockedPosition[] = [];
             if (maze.characters) {
               for (const char of maze.characters) {
-                blockedPositions.push({ x: char.position.x, y: char.position.y });
+                // Characters have a smaller collision radius (0.35) allowing squeeze-through
+                blockedPositions.push({ x: char.position.x, y: char.position.y, radius: 0.35 });
               }
             }
-            // Block station cells (map towers) - pathfinding should route around them
+            // Block station cells (map towers) with smaller radius for better navigation
             for (let y = 0; y < maze.grid.length; y++) {
               for (let x = 0; x < maze.grid[y].length; x++) {
                 if (maze.grid[y][x].isStation) {
-                  blockedPositions.push({ x: x + 0.5, y: y + 0.5 });
+                  blockedPositions.push({ x: x + 0.5, y: y + 0.5, radius: 0.3 });
                 }
               }
             }
