@@ -43,6 +43,12 @@ interface GameHUDProps {
   onToggleVerboseLogging?: () => void;
   losFaderEnabled?: boolean;
   onToggleLOSFader?: () => void;
+  // Path debug mode
+  pathDebugEnabled?: boolean;
+  onTogglePathDebug?: () => void;
+  pathDebugPaused?: boolean;
+  onTogglePathDebugPause?: () => void;
+  onPathDebugStep?: () => void;
   // Feature toggles for performance testing
   shadowsEnabled?: boolean;
   onToggleShadows?: () => void;
@@ -82,6 +88,12 @@ export const GameHUD = ({
   onToggleVerboseLogging,
   losFaderEnabled = true,
   onToggleLOSFader,
+  // Path debug
+  pathDebugEnabled = false,
+  onTogglePathDebug,
+  pathDebugPaused = false,
+  onTogglePathDebugPause,
+  onPathDebugStep,
   // New feature toggles
   shadowsEnabled = true,
   onToggleShadows,
@@ -250,6 +262,45 @@ export const GameHUD = ({
                 >
                   📝 Verbose {verboseLogging ? 'On' : 'Off'}
                 </button>
+              )}
+              {/* Path Debug Mode */}
+              {onTogglePathDebug && (
+                <button
+                  onClick={onTogglePathDebug}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    pathDebugEnabled ? 'text-purple-500' : 'text-muted-foreground'
+                  )}
+                  title="Show path waypoints and direction arrow"
+                >
+                  🛤️ Path {pathDebugEnabled ? 'On' : 'Off'}
+                </button>
+              )}
+              {/* Path Debug Step Controls - only show when path debug is on */}
+              {pathDebugEnabled && onTogglePathDebugPause && onPathDebugStep && (
+                <div className="flex gap-1">
+                  <button
+                    onClick={onTogglePathDebugPause}
+                    className={cn(
+                      'bg-card/90 backdrop-blur-sm rounded-xl px-2 py-2 shadow-lg font-display text-xs transition-colors',
+                      pathDebugPaused ? 'text-red-500' : 'text-green-500'
+                    )}
+                    title={pathDebugPaused ? 'Resume path' : 'Pause path'}
+                  >
+                    {pathDebugPaused ? '⏸️' : '▶️'}
+                  </button>
+                  <button
+                    onClick={onPathDebugStep}
+                    disabled={!pathDebugPaused}
+                    className={cn(
+                      'bg-card/90 backdrop-blur-sm rounded-xl px-2 py-2 shadow-lg font-display text-xs transition-colors',
+                      pathDebugPaused ? 'text-blue-500' : 'text-muted-foreground opacity-50'
+                    )}
+                    title="Step to next waypoint"
+                  >
+                    ⏭️
+                  </button>
+                </div>
               )}
             </div>
           )}
