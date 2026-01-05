@@ -4,7 +4,7 @@ import { Maze3DCanvas, PerformanceInfo } from './Maze3DScene';
 import { MazePreview } from './MazePreview';
 import { MiniMap } from './MiniMap';
 import { GameHUD } from './GameHUD';
-import { MobileControls } from './MobileControls';
+import { TapToMoveControls, usePathFollower, PathFollowerState } from './TapToMoveControls';
 import { MazeIntroSequence } from './MazeIntroSequence';
 import { Button } from '@/components/ui/button';
 import { Confetti } from '@/components/Confetti';
@@ -12,6 +12,7 @@ import { animals } from '@/data/animals';
 import { formatTime } from '@/lib/utils';
 import { setAutopushEnabled, setLOSFaderEnabled, setVerboseLogging } from '@/lib/debug';
 import { useBackButton } from '@/hooks/useBackButton';
+import { findPath, simplifyPath, PathPoint } from '@/game/Pathfinding';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -106,11 +107,14 @@ export const MazeGame3D = ({
   const [cornEnabled, setCornEnabled] = useState(true);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
-  // Mobile controls - yaw rate system (steering)
-  const mobileTargetYawRef = useRef<number>(startRotation); // Legacy - not used in new system
-  const mobileYawRateRef = useRef(0); // Yaw rate in radians/sec from steering
-  const mobileIsMovingRef = useRef(false);
-  const mobileThrottleRef = useRef(0); // Throttle: -1 (reverse) to 1 (forward)
+  
+  // Tap-to-move path following
+  const { stateRef: pathFollowerRef, setPath, clearPath } = usePathFollower();
+  const [targetMarker, setTargetMarker] = useState<{ x: number; z: number } | null>(null);
+  const [cameraOffset, setCameraOffset] = useState(0);
+  
+  // Ref for raycasting from screen coords to world
+  const raycastHandlerRef = useRef<((screenX: number, screenY: number) => { worldX: number; worldZ: number; hitCorn: boolean } | null) | null>(null);
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   
@@ -732,17 +736,15 @@ export const MazeGame3D = ({
         isMovingRef={isMovingRef}
         collectedPowerUps={collectedPowerUps}
         keysPressed={keysPressed}
-        mobileTargetYawRef={mobileTargetYawRef}
-        mobileYawRateRef={mobileYawRateRef}
-        mobileIsMovingRef={mobileIsMovingRef}
-        mobileThrottleRef={mobileThrottleRef}
-        mobileTouchActiveRef={mobileTouchActiveRef}
+        pathFollowerRef={pathFollowerRef}
+        cameraOffset={cameraOffset}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
         isMuted={isMuted}
         onSceneReady={() => setSceneReady(true)}
         onRendererInfo={setRendererInfo}
+        onRaycastHandlerReady={(handler) => { raycastHandlerRef.current = handler; }}
         debugMode={debugMode}
         restartKey={restartKey}
         dialogueTarget={activeDialogue ? (() => {
@@ -761,6 +763,7 @@ export const MazeGame3D = ({
         animationsEnabled={animationsEnabled}
         opacityFadeEnabled={opacityFadeEnabled}
         cornEnabled={cornEnabled}
+        targetMarker={targetMarker}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -819,16 +822,43 @@ export const MazeGame3D = ({
         />
       )}
 
-      {/* Mobile Controls - only render after preview ends to not block preview buttons */}
+      {/* Tap-to-Move Controls - only render after preview ends */}
       {!isPreviewing && (
-        <MobileControls 
-          playerStateRef={playerStateRef}
-          targetYawRef={mobileTargetYawRef}
-          yawRateRef={mobileYawRateRef}
-          isMovingRef={mobileIsMovingRef}
-          throttleRef={mobileThrottleRef}
-          mobileTouchActiveRef={mobileTouchActiveRef}
+        <TapToMoveControls 
+          onTap={(screenX, screenY) => {
+            // Use the raycast handler from the 3D scene
+            if (!raycastHandlerRef.current) return;
+            
+            const result = raycastHandlerRef.current(screenX, screenY);
+            if (!result) return;
+            
+            const { worldX, worldZ, hitCorn } = result;
+            
+            // If tapped on corn, ignore (can't walk through corn)
+            if (hitCorn) {
+              if (debugMode) console.log('[TapMove] Tapped on corn - ignoring');
+              return;
+            }
+            
+            // Find path from current position to tapped position
+            const playerX = playerStateRef.current.x;
+            const playerY = playerStateRef.current.y;
+            
+            const path = findPath(maze, playerX, playerY, worldX, worldZ);
+            
+            if (path && path.length > 0) {
+              // Simplify path to reduce waypoints
+              const simplifiedPath = simplifyPath(path);
+              setPath(simplifiedPath, { x: worldX, y: worldZ });
+              setTargetMarker({ x: worldX, z: worldZ });
+              if (debugMode) console.log('[TapMove] Path found with', simplifiedPath.length, 'waypoints');
+            } else {
+              if (debugMode) console.log('[TapMove] No path found to', worldX.toFixed(1), worldZ.toFixed(1));
+            }
+          }}
+          onCameraOffsetChange={setCameraOffset}
           debugMode={debugMode}
+          disabled={showMiniMap || showMapOptions || mapCountdown !== null || activeDialogue !== null}
         />
       )}
 
