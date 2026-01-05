@@ -1257,9 +1257,15 @@ const RefBasedPlayer = ({
             const targetRotation = Math.atan2(dx, -dy);
             const currentRotation = playerStateRef.current.rotation;
             
-            // Normalize both angles to ensure shortest path
-            let rotDiff = normalizeAngle(targetRotation - currentRotation);
+            // Normalize both angles to [-PI, PI] for consistent shortest-path
+            const normalizedTarget = normalizeAngle(targetRotation);
+            const normalizedCurrent = normalizeAngle(currentRotation);
+            let rotDiff = normalizeAngle(normalizedTarget - normalizedCurrent);
             
+            // DEBUG: Log turning info when rotation difference is significant
+            if (Math.abs(rotDiff) > 0.1) {
+              console.log(`[Turn] Target=${(normalizedTarget * 180 / Math.PI).toFixed(1)}° Current=${(normalizedCurrent * 180 / Math.PI).toFixed(1)}° Diff=${(rotDiff * 180 / Math.PI).toFixed(1)}° Waypoint=(${wp.x.toFixed(2)},${wp.y.toFixed(2)}) dx=${dx.toFixed(2)} dy=${dy.toFixed(2)}`);
+            }
             
             // Turn toward waypoint using clamped turn rate
             const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
