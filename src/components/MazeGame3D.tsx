@@ -882,12 +882,27 @@ export const MazeGame3D = ({
             const playerX = playerStateRef.current.x;
             const playerY = playerStateRef.current.y;
             
-            // Ignore taps that are too close - prevents infinite turning
+            // For very close taps, just turn to face that direction (no movement)
             const distToTap = Math.sqrt(
               Math.pow(worldX - playerX, 2) + Math.pow(worldZ - playerY, 2)
             );
-            if (distToTap < 0.5) {
-              if (debugMode) console.log('[TapMove] Tap too close, ignoring');
+            
+            if (distToTap < 1.0) {
+              // Close tap - turn in place toward that direction
+              const dx = worldX - playerX;
+              const dz = worldZ - playerY;
+              const targetRotation = Math.atan2(dx, -dz);
+              
+              // Create a single waypoint slightly ahead in that direction (for turn-in-place)
+              // Distance of 0.3 is enough to trigger rotation but close enough to stop immediately
+              const turnPoint = {
+                x: playerX + Math.sin(targetRotation) * 0.3,
+                y: playerY - Math.cos(targetRotation) * 0.3
+              };
+              
+              console.log('[TapMove] Close tap - turning in place toward:', (targetRotation * 180 / Math.PI).toFixed(1) + '°');
+              setPath([turnPoint], turnPoint);
+              setTargetMarker({ x: turnPoint.x, z: turnPoint.y });
               return;
             }
             
