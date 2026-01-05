@@ -62,7 +62,7 @@ interface Maze3DSceneProps {
   lowPixelRatio?: boolean;
   onRendererInfo?: (info: PerformanceInfo) => void;
   onCullStats?: (stats: CullStats) => void;
-  onRaycastHandlerReady?: (handler: (screenX: number, screenY: number) => { worldX: number; worldZ: number; hitCorn: boolean } | null) => void;
+  onRaycastHandlerReady?: (handler: (screenX: number, screenY: number) => { worldX: number; worldZ: number; clickedOnCorn: boolean } | null) => void;
   debugMode?: boolean;
   restartKey?: number; // Increment to force camera reset
   dialogueTarget?: DialogueTarget | null; // Active dialogue speaker position for cutscene camera
@@ -2184,8 +2184,9 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const groundIntersect = useRef(new Vector3());
   
   // Create raycast handler for tap-to-move
-  // This checks if the ray passes through corn BEFORE hitting ground
-  const raycastHandler = useCallback((screenX: number, screenY: number): { worldX: number; worldZ: number; hitCorn: boolean } | null => {
+  // Returns ground intersection and whether the clicked cell is corn
+  // We no longer block ray-through-corn here - pathfinding will handle routing around corners
+  const raycastHandler = useCallback((screenX: number, screenY: number): { worldX: number; worldZ: number; clickedOnCorn: boolean } | null => {
     // Convert screen coords to normalized device coords
     pointer.current.x = (screenX / size.width) * 2 - 1;
     pointer.current.y = -(screenY / size.height) * 2 + 1;
@@ -2204,42 +2205,15 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     const worldX = groundIntersect.current.x;
     const worldZ = groundIntersect.current.z;
     
-    // Check if this position is in a wall (corn)
+    // Check if this position is directly in a wall (corn) cell
     const gridX = Math.floor(worldX);
     const gridZ = Math.floor(worldZ);
     const clickedOnCorn = isWall(maze, gridX, gridZ);
     
-    // CRITICAL: Also check if the ray passes through ANY corn between camera and ground
-    // This prevents clicking "through" corn to paths on the other side
-    const cameraPos = camera.position;
-    const rayLength = Math.sqrt(
-      (worldX - cameraPos.x) ** 2 + 
-      (cameraPos.y) ** 2 + 
-      (worldZ - cameraPos.z) ** 2
-    );
+    // No longer blocking ray-through-corn - if a valid path exists, allow it
+    // This enables clicking around visible corners even if ray passes through corn
     
-    // Sample points along the ray to check for corn intersections
-    const numSamples = Math.ceil(rayLength * 2); // Check every ~0.5 units
-    let rayPassesThroughCorn = false;
-    
-    for (let i = 1; i < numSamples; i++) {
-      const sampleT = i / numSamples;
-      const sampleX = cameraPos.x + (worldX - cameraPos.x) * sampleT;
-      const sampleZ = cameraPos.z + (worldZ - cameraPos.z) * sampleT;
-      const sampleY = cameraPos.y * (1 - sampleT); // Y goes from camera height to 0
-      
-      // Only check points that are roughly at corn height (0-3 units)
-      if (sampleY > 0 && sampleY < 3) {
-        const sampleGridX = Math.floor(sampleX);
-        const sampleGridZ = Math.floor(sampleZ);
-        if (isWall(maze, sampleGridX, sampleGridZ)) {
-          rayPassesThroughCorn = true;
-          break;
-        }
-      }
-    }
-    
-    return { worldX, worldZ, hitCorn: clickedOnCorn || rayPassesThroughCorn };
+    return { worldX, worldZ, clickedOnCorn };
   }, [camera, size, maze]);
   
   // Register raycast handler with parent

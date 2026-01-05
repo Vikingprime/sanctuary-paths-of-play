@@ -117,7 +117,7 @@ export const MazeGame3D = ({
   const [cameraOffset, setCameraOffset] = useState(0);
   
   // Ref for raycasting from screen coords to world
-  const raycastHandlerRef = useRef<((screenX: number, screenY: number) => { worldX: number; worldZ: number; hitCorn: boolean } | null) | null>(null);
+  const raycastHandlerRef = useRef<((screenX: number, screenY: number) => { worldX: number; worldZ: number; clickedOnCorn: boolean } | null) | null>(null);
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   
@@ -870,11 +870,11 @@ export const MazeGame3D = ({
             const result = raycastHandlerRef.current(screenX, screenY);
             if (!result) return;
             
-            const { worldX, worldZ, hitCorn } = result;
+            const { worldX, worldZ, clickedOnCorn } = result;
             
-            // If tapped on corn, ignore (can't walk through corn)
-            if (hitCorn) {
-              if (debugMode) console.log('[TapMove] Tapped on corn - ignoring');
+            // If tapped directly on corn cell, ignore
+            if (clickedOnCorn) {
+              if (debugMode) console.log('[TapMove] Clicked directly on corn - ignoring');
               return;
             }
             
@@ -888,6 +888,14 @@ export const MazeGame3D = ({
             );
             if (distToTap < 0.5) {
               if (debugMode) console.log('[TapMove] Tap too close, ignoring');
+              return;
+            }
+            
+            // Limit tap distance to fog visibility radius (~7 units at 0.14 density)
+            // Fog formula: visibility ≈ 2.5 / density = 2.5/0.14 ≈ 17, but practical visibility ~7
+            const MAX_TAP_DISTANCE = 7.0;
+            if (distToTap > MAX_TAP_DISTANCE) {
+              if (debugMode) console.log('[TapMove] Tap too far (in fog), ignoring');
               return;
             }
             
