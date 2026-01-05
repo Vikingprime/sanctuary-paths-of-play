@@ -117,7 +117,7 @@ export const MazeGame3D = ({
   const [cameraOffset, setCameraOffset] = useState(0);
   
   // Ref for raycasting from screen coords to world
-  const raycastHandlerRef = useRef<((screenX: number, screenY: number) => { worldX: number; worldZ: number; clickedOnCorn: boolean } | null) | null>(null);
+  const raycastHandlerRef = useRef<((screenX: number, screenY: number) => { worldX: number; worldZ: number; clickedOnCorn: boolean; cornEdgeX?: number; cornEdgeZ?: number } | null) | null>(null);
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   
@@ -879,43 +879,61 @@ export const MazeGame3D = ({
               return;
             }
             
-            let { worldX, worldZ, clickedOnCorn } = result;
+            let { worldX, worldZ, clickedOnCorn, cornEdgeX, cornEdgeZ } = result;
             console.log(`[TAP] World coords: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)}) clickedOnCorn=${clickedOnCorn}`);
             
             // Find path from current position to tapped position
             const playerX = playerStateRef.current.x;
             const playerY = playerStateRef.current.y;
             
-            // If tapped directly on corn cell, find nearest valid position
+            // If tapped directly on corn cell, use the corn edge position if available
             if (clickedOnCorn) {
-              // Try to find a valid position by moving toward the player
-              const dx = playerX - worldX;
-              const dz = playerY - worldZ;
-              const dist = Math.sqrt(dx * dx + dz * dz);
+              // First check if corn edge position is valid and usable
+              if (cornEdgeX !== undefined && cornEdgeZ !== undefined) {
+                const edgeGridX = Math.floor(cornEdgeX);
+                const edgeGridZ = Math.floor(cornEdgeZ);
+                const edgeIsWall = edgeGridZ >= 0 && edgeGridZ < maze.grid.length && 
+                                   edgeGridX >= 0 && edgeGridX < maze.grid[0].length && 
+                                   maze.grid[edgeGridZ][edgeGridX].isWall;
+                
+                if (!edgeIsWall) {
+                  console.log(`[TAP] Using corn edge position: (${cornEdgeX.toFixed(2)}, ${cornEdgeZ.toFixed(2)})`);
+                  worldX = cornEdgeX;
+                  worldZ = cornEdgeZ;
+                  clickedOnCorn = false;
+                }
+              }
               
-              if (dist > 0.1) {
-                // Search along the line toward player for a non-corn spot
-                for (let step = 0.25; step <= 2.0; step += 0.25) {
-                  const testX = worldX + (dx / dist) * step;
-                  const testZ = worldZ + (dz / dist) * step;
-                  const testGridX = Math.floor(testX);
-                  const testGridZ = Math.floor(testZ);
-                  
-                  const isWall = testGridZ >= 0 && testGridZ < maze.grid.length && 
-                                 testGridX >= 0 && testGridX < maze.grid[0].length && 
-                                 maze.grid[testGridZ][testGridX].isWall;
-                  
-                  if (!isWall) {
-                    worldX = testX;
-                    worldZ = testZ;
-                    clickedOnCorn = false;
-                    console.log(`[TAP] Adjusted corn click to: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`);
-                    break;
+              // If still on corn (no valid edge found), try moving toward player
+              if (clickedOnCorn) {
+                const dx = playerX - worldX;
+                const dz = playerY - worldZ;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                
+                if (dist > 0.1) {
+                  // Search along the line toward player for a non-corn spot
+                  for (let step = 0.25; step <= 2.0; step += 0.25) {
+                    const testX = worldX + (dx / dist) * step;
+                    const testZ = worldZ + (dz / dist) * step;
+                    const testGridX = Math.floor(testX);
+                    const testGridZ = Math.floor(testZ);
+                    
+                    const isWall = testGridZ >= 0 && testGridZ < maze.grid.length && 
+                                   testGridX >= 0 && testGridX < maze.grid[0].length && 
+                                   maze.grid[testGridZ][testGridX].isWall;
+                    
+                    if (!isWall) {
+                      worldX = testX;
+                      worldZ = testZ;
+                      clickedOnCorn = false;
+                      console.log(`[TAP] Adjusted corn click to: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`);
+                      break;
+                    }
                   }
                 }
               }
               
-              // If still on corn after adjustment, ignore
+              // If still on corn after all adjustments, ignore
               if (clickedOnCorn) {
                 console.log('[TAP] ❌ REJECTED: Could not find valid position near corn');
                 return;
