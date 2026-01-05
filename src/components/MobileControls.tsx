@@ -233,18 +233,18 @@ export const MobileControls = ({
           playerStateRef.current.rotation = targetHeading;
           currentHeadingRef.current = targetHeading;
           yawRateRef.current = 0;
+          
+          // Debug logging with full info
+          if (Date.now() - lastDebugLogRef.current > 200) {
+            lastDebugLogRef.current = Date.now();
+            const toDeg = (r: number) => ((r * 180 / Math.PI) % 360).toFixed(0);
+            console.log(`[Mobile] joystick: dx=${dx.toFixed(2)} dy=${dy.toFixed(2)} angle=${toDeg(joystickAngle)}° | baseline=${toDeg(turnStartHeadingRef.current)}° | target=${toDeg(targetHeading)}° | actual=${toDeg(playerStateRef.current.rotation)}°`);
+          }
         }
         
         // Apply throttle
         throttleRef.current = targetThrottle;
         isMovingRef.current = Math.abs(throttleRef.current) > 0.05;
-        
-        // Debug logging (throttled)
-        if (debugMode && Date.now() - lastDebugLogRef.current > 200) {
-          lastDebugLogRef.current = Date.now();
-          console.log('[Mobile] throttle:', throttleRef.current.toFixed(2),
-                      'heading:', currentHeadingRef.current.toFixed(2));
-        }
       } else {
         // No touch active - stop immediately
         throttleRef.current = 0;
