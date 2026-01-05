@@ -955,22 +955,44 @@ export const MazeGame3D = ({
               // else: fall through to pathfinding for medium-distance side taps
             }
             
-            // Build blocked positions from characters (for pathfinding to route around)
-            // Note: We only block CHARACTER positions, not station cells
-            // Stations are walkable - collision handles the actual blocking
+            // Build blocked positions from characters AND stations (for pathfinding to route around)
             const blockedPositions: BlockedPosition[] = [];
             if (maze.characters) {
               for (const char of maze.characters) {
                 blockedPositions.push({ x: char.position.x, y: char.position.y });
               }
             }
-            // Don't block station cells - they're walkable around, collision handles stopping
+            // Block station cells (map towers) - pathfinding should route around them
+            for (let y = 0; y < maze.grid.length; y++) {
+              for (let x = 0; x < maze.grid[y].length; x++) {
+                if (maze.grid[y][x].isStation) {
+                  blockedPositions.push({ x: x + 0.5, y: y + 0.5 });
+                }
+              }
+            }
             
-            const path = findPath(maze, playerX, playerY, worldX, worldZ, blockedPositions);
+            let path = findPath(maze, playerX, playerY, worldX, worldZ, blockedPositions);
+            
+            // If no path found, try adjusting destination slightly toward player
+            // This helps when clicking near blocked areas (stations, characters)
+            if (!path || path.length === 0) {
+              const dx = playerX - worldX;
+              const dz = playerY - worldZ;
+              const adjustDist = Math.sqrt(dx * dx + dz * dz);
+              if (adjustDist > 0.5) {
+                // Try a point 0.5 units back toward player
+                const adjustedX = worldX + (dx / adjustDist) * 0.5;
+                const adjustedZ = worldZ + (dz / adjustDist) * 0.5;
+                path = findPath(maze, playerX, playerY, adjustedX, adjustedZ, blockedPositions);
+                if (path && path.length > 0) {
+                  console.log('[TapMove] Adjusted destination to avoid blocked area');
+                }
+              }
+            }
             
             // Check if path exists and calculate walking distance
             if (!path || path.length === 0) {
-              if (debugMode) console.log('[TapMove] No path found, ignoring');
+              console.log('[TapMove] No path found, ignoring');
               return;
             }
             
