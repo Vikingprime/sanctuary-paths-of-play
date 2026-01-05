@@ -1251,15 +1251,15 @@ const RefBasedPlayer = ({
             }
           } else {
             // Steer toward waypoint - use shortest rotation
-            // atan2(dx, dy) gives angle where 0° = +Y direction, positive = clockwise
-            const targetRotation = Math.atan2(dx, dy);
+            // Movement uses sin(rot) for X and -cos(rot) for Y, so:
+            // rotation=0 → moves -Y, rotation=π → moves +Y
+            // atan2(dx, -dy) gives correct angle for this system
+            const targetRotation = Math.atan2(dx, -dy);
             const currentRotation = playerStateRef.current.rotation;
             
             // Normalize both angles to ensure shortest path
             let rotDiff = normalizeAngle(targetRotation - currentRotation);
             
-            // DEBUG: Log each frame's rotation calculation
-            console.log(`[PathFollow] wp=${pathState.currentWaypointIndex} pos=(${playerX.toFixed(2)},${playerY.toFixed(2)}) target=(${wp.x.toFixed(2)},${wp.y.toFixed(2)}) delta=(${dx.toFixed(2)},${dy.toFixed(2)}) targetRot=${(targetRotation*180/Math.PI).toFixed(1)}° currRot=${(currentRotation*180/Math.PI).toFixed(1)}° rotDiff=${(rotDiff*180/Math.PI).toFixed(1)}°`);
             
             // Turn toward waypoint using clamped turn rate
             const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
