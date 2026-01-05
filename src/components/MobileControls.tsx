@@ -259,7 +259,14 @@ export const MobileControls = ({
         throttleRef.current = targetThrottle;
         isMovingRef.current = Math.abs(throttleRef.current) > 0.05;
       } else {
-        // No touch active - stop immediately
+        // No touch active - log if rotation is still changing
+        const currentRot = playerStateRef.current.rotation;
+        if (Math.abs(currentRot - currentHeadingRef.current) > 0.01) {
+          console.log(`[Mobile] INACTIVE but rotation changed: was ${currentHeadingRef.current.toFixed(2)} now ${currentRot.toFixed(2)}`);
+          currentHeadingRef.current = currentRot;
+        }
+        
+        // Stop immediately
         throttleRef.current = 0;
         yawRateRef.current = 0;
         isMovingRef.current = false;
