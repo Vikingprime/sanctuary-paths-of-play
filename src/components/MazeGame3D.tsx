@@ -879,18 +879,48 @@ export const MazeGame3D = ({
               return;
             }
             
-            const { worldX, worldZ, clickedOnCorn } = result;
+            let { worldX, worldZ, clickedOnCorn } = result;
             console.log(`[TAP] World coords: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)}) clickedOnCorn=${clickedOnCorn}`);
-            
-            // If tapped directly on corn cell, ignore
-            if (clickedOnCorn) {
-              console.log('[TAP] ❌ REJECTED: Clicked directly on corn cell');
-              return;
-            }
             
             // Find path from current position to tapped position
             const playerX = playerStateRef.current.x;
             const playerY = playerStateRef.current.y;
+            
+            // If tapped directly on corn cell, find nearest valid position
+            if (clickedOnCorn) {
+              // Try to find a valid position by moving toward the player
+              const dx = playerX - worldX;
+              const dz = playerY - worldZ;
+              const dist = Math.sqrt(dx * dx + dz * dz);
+              
+              if (dist > 0.1) {
+                // Search along the line toward player for a non-corn spot
+                for (let step = 0.25; step <= 2.0; step += 0.25) {
+                  const testX = worldX + (dx / dist) * step;
+                  const testZ = worldZ + (dz / dist) * step;
+                  const testGridX = Math.floor(testX);
+                  const testGridZ = Math.floor(testZ);
+                  
+                  const isWall = testGridZ >= 0 && testGridZ < maze.grid.length && 
+                                 testGridX >= 0 && testGridX < maze.grid[0].length && 
+                                 maze.grid[testGridZ][testGridX].isWall;
+                  
+                  if (!isWall) {
+                    worldX = testX;
+                    worldZ = testZ;
+                    clickedOnCorn = false;
+                    console.log(`[TAP] Adjusted corn click to: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`);
+                    break;
+                  }
+                }
+              }
+              
+              // If still on corn after adjustment, ignore
+              if (clickedOnCorn) {
+                console.log('[TAP] ❌ REJECTED: Could not find valid position near corn');
+                return;
+              }
+            }
             
             // For very close taps, handle specially to avoid pathfinding issues near obstacles
             const distToTap = Math.sqrt(
