@@ -891,14 +891,6 @@ export const MazeGame3D = ({
               return;
             }
             
-            // Limit tap distance to fog visibility radius (~7 units at 0.14 density)
-            // Fog formula: visibility ≈ 2.5 / density = 2.5/0.14 ≈ 17, but practical visibility ~7
-            const MAX_TAP_DISTANCE = 7.0;
-            if (distToTap > MAX_TAP_DISTANCE) {
-              if (debugMode) console.log('[TapMove] Tap too far (in fog), ignoring');
-              return;
-            }
-            
             // Build blocked positions from characters (towers, NPCs)
             const blockedPositions: BlockedPosition[] = [];
             if (maze.characters) {
@@ -917,19 +909,41 @@ export const MazeGame3D = ({
             
             const path = findPath(maze, playerX, playerY, worldX, worldZ, blockedPositions);
             
-            // DEBUG: Log new destination tap
-            const currentRotDeg = (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1);
-            console.log(`[NewTap] From=(${playerX.toFixed(2)},${playerY.toFixed(2)}) To=(${worldX.toFixed(2)},${worldZ.toFixed(2)}) CurrentRotation=${currentRotDeg}° PathFound=${!!path}`);
-            if (path && path.length > 0) {
-              console.log(`[NewTap] Path waypoints: ${path.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> ')}`);
+            // Check if path exists and calculate walking distance
+            if (!path || path.length === 0) {
+              if (debugMode) console.log('[TapMove] No path found, ignoring');
+              return;
             }
             
-            if (path && path.length > 0) {
-              // Path is already simplified by the fine-grid pathfinder
-              let simplifiedPath = path;
-              
-              console.log('[TapMove] Path:', simplifiedPath.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> '));
-              console.log('[TapMove] Player at:', playerX.toFixed(2), playerY.toFixed(2), 'rotation:', (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1) + '°');
+            // Calculate total walking distance along the path
+            let walkingDistance = 0;
+            let prevX = playerX;
+            let prevY = playerY;
+            for (const wp of path) {
+              walkingDistance += Math.sqrt(
+                Math.pow(wp.x - prevX, 2) + Math.pow(wp.y - prevY, 2)
+              );
+              prevX = wp.x;
+              prevY = wp.y;
+            }
+            
+            // Limit to max walking distance (prevents clicking to far-away sections)
+            const MAX_WALKING_DISTANCE = 5.0;
+            if (walkingDistance > MAX_WALKING_DISTANCE) {
+              if (debugMode) console.log(`[TapMove] Walking distance ${walkingDistance.toFixed(1)} > ${MAX_WALKING_DISTANCE}, ignoring`);
+              return;
+            }
+            
+            // DEBUG: Log new destination tap
+            const currentRotDeg = (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1);
+            console.log(`[NewTap] From=(${playerX.toFixed(2)},${playerY.toFixed(2)}) To=(${worldX.toFixed(2)},${worldZ.toFixed(2)}) CurrentRotation=${currentRotDeg}° WalkDist=${walkingDistance.toFixed(1)}`);
+            console.log(`[NewTap] Path waypoints: ${path.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> ')}`);
+            
+            // Path is already simplified by the fine-grid pathfinder
+            let simplifiedPath = path;
+            
+            console.log('[TapMove] Path:', simplifiedPath.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> '));
+            console.log('[TapMove] Player at:', playerX.toFixed(2), playerY.toFixed(2), 'rotation:', (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1) + '°');
               
               // Helper to normalize angle to [-PI, PI]
               const normalizeAngle = (angle: number): number => {
@@ -973,9 +987,6 @@ export const MazeGame3D = ({
               setPath(simplifiedPath, { x: worldX, y: worldZ });
               setTargetMarker({ x: worldX, z: worldZ });
               if (debugMode) console.log('[TapMove] Path found with', simplifiedPath.length, 'waypoints');
-            } else {
-              if (debugMode) console.log('[TapMove] No path found to', worldX.toFixed(1), worldZ.toFixed(1));
-            }
           }}
           onCameraOffsetChange={setCameraOffset}
           debugMode={debugMode}
