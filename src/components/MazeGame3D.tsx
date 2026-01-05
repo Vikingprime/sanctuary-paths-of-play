@@ -12,7 +12,7 @@ import { animals } from '@/data/animals';
 import { formatTime } from '@/lib/utils';
 import { setAutopushEnabled, setLOSFaderEnabled, setVerboseLogging } from '@/lib/debug';
 import { useBackButton } from '@/hooks/useBackButton';
-import { findPath, simplifyPath, PathPoint, BlockedPosition } from '@/game/Pathfinding';
+import { findPath, PathPoint, BlockedPosition } from '@/game/Pathfinding';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -908,11 +908,10 @@ export const MazeGame3D = ({
             }
             
             if (path && path.length > 0) {
-              // Simplify path to reduce waypoints
-              let simplifiedPath = simplifyPath(path);
+              // Path is already simplified by the fine-grid pathfinder
+              let simplifiedPath = path;
               
-              console.log('[TapMove] Raw path:', path.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> '));
-              console.log('[TapMove] Simplified path:', simplifiedPath.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> '));
+              console.log('[TapMove] Path:', simplifiedPath.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> '));
               console.log('[TapMove] Player at:', playerX.toFixed(2), playerY.toFixed(2), 'rotation:', (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1) + '°');
               
               // Helper to normalize angle to [-PI, PI]
