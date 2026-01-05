@@ -850,6 +850,10 @@ export const MazeGame3D = ({
               // Simplify path to reduce waypoints
               let simplifiedPath = simplifyPath(path);
               
+              console.log('[TapMove] Raw path:', path.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> '));
+              console.log('[TapMove] Simplified path:', simplifiedPath.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> '));
+              console.log('[TapMove] Player at:', playerX.toFixed(2), playerY.toFixed(2), 'rotation:', (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1) + '°');
+              
               // Skip waypoints that are too close to the player
               // This ensures the first waypoint is far enough to give a good steering direction
               while (simplifiedPath.length > 1) {
@@ -859,6 +863,7 @@ export const MazeGame3D = ({
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 
                 if (dist < 0.5) {
+                  console.log('[TapMove] Skipping close waypoint:', wp.x.toFixed(2), wp.y.toFixed(2), 'dist:', dist.toFixed(2));
                   simplifiedPath = simplifiedPath.slice(1);
                 } else {
                   break;
@@ -875,9 +880,14 @@ export const MazeGame3D = ({
                 
                 if (dist > 0.1) {
                   const pathAngle = Math.atan2(dx, -dy);
+                  console.log('[TapMove] First waypoint:', firstWp.x.toFixed(2), firstWp.y.toFixed(2));
+                  console.log('[TapMove] Delta:', dx.toFixed(2), dy.toFixed(2));
+                  console.log('[TapMove] Setting rotation to:', (pathAngle * 180 / Math.PI).toFixed(1) + '°');
                   playerStateRef.current.rotation = pathAngle;
                 }
               }
+              
+              console.log('[TapMove] Final path has', simplifiedPath.length, 'waypoints');
               
               setPath(simplifiedPath, { x: worldX, y: worldZ });
               setTargetMarker({ x: worldX, z: worldZ });
