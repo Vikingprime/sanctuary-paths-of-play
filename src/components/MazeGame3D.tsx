@@ -862,6 +862,13 @@ export const MazeGame3D = ({
             
             const path = findPath(maze, playerX, playerY, worldX, worldZ, blockedPositions);
             
+            // DEBUG: Log new destination tap
+            const currentRotDeg = (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1);
+            console.log(`[NewTap] From=(${playerX.toFixed(2)},${playerY.toFixed(2)}) To=(${worldX.toFixed(2)},${worldZ.toFixed(2)}) CurrentRotation=${currentRotDeg}° PathFound=${!!path}`);
+            if (path && path.length > 0) {
+              console.log(`[NewTap] Path waypoints: ${path.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> ')}`);
+            }
+            
             if (path && path.length > 0) {
               // Simplify path to reduce waypoints
               let simplifiedPath = simplifyPath(path);
