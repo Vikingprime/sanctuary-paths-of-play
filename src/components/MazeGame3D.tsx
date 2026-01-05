@@ -864,17 +864,27 @@ export const MazeGame3D = ({
       {!isPreviewing && (
         <TapToMoveControls 
           onTap={(screenX, screenY) => {
+            // ALWAYS log tap events for debugging
+            console.log(`[TAP] Screen coords: (${screenX}, ${screenY})`);
+            
             // Use the raycast handler from the 3D scene
-            if (!raycastHandlerRef.current) return;
+            if (!raycastHandlerRef.current) {
+              console.log('[TAP] ❌ REJECTED: No raycast handler available');
+              return;
+            }
             
             const result = raycastHandlerRef.current(screenX, screenY);
-            if (!result) return;
+            if (!result) {
+              console.log('[TAP] ❌ REJECTED: Raycast returned null (ray pointing away from ground?)');
+              return;
+            }
             
             const { worldX, worldZ, clickedOnCorn } = result;
+            console.log(`[TAP] World coords: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)}) clickedOnCorn=${clickedOnCorn}`);
             
             // If tapped directly on corn cell, ignore
             if (clickedOnCorn) {
-              if (debugMode) console.log('[TapMove] Clicked directly on corn - ignoring');
+              console.log('[TAP] ❌ REJECTED: Clicked directly on corn cell');
               return;
             }
             
@@ -887,6 +897,8 @@ export const MazeGame3D = ({
               Math.pow(worldX - playerX, 2) + Math.pow(worldZ - playerY, 2)
             );
             
+            console.log(`[TAP] Player at: (${playerX.toFixed(2)}, ${playerY.toFixed(2)}) rotation=${(playerStateRef.current.rotation * 180 / Math.PI).toFixed(1)}°`);
+            console.log(`[TAP] Distance to tap: ${distToTap.toFixed(2)} units`);
             
             if (distToTap < 1.5) {
               // Close tap - check if it's roughly forward or a turn
@@ -897,6 +909,8 @@ export const MazeGame3D = ({
               // Inline angle normalization to avoid declaration order issues
               const normAngle = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
               const angleDiff = Math.abs(normAngle(targetRotation - currentRotation));
+              
+              console.log(`[TAP] Close tap detected. Target rotation: ${(targetRotation * 180 / Math.PI).toFixed(1)}° angleDiff: ${(angleDiff * 180 / Math.PI).toFixed(1)}°`);
               
               // If tapping roughly forward (within 60°), move forward in that direction
               // This allows escaping from near obstacles without pathfinding
@@ -916,10 +930,12 @@ export const MazeGame3D = ({
                                      maze.grid[targetGridY][targetGridX].isWall;
                 
                 if (!isTargetWall) {
-                  console.log('[TapMove] Close forward tap - moving straight:', moveDistance.toFixed(1) + ' units');
+                  console.log(`[TAP] ✅ ACCEPTED: Close forward tap - moving straight ${moveDistance.toFixed(1)} units`);
                   setPath([forwardPoint], forwardPoint);
                   setTargetMarker({ x: forwardPoint.x, z: forwardPoint.y });
                   return;
+                } else {
+                  console.log(`[TAP] Close forward tap blocked by wall at grid (${targetGridX}, ${targetGridY})`);
                 }
               }
               
@@ -929,7 +945,7 @@ export const MazeGame3D = ({
                 y: playerY - Math.cos(targetRotation) * 0.3
               };
               
-              console.log('[TapMove] Close tap - turning in place toward:', (targetRotation * 180 / Math.PI).toFixed(1) + '°');
+              console.log(`[TAP] ✅ ACCEPTED: Close tap - turning in place toward ${(targetRotation * 180 / Math.PI).toFixed(1)}°`);
               setPath([turnPoint], turnPoint);
               setTargetMarker({ x: turnPoint.x, z: turnPoint.y });
               return;
