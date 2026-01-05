@@ -1257,6 +1257,9 @@ const RefBasedPlayer = ({
             // Normalize both angles to ensure shortest path
             let rotDiff = normalizeAngle(targetRotation - currentRotation);
             
+            // DEBUG: Log each frame's rotation calculation
+            console.log(`[PathFollow] wp=${pathState.currentWaypointIndex} pos=(${playerX.toFixed(2)},${playerY.toFixed(2)}) target=(${wp.x.toFixed(2)},${wp.y.toFixed(2)}) delta=(${dx.toFixed(2)},${dy.toFixed(2)}) targetRot=${(targetRotation*180/Math.PI).toFixed(1)}° currRot=${(currentRotation*180/Math.PI).toFixed(1)}° rotDiff=${(rotDiff*180/Math.PI).toFixed(1)}°`);
+            
             // Turn toward waypoint using clamped turn rate
             const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
             const turn = Math.max(-maxTurn, Math.min(maxTurn, rotDiff));
