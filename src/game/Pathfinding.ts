@@ -205,8 +205,8 @@ export function findPath(
         rawPath[rawPath.length - 1] = { x: goalX, y: goalY };
       }
       
-      // Simplify the path to reduce waypoints while keeping smooth turns
-      return simplifyFinePath(rawPath);
+      // Simplify the path using line-of-sight to remove unnecessary waypoints
+      return simplifyFinePath(rawPath, maze, blockedCells);
     }
     
     // Move current from open to closed
@@ -275,55 +275,98 @@ export function findPath(
 }
 
 /**
- * Simplify fine-grained path by removing unnecessary intermediate points
- * Keeps only points where direction changes significantly
+ * Simplify path using line-of-sight - aggressively removes unnecessary waypoints
+ * Only keeps waypoints that are necessary to avoid walls
  */
-function simplifyFinePath(path: PathPoint[]): PathPoint[] {
+function simplifyFinePath(path: PathPoint[], maze: Maze, blockedCells: Set<string>): PathPoint[] {
   if (path.length <= 2) return path;
   
   const simplified: PathPoint[] = [path[0]];
-  const MIN_ANGLE_CHANGE = 20 * (Math.PI / 180); // 20 degrees
-  const MIN_DISTANCE = 0.4; // Minimum distance between waypoints
+  let currentIdx = 0;
   
-  let lastAddedIdx = 0;
-  let lastDirection: number | null = null;
-  
-  for (let i = 1; i < path.length - 1; i++) {
-    const prev = path[lastAddedIdx];
-    const curr = path[i];
-    const next = path[i + 1];
+  while (currentIdx < path.length - 1) {
+    const current = path[currentIdx];
     
-    // Calculate direction from prev to curr
-    const dx1 = curr.x - prev.x;
-    const dy1 = curr.y - prev.y;
-    const dir1 = Math.atan2(dx1, -dy1);
+    // Look ahead to find the furthest point we can reach directly
+    let furthestVisible = currentIdx + 1;
     
-    // Calculate direction from curr to next
-    const dx2 = next.x - curr.x;
-    const dy2 = next.y - curr.y;
-    const dir2 = Math.atan2(dx2, -dy2);
-    
-    // Calculate angle change
-    let angleDiff = Math.abs(dir2 - dir1);
-    if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
-    
-    // Calculate distance from last added point
-    const distFromLast = Math.sqrt(
-      Math.pow(curr.x - prev.x, 2) + Math.pow(curr.y - prev.y, 2)
-    );
-    
-    // Add point if direction changes significantly AND we've traveled enough
-    if (angleDiff > MIN_ANGLE_CHANGE && distFromLast >= MIN_DISTANCE) {
-      simplified.push(curr);
-      lastAddedIdx = i;
-      lastDirection = dir2;
+    for (let lookAhead = path.length - 1; lookAhead > currentIdx + 1; lookAhead--) {
+      const target = path[lookAhead];
+      if (hasLineOfSightInternal(maze, current.x, current.y, target.x, target.y, blockedCells)) {
+        furthestVisible = lookAhead;
+        break;
+      }
     }
+    
+    // Add the furthest visible point (unless it's the last point, which we add at the end)
+    if (furthestVisible < path.length - 1) {
+      simplified.push(path[furthestVisible]);
+    }
+    currentIdx = furthestVisible;
   }
   
   // Always add the last point
   simplified.push(path[path.length - 1]);
   
   return simplified;
+}
+
+/**
+ * Internal line-of-sight check that uses the same blocked cells set
+ */
+function hasLineOfSightInternal(
+  maze: Maze,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  blockedCells: Set<string>,
+  checkRadius: number = 0.35
+): boolean {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  
+  if (dist < 0.1) return true;
+  
+  // Check along the line at regular intervals
+  const steps = Math.ceil(dist * 4); // Check every ~0.25 units
+  
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = fromX + dx * t;
+    const y = fromY + dy * t;
+    
+    const gridX = Math.floor(x);
+    const gridY = Math.floor(y);
+    
+    // Check center
+    if (isWall(maze, gridX, gridY)) return false;
+    if (blockedCells.has(`${gridX},${gridY}`)) return false;
+    
+    // Check adjacent cells if close to edge (for radius clearance)
+    const cellX = x - gridX;
+    const cellY = y - gridY;
+    
+    if (cellX < checkRadius) {
+      if (isWall(maze, gridX - 1, gridY)) return false;
+      if (blockedCells.has(`${gridX - 1},${gridY}`)) return false;
+    }
+    if (cellX > 1 - checkRadius) {
+      if (isWall(maze, gridX + 1, gridY)) return false;
+      if (blockedCells.has(`${gridX + 1},${gridY}`)) return false;
+    }
+    if (cellY < checkRadius) {
+      if (isWall(maze, gridX, gridY - 1)) return false;
+      if (blockedCells.has(`${gridX},${gridY - 1}`)) return false;
+    }
+    if (cellY > 1 - checkRadius) {
+      if (isWall(maze, gridX, gridY + 1)) return false;
+      if (blockedCells.has(`${gridX},${gridY + 1}`)) return false;
+    }
+  }
+  
+  return true;
 }
 
 /**
