@@ -848,7 +848,19 @@ export const MazeGame3D = ({
             
             if (path && path.length > 0) {
               // Simplify path to reduce waypoints
-              const simplifiedPath = simplifyPath(path);
+              let simplifiedPath = simplifyPath(path);
+              
+              // Skip the first waypoint if it's very close to player (same cell)
+              if (simplifiedPath.length > 1) {
+                const firstWp = simplifiedPath[0];
+                const distToFirst = Math.sqrt(
+                  (firstWp.x - playerX) ** 2 + (firstWp.y - playerY) ** 2
+                );
+                if (distToFirst < 0.5) {
+                  simplifiedPath = simplifiedPath.slice(1);
+                }
+              }
+              
               setPath(simplifiedPath, { x: worldX, y: worldZ });
               setTargetMarker({ x: worldX, z: worldZ });
               if (debugMode) console.log('[TapMove] Path found with', simplifiedPath.length, 'waypoints');
