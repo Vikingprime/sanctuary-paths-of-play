@@ -129,18 +129,43 @@ export function findPath(
     }
   }
   
-  // Quick check: if goal is blocked, no path possible
-  if (isPositionBlocked(maze, goalFineX, goalFineY, blockedCells)) {
-    return null;
+  // Quick check: if goal is blocked, try to find nearest unblocked point
+  // Use smaller radius for goal check to allow getting closer to obstacles
+  let finalGoalFineX = goalFineX;
+  let finalGoalFineY = goalFineY;
+  
+  if (isPositionBlocked(maze, goalFineX, goalFineY, blockedCells, 0.25)) {
+    // Try 8 directions around the goal to find an unblocked spot
+    const searchOffsets = [
+      { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 },
+      { x: 1, y: 1 }, { x: 1, y: -1 }, { x: -1, y: 1 }, { x: -1, y: -1 },
+      { x: 2, y: 0 }, { x: -2, y: 0 }, { x: 0, y: 2 }, { x: 0, y: -2 },
+    ];
+    
+    let foundAlternate = false;
+    for (const offset of searchOffsets) {
+      const altX = goalFineX + offset.x;
+      const altY = goalFineY + offset.y;
+      if (!isPositionBlocked(maze, altX, altY, blockedCells, 0.25)) {
+        finalGoalFineX = altX;
+        finalGoalFineY = altY;
+        foundAlternate = true;
+        break;
+      }
+    }
+    
+    if (!foundAlternate) {
+      return null;
+    }
   }
   
   // If start equals goal (within tolerance), return single point
   const distToGoal = Math.sqrt(
-    Math.pow((startFineX - goalFineX) * GRID_RESOLUTION, 2) +
-    Math.pow((startFineY - goalFineY) * GRID_RESOLUTION, 2)
+    Math.pow((startFineX - finalGoalFineX) * GRID_RESOLUTION, 2) +
+    Math.pow((startFineY - finalGoalFineY) * GRID_RESOLUTION, 2)
   );
   if (distToGoal < 0.3) {
-    return [{ x: goalX, y: goalY }];
+    return [{ x: finalGoalFineX * GRID_RESOLUTION, y: finalGoalFineY * GRID_RESOLUTION }];
   }
   
   const openSet: PathNode[] = [];
@@ -149,8 +174,8 @@ export function findPath(
   
   const heuristic = (x: number, y: number): number => {
     // Euclidean distance (better for 8-dir movement)
-    const dx = (x - goalFineX) * GRID_RESOLUTION;
-    const dy = (y - goalFineY) * GRID_RESOLUTION;
+    const dx = (x - finalGoalFineX) * GRID_RESOLUTION;
+    const dy = (y - finalGoalFineY) * GRID_RESOLUTION;
     return Math.sqrt(dx * dx + dy * dy);
   };
   
@@ -186,7 +211,7 @@ export function findPath(
     const current = openSet[lowestIdx];
     
     // Check if we reached the goal (within 1 fine grid cell)
-    const distToGoalNow = Math.abs(current.x - goalFineX) + Math.abs(current.y - goalFineY);
+    const distToGoalNow = Math.abs(current.x - finalGoalFineX) + Math.abs(current.y - finalGoalFineY);
     if (distToGoalNow <= 1) {
       // Reconstruct path
       const rawPath: PathPoint[] = [];
@@ -200,9 +225,12 @@ export function findPath(
         node = node.parent;
       }
       
-      // Replace last point with exact goal position
+      // Replace last point with the adjusted goal position
       if (rawPath.length > 0) {
-        rawPath[rawPath.length - 1] = { x: goalX, y: goalY };
+        rawPath[rawPath.length - 1] = { 
+          x: finalGoalFineX * GRID_RESOLUTION, 
+          y: finalGoalFineY * GRID_RESOLUTION 
+        };
       }
       
       // Simplify the path using line-of-sight to remove unnecessary waypoints
