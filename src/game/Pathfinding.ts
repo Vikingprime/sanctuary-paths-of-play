@@ -203,6 +203,44 @@ function isPositionBlockedWithDirection(
 }
 
 /**
+ * Check if the cow can rotate from one direction to another at a given position
+ * This simulates the capsule sweeping through intermediate angles during rotation
+ * Returns true if rotation would cause a collision (blocked)
+ */
+function isRotationBlocked(
+  maze: Maze,
+  fineX: number,
+  fineY: number,
+  fromDirection: number | undefined,
+  toDirection: number,
+  blockedPositions: BlockedPosition[]
+): boolean {
+  if (fromDirection === undefined) return false;
+  if (fromDirection === toDirection) return false;
+  
+  // Calculate the angular difference and direction
+  let diff = toDirection - fromDirection;
+  if (diff > 4) diff -= 8;
+  if (diff < -4) diff += 8;
+  
+  const steps = Math.abs(diff);
+  if (steps === 0) return false;
+  
+  // Check each intermediate angle during rotation
+  // For a 45° turn, check 1 intermediate; for 90°, check 2; etc.
+  const stepDir = diff > 0 ? 1 : -1;
+  
+  for (let i = 1; i <= steps; i++) {
+    const intermediateDir = (fromDirection + i * stepDir + 8) % 8;
+    if (isPositionBlockedWithDirection(maze, fineX, fineY, intermediateDir, blockedPositions)) {
+      return true; // Rotation blocked at this intermediate angle
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Check if a world position is inside a blocked obstacle (character or station)
  * This is used to reject destinations that are directly on obstacles
  */
@@ -440,55 +478,37 @@ export function findPath(
         if (isPositionBlocked(maze, current.x, current.y + dir.dy, blocked)) continue;
       }
       
-      // CAPSULE-AWARE CHECK: When near obstacles, also check if the cow's body would fit
-      // at this position with the current travel direction
+      // CAPSULE-AWARE COLLISION CHECK:
+      // 1. Check if the cow can ROTATE from current direction to the new direction at CURRENT position
+      // 2. Check if the cow can EXIST at the new position with the new direction
       const worldNx = nx * GRID_RESOLUTION;
       const worldNy = ny * GRID_RESOLUTION;
+      
+      // Determine if we're near any obstacle (use expanded check for rotation simulation)
       let nearObstacle = false;
-      let obstaclePenalty = 0;
       for (const obs of blocked) {
-        const dx = worldNx - obs.x;
-        const dy = worldNy - obs.y;
-        const distSq = dx * dx + dy * dy;
-        if (distSq < 2.0) { // Within 1.4 units of an obstacle
+        const dxCurrent = current.x * GRID_RESOLUTION - obs.x;
+        const dyCurrent = current.y * GRID_RESOLUTION - obs.y;
+        const dxNext = worldNx - obs.x;
+        const dyNext = worldNy - obs.y;
+        // Check both current and next position proximity
+        if (dxCurrent * dxCurrent + dyCurrent * dyCurrent < 2.5 ||
+            dxNext * dxNext + dyNext * dyNext < 2.5) {
           nearObstacle = true;
-          // Add cost for being close to obstacles (encourages going around)
-          const dist = Math.sqrt(distSq);
-          const obsRadius = obs.radius ?? 0.4;
-          // Penalty increases as we get closer to obstacle
-          if (dist < obsRadius + 0.8) {
-            obstaclePenalty += (obsRadius + 0.8 - dist) * 2.0;
-          }
+          break;
         }
       }
       
-      // If near an obstacle, do the more expensive capsule check with MULTIPLE angles
-      // This allows A* to discover that going around with a different approach angle works
       if (nearObstacle) {
-        // Check if this direction is blocked
+        // Step 1: Check if ROTATION at current position is blocked
+        // This is the key fix - if cow can't turn left here, this path is rejected
+        if (isRotationBlocked(maze, current.x, current.y, current.direction, dir.angle, blocked)) {
+          continue; // Can't rotate to face this direction - path blocked
+        }
+        
+        // Step 2: Check if destination position is valid with the travel direction
         if (isPositionBlockedWithDirection(maze, nx, ny, dir.angle, blocked)) {
-          // Before giving up, check if we can pass through at a tangent angle
-          // Try angles that would let the cow "squeeze" past
-          const tangentAngles = [
-            (dir.angle + 1) % 8,  // +45 degrees
-            (dir.angle + 7) % 8,  // -45 degrees
-            (dir.angle + 2) % 8,  // +90 degrees
-            (dir.angle + 6) % 8,  // -90 degrees
-          ];
-          
-          let canPassWithTangent = false;
-          for (const tangentAngle of tangentAngles) {
-            if (!isPositionBlockedWithDirection(maze, nx, ny, tangentAngle, blocked)) {
-              canPassWithTangent = true;
-              // Add extra cost for requiring a tangent approach
-              obstaclePenalty += 0.5;
-              break;
-            }
-          }
-          
-          if (!canPassWithTangent) {
-            continue; // Truly blocked at all reasonable angles
-          }
+          continue; // Can't fit at destination with this orientation
         }
       }
       
@@ -497,10 +517,10 @@ export function findPath(
         ? GRID_RESOLUTION * 1.414 
         : GRID_RESOLUTION;
       
-      // Add turn cost to prefer straighter paths
+      // Add turn cost to prefer straighter paths (but don't block - just prefer)
       const turnCost = getTurnCost(current.direction, dir.angle);
       
-      const g = current.g + moveCost + turnCost + obstaclePenalty;
+      const g = current.g + moveCost + turnCost;
       const h = heuristic(nx, ny);
       const f = g + h;
       
