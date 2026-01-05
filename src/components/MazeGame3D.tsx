@@ -900,8 +900,8 @@ export const MazeGame3D = ({
             console.log(`[TAP] Player at: (${playerX.toFixed(2)}, ${playerY.toFixed(2)}) rotation=${(playerStateRef.current.rotation * 180 / Math.PI).toFixed(1)}°`);
             console.log(`[TAP] Distance to tap: ${distToTap.toFixed(2)} units`);
             
-            if (distToTap < 1.5) {
-              // Close tap - check if it's roughly forward or a turn
+            if (distToTap < 3.0) {
+              // Close/medium tap - check if it's roughly forward or a turn
               const dx = worldX - playerX;
               const dz = worldZ - playerY;
               const targetRotation = Math.atan2(dx, -dz);
@@ -910,13 +910,13 @@ export const MazeGame3D = ({
               const normAngle = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
               const angleDiff = Math.abs(normAngle(targetRotation - currentRotation));
               
-              console.log(`[TAP] Close tap detected. Target rotation: ${(targetRotation * 180 / Math.PI).toFixed(1)}° angleDiff: ${(angleDiff * 180 / Math.PI).toFixed(1)}°`);
+              console.log(`[TAP] Close/medium tap detected. Target rotation: ${(targetRotation * 180 / Math.PI).toFixed(1)}° angleDiff: ${(angleDiff * 180 / Math.PI).toFixed(1)}°`);
               
-              // If tapping roughly forward (within 60°), move forward in that direction
+              // If tapping roughly forward (within 70°), move forward in that direction
               // This allows escaping from near obstacles without pathfinding
-              if (angleDiff < Math.PI / 3) {
-                // Move forward 1.5 units in the tapped direction (bypasses obstacle blocking)
-                const moveDistance = Math.min(1.5, distToTap + 1.0);
+              if (angleDiff < Math.PI * 0.39) {
+                // Move forward toward the tapped direction (bypasses obstacle blocking)
+                const moveDistance = Math.min(distToTap, 2.5);  // Cap at 2.5 units for close taps
                 const forwardPoint = {
                   x: playerX + Math.sin(targetRotation) * moveDistance,
                   y: playerY - Math.cos(targetRotation) * moveDistance
@@ -930,7 +930,7 @@ export const MazeGame3D = ({
                                      maze.grid[targetGridY][targetGridX].isWall;
                 
                 if (!isTargetWall) {
-                  console.log(`[TAP] ✅ ACCEPTED: Close forward tap - moving straight ${moveDistance.toFixed(1)} units`);
+                  console.log(`[TAP] ✅ ACCEPTED: Close/medium forward tap - moving straight ${moveDistance.toFixed(1)} units`);
                   setPath([forwardPoint], forwardPoint);
                   setTargetMarker({ x: forwardPoint.x, z: forwardPoint.y });
                   return;
@@ -939,16 +939,20 @@ export const MazeGame3D = ({
                 }
               }
               
-              // Otherwise it's a turn - just rotate in place
-              const turnPoint = {
-                x: playerX + Math.sin(targetRotation) * 0.3,
-                y: playerY - Math.cos(targetRotation) * 0.3
-              };
-              
-              console.log(`[TAP] ✅ ACCEPTED: Close tap - turning in place toward ${(targetRotation * 180 / Math.PI).toFixed(1)}°`);
-              setPath([turnPoint], turnPoint);
-              setTargetMarker({ x: turnPoint.x, z: turnPoint.y });
-              return;
+              // For very close taps, turn in place; for medium taps, fall through to pathfinding
+              if (distToTap < 1.5) {
+                // It's a turn - just rotate in place
+                const turnPoint = {
+                  x: playerX + Math.sin(targetRotation) * 0.3,
+                  y: playerY - Math.cos(targetRotation) * 0.3
+                };
+                
+                console.log(`[TAP] ✅ ACCEPTED: Close tap - turning in place toward ${(targetRotation * 180 / Math.PI).toFixed(1)}°`);
+                setPath([turnPoint], turnPoint);
+                setTargetMarker({ x: turnPoint.x, z: turnPoint.y });
+                return;
+              }
+              // else: fall through to pathfinding for medium-distance side taps
             }
             
             // Build blocked positions from characters (towers, NPCs)
