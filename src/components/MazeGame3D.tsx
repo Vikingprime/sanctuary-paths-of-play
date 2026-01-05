@@ -882,6 +882,15 @@ export const MazeGame3D = ({
             const playerX = playerStateRef.current.x;
             const playerY = playerStateRef.current.y;
             
+            // Ignore taps that are too close - prevents infinite turning
+            const distToTap = Math.sqrt(
+              Math.pow(worldX - playerX, 2) + Math.pow(worldZ - playerY, 2)
+            );
+            if (distToTap < 0.5) {
+              if (debugMode) console.log('[TapMove] Tap too close, ignoring');
+              return;
+            }
+            
             // Build blocked positions from characters (towers, NPCs)
             const blockedPositions: BlockedPosition[] = [];
             if (maze.characters) {
