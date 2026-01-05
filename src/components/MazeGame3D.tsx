@@ -850,51 +850,33 @@ export const MazeGame3D = ({
               // Simplify path to reduce waypoints
               let simplifiedPath = simplifyPath(path);
               
-              // Skip waypoints that are close to player AND behind/beside them
-              // This prevents the "turn backwards first" behavior
+              // Skip waypoints that are too close to the player
+              // This ensures the first waypoint is far enough to give a good steering direction
               while (simplifiedPath.length > 1) {
                 const wp = simplifiedPath[0];
                 const dx = wp.x - playerX;
                 const dy = wp.y - playerY;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 
-                // If waypoint is very close, skip it
-                if (dist < 0.6) {
+                if (dist < 0.5) {
                   simplifiedPath = simplifiedPath.slice(1);
-                  continue;
+                } else {
+                  break;
                 }
-                break;
               }
               
-              // Calculate the overall path direction from player to the meaningful target
-              // Use the first waypoint that is > 0.5 away, or fallback to final destination
-              let initialTargetX = worldX;
-              let initialTargetY = worldZ;
-              
+              // Set player rotation to face the FIRST waypoint in the path
+              // This ensures rotation matches what path following will steer toward
               if (simplifiedPath.length > 0) {
-                // Find a waypoint far enough to give good initial direction
-                for (let i = 0; i < simplifiedPath.length; i++) {
-                  const wp = simplifiedPath[i];
-                  const dx = wp.x - playerX;
-                  const dy = wp.y - playerY;
-                  const dist = Math.sqrt(dx * dx + dy * dy);
-                  if (dist > 0.5) {
-                    initialTargetX = wp.x;
-                    initialTargetY = wp.y;
-                    break;
-                  }
+                const firstWp = simplifiedPath[0];
+                const dx = firstWp.x - playerX;
+                const dy = firstWp.y - playerY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist > 0.1) {
+                  const pathAngle = Math.atan2(dx, -dy);
+                  playerStateRef.current.rotation = pathAngle;
                 }
-              }
-              
-              // Set player rotation immediately to face the path direction
-              // This prevents the "turn wrong way first" behavior
-              const pathDx = initialTargetX - playerX;
-              const pathDy = initialTargetY - playerY;
-              const pathAngle = Math.atan2(pathDx, -pathDy);
-              
-              // Only set rotation if we have a meaningful direction
-              if (Math.sqrt(pathDx * pathDx + pathDy * pathDy) > 0.1) {
-                playerStateRef.current.rotation = pathAngle;
               }
               
               setPath(simplifiedPath, { x: worldX, y: worldZ });

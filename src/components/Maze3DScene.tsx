@@ -1342,8 +1342,10 @@ const RefBasedPlayer = ({
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
     
-    // Fixed lerp factor for consistent rotation smoothing
-    smoothRotation.current = (smoothRotation.current ?? targetRotation) + rotDiff * 0.15;
+    // Use faster lerp when difference is large (new path started)
+    // This prevents visual "overturn" when rotation suddenly changes
+    const lerpFactor = Math.abs(rotDiff) > 1.5 ? 0.5 : 0.15;
+    smoothRotation.current = (smoothRotation.current ?? targetRotation) + rotDiff * lerpFactor;
     
     // Normalize rotation
     if (smoothRotation.current > Math.PI * 2) smoothRotation.current -= Math.PI * 2;
