@@ -106,11 +106,11 @@ export const MazeGame3D = ({
   const [cornEnabled, setCornEnabled] = useState(true);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
-  // Mobile controls - camera-relative movement system
-  const cameraYawRef = useRef<number>(startRotation); // Camera rotation (controlled by swipe)
-  const movementInputRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 }); // Joystick input -1 to 1
+  // Mobile controls - yaw rate system (steering)
+  const mobileTargetYawRef = useRef<number>(startRotation); // Legacy - not used in new system
+  const mobileYawRateRef = useRef(0); // Yaw rate in radians/sec from steering
   const mobileIsMovingRef = useRef(false);
-  const mobileThrottleRef = useRef(0); // Speed multiplier 0-1
+  const mobileThrottleRef = useRef(0); // Throttle: -1 (reverse) to 1 (forward)
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   
@@ -732,8 +732,8 @@ export const MazeGame3D = ({
         isMovingRef={isMovingRef}
         collectedPowerUps={collectedPowerUps}
         keysPressed={keysPressed}
-        cameraYawRef={cameraYawRef}
-        movementInputRef={movementInputRef}
+        mobileTargetYawRef={mobileTargetYawRef}
+        mobileYawRateRef={mobileYawRateRef}
         mobileIsMovingRef={mobileIsMovingRef}
         mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
@@ -823,8 +823,8 @@ export const MazeGame3D = ({
       {!isPreviewing && (
         <MobileControls 
           playerStateRef={playerStateRef}
-          cameraYawRef={cameraYawRef}
-          movementInputRef={movementInputRef}
+          targetYawRef={mobileTargetYawRef}
+          yawRateRef={mobileYawRateRef}
           isMovingRef={mobileIsMovingRef}
           throttleRef={mobileThrottleRef}
           mobileTouchActiveRef={mobileTouchActiveRef}
