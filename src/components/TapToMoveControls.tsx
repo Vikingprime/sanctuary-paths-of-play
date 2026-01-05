@@ -7,7 +7,7 @@ import { Maze } from '@/types/game';
 export const TAP_MOVE_CONFIG = {
   // Movement
   moveSpeed: 2.5,           // Units per second
-  turnSpeed: 6.0,           // Radians per second for turning
+  turnSpeed: 3.0,           // Radians per second for turning (reduced for gradual turns)
   arrivalThreshold: 0.15,   // How close to waypoint before moving to next
   
   // Camera swipe
