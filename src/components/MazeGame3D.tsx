@@ -882,19 +882,48 @@ export const MazeGame3D = ({
             const playerX = playerStateRef.current.x;
             const playerY = playerStateRef.current.y;
             
-            // For very close taps, just turn to face that direction (no movement)
+            // For very close taps, handle specially to avoid pathfinding issues near obstacles
             const distToTap = Math.sqrt(
               Math.pow(worldX - playerX, 2) + Math.pow(worldZ - playerY, 2)
             );
             
-            if (distToTap < 1.0) {
-              // Close tap - turn in place toward that direction
+            
+            if (distToTap < 1.5) {
+              // Close tap - check if it's roughly forward or a turn
               const dx = worldX - playerX;
               const dz = worldZ - playerY;
               const targetRotation = Math.atan2(dx, -dz);
+              const currentRotation = playerStateRef.current.rotation;
+              // Inline angle normalization to avoid declaration order issues
+              const normAngle = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
+              const angleDiff = Math.abs(normAngle(targetRotation - currentRotation));
               
-              // Create a single waypoint slightly ahead in that direction (for turn-in-place)
-              // Distance of 0.3 is enough to trigger rotation but close enough to stop immediately
+              // If tapping roughly forward (within 60°), move forward in that direction
+              // This allows escaping from near obstacles without pathfinding
+              if (angleDiff < Math.PI / 3) {
+                // Move forward 1.5 units in the tapped direction (bypasses obstacle blocking)
+                const moveDistance = Math.min(1.5, distToTap + 1.0);
+                const forwardPoint = {
+                  x: playerX + Math.sin(targetRotation) * moveDistance,
+                  y: playerY - Math.cos(targetRotation) * moveDistance
+                };
+                
+                // Quick wall check - don't walk into corn
+                const targetGridX = Math.floor(forwardPoint.x);
+                const targetGridY = Math.floor(forwardPoint.y);
+                const isTargetWall = targetGridY >= 0 && targetGridY < maze.grid.length && 
+                                     targetGridX >= 0 && targetGridX < maze.grid[0].length && 
+                                     maze.grid[targetGridY][targetGridX].isWall;
+                
+                if (!isTargetWall) {
+                  console.log('[TapMove] Close forward tap - moving straight:', moveDistance.toFixed(1) + ' units');
+                  setPath([forwardPoint], forwardPoint);
+                  setTargetMarker({ x: forwardPoint.x, z: forwardPoint.y });
+                  return;
+                }
+              }
+              
+              // Otherwise it's a turn - just rotate in place
               const turnPoint = {
                 x: playerX + Math.sin(targetRotation) * 0.3,
                 y: playerY - Math.cos(targetRotation) * 0.3
