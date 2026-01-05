@@ -397,20 +397,34 @@ export function findPath(
     return Math.sqrt(dx * dx + dy * dy);
   };
   
-  const nodeKey = (x: number, y: number): string => `${x},${y}`;
+  const nodeKey = (x: number, y: number, dir: number): string => `${x},${y},${dir}`;
+  const posKey = (x: number, y: number): string => `${x},${y}`;
   
-  // Start node
-  const startNode: PathNode = {
-    x: startFineX,
-    y: startFineY,
-    g: 0,
-    h: heuristic(startFineX, startFineY),
-    f: heuristic(startFineX, startFineY),
-    parent: null,
-    direction: undefined,
-  };
-  openSet.push(startNode);
-  nodeScores.set(nodeKey(startFineX, startFineY), 0);
+  // Estimate the initial direction the cow is facing based on direction to goal
+  // This is crucial for rejecting paths where the cow can't turn initially
+  const dxToGoal = finalGoalFineX - startFineX;
+  const dyToGoal = finalGoalFineY - startFineY;
+  const angleToGoal = Math.atan2(dxToGoal, -dyToGoal); // Note: Y is inverted in grid
+  // Convert angle to direction index (0-7)
+  const initialDirEstimate = Math.round(((angleToGoal + Math.PI) / (Math.PI / 4))) % 8;
+  
+  // Start node - we'll try multiple starting directions to find one that works
+  // The cow might need to turn right to go left around an obstacle
+  const startDirs = [0, 1, 2, 3, 4, 5, 6, 7];
+  
+  for (const startDir of startDirs) {
+    const startNode: PathNode = {
+      x: startFineX,
+      y: startFineY,
+      g: 0,
+      h: heuristic(startFineX, startFineY),
+      f: heuristic(startFineX, startFineY),
+      parent: null,
+      direction: startDir,
+    };
+    openSet.push(startNode);
+    nodeScores.set(nodeKey(startFineX, startFineY, startDir), 0);
+  }
   
   let iterations = 0;
   const maxIterations = 5000; // Higher limit for fine grid
@@ -456,17 +470,17 @@ export function findPath(
       return simplifyFinePath(rawPath, maze, new Set<string>());
     }
     
-    // Move current from open to closed
+    // Move current from open to closed (include direction in key for proper state tracking)
     openSet.splice(lowestIdx, 1);
-    closedSet.add(nodeKey(current.x, current.y));
+    closedSet.add(nodeKey(current.x, current.y, current.direction ?? 0));
     
     // Check all 8 directions
     for (const dir of DIRECTIONS) {
       const nx = current.x + dir.dx;
       const ny = current.y + dir.dy;
-      const key = nodeKey(nx, ny);
+      const key = nodeKey(nx, ny, dir.angle);
       
-      // Skip if already visited
+      // Skip if already visited with this direction
       if (closedSet.has(key)) continue;
       
       // Skip if blocked (basic point check)
@@ -478,30 +492,13 @@ export function findPath(
         if (isPositionBlocked(maze, current.x, current.y + dir.dy, blocked)) continue;
       }
       
-      // CAPSULE-AWARE COLLISION CHECK:
-      // 1. Check if the cow can ROTATE from current direction to the new direction at CURRENT position
-      // 2. Check if the cow can EXIST at the new position with the new direction
-      const worldNx = nx * GRID_RESOLUTION;
-      const worldNy = ny * GRID_RESOLUTION;
+      // ALWAYS CHECK CAPSULE COLLISIONS when direction changes
+      // This ensures A* never generates paths where the cow would get stuck
+      const needsDirectionChange = current.direction !== dir.angle;
       
-      // Determine if we're near any obstacle (use expanded check for rotation simulation)
-      let nearObstacle = false;
-      for (const obs of blocked) {
-        const dxCurrent = current.x * GRID_RESOLUTION - obs.x;
-        const dyCurrent = current.y * GRID_RESOLUTION - obs.y;
-        const dxNext = worldNx - obs.x;
-        const dyNext = worldNy - obs.y;
-        // Check both current and next position proximity
-        if (dxCurrent * dxCurrent + dyCurrent * dyCurrent < 2.5 ||
-            dxNext * dxNext + dyNext * dyNext < 2.5) {
-          nearObstacle = true;
-          break;
-        }
-      }
-      
-      if (nearObstacle) {
+      if (needsDirectionChange || blocked.length > 0) {
         // Step 1: Check if ROTATION at current position is blocked
-        // This is the key fix - if cow can't turn left here, this path is rejected
+        // This is the key - if cow can't turn to face this direction, reject this neighbor
         if (isRotationBlocked(maze, current.x, current.y, current.direction, dir.angle, blocked)) {
           continue; // Can't rotate to face this direction - path blocked
         }
@@ -524,7 +521,7 @@ export function findPath(
       const h = heuristic(nx, ny);
       const f = g + h;
       
-      // Check if we already have a better path to this node
+      // Check if we already have a better path to this node (include direction)
       const existingScore = nodeScores.get(key);
       if (existingScore !== undefined && existingScore <= g) {
         continue;
@@ -533,8 +530,8 @@ export function findPath(
       // Update or add node
       nodeScores.set(key, g);
       
-      // Remove existing node from open set if present
-      const existingIdx = openSet.findIndex(n => n.x === nx && n.y === ny);
+      // Remove existing node from open set if present (with same position AND direction)
+      const existingIdx = openSet.findIndex(n => n.x === nx && n.y === ny && n.direction === dir.angle);
       if (existingIdx >= 0) {
         openSet.splice(existingIdx, 1);
       }
