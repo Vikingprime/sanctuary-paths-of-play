@@ -218,47 +218,24 @@ export const MobileControls = ({
         
         // Dead zone check - outside deadzone = movement
         if (currentDistance >= deadZone) {
-          // === SIMPLE DIRECTION LOGIC ===
-          // Dragging down (positive dy in screen coords) = reverse
-          // Dragging up/left/right = forward
-          // Use a simple threshold: if dy > 60% of distance, it's reverse
-          const isReverse = dy > 0 && dy > currentDistance * 0.6;
+          // === JOYSTICK DIRECTION = MOVEMENT DIRECTION ===
+          // Calculate the angle the joystick is pointing (in world space)
+          // Screen coords: Y+ is down, X+ is right
+          // We want: up = forward (negative Y in screen), right = positive X
+          // atan2(x, -y) gives us angle where up = 0, right = PI/2
+          const joystickAngle = Math.atan2(dx, -dy);
           
-          // Fixed speed: 100% forward or reverse based on direction
-          if (isReverse) {
-            targetThrottle = -reverseSpeed;
-          } else {
-            targetThrottle = forwardSpeed;
-          }
+          // Target heading is the joystick angle
+          const targetHeading = joystickAngle;
           
-          // === GESTURE-RELATIVE TURNING ===
-          // Calculate dx from the stored gesture start position
-          const gestureDx = fingerRef.current.x - turnStartXRef.current;
+          // Always move forward (animal faces joystick direction and moves that way)
+          targetThrottle = forwardSpeed;
           
-          // Normalize to [-1, 1] using maxTurnPx
-          let normalized = gestureDx / maxTurnPx;
-          normalized = Math.max(-1, Math.min(1, normalized));
-          
-          // Calculate target heading relative to stored baseline
-          let targetHeading = turnStartHeadingRef.current + normalized * maxTurnAngle;
-          
-          // Invert steering when reversing
-          if (isReverse) {
-            targetHeading = turnStartHeadingRef.current - normalized * maxTurnAngle;
-          }
-          
-          // Re-center baseline if normalized hits ±1 and user continues dragging outward
-          if (Math.abs(normalized) >= 0.99) {
-            // Re-center: update baseline to current heading and current X position
-            turnStartHeadingRef.current = currentHeadingRef.current;
-            turnStartXRef.current = fingerRef.current.x;
-          }
-          
-          // Apply light lerp for smooth motion (optional smoothing)
+          // Smooth rotation to target heading
           const smoothedHeading = lerpAngle(currentHeadingRef.current, targetHeading, turnLerpSpeed);
           currentHeadingRef.current = smoothedHeading;
           
-          // Update player rotation directly (gesture-relative, not rate-based)
+          // Update player rotation directly
           playerStateRef.current.rotation = smoothedHeading;
           
           // Set yawRate to 0 since we're setting rotation directly
