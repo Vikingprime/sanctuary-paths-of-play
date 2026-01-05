@@ -316,6 +316,8 @@ function findNearestValidPosition(
 /**
  * Find path from start to goal using A* algorithm with fine grid
  * Uses rotation-aware cost to prefer smoother paths
+ * 
+ * @param currentRotation - The cow's ACTUAL current rotation in radians (required for capsule validation)
  */
 export function findPath(
   maze: Maze,
@@ -323,7 +325,8 @@ export function findPath(
   startY: number,
   goalX: number,
   goalY: number,
-  blockedPositions?: BlockedPosition[]
+  blockedPositions?: BlockedPosition[],
+  currentRotation?: number
 ): PathPoint[] | null {
   // Convert world coords to fine grid coords
   const startFineX = Math.round(startX / GRID_RESOLUTION);
@@ -400,31 +403,41 @@ export function findPath(
   const nodeKey = (x: number, y: number, dir: number): string => `${x},${y},${dir}`;
   const posKey = (x: number, y: number): string => `${x},${y}`;
   
-  // Estimate the initial direction the cow is facing based on direction to goal
-  // This is crucial for rejecting paths where the cow can't turn initially
-  const dxToGoal = finalGoalFineX - startFineX;
-  const dyToGoal = finalGoalFineY - startFineY;
-  const angleToGoal = Math.atan2(dxToGoal, -dyToGoal); // Note: Y is inverted in grid
-  // Convert angle to direction index (0-7)
-  const initialDirEstimate = Math.round(((angleToGoal + Math.PI) / (Math.PI / 4))) % 8;
-  
-  // Start node - we'll try multiple starting directions to find one that works
-  // The cow might need to turn right to go left around an obstacle
-  const startDirs = [0, 1, 2, 3, 4, 5, 6, 7];
-  
-  for (const startDir of startDirs) {
-    const startNode: PathNode = {
-      x: startFineX,
-      y: startFineY,
-      g: 0,
-      h: heuristic(startFineX, startFineY),
-      f: heuristic(startFineX, startFineY),
-      parent: null,
-      direction: startDir,
-    };
-    openSet.push(startNode);
-    nodeScores.set(nodeKey(startFineX, startFineY, startDir), 0);
+  // Convert cow's actual rotation to direction index (0-7)
+  // Direction 0 = North (negative Y), going clockwise
+  let actualStartDir: number | undefined;
+  if (currentRotation !== undefined) {
+    // currentRotation is in radians where 0 = North, PI/2 = East, PI = South, etc.
+    // Normalize to 0 to 2PI
+    let normalizedRot = currentRotation;
+    while (normalizedRot < 0) normalizedRot += Math.PI * 2;
+    while (normalizedRot >= Math.PI * 2) normalizedRot -= Math.PI * 2;
+    // Each direction is PI/4 radians (45 degrees)
+    actualStartDir = Math.round(normalizedRot / (Math.PI / 4)) % 8;
+    console.log(`[Pathfinding] Cow rotation: ${(currentRotation * 180 / Math.PI).toFixed(1)}° → direction index ${actualStartDir}`);
+  } else {
+    // Fallback: estimate direction from angle to goal
+    const dxToGoal = finalGoalFineX - startFineX;
+    const dyToGoal = finalGoalFineY - startFineY;
+    const angleToGoal = Math.atan2(dxToGoal, -dyToGoal);
+    actualStartDir = Math.round(((angleToGoal + Math.PI) / (Math.PI / 4))) % 8;
+    console.log(`[Pathfinding] WARNING: No rotation provided, estimating direction ${actualStartDir}`);
   }
+  
+  // Start node with the cow's ACTUAL direction
+  // We only add ONE starting direction - the cow's actual facing
+  // This ensures A* validates the initial rotation to any first step
+  const startNode: PathNode = {
+    x: startFineX,
+    y: startFineY,
+    g: 0,
+    h: heuristic(startFineX, startFineY),
+    f: heuristic(startFineX, startFineY),
+    parent: null,
+    direction: actualStartDir,
+  };
+  openSet.push(startNode);
+  nodeScores.set(nodeKey(startFineX, startFineY, actualStartDir), 0);
   
   let iterations = 0;
   const maxIterations = 5000; // Higher limit for fine grid
@@ -465,9 +478,8 @@ export function findPath(
         };
       }
       
-      // Simplify the path using line-of-sight to remove unnecessary waypoints
-      // Note: simplification only checks walls, not characters (radius collision handled in main pathfinding)
-      return simplifyFinePath(rawPath, maze, new Set<string>());
+      // Simplify path - but preserve waypoints near obstacles to maintain capsule-aware navigation
+      return simplifyFinePathWithObstacles(rawPath, maze, blocked);
     }
     
     // Move current from open to closed (include direction in key for proper state tracking)
@@ -587,6 +599,109 @@ function simplifyFinePath(path: PathPoint[], maze: Maze, blockedCells: Set<strin
   simplified.push(path[path.length - 1]);
   
   return simplified;
+}
+
+/**
+ * Capsule-aware path simplification
+ * Checks both wall line-of-sight AND obstacle proximity along the path
+ * This preserves waypoints that are needed to navigate around obstacles
+ */
+function simplifyFinePathWithObstacles(
+  path: PathPoint[], 
+  maze: Maze, 
+  blockedPositions: BlockedPosition[]
+): PathPoint[] {
+  if (path.length <= 2) return path;
+  
+  // If no obstacles, use the simple wall-only simplification
+  if (blockedPositions.length === 0) {
+    return simplifyFinePath(path, maze, new Set<string>());
+  }
+  
+  const simplified: PathPoint[] = [path[0]];
+  let currentIdx = 0;
+  
+  while (currentIdx < path.length - 1) {
+    const current = path[currentIdx];
+    
+    // Look ahead to find the furthest point we can reach directly
+    let furthestVisible = currentIdx + 1;
+    
+    for (let lookAhead = path.length - 1; lookAhead > currentIdx + 1; lookAhead--) {
+      const target = path[lookAhead];
+      
+      // Check wall line-of-sight
+      if (!hasLineOfSightInternal(maze, current.x, current.y, target.x, target.y, new Set<string>())) {
+        continue; // Wall blocks this path
+      }
+      
+      // Check if the path comes too close to any obstacle
+      // This ensures we preserve waypoints needed for capsule navigation
+      if (!hasObstacleClearance(current.x, current.y, target.x, target.y, blockedPositions)) {
+        continue; // Too close to obstacle, need intermediate waypoints
+      }
+      
+      furthestVisible = lookAhead;
+      break;
+    }
+    
+    // Add the furthest visible point (unless it's the last point, which we add at the end)
+    if (furthestVisible < path.length - 1) {
+      simplified.push(path[furthestVisible]);
+    }
+    currentIdx = furthestVisible;
+  }
+  
+  // Always add the last point
+  simplified.push(path[path.length - 1]);
+  
+  console.log(`[Pathfinding] Path simplified: ${path.length} → ${simplified.length} waypoints`);
+  
+  return simplified;
+}
+
+/**
+ * Check if a straight line between two points has sufficient clearance from obstacles
+ * Returns false if the path would bring the cow too close to any obstacle
+ */
+function hasObstacleClearance(
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  blockedPositions: BlockedPosition[]
+): boolean {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  
+  if (dist < 0.1) return true;
+  
+  // Check along the line at regular intervals
+  const steps = Math.ceil(dist * 4); // Check every ~0.25 units
+  const cowCapsuleRadius = COW_BODY_RADIUS + COW_HEAD_OFFSET; // Total clearance needed
+  
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = fromX + dx * t;
+    const y = fromY + dy * t;
+    
+    // Check distance to each obstacle
+    for (const blocked of blockedPositions) {
+      const obstacleRadius = blocked.radius ?? 0.4;
+      const minClearance = cowCapsuleRadius + obstacleRadius + 0.1; // Extra margin for safety
+      
+      const distX = x - blocked.x;
+      const distY = y - blocked.y;
+      const distSq = distX * distX + distY * distY;
+      
+      if (distSq < minClearance * minClearance) {
+        return false; // Too close to obstacle
+      }
+    }
+  }
+  
+  return true;
 }
 
 /**

@@ -1035,7 +1035,8 @@ export const MazeGame3D = ({
               }
             }
             
-            let path = findPath(maze, playerX, playerY, worldX, worldZ, blockedPositions);
+            const playerRotation = playerStateRef.current.rotation;
+            let path = findPath(maze, playerX, playerY, worldX, worldZ, blockedPositions, playerRotation);
             
             // If no path found, try adjusting destination slightly toward player
             // This helps when clicking near blocked areas (stations, characters)
@@ -1047,7 +1048,7 @@ export const MazeGame3D = ({
                 // Try a point 0.5 units back toward player
                 const adjustedX = worldX + (dx / adjustDist) * 0.5;
                 const adjustedZ = worldZ + (dz / adjustDist) * 0.5;
-                path = findPath(maze, playerX, playerY, adjustedX, adjustedZ, blockedPositions);
+                path = findPath(maze, playerX, playerY, adjustedX, adjustedZ, blockedPositions, playerRotation);
                 if (path && path.length > 0) {
                   console.log('[TapMove] Adjusted destination to avoid blocked area');
                 }
