@@ -63,6 +63,20 @@ function getTurnCost(fromDir: number | undefined, toDir: number): number {
   return turnCosts[diff];
 }
 
+// Cow capsule dimensions for orientation-aware collision
+const COW_HEAD_OFFSET = 0.4;  // Distance from center to head
+const COW_TAIL_OFFSET = 0.35; // Distance from center to tail
+const COW_BODY_RADIUS = 0.25; // Radius of collision points
+
+/**
+ * Convert direction index (0-7) to radians
+ * Direction 0 = North (negative Y), going clockwise
+ */
+function directionToRadians(dir: number): number {
+  // Each direction is 45 degrees (PI/4)
+  return dir * (Math.PI / 4);
+}
+
 /**
  * Check if a fine-grid position is blocked (wall or too close to character/station)
  * Uses radius-based collision for characters instead of cell-based blocking
@@ -98,9 +112,8 @@ function isPositionBlocked(
   }
   
   // Check radius-based collision with characters/stations
-  // This allows squeezing past if there's enough space
   for (const blocked of blockedPositions) {
-    const obstacleRadius = blocked.radius ?? 0.4; // default character radius
+    const obstacleRadius = blocked.radius ?? 0.4;
     const minClearance = playerRadius + obstacleRadius;
     
     const dx = worldX - blocked.x;
@@ -110,6 +123,61 @@ function isPositionBlocked(
     if (distSq < minClearance * minClearance) {
       return true;
     }
+  }
+  
+  return false;
+}
+
+/**
+ * Check if a position WITH A SPECIFIC DIRECTION is blocked
+ * This simulates the cow's capsule collider (head and tail) based on travel direction
+ * Used near obstacles to ensure the cow can actually fit through at the given angle
+ */
+function isPositionBlockedWithDirection(
+  maze: Maze,
+  fineX: number,
+  fineY: number,
+  direction: number,
+  blockedPositions: BlockedPosition[]
+): boolean {
+  // First check basic position blocking
+  if (isPositionBlocked(maze, fineX, fineY, blockedPositions, COW_BODY_RADIUS)) {
+    return true;
+  }
+  
+  // Convert to world coords
+  const worldX = fineX * GRID_RESOLUTION;
+  const worldY = fineY * GRID_RESOLUTION;
+  
+  // Calculate rotation from direction (direction 0 = moving north = -Y)
+  const rotation = directionToRadians(direction);
+  
+  // Calculate head and tail positions based on direction
+  // sin(rotation) gives X component, -cos(rotation) gives Y component for our coord system
+  const headX = worldX + Math.sin(rotation) * COW_HEAD_OFFSET;
+  const headY = worldY - Math.cos(rotation) * COW_HEAD_OFFSET;
+  const tailX = worldX - Math.sin(rotation) * COW_TAIL_OFFSET;
+  const tailY = worldY + Math.cos(rotation) * COW_TAIL_OFFSET;
+  
+  // Check if head position collides with walls
+  if (isWall(maze, Math.floor(headX), Math.floor(headY))) return true;
+  if (isWall(maze, Math.floor(tailX), Math.floor(tailY))) return true;
+  
+  // Check if head/tail collide with obstacles (characters/stations)
+  for (const blocked of blockedPositions) {
+    const obstacleRadius = blocked.radius ?? 0.4;
+    const minClearance = COW_BODY_RADIUS + obstacleRadius;
+    const minClearanceSq = minClearance * minClearance;
+    
+    // Check head
+    const headDx = headX - blocked.x;
+    const headDy = headY - blocked.y;
+    if (headDx * headDx + headDy * headDy < minClearanceSq) return true;
+    
+    // Check tail
+    const tailDx = tailX - blocked.x;
+    const tailDy = tailY - blocked.y;
+    if (tailDx * tailDx + tailDy * tailDy < minClearanceSq) return true;
   }
   
   return false;
@@ -258,13 +326,32 @@ export function findPath(
       // Skip if already visited
       if (closedSet.has(key)) continue;
       
-      // Skip if blocked
+      // Skip if blocked (basic point check)
       if (isPositionBlocked(maze, nx, ny, blocked)) continue;
       
       // For diagonal movement, check that both adjacent cells are clear
       if (dir.dx !== 0 && dir.dy !== 0) {
         if (isPositionBlocked(maze, current.x + dir.dx, current.y, blocked)) continue;
         if (isPositionBlocked(maze, current.x, current.y + dir.dy, blocked)) continue;
+      }
+      
+      // CAPSULE-AWARE CHECK: When near obstacles, also check if the cow's body would fit
+      // at this position with the current travel direction
+      const worldNx = nx * GRID_RESOLUTION;
+      const worldNy = ny * GRID_RESOLUTION;
+      let nearObstacle = false;
+      for (const obs of blocked) {
+        const dx = worldNx - obs.x;
+        const dy = worldNy - obs.y;
+        if (dx * dx + dy * dy < 2.0) { // Within 1.4 units of an obstacle
+          nearObstacle = true;
+          break;
+        }
+      }
+      
+      // If near an obstacle, do the more expensive capsule check
+      if (nearObstacle && isPositionBlockedWithDirection(maze, nx, ny, dir.angle, blocked)) {
+        continue;
       }
       
       // Calculate movement cost (diagonal costs more)
