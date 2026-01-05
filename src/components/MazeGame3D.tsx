@@ -870,24 +870,9 @@ export const MazeGame3D = ({
                 }
               }
               
-              // Set player rotation to face the FIRST waypoint in the path
-              // This ensures rotation matches what path following will steer toward
-              if (simplifiedPath.length > 0) {
-                const firstWp = simplifiedPath[0];
-                const dx = firstWp.x - playerX;
-                const dy = firstWp.y - playerY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                if (dist > 0.1) {
-                  const pathAngle = Math.atan2(dx, -dy);
-                  console.log('[TapMove] First waypoint:', firstWp.x.toFixed(2), firstWp.y.toFixed(2));
-                  console.log('[TapMove] Delta:', dx.toFixed(2), dy.toFixed(2));
-                  console.log('[TapMove] Setting rotation to:', (pathAngle * 180 / Math.PI).toFixed(1) + '°');
-                  playerStateRef.current.rotation = pathAngle;
-                }
-              }
-              
-              console.log('[TapMove] Final path has', simplifiedPath.length, 'waypoints');
+              // DON'T set initial rotation - let path follower handle turning smoothly
+              // This prevents the "snap to wrong direction" issue
+              console.log('[TapMove] Final path has', simplifiedPath.length, 'waypoints, letting path follower handle rotation');
               
               setPath(simplifiedPath, { x: worldX, y: worldZ });
               setTargetMarker({ x: worldX, z: worldZ });
