@@ -955,21 +955,16 @@ export const MazeGame3D = ({
               // else: fall through to pathfinding for medium-distance side taps
             }
             
-            // Build blocked positions from characters (towers, NPCs)
+            // Build blocked positions from characters (for pathfinding to route around)
+            // Note: We only block CHARACTER positions, not station cells
+            // Stations are walkable - collision handles the actual blocking
             const blockedPositions: BlockedPosition[] = [];
             if (maze.characters) {
               for (const char of maze.characters) {
                 blockedPositions.push({ x: char.position.x, y: char.position.y });
               }
             }
-            // Also block station cells (map towers)
-            for (let y = 0; y < maze.grid.length; y++) {
-              for (let x = 0; x < maze.grid[y].length; x++) {
-                if (maze.grid[y][x].isStation) {
-                  blockedPositions.push({ x: x + 0.5, y: y + 0.5 });
-                }
-              }
-            }
+            // Don't block station cells - they're walkable around, collision handles stopping
             
             const path = findPath(maze, playerX, playerY, worldX, worldZ, blockedPositions);
             

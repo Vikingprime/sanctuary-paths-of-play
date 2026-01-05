@@ -1291,40 +1291,29 @@ const RefBasedPlayer = ({
               console.log(`[Turn] Target=${(normalizedTarget * 180 / Math.PI).toFixed(1)}° Current=${(normalizedCurrent * 180 / Math.PI).toFixed(1)}° Diff=${(rotDiff * 180 / Math.PI).toFixed(1)}° Waypoint=(${wp.x.toFixed(2)},${wp.y.toFixed(2)}) dx=${dx.toFixed(2)} dy=${dy.toFixed(2)}`);
             }
             
-            // If very close to final waypoint and facing wrong direction, just stop
-            // This prevents infinite oscillation when destination is very close
-            if (isFinalWaypoint && dist < 0.5 && Math.abs(rotDiff) > Math.PI * 0.4) {
-              // Too close and facing wrong way - just stop
-              pathState.isFollowingPath = false;
-              pathState.path = [];
-              pathState.currentWaypointIndex = 0;
-              pathState.targetWorldPos = null;
-              isMovingRef.current = false;
-              console.log('[PathFollow] Stopping - too close to destination with large turn needed');
-            } else {
-              // Turn toward waypoint using clamped turn rate
-              const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
-              const turn = Math.max(-maxTurn, Math.min(maxTurn, rotDiff));
-              playerStateRef.current.rotation = normalizeAngle(currentRotation + turn);
-              
-              // Move forward, but stop if very close and need big turn (prevents oscillation)
-              const shouldMove = !(dist < 0.6 && Math.abs(rotDiff) > Math.PI * 0.3);
-              const turnFactor = shouldMove ? (1 - Math.min(1, Math.abs(rotDiff) / Math.PI) * 0.3) : 0;
-              
-              input = {
-                forward: shouldMove,
-                backward: false,
-                rotateLeft: false,
-                rotateRight: false,
-                speedMultiplier: turnFactor,
-              };
-              
-              isMovingRef.current = shouldMove;
+            // Always turn toward waypoint
+            const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
+            const turn = Math.max(-maxTurn, Math.min(maxTurn, rotDiff));
+            playerStateRef.current.rotation = normalizeAngle(currentRotation + turn);
             
-              const prev = playerStateRef.current;
-              const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-              playerStateRef.current = newState;
-            }
+            // Only move forward if we're facing roughly the right direction
+            // This creates "turn first, then move" behavior for large turns
+            const shouldMove = Math.abs(rotDiff) < Math.PI * 0.4; // Move only when within ~72° of target
+            const turnFactor = shouldMove ? (1 - Math.min(1, Math.abs(rotDiff) / Math.PI) * 0.3) : 0;
+            
+            input = {
+              forward: shouldMove,
+              backward: false,
+              rotateLeft: false,
+              rotateRight: false,
+              speedMultiplier: turnFactor,
+            };
+            
+            isMovingRef.current = shouldMove;
+          
+            const prev = playerStateRef.current;
+            const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+            playerStateRef.current = newState;
           }
         }
       } else {
