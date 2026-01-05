@@ -31,7 +31,7 @@ export interface PathPoint {
 export interface BlockedPosition {
   x: number;
   y: number;
-  radius?: number; // defaults to 0.5 (blocks entire cell)
+  radius?: number; // collision radius (defaults to 0.4 for characters)
 }
 
 // 8 directions for smoother movement
@@ -64,13 +64,14 @@ function getTurnCost(fromDir: number | undefined, toDir: number): number {
 }
 
 /**
- * Check if a fine-grid position is blocked (wall or character)
+ * Check if a fine-grid position is blocked (wall or too close to character/station)
+ * Uses radius-based collision for characters instead of cell-based blocking
  */
 function isPositionBlocked(
   maze: Maze,
   fineX: number,
   fineY: number,
-  blockedCells: Set<string>,
+  blockedPositions: BlockedPosition[],
   playerRadius: number = 0.35
 ): boolean {
   // Convert fine grid to world coords
@@ -81,9 +82,8 @@ function isPositionBlocked(
   const gridX = Math.floor(worldX);
   const gridY = Math.floor(worldY);
   if (isWall(maze, gridX, gridY)) return true;
-  if (blockedCells.has(`${gridX},${gridY}`)) return true;
   
-  // Check radius clearance from walls
+  // Check radius clearance from walls (only for walls, not characters)
   const checkPoints = [
     { x: worldX + playerRadius, y: worldY },
     { x: worldX - playerRadius, y: worldY },
@@ -95,7 +95,21 @@ function isPositionBlocked(
     const ptGridX = Math.floor(pt.x);
     const ptGridY = Math.floor(pt.y);
     if (isWall(maze, ptGridX, ptGridY)) return true;
-    if (blockedCells.has(`${ptGridX},${ptGridY}`)) return true;
+  }
+  
+  // Check radius-based collision with characters/stations
+  // This allows squeezing past if there's enough space
+  for (const blocked of blockedPositions) {
+    const obstacleRadius = blocked.radius ?? 0.4; // default character radius
+    const minClearance = playerRadius + obstacleRadius;
+    
+    const dx = worldX - blocked.x;
+    const dy = worldY - blocked.y;
+    const distSq = dx * dx + dy * dy;
+    
+    if (distSq < minClearance * minClearance) {
+      return true;
+    }
   }
   
   return false;
@@ -119,22 +133,15 @@ export function findPath(
   const goalFineX = Math.round(goalX / GRID_RESOLUTION);
   const goalFineY = Math.round(goalY / GRID_RESOLUTION);
   
-  // Build set of blocked cells from characters/towers
-  const blockedCells = new Set<string>();
-  if (blockedPositions) {
-    for (const pos of blockedPositions) {
-      const cellX = Math.floor(pos.x);
-      const cellY = Math.floor(pos.y);
-      blockedCells.add(`${cellX},${cellY}`);
-    }
-  }
+  // Use the blockedPositions array directly for radius-based collision
+  const blocked = blockedPositions ?? [];
   
   // Quick check: if goal is blocked, try to find nearest unblocked point
   // Use smaller radius for goal check to allow getting closer to obstacles
   let finalGoalFineX = goalFineX;
   let finalGoalFineY = goalFineY;
   
-  if (isPositionBlocked(maze, goalFineX, goalFineY, blockedCells, 0.25)) {
+  if (isPositionBlocked(maze, goalFineX, goalFineY, blocked, 0.25)) {
     // Try 8 directions around the goal to find an unblocked spot
     const searchOffsets = [
       { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 },
@@ -146,7 +153,7 @@ export function findPath(
     for (const offset of searchOffsets) {
       const altX = goalFineX + offset.x;
       const altY = goalFineY + offset.y;
-      if (!isPositionBlocked(maze, altX, altY, blockedCells, 0.25)) {
+      if (!isPositionBlocked(maze, altX, altY, blocked, 0.25)) {
         finalGoalFineX = altX;
         finalGoalFineY = altY;
         foundAlternate = true;
@@ -234,7 +241,8 @@ export function findPath(
       }
       
       // Simplify the path using line-of-sight to remove unnecessary waypoints
-      return simplifyFinePath(rawPath, maze, blockedCells);
+      // Note: simplification only checks walls, not characters (radius collision handled in main pathfinding)
+      return simplifyFinePath(rawPath, maze, new Set<string>());
     }
     
     // Move current from open to closed
@@ -251,12 +259,12 @@ export function findPath(
       if (closedSet.has(key)) continue;
       
       // Skip if blocked
-      if (isPositionBlocked(maze, nx, ny, blockedCells)) continue;
+      if (isPositionBlocked(maze, nx, ny, blocked)) continue;
       
       // For diagonal movement, check that both adjacent cells are clear
       if (dir.dx !== 0 && dir.dy !== 0) {
-        if (isPositionBlocked(maze, current.x + dir.dx, current.y, blockedCells)) continue;
-        if (isPositionBlocked(maze, current.x, current.y + dir.dy, blockedCells)) continue;
+        if (isPositionBlocked(maze, current.x + dir.dx, current.y, blocked)) continue;
+        if (isPositionBlocked(maze, current.x, current.y + dir.dy, blocked)) continue;
       }
       
       // Calculate movement cost (diagonal costs more)
