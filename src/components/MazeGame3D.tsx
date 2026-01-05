@@ -98,6 +98,9 @@ export const MazeGame3D = ({
   const [autopushEnabled, setAutopushEnabled] = useState(true);
   const [losFaderEnabled, setLosFaderEnabled] = useState(true);
   const [verboseLogging, setVerboseLogging] = useState(false);
+  // Path debug mode
+  const [pathDebugEnabled, setPathDebugEnabled] = useState(false);
+  const [pathDebugPaused, setPathDebugPaused] = useState(false);
   // Feature toggles for performance testing
   const [shadowsEnabled, setShadowsEnabled] = useState(true);
   const [grassEnabled, setGrassEnabled] = useState(true);
@@ -740,7 +743,7 @@ export const MazeGame3D = ({
         cameraOffset={cameraOffset}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
-        isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
+        isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null || pathDebugPaused}
         isMuted={isMuted}
         onSceneReady={() => setSceneReady(true)}
         onRendererInfo={setRendererInfo}
@@ -764,6 +767,7 @@ export const MazeGame3D = ({
         opacityFadeEnabled={opacityFadeEnabled}
         cornEnabled={cornEnabled}
         targetMarker={targetMarker}
+        pathDebugEnabled={pathDebugEnabled}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -806,6 +810,40 @@ export const MazeGame3D = ({
           onToggleLOSFader={() => setLosFaderEnabled(prev => !prev)}
           verboseLogging={verboseLogging}
           onToggleVerboseLogging={() => setVerboseLogging(prev => !prev)}
+          // Path debug
+          pathDebugEnabled={pathDebugEnabled}
+          onTogglePathDebug={() => setPathDebugEnabled(prev => !prev)}
+          pathDebugPaused={pathDebugPaused}
+          onTogglePathDebugPause={() => setPathDebugPaused(prev => !prev)}
+          onPathDebugStep={() => {
+            // Advance to next waypoint manually
+            if (pathFollowerRef.current && pathFollowerRef.current.path.length > 0) {
+              const state = pathFollowerRef.current;
+              if (state.currentWaypointIndex < state.path.length - 1) {
+                // Move player to current waypoint position
+                const wp = state.path[state.currentWaypointIndex];
+                playerStateRef.current.x = wp.x;
+                playerStateRef.current.y = wp.y;
+                // Calculate rotation toward next waypoint
+                const nextWp = state.path[state.currentWaypointIndex + 1];
+                const dx = nextWp.x - wp.x;
+                const dy = nextWp.y - wp.y;
+                playerStateRef.current.rotation = Math.atan2(dx, -dy);
+                // Advance index
+                state.currentWaypointIndex++;
+                console.log(`[PathDebugStep] Moved to waypoint ${state.currentWaypointIndex - 1}, now targeting waypoint ${state.currentWaypointIndex}`);
+              } else {
+                // At last waypoint, complete the path
+                const wp = state.path[state.currentWaypointIndex];
+                playerStateRef.current.x = wp.x;
+                playerStateRef.current.y = wp.y;
+                state.isFollowingPath = false;
+                state.path = [];
+                state.currentWaypointIndex = 0;
+                console.log('[PathDebugStep] Reached final waypoint, path complete');
+              }
+            }
+          }}
           // Feature toggles
           shadowsEnabled={shadowsEnabled}
           onToggleShadows={() => setShadowsEnabled(prev => !prev)}

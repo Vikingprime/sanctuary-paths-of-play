@@ -78,6 +78,8 @@ interface Maze3DSceneProps {
   cornEnabled?: boolean;
   // Target marker for tap-to-move
   targetMarker?: { x: number; z: number } | null;
+  // Path debug visualization
+  pathDebugEnabled?: boolean;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -2017,7 +2019,122 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, pathFollowerRef, cameraOffset = 0, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, onRaycastHandlerReady, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, targetMarker }: Maze3DSceneProps) => {
+// Path Debug Visualizer - shows waypoints, direction arrow, and current waypoint index
+const PathDebugVisualizer = ({ 
+  pathFollowerRef, 
+  playerStateRef 
+}: { 
+  pathFollowerRef?: MutableRefObject<PathFollowerState>;
+  playerStateRef: MutableRefObject<PlayerState>;
+}) => {
+  const groupRef = useRef<Group>(null);
+  
+  useFrame(() => {
+    // Update group ref for any animations if needed
+  });
+  
+  const pathState = pathFollowerRef?.current;
+  const path = pathState?.path || [];
+  const currentIndex = pathState?.currentWaypointIndex || 0;
+  const playerX = playerStateRef.current.x;
+  const playerZ = playerStateRef.current.y;
+  const playerRot = playerStateRef.current.rotation;
+  
+  // Calculate forward direction from rotation
+  // rotation=0 → -Z, rotation=π/2 → +X
+  const forwardX = Math.sin(playerRot);
+  const forwardZ = -Math.cos(playerRot);
+  
+  return (
+    <group ref={groupRef}>
+      {/* Direction Arrow - shows which way the animal is facing */}
+      <group position={[playerX, 0.5, playerZ]}>
+        {/* Arrow shaft */}
+        <mesh position={[forwardX * 0.4, 0, forwardZ * 0.4]} rotation={[0, -playerRot, 0]}>
+          <boxGeometry args={[0.08, 0.08, 0.8]} />
+          <meshBasicMaterial color="#ff00ff" transparent opacity={0.9} />
+        </mesh>
+        {/* Arrow head */}
+        <mesh position={[forwardX * 0.9, 0, forwardZ * 0.9]} rotation={[-Math.PI / 2, 0, -playerRot]}>
+          <coneGeometry args={[0.15, 0.3, 8]} />
+          <meshBasicMaterial color="#ff00ff" transparent opacity={0.9} />
+        </mesh>
+      </group>
+      
+      {/* Waypoint markers */}
+      {path.map((wp, i) => {
+        const isCurrent = i === currentIndex;
+        const isPast = i < currentIndex;
+        const isFuture = i > currentIndex;
+        
+        // Color coding: past=gray, current=green, future=yellow
+        const color = isPast ? '#666666' : isCurrent ? '#00ff00' : '#ffff00';
+        const height = isCurrent ? 0.8 : 0.4;
+        const opacity = isPast ? 0.3 : isCurrent ? 1 : 0.7;
+        
+        return (
+          <group key={`wp-${i}`} position={[wp.x, 0, wp.y]}>
+            {/* Waypoint pillar */}
+            <mesh position={[0, height / 2, 0]}>
+              <cylinderGeometry args={[0.1, 0.1, height, 8]} />
+              <meshBasicMaterial color={color} transparent opacity={opacity} />
+            </mesh>
+            {/* Waypoint number */}
+            <Html position={[0, height + 0.3, 0]} center>
+              <div style={{
+                background: isPast ? 'rgba(0,0,0,0.5)' : isCurrent ? 'rgba(0,255,0,0.8)' : 'rgba(255,255,0,0.8)',
+                color: isPast ? '#aaa' : '#000',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                fontFamily: 'monospace',
+                whiteSpace: 'nowrap',
+              }}>
+                {i}
+              </div>
+            </Html>
+            {/* Ground ring */}
+            <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <ringGeometry args={[0.2, 0.3, 16]} />
+              <meshBasicMaterial color={color} transparent opacity={opacity} side={DoubleSide} />
+            </mesh>
+          </group>
+        );
+      })}
+      
+      {/* Path lines connecting waypoints */}
+      {path.length > 1 && path.map((wp, i) => {
+        if (i === 0) return null;
+        const prev = path[i - 1];
+        const dx = wp.x - prev.x;
+        const dy = wp.y - prev.y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dx, dy);
+        const midX = (wp.x + prev.x) / 2;
+        const midZ = (wp.y + prev.y) / 2;
+        const isPast = i <= currentIndex;
+        
+        return (
+          <mesh 
+            key={`line-${i}`} 
+            position={[midX, 0.1, midZ]} 
+            rotation={[0, angle, 0]}
+          >
+            <boxGeometry args={[0.05, 0.05, length]} />
+            <meshBasicMaterial 
+              color={isPast ? '#444444' : '#888800'} 
+              transparent 
+              opacity={isPast ? 0.3 : 0.6} 
+            />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+};
+
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, pathFollowerRef, cameraOffset = 0, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, onRaycastHandlerReady, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, targetMarker, pathDebugEnabled = false }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2290,6 +2407,14 @@ return (
           <ringGeometry args={[0.2, 0.3, 16]} />
           <meshBasicMaterial color="#00ff00" transparent opacity={0.7} side={DoubleSide} />
         </mesh>
+      )}
+      
+      {/* Path Debug Visualizer - shows waypoints and direction arrow */}
+      {pathDebugEnabled && (
+        <PathDebugVisualizer 
+          pathFollowerRef={pathFollowerRef}
+          playerStateRef={playerStateRef}
+        />
       )}
       
       {/* Player - handles movement + rendering in sync */}
