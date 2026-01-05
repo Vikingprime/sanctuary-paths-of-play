@@ -1243,6 +1243,28 @@ const RefBasedPlayer = ({
           
           if (dist < arrivalDist) {
             pathState.currentWaypointIndex++;
+            
+            // Skip waypoints that are behind us (require >90° turn)
+            // This prevents awkward spinning when advancing to next waypoint
+            while (pathState.currentWaypointIndex < pathState.path.length - 1) {
+              const nextWp = pathState.path[pathState.currentWaypointIndex];
+              const nextDx = nextWp.x - playerX;
+              const nextDy = nextWp.y - playerY;
+              const nextDist = Math.sqrt(nextDx * nextDx + nextDy * nextDy);
+              
+              // Calculate angle to this waypoint
+              const wpAngle = Math.atan2(nextDx, -nextDy);
+              const angleDiff = Math.abs(normalizeAngle(wpAngle - playerStateRef.current.rotation));
+              
+              // If waypoint is behind us (>100° turn) and close, skip it
+              if (angleDiff > Math.PI * 0.55 && nextDist < 1.0) {
+                console.log(`[PathFollow] Skipping behind waypoint ${pathState.currentWaypointIndex} (angle diff: ${(angleDiff * 180 / Math.PI).toFixed(0)}°)`);
+                pathState.currentWaypointIndex++;
+              } else {
+                break;
+              }
+            }
+            
             // Don't turn after arriving at final point - just stop
             if (pathState.currentWaypointIndex >= pathState.path.length) {
               pathState.isFollowingPath = false;

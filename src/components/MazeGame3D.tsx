@@ -915,16 +915,35 @@ export const MazeGame3D = ({
               console.log('[TapMove] Simplified path:', simplifiedPath.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> '));
               console.log('[TapMove] Player at:', playerX.toFixed(2), playerY.toFixed(2), 'rotation:', (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1) + '°');
               
-              // Skip waypoints that are too close to the player
-              // This ensures the first waypoint is far enough to give a good steering direction
+              // Helper to normalize angle to [-PI, PI]
+              const normalizeAngle = (angle: number): number => {
+                while (angle > Math.PI) angle -= Math.PI * 2;
+                while (angle < -Math.PI) angle += Math.PI * 2;
+                return angle;
+              };
+              
+              const currentRot = playerStateRef.current.rotation;
+              
+              // Skip waypoints that are too close OR behind the player
+              // This ensures the first waypoint is far enough and in a forward direction
               while (simplifiedPath.length > 1) {
                 const wp = simplifiedPath[0];
                 const dx = wp.x - playerX;
                 const dy = wp.y - playerY;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 
+                // Calculate angle to waypoint
+                const wpAngle = Math.atan2(dx, -dy);
+                const angleDiff = Math.abs(normalizeAngle(wpAngle - currentRot));
+                
+                // Skip if too close
                 if (dist < 0.5) {
                   console.log('[TapMove] Skipping close waypoint:', wp.x.toFixed(2), wp.y.toFixed(2), 'dist:', dist.toFixed(2));
+                  simplifiedPath = simplifiedPath.slice(1);
+                }
+                // Skip if behind us (>100° turn) and close enough to skip safely
+                else if (angleDiff > Math.PI * 0.55 && dist < 1.5) {
+                  console.log('[TapMove] Skipping behind waypoint:', wp.x.toFixed(2), wp.y.toFixed(2), 'angleDiff:', (angleDiff * 180 / Math.PI).toFixed(0) + '°');
                   simplifiedPath = simplifiedPath.slice(1);
                 } else {
                   break;
