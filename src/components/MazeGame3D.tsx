@@ -1017,20 +1017,20 @@ export const MazeGame3D = ({
               // else: fall through to pathfinding for medium-distance side taps
             }
             
-            // Build blocked positions from characters AND stations with smaller radii
-            // Using small radii allows pathfinding to squeeze through tight gaps
+            // Build blocked positions from characters AND stations
+            // Capsule-aware pathfinding will simulate the cow's body orientation near these
             const blockedPositions: BlockedPosition[] = [];
             if (maze.characters) {
               for (const char of maze.characters) {
-                // Characters have a small collision radius (0.2) allowing squeeze-through
-                blockedPositions.push({ x: char.position.x, y: char.position.y, radius: 0.2 });
+                // Character collision radius for pathfinding (actual collision handled by game)
+                blockedPositions.push({ x: char.position.x, y: char.position.y, radius: 0.3 });
               }
             }
-            // Block station cells (map towers) with small radius for better navigation
+            // Block station cells (map towers)
             for (let y = 0; y < maze.grid.length; y++) {
               for (let x = 0; x < maze.grid[y].length; x++) {
                 if (maze.grid[y][x].isStation) {
-                  blockedPositions.push({ x: x + 0.5, y: y + 0.5, radius: 0.15 });
+                  blockedPositions.push({ x: x + 0.5, y: y + 0.5, radius: 0.25 });
                 }
               }
             }
