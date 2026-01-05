@@ -25,12 +25,19 @@ export interface PathPoint {
  * Find path from start to goal using A* algorithm
  * Returns array of world positions (cell centers) or null if no path
  */
+export interface BlockedPosition {
+  x: number;
+  y: number;
+  radius?: number; // defaults to 0.5 (blocks entire cell)
+}
+
 export function findPath(
   maze: Maze,
   startX: number,
   startY: number,
   goalX: number,
-  goalY: number
+  goalY: number,
+  blockedPositions?: BlockedPosition[]
 ): PathPoint[] | null {
   // Convert world coords to grid coords
   const startGridX = Math.floor(startX);
@@ -38,8 +45,25 @@ export function findPath(
   const goalGridX = Math.floor(goalX);
   const goalGridY = Math.floor(goalY);
   
-  // Quick check: if goal is a wall, no path possible
-  if (isWall(maze, goalGridX, goalGridY)) {
+  // Build set of blocked cells from characters/towers
+  const blockedCells = new Set<string>();
+  if (blockedPositions) {
+    for (const pos of blockedPositions) {
+      // Block the cell the character is in
+      const cellX = Math.floor(pos.x);
+      const cellY = Math.floor(pos.y);
+      blockedCells.add(`${cellX},${cellY}`);
+    }
+  }
+  
+  // Helper to check if a cell is blocked (wall OR character)
+  const isCellBlocked = (x: number, y: number): boolean => {
+    if (isWall(maze, x, y)) return true;
+    return blockedCells.has(`${x},${y}`);
+  };
+  
+  // Quick check: if goal is a wall or blocked, no path possible
+  if (isCellBlocked(goalGridX, goalGridY)) {
     return null;
   }
   
@@ -123,9 +147,9 @@ export function findPath(
       const ny = current.y + dir.dy;
       const key = nodeKey(nx, ny);
       
-      // Skip if already visited or is a wall
+      // Skip if already visited or is blocked (wall or character)
       if (closedSet.has(key)) continue;
-      if (isWall(maze, nx, ny)) continue;
+      if (isCellBlocked(nx, ny)) continue;
       
       const g = current.g + 1;
       const h = heuristic(nx, ny);

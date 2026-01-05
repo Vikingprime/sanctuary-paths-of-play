@@ -12,7 +12,7 @@ import { animals } from '@/data/animals';
 import { formatTime } from '@/lib/utils';
 import { setAutopushEnabled, setLOSFaderEnabled, setVerboseLogging } from '@/lib/debug';
 import { useBackButton } from '@/hooks/useBackButton';
-import { findPath, simplifyPath, PathPoint } from '@/game/Pathfinding';
+import { findPath, simplifyPath, PathPoint, BlockedPosition } from '@/game/Pathfinding';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -844,7 +844,23 @@ export const MazeGame3D = ({
             const playerX = playerStateRef.current.x;
             const playerY = playerStateRef.current.y;
             
-            const path = findPath(maze, playerX, playerY, worldX, worldZ);
+            // Build blocked positions from characters (towers, NPCs)
+            const blockedPositions: BlockedPosition[] = [];
+            if (maze.characters) {
+              for (const char of maze.characters) {
+                blockedPositions.push({ x: char.position.x, y: char.position.y });
+              }
+            }
+            // Also block station cells (map towers)
+            for (let y = 0; y < maze.grid.length; y++) {
+              for (let x = 0; x < maze.grid[y].length; x++) {
+                if (maze.grid[y][x].isStation) {
+                  blockedPositions.push({ x: x + 0.5, y: y + 0.5 });
+                }
+              }
+            }
+            
+            const path = findPath(maze, playerX, playerY, worldX, worldZ, blockedPositions);
             
             if (path && path.length > 0) {
               // Simplify path to reduce waypoints
