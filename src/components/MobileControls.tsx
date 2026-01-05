@@ -218,28 +218,26 @@ export const MobileControls = ({
         
         // Dead zone check - outside deadzone = movement
         if (currentDistance >= deadZone) {
-          // === SIMPLE: JOYSTICK DIRECTION RELATIVE TO CURRENT HEADING ===
-          // Get the character's CURRENT heading
-          const currentPlayerHeading = playerStateRef.current.rotation;
-          
-          // Calculate joystick angle: up=0, left=-PI/2, right=+PI/2
+          // === BASELINE-RELATIVE: joystick angle added to BASELINE heading (not current!) ===
+          // Joystick angle: up=0, left=-PI/2, right=+PI/2
           const joystickAngle = Math.atan2(dx, -dy);
           
-          // Target heading = current heading + joystick offset
-          // Joystick up = go forward (no turn)
-          // Joystick left = turn left 90 degrees from current heading
-          // Joystick right = turn right 90 degrees from current heading
-          const targetHeading = currentPlayerHeading + joystickAngle;
+          // Target heading = BASELINE (captured at touch start) + joystick offset
+          // This prevents runaway accumulation - we never read the current heading
+          const targetHeading = turnStartHeadingRef.current + joystickAngle;
           
           // Always move forward
           targetThrottle = forwardSpeed;
           
-          // Apply rotation directly (no lerp for now to debug)
+          // Apply rotation directly
           playerStateRef.current.rotation = targetHeading;
           currentHeadingRef.current = targetHeading;
-          
-          // Set yawRate to 0 since we're setting rotation directly
           yawRateRef.current = 0;
+          
+          // Re-center baseline when joystick held at extreme angle (allows continuous turning)
+          if (Math.abs(joystickAngle) > Math.PI * 0.4) {
+            turnStartHeadingRef.current = targetHeading;
+          }
         }
         
         // Apply throttle
