@@ -882,6 +882,20 @@ export const MazeGame3D = ({
             let { worldX, worldZ, clickedOnCorn, cornEdgeX, cornEdgeZ } = result;
             console.log(`[TAP] World coords: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)}) clickedOnCorn=${clickedOnCorn}`);
             
+            // Debounce: If already following a path to a similar destination, ignore repeat clicks
+            const pathState = pathFollowerRef.current;
+            if (pathState.isFollowingPath && pathState.targetWorldPos) {
+              const existingDest = pathState.targetWorldPos;
+              const destDist = Math.sqrt(
+                Math.pow(worldX - existingDest.x, 2) + Math.pow(worldZ - existingDest.y, 2)
+              );
+              // If clicking within 1 unit of existing destination, ignore (prevents stutter)
+              if (destDist < 1.0) {
+                console.log('[TAP] ❌ REJECTED: Already navigating to similar destination');
+                return;
+              }
+            }
+            
             // Find path from current position to tapped position
             const playerX = playerStateRef.current.x;
             const playerY = playerStateRef.current.y;
@@ -1003,20 +1017,20 @@ export const MazeGame3D = ({
               // else: fall through to pathfinding for medium-distance side taps
             }
             
-            // Build blocked positions from characters AND stations with proper radii
-            // Using radius-based collision allows pathfinding to squeeze past when there's space
+            // Build blocked positions from characters AND stations with smaller radii
+            // Using small radii allows pathfinding to squeeze through tight gaps
             const blockedPositions: BlockedPosition[] = [];
             if (maze.characters) {
               for (const char of maze.characters) {
-                // Characters have a smaller collision radius (0.35) allowing squeeze-through
-                blockedPositions.push({ x: char.position.x, y: char.position.y, radius: 0.35 });
+                // Characters have a small collision radius (0.2) allowing squeeze-through
+                blockedPositions.push({ x: char.position.x, y: char.position.y, radius: 0.2 });
               }
             }
-            // Block station cells (map towers) with smaller radius for better navigation
+            // Block station cells (map towers) with small radius for better navigation
             for (let y = 0; y < maze.grid.length; y++) {
               for (let x = 0; x < maze.grid[y].length; x++) {
                 if (maze.grid[y][x].isStation) {
-                  blockedPositions.push({ x: x + 0.5, y: y + 0.5, radius: 0.3 });
+                  blockedPositions.push({ x: x + 0.5, y: y + 0.5, radius: 0.15 });
                 }
               }
             }
