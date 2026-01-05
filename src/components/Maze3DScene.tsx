@@ -1251,7 +1251,8 @@ const RefBasedPlayer = ({
             }
           } else {
             // Steer toward waypoint - use shortest rotation
-            const targetRotation = Math.atan2(dx, -dy);
+            // atan2(dx, dy) gives angle where 0° = +Y direction, positive = clockwise
+            const targetRotation = Math.atan2(dx, dy);
             const currentRotation = playerStateRef.current.rotation;
             
             // Normalize both angles to ensure shortest path
