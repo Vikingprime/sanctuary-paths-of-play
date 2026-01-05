@@ -233,11 +233,6 @@ export const MobileControls = ({
           playerStateRef.current.rotation = targetHeading;
           currentHeadingRef.current = targetHeading;
           yawRateRef.current = 0;
-          
-          // Re-center baseline when joystick held at extreme angle (allows continuous turning)
-          if (Math.abs(joystickAngle) > Math.PI * 0.4) {
-            turnStartHeadingRef.current = targetHeading;
-          }
         }
         
         // Apply throttle
