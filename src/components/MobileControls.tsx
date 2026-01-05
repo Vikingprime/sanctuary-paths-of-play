@@ -221,35 +221,37 @@ export const MobileControls = ({
           // Calculate raw joystick angle (up=0, left=-PI/2, right=+PI/2)
           let joystickAngle = Math.atan2(dx, -dy);
           
-          // FIX #1: Clamp to forward hemisphere only (-90° to +90°)
-          // This prevents backwards drags from causing 180° flips
+          // Clamp to forward hemisphere only (-90° to +90°)
           joystickAngle = Math.max(-Math.PI * 0.5, Math.min(Math.PI * 0.5, joystickAngle));
-          
-          // Target heading = BASELINE + joystick offset
-          const targetHeading = turnStartHeadingRef.current + joystickAngle;
           
           // Always move forward
           targetThrottle = forwardSpeed;
           
-          // Apply rotation directly
-          playerStateRef.current.rotation = targetHeading;
-          currentHeadingRef.current = targetHeading;
-          yawRateRef.current = 0;
-          
-          // FIX #2: Gradual baseline shift when joystick at extreme angle
-          // This allows continuous turning by "dragging further"
           const extremeThreshold = Math.PI * 0.4; // 72 degrees
+          
           if (Math.abs(joystickAngle) > extremeThreshold) {
-            // Shift baseline gradually (about 60°/second at 60fps)
-            const shiftAmount = 0.017; // ~1 degree per frame
-            turnStartHeadingRef.current += Math.sign(joystickAngle) * shiftAmount;
+            // EXTREME ANGLE: Apply turn rate directly to rotation (not via baseline)
+            // This prevents the accumulation bug
+            const turnRate = 0.025 * Math.sign(joystickAngle); // ~1.4° per frame
+            playerStateRef.current.rotation += turnRate;
+            currentHeadingRef.current = playerStateRef.current.rotation;
+            // Keep baseline synced so releasing doesn't cause jumps
+            turnStartHeadingRef.current = playerStateRef.current.rotation - joystickAngle;
+          } else {
+            // NORMAL: Direct offset from baseline
+            const targetHeading = turnStartHeadingRef.current + joystickAngle;
+            playerStateRef.current.rotation = targetHeading;
+            currentHeadingRef.current = targetHeading;
           }
+          
+          yawRateRef.current = 0;
           
           // Debug logging
           if (Date.now() - lastDebugLogRef.current > 200) {
             lastDebugLogRef.current = Date.now();
             const toDeg = (r: number) => ((r * 180 / Math.PI) % 360).toFixed(0);
-            console.log(`[Mobile] angle=${toDeg(joystickAngle)}° | baseline=${toDeg(turnStartHeadingRef.current)}° | target=${toDeg(targetHeading)}°`);
+            const mode = Math.abs(joystickAngle) > extremeThreshold ? 'TURN' : 'STEER';
+            console.log(`[Mobile] ${mode} angle=${toDeg(joystickAngle)}° | heading=${toDeg(playerStateRef.current.rotation)}°`);
           }
         }
         
