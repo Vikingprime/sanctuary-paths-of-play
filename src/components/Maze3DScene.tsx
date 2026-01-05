@@ -1217,20 +1217,20 @@ const RefBasedPlayer = ({
       
       if (isFollowingPath && pathState) {
         // PATH FOLLOWING MODE: Move toward current waypoint
-        const currentWaypoint = pathState.path[pathState.currentWaypointIndex];
+        let currentWaypoint = pathState.path[pathState.currentWaypointIndex];
         
-        if (currentWaypoint) {
-          const playerX = playerStateRef.current.x;
-          const playerY = playerStateRef.current.y;
+        // Skip waypoints that are too close (including the starting cell)
+        const playerX = playerStateRef.current.x;
+        const playerY = playerStateRef.current.y;
+        
+        while (currentWaypoint) {
           const dx = currentWaypoint.x - playerX;
           const dy = currentWaypoint.y - playerY;
           const distToWaypoint = Math.sqrt(dx * dx + dy * dy);
           
-          // Check if we've arrived at current waypoint
           if (distToWaypoint < TAP_MOVE_CONFIG.arrivalThreshold) {
-            // Move to next waypoint
+            // Too close, skip to next
             pathState.currentWaypointIndex++;
-            
             if (pathState.currentWaypointIndex >= pathState.path.length) {
               // Arrived at destination
               pathState.isFollowingPath = false;
@@ -1238,45 +1238,61 @@ const RefBasedPlayer = ({
               pathState.currentWaypointIndex = 0;
               pathState.targetWorldPos = null;
               isMovingRef.current = false;
+              currentWaypoint = null;
+              break;
             }
+            currentWaypoint = pathState.path[pathState.currentWaypointIndex];
           } else {
-            // Calculate target rotation to face waypoint
-            const targetRotation = Math.atan2(dx, -dy);
+            break; // Found a waypoint worth moving toward
+          }
+        }
+        
+        if (currentWaypoint) {
+          const dx = currentWaypoint.x - playerX;
+          const dy = currentWaypoint.y - playerY;
+          const distToWaypoint = Math.sqrt(dx * dx + dy * dy);
+          
+          // Calculate target rotation to face waypoint
+          const targetRotation = Math.atan2(dx, -dy);
+          const currentRotation = playerStateRef.current.rotation;
+          
+          // Calculate shortest rotation direction
+          let rotDiff = targetRotation - currentRotation;
+          // Normalize to [-PI, PI] for shortest path
+          while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+          while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+          
+          const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
+          const turn = Math.max(-maxTurn, Math.min(maxTurn, rotDiff));
+          
+          // Update rotation
+          playerStateRef.current.rotation = normalizeAngle(currentRotation + turn);
+          
+          // Only move forward if roughly facing the waypoint (within 60 degrees)
+          // Use larger threshold to start moving sooner
+          const shouldMove = Math.abs(rotDiff) < Math.PI / 3;
+          
+          if (shouldMove) {
+            // Move forward with speed proportional to how well aligned we are
+            const alignmentFactor = 1 - (Math.abs(rotDiff) / (Math.PI / 3)) * 0.3;
             
-            // Smoothly turn toward waypoint
-            let rotDiff = targetRotation - playerStateRef.current.rotation;
-            while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-            while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+            input = {
+              forward: true,
+              backward: false,
+              rotateLeft: false,
+              rotateRight: false,
+              speedMultiplier: alignmentFactor,
+            };
             
-            const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
-            const turn = Math.max(-maxTurn, Math.min(maxTurn, rotDiff));
+            isMovingRef.current = true;
             
-            // Update rotation
-            playerStateRef.current.rotation = normalizeAngle(playerStateRef.current.rotation + turn);
-            
-            // Only move forward if roughly facing the waypoint (within 45 degrees)
-            const shouldMove = Math.abs(rotDiff) < Math.PI / 4;
-            
-            if (shouldMove) {
-              // Move forward
-              input = {
-                forward: true,
-                backward: false,
-                rotateLeft: false,
-                rotateRight: false,
-                speedMultiplier: 1.0,
-              };
-              
-              isMovingRef.current = true;
-              
-              // Calculate movement
-              const prev = playerStateRef.current;
-              const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-              playerStateRef.current = newState;
-            } else {
-              // Just turning, not moving
-              isMovingRef.current = false;
-            }
+            // Calculate movement
+            const prev = playerStateRef.current;
+            const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+            playerStateRef.current = newState;
+          } else {
+            // Just turning, not moving
+            isMovingRef.current = false;
           }
         }
       } else {
@@ -2011,6 +2027,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const groundIntersect = useRef(new Vector3());
   
   // Create raycast handler for tap-to-move
+  // This checks if the ray passes through corn BEFORE hitting ground
   const raycastHandler = useCallback((screenX: number, screenY: number): { worldX: number; worldZ: number; hitCorn: boolean } | null => {
     // Convert screen coords to normalized device coords
     pointer.current.x = (screenX / size.width) * 2 - 1;
@@ -2033,9 +2050,39 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     // Check if this position is in a wall (corn)
     const gridX = Math.floor(worldX);
     const gridZ = Math.floor(worldZ);
-    const hitCorn = isWall(maze, gridX, gridZ);
+    const clickedOnCorn = isWall(maze, gridX, gridZ);
     
-    return { worldX, worldZ, hitCorn };
+    // CRITICAL: Also check if the ray passes through ANY corn between camera and ground
+    // This prevents clicking "through" corn to paths on the other side
+    const cameraPos = camera.position;
+    const rayLength = Math.sqrt(
+      (worldX - cameraPos.x) ** 2 + 
+      (cameraPos.y) ** 2 + 
+      (worldZ - cameraPos.z) ** 2
+    );
+    
+    // Sample points along the ray to check for corn intersections
+    const numSamples = Math.ceil(rayLength * 2); // Check every ~0.5 units
+    let rayPassesThroughCorn = false;
+    
+    for (let i = 1; i < numSamples; i++) {
+      const sampleT = i / numSamples;
+      const sampleX = cameraPos.x + (worldX - cameraPos.x) * sampleT;
+      const sampleZ = cameraPos.z + (worldZ - cameraPos.z) * sampleT;
+      const sampleY = cameraPos.y * (1 - sampleT); // Y goes from camera height to 0
+      
+      // Only check points that are roughly at corn height (0-3 units)
+      if (sampleY > 0 && sampleY < 3) {
+        const sampleGridX = Math.floor(sampleX);
+        const sampleGridZ = Math.floor(sampleZ);
+        if (isWall(maze, sampleGridX, sampleGridZ)) {
+          rayPassesThroughCorn = true;
+          break;
+        }
+      }
+    }
+    
+    return { worldX, worldZ, hitCorn: clickedOnCorn || rayPassesThroughCorn };
   }, [camera, size, maze]);
   
   // Register raycast handler with parent
