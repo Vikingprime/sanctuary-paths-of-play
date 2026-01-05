@@ -1250,21 +1250,20 @@ const RefBasedPlayer = ({
               isMovingRef.current = false;
             }
           } else {
-            // Steer toward waypoint
+            // Steer toward waypoint - use shortest rotation
             const targetRotation = Math.atan2(dx, -dy);
             const currentRotation = playerStateRef.current.rotation;
             
-            let rotDiff = targetRotation - currentRotation;
-            while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-            while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+            // Normalize both angles to ensure shortest path
+            let rotDiff = normalizeAngle(targetRotation - currentRotation);
             
-            // Turn toward waypoint
+            // Turn toward waypoint using clamped turn rate
             const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
             const turn = Math.max(-maxTurn, Math.min(maxTurn, rotDiff));
             playerStateRef.current.rotation = normalizeAngle(currentRotation + turn);
             
-            // Always move forward (slow down only if turning sharply)
-            const turnFactor = 1 - Math.min(1, Math.abs(rotDiff) / Math.PI) * 0.5;
+            // Move forward, slowing slightly for sharp turns
+            const turnFactor = 1 - Math.min(1, Math.abs(rotDiff) / Math.PI) * 0.3;
             
             input = {
               forward: true,
