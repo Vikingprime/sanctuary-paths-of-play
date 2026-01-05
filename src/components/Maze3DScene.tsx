@@ -1216,99 +1216,62 @@ const RefBasedPlayer = ({
       let input: MovementInput;
       
       if (isFollowingPath && pathState) {
-        // PATH FOLLOWING MODE: Move toward current waypoint
+        // SIMPLE PATH FOLLOWING: Move toward waypoints, skip when close
         const playerX = playerStateRef.current.x;
         const playerY = playerStateRef.current.y;
         
-        // Skip waypoints that are behind us or very close
-        while (pathState.currentWaypointIndex < pathState.path.length) {
-          const wp = pathState.path[pathState.currentWaypointIndex];
-          const dx = wp.x - playerX;
-          const dy = wp.y - playerY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          
-          // Skip if very close
-          if (dist < TAP_MOVE_CONFIG.arrivalThreshold) {
-            pathState.currentWaypointIndex++;
-            continue;
-          }
-          
-          // If we have more waypoints, check if this one is "behind" us relative to path direction
-          if (pathState.currentWaypointIndex + 1 < pathState.path.length && dist < 0.8) {
-            const nextWp = pathState.path[pathState.currentWaypointIndex + 1];
-            const toCurrentAngle = Math.atan2(dx, -dy);
-            const toNextDx = nextWp.x - playerX;
-            const toNextDy = nextWp.y - playerY;
-            const toNextAngle = Math.atan2(toNextDx, -toNextDy);
-            
-            // If current waypoint requires turning >90° away from next waypoint, skip it
-            let angleDiff = Math.abs(toCurrentAngle - toNextAngle);
-            if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
-            
-            if (angleDiff > Math.PI / 2) {
-              pathState.currentWaypointIndex++;
-              continue;
-            }
-          }
-          
-          break; // Found a good waypoint
-        }
-        
-        // Check if we've exhausted all waypoints
+        // Get current waypoint
         if (pathState.currentWaypointIndex >= pathState.path.length) {
+          // Done - stop
           pathState.isFollowingPath = false;
           pathState.path = [];
           pathState.currentWaypointIndex = 0;
           pathState.targetWorldPos = null;
           isMovingRef.current = false;
         } else {
-          const currentWaypoint = pathState.path[pathState.currentWaypointIndex];
-          const dx = currentWaypoint.x - playerX;
-          const dy = currentWaypoint.y - playerY;
+          const wp = pathState.path[pathState.currentWaypointIndex];
+          const dx = wp.x - playerX;
+          const dy = wp.y - playerY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
           
-          // Use LOOKAHEAD: If we have future waypoints, blend direction toward them
-          // This prevents zigzag turns when waypoints are close
-          let targetX = dx;
-          let targetY = dy;
+          // Advance to next waypoint if close enough
+          // Use larger threshold for intermediate waypoints, smaller for final
+          const isFinalWaypoint = pathState.currentWaypointIndex === pathState.path.length - 1;
+          const arrivalDist = isFinalWaypoint ? 0.2 : 0.4;
           
-          // Look 1-2 waypoints ahead and blend direction
-          const lookaheadWeight = 0.4;
-          for (let i = 1; i <= 2 && pathState.currentWaypointIndex + i < pathState.path.length; i++) {
-            const futureWp = pathState.path[pathState.currentWaypointIndex + i];
-            const futureDx = futureWp.x - playerX;
-            const futureDy = futureWp.y - playerY;
-            const weight = lookaheadWeight / i;
-            targetX += futureDx * weight;
-            targetY += futureDy * weight;
-          }
-          
-          // Calculate target rotation using blended direction
-          const targetRotation = Math.atan2(targetX, -targetY);
-          const currentRotation = playerStateRef.current.rotation;
-          
-          // Calculate shortest rotation direction
-          let rotDiff = targetRotation - currentRotation;
-          while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-          while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-          
-          const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
-          const turn = Math.max(-maxTurn, Math.min(maxTurn, rotDiff));
-          
-          // Update rotation
-          playerStateRef.current.rotation = normalizeAngle(currentRotation + turn);
-          
-          // Move forward if roughly facing the right direction (within 60 degrees)
-          const shouldMove = Math.abs(rotDiff) < Math.PI / 3;
-          
-          if (shouldMove) {
-            const alignmentFactor = 1 - (Math.abs(rotDiff) / (Math.PI / 3)) * 0.3;
+          if (dist < arrivalDist) {
+            pathState.currentWaypointIndex++;
+            // Don't turn after arriving at final point - just stop
+            if (pathState.currentWaypointIndex >= pathState.path.length) {
+              pathState.isFollowingPath = false;
+              pathState.path = [];
+              pathState.currentWaypointIndex = 0;
+              pathState.targetWorldPos = null;
+              isMovingRef.current = false;
+            }
+          } else {
+            // Steer toward waypoint
+            const targetRotation = Math.atan2(dx, -dy);
+            const currentRotation = playerStateRef.current.rotation;
+            
+            let rotDiff = targetRotation - currentRotation;
+            while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+            while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+            
+            // Turn toward waypoint
+            const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
+            const turn = Math.max(-maxTurn, Math.min(maxTurn, rotDiff));
+            playerStateRef.current.rotation = normalizeAngle(currentRotation + turn);
+            
+            // Always move forward (slow down only if turning sharply)
+            const turnFactor = 1 - Math.min(1, Math.abs(rotDiff) / Math.PI) * 0.5;
             
             input = {
               forward: true,
               backward: false,
               rotateLeft: false,
               rotateRight: false,
-              speedMultiplier: alignmentFactor,
+              speedMultiplier: turnFactor,
             };
             
             isMovingRef.current = true;
@@ -1316,8 +1279,6 @@ const RefBasedPlayer = ({
             const prev = playerStateRef.current;
             const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
             playerStateRef.current = newState;
-          } else {
-            isMovingRef.current = false;
           }
         }
       } else {

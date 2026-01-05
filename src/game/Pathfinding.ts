@@ -160,7 +160,7 @@ export function findPath(
 
 /**
  * Simplify path by removing intermediate points on straight lines
- * Returns a more efficient path with only turn points
+ * Also offsets corner waypoints away from walls to prevent scraping
  */
 export function simplifyPath(path: PathPoint[]): PathPoint[] {
   if (path.length <= 2) return path;
@@ -172,14 +172,38 @@ export function simplifyPath(path: PathPoint[]): PathPoint[] {
     const curr = path[i];
     const next = path[i + 1];
     
-    // Check if direction changes
+    // Check if direction changes (this is a corner)
     const dx1 = Math.sign(curr.x - prev.x);
     const dy1 = Math.sign(curr.y - prev.y);
     const dx2 = Math.sign(next.x - curr.x);
     const dy2 = Math.sign(next.y - curr.y);
     
     if (dx1 !== dx2 || dy1 !== dy2) {
-      simplified.push(curr);
+      // This is a corner - offset waypoint to cut the corner smoothly
+      // Move waypoint toward the "inside" of the turn
+      const CORNER_OFFSET = 0.25; // How much to cut corners
+      
+      // Calculate offset direction (toward inside of turn)
+      // The inside is opposite to the corner direction
+      let offsetX = 0;
+      let offsetY = 0;
+      
+      // If we're going right then down, inside is up-left, etc.
+      // Offset away from the outer corner
+      if (dx1 !== 0 && dy2 !== 0) {
+        // Horizontal then vertical
+        offsetX = -dx1 * CORNER_OFFSET;
+        offsetY = -dy2 * CORNER_OFFSET;
+      } else if (dy1 !== 0 && dx2 !== 0) {
+        // Vertical then horizontal
+        offsetX = -dx2 * CORNER_OFFSET;
+        offsetY = -dy1 * CORNER_OFFSET;
+      }
+      
+      simplified.push({ 
+        x: curr.x + offsetX, 
+        y: curr.y + offsetY 
+      });
     }
   }
   
