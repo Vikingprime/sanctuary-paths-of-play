@@ -218,24 +218,25 @@ export const MobileControls = ({
         
         // Dead zone check - outside deadzone = movement
         if (currentDistance >= deadZone) {
-          // === JOYSTICK DIRECTION = ABSOLUTE MOVEMENT DIRECTION ===
-          // Calculate the world angle from joystick direction
-          // Screen coords: Y+ is down, X+ is right
-          // We negate dx so that: left on screen = negative angle = turn left
-          const joystickAngle = Math.atan2(-dx, -dy);
+          // === SIMPLE: JOYSTICK DIRECTION RELATIVE TO CURRENT HEADING ===
+          // Get the character's CURRENT heading
+          const currentPlayerHeading = playerStateRef.current.rotation;
           
-          // The joystick points in the world direction the animal should face
-          const targetHeading = joystickAngle;
+          // Calculate joystick angle: up=0, left=-PI/2, right=+PI/2
+          const joystickAngle = Math.atan2(dx, -dy);
           
-          // Always move forward (animal faces joystick direction and moves that way)
+          // Target heading = current heading + joystick offset
+          // Joystick up = go forward (no turn)
+          // Joystick left = turn left 90 degrees from current heading
+          // Joystick right = turn right 90 degrees from current heading
+          const targetHeading = currentPlayerHeading + joystickAngle;
+          
+          // Always move forward
           targetThrottle = forwardSpeed;
           
-          // Faster lerp for responsive direction control
-          const smoothedHeading = lerpAngle(currentHeadingRef.current, targetHeading, 0.25);
-          currentHeadingRef.current = smoothedHeading;
-          
-          // Update player rotation directly
-          playerStateRef.current.rotation = smoothedHeading;
+          // Apply rotation directly (no lerp for now to debug)
+          playerStateRef.current.rotation = targetHeading;
+          currentHeadingRef.current = targetHeading;
           
           // Set yawRate to 0 since we're setting rotation directly
           yawRateRef.current = 0;
