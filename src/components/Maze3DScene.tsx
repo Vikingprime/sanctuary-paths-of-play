@@ -1,18 +1,18 @@
-import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
+import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef, useCallback } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Vector2, PlaneGeometry } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor } from '@/game/CharacterConfig';
-import { findBestDirectionAngle } from '@/game/MazeUtils';
+import { findBestDirectionAngle, isWall } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics, checkGcSpike } from '@/lib/debug';
-import { MOBILE_CONTROL_CONFIG } from './MobileControls';
-// LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
+import { PathFollowerState, TAP_MOVE_CONFIG } from './TapToMoveControls';
+
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
@@ -50,12 +50,9 @@ interface Maze3DSceneProps {
   isMovingRef: MutableRefObject<boolean>;
   collectedPowerUps?: Set<string>;
   keysPressed: MutableRefObject<Set<string>>;
-  // Mobile controls - yaw rate system
-  mobileTargetYawRef?: MutableRefObject<number>; // Legacy - not used in new system
-  mobileYawRateRef?: MutableRefObject<number>;   // Yaw rate in radians/sec from steering
-  mobileIsMovingRef?: MutableRefObject<boolean>;
-  mobileThrottleRef?: MutableRefObject<number>;  // -1 (reverse) to 1 (forward)
-  mobileTouchActiveRef?: MutableRefObject<boolean>;
+  // Tap-to-move path following
+  pathFollowerRef?: MutableRefObject<PathFollowerState>;
+  cameraOffset?: number;  // Camera yaw offset from swipe
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -65,6 +62,7 @@ interface Maze3DSceneProps {
   lowPixelRatio?: boolean;
   onRendererInfo?: (info: PerformanceInfo) => void;
   onCullStats?: (stats: CullStats) => void;
+  onRaycastHandlerReady?: (handler: (screenX: number, screenY: number) => { worldX: number; worldZ: number; hitCorn: boolean } | null) => void;
   debugMode?: boolean;
   restartKey?: number; // Increment to force camera reset
   dialogueTarget?: DialogueTarget | null; // Active dialogue speaker position for cutscene camera
@@ -78,6 +76,8 @@ interface Maze3DSceneProps {
   animationsEnabled?: boolean;
   opacityFadeEnabled?: boolean;
   cornEnabled?: boolean;
+  // Target marker for tap-to-move
+  targetMarker?: { x: number; z: number } | null;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -1155,10 +1155,7 @@ const RefBasedPlayer = ({
   isMovingRef,
   maze,
   keysPressed,
-  mobileYawRateRef,
-  mobileIsMovingRef,
-  mobileThrottleRef,
-  mobileTouchActiveRef,
+  pathFollowerRef,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1172,10 +1169,7 @@ const RefBasedPlayer = ({
   isMovingRef: MutableRefObject<boolean>;
   maze: Maze;
   keysPressed: MutableRefObject<Set<string>>;
-  mobileYawRateRef?: MutableRefObject<number>;
-  mobileIsMovingRef?: MutableRefObject<boolean>;
-  mobileThrottleRef?: MutableRefObject<number>;
-  mobileTouchActiveRef?: MutableRefObject<boolean>;
+  pathFollowerRef?: MutableRefObject<PathFollowerState>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1215,74 +1209,76 @@ const RefBasedPlayer = ({
       // Clamp delta to prevent large jumps on frame drops
       const clampedDelta = Math.min(delta, 0.05);
       
-      // Check if mobile touch is active (use boolean ref, not null check)
-      const mobileActive = mobileTouchActiveRef?.current ?? false;
+      // Check if following a path (tap-to-move)
+      const pathState = pathFollowerRef?.current;
+      const isFollowingPath = pathState?.isFollowingPath && pathState.path.length > 0;
       
       let input: MovementInput;
       
-      if (mobileActive) {
-        // MOBILE MODE: Gesture-relative steering
-        // MobileControls now sets playerStateRef.current.rotation directly
-        // yawRateRef.current = 0 signals that rotation is already handled
-        const yawRate = mobileYawRateRef?.current ?? 0;
+      if (isFollowingPath && pathState) {
+        // PATH FOLLOWING MODE: Move toward current waypoint
+        const currentWaypoint = pathState.path[pathState.currentWaypointIndex];
         
-        // Only apply cardinal snapping if yawRate is non-zero (legacy mode)
-        // In gesture-relative mode (yawRate = 0), skip rotation handling entirely
-        if (Math.abs(yawRate) > 0.001) {
-          let newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
+        if (currentWaypoint) {
+          const playerX = playerStateRef.current.x;
+          const playerY = playerStateRef.current.y;
+          const dx = currentWaypoint.x - playerX;
+          const dy = currentWaypoint.y - playerY;
+          const distToWaypoint = Math.sqrt(dx * dx + dy * dy);
           
-          // === ANGULAR SNAPPING (Cardinal Alignment Assist) ===
-          const cardinalSnapThreshold = 0.087; // ~5 degrees
-          const cardinalSnapStrength = 0.03;
-          const absYawRate = Math.abs(yawRate);
-          
-          // Only snap when not turning hard (yaw rate < 0.5)
-          if (absYawRate < 0.5) {
-            const cardinals = [0, Math.PI / 2, Math.PI, Math.PI * 1.5, Math.PI * 2];
+          // Check if we've arrived at current waypoint
+          if (distToWaypoint < TAP_MOVE_CONFIG.arrivalThreshold) {
+            // Move to next waypoint
+            pathState.currentWaypointIndex++;
             
-            for (const cardinal of cardinals) {
-              let diff = newRotation - cardinal;
-              if (diff > Math.PI) diff -= Math.PI * 2;
-              if (diff < -Math.PI) diff += Math.PI * 2;
+            if (pathState.currentWaypointIndex >= pathState.path.length) {
+              // Arrived at destination
+              pathState.isFollowingPath = false;
+              pathState.path = [];
+              pathState.currentWaypointIndex = 0;
+              pathState.targetWorldPos = null;
+              isMovingRef.current = false;
+            }
+          } else {
+            // Calculate target rotation to face waypoint
+            const targetRotation = Math.atan2(dx, -dy);
+            
+            // Smoothly turn toward waypoint
+            let rotDiff = targetRotation - playerStateRef.current.rotation;
+            while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+            while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+            
+            const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
+            const turn = Math.max(-maxTurn, Math.min(maxTurn, rotDiff));
+            
+            // Update rotation
+            playerStateRef.current.rotation = normalizeAngle(playerStateRef.current.rotation + turn);
+            
+            // Only move forward if roughly facing the waypoint (within 45 degrees)
+            const shouldMove = Math.abs(rotDiff) < Math.PI / 4;
+            
+            if (shouldMove) {
+              // Move forward
+              input = {
+                forward: true,
+                backward: false,
+                rotateLeft: false,
+                rotateRight: false,
+                speedMultiplier: 1.0,
+              };
               
-              if (Math.abs(diff) < cardinalSnapThreshold) {
-                newRotation = normalizeAngle(newRotation - diff * cardinalSnapStrength);
-                break;
-              }
+              isMovingRef.current = true;
+              
+              // Calculate movement
+              const prev = playerStateRef.current;
+              const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+              playerStateRef.current = newState;
+            } else {
+              // Just turning, not moving
+              isMovingRef.current = false;
             }
           }
-          
-          playerStateRef.current = {
-            ...playerStateRef.current,
-            rotation: newRotation
-          };
         }
-        // If yawRate is 0, rotation was already set by MobileControls - don't touch it
-        
-        // Get throttle value (-1 to 1, supports reverse)
-        const throttle = mobileThrottleRef?.current ?? 0;
-        const isMoving = mobileIsMovingRef?.current ?? false;
-        const isForward = throttle > 0;
-        const isBackward = throttle < 0;
-        
-        // Build input with forward/backward from throttle
-        // (rotation already handled above)
-        input = {
-          forward: isMoving && isForward,
-          backward: isMoving && isBackward,
-          rotateLeft: false,
-          rotateRight: false,
-          rotationIntensity: 0,
-          speedMultiplier: Math.abs(throttle),
-        };
-        
-        // Update isMoving ref
-        isMovingRef.current = isMoving;
-        
-        // Calculate movement (position only, rotation already set)
-        const prev = playerStateRef.current;
-        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-        playerStateRef.current = newState;
       } else {
         // KEYBOARD MODE: Original per-frame rotation accumulation
         const isKeyboardRotation = keysPressed.current.has('arrowleft') || keysPressed.current.has('a') || 
@@ -1312,8 +1308,12 @@ const RefBasedPlayer = ({
         onCellInteraction(playerStateRef.current.x, playerStateRef.current.y);
       }
     } else {
-      // When paused (including dialogue), freeze movement
+      // When paused (including dialogue), freeze movement and clear path
       isMovingRef.current = false;
+      if (pathFollowerRef?.current) {
+        pathFollowerRef.current.isFollowingPath = false;
+        pathFollowerRef.current.path = [];
+      }
     }
     
     // Initialize smooth position and rotation on first frame
@@ -1351,12 +1351,15 @@ const RefBasedPlayer = ({
     groupRef.current.rotation.y = smoothRotation.current;
     
     // === BANKING / LEANING ===
-    // Bank angle is based on yaw rate - lean into turns
+    // Bank angle based on current turning rate
     const MAX_BANK_ANGLE = 0.18; // ~10 degrees max lean
-    const yawRate = mobileYawRateRef?.current ?? 0;
+    
+    // Calculate turning rate from rotation change
+    const rotationDelta = normalizeAngle(playerStateRef.current.rotation - (lastRotationRef.current ?? playerStateRef.current.rotation));
+    lastRotationRef.current = playerStateRef.current.rotation;
     
     // Target bank is opposite of turn direction (lean into the turn)
-    const targetBank = -yawRate * 0.08; // Scale yaw rate to bank angle
+    const targetBank = -rotationDelta * 3.0; // Scale rotation delta to bank angle
     const clampedTargetBank = Math.max(-MAX_BANK_ANGLE, Math.min(MAX_BANK_ANGLE, targetBank));
     
     // Smooth the bank angle
@@ -1365,6 +1368,9 @@ const RefBasedPlayer = ({
     // Apply bank (Z-axis rotation for roll)
     groupRef.current.rotation.z = smoothBankAngle.current;
   });
+  
+  // Track last rotation for banking calculation
+  const lastRotationRef = useRef<number | null>(null);
   
   return (
     <group ref={groupRef}>
@@ -1990,12 +1996,54 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, pathFollowerRef, cameraOffset = 0, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, onRaycastHandlerReady, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, targetMarker }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
   // Ref for corn walls - used by camera autopush raycasting
   const foliageGroupRef = useRef<Group>(null);
+  
+  // Ground plane raycaster for tap-to-move
+  const { camera, size } = useThree();
+  const groundRaycaster = useRef(new Raycaster());
+  const groundPlane = useRef(new Vector3(0, 1, 0)); // Normal for Y=0 plane
+  const pointer = useRef(new Vector2());
+  const groundIntersect = useRef(new Vector3());
+  
+  // Create raycast handler for tap-to-move
+  const raycastHandler = useCallback((screenX: number, screenY: number): { worldX: number; worldZ: number; hitCorn: boolean } | null => {
+    // Convert screen coords to normalized device coords
+    pointer.current.x = (screenX / size.width) * 2 - 1;
+    pointer.current.y = -(screenY / size.height) * 2 + 1;
+    
+    // Update raycaster from camera
+    groundRaycaster.current.setFromCamera(pointer.current, camera);
+    
+    // Calculate intersection with ground plane (Y=0)
+    const ray = groundRaycaster.current.ray;
+    const t = -ray.origin.y / ray.direction.y;
+    
+    if (t < 0) return null; // Ray pointing away from ground
+    
+    groundIntersect.current.copy(ray.origin).addScaledVector(ray.direction, t);
+    
+    const worldX = groundIntersect.current.x;
+    const worldZ = groundIntersect.current.z;
+    
+    // Check if this position is in a wall (corn)
+    const gridX = Math.floor(worldX);
+    const gridZ = Math.floor(worldZ);
+    const hitCorn = isWall(maze, gridX, gridZ);
+    
+    return { worldX, worldZ, hitCorn };
+  }, [camera, size, maze]);
+  
+  // Register raycast handler with parent
+  useEffect(() => {
+    if (onRaycastHandlerReady) {
+      onRaycastHandlerReady(raycastHandler);
+    }
+  }, [onRaycastHandlerReady, raycastHandler]);
   
   useFrame(() => {
     if (!hasSignaled.current && onSceneReady) {
@@ -2184,7 +2232,13 @@ return (
         />
       ))}
       
-      {/* Note: GoalMarker removed - farmer is now a regular PlacedCharacter */}
+      {/* Target marker for tap-to-move */}
+      {targetMarker && (
+        <mesh position={[targetMarker.x, 0.05, targetMarker.z]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.2, 0.3, 16]} />
+          <meshBasicMaterial color="#00ff00" transparent opacity={0.7} side={DoubleSide} />
+        </mesh>
+      )}
       
       {/* Player - handles movement + rendering in sync */}
       <RefBasedPlayer 
@@ -2193,10 +2247,7 @@ return (
         isMovingRef={isMovingRef}
         maze={maze}
         keysPressed={keysPressed}
-        mobileYawRateRef={mobileYawRateRef}
-        mobileIsMovingRef={mobileIsMovingRef}
-        mobileThrottleRef={mobileThrottleRef}
-        mobileTouchActiveRef={mobileTouchActiveRef}
+        pathFollowerRef={pathFollowerRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}

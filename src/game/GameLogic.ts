@@ -102,50 +102,55 @@ export function generateRockPositions(maze: Maze): RockPosition[] {
     return x - Math.floor(x);
   };
 
-  const ROCK_SIZE_MIN = 0.06;  // Slightly bigger rocks
-  const ROCK_SIZE_MAX = 0.14;  // Max size increased
-  const ROCK_EDGE_INSET = 0.04; // Closer to wall edge (more into corn)
-  const ROCK_SPACING = 0.5; // Minimum distance between rocks
-  const MIN_PLACEMENT_CHANCE = 0.10; // Chance of placing a rock
+  const ROCK_SIZE_MIN = 0.04;  // Smaller rocks - decorative only
+  const ROCK_SIZE_MAX = 0.08;  // Smaller max size
+  const ROCK_SPACING = 0.6;    // Minimum distance between rocks
+  const MIN_PLACEMENT_CHANCE = 0.06; // Lower chance - fewer rocks
 
-  // Find all non-wall cells (paths) and place rocks near edges
+  // Place rocks INSIDE wall cells (within corn) near path edges
+  // This ensures animals can never collide with rocks
   const mazeWidth = maze.grid[0].length;
   const mazeHeight = maze.grid.length;
 
   // Track placed rock positions to ensure spacing
   const placedRocks: { x: number; z: number }[] = [];
 
+  // Helper to check if cell is a path
+  const isPath = (gx: number, gy: number) => {
+    if (gx < 0 || gx >= mazeWidth || gy < 0 || gy >= mazeHeight) return false;
+    return !maze.grid[gy][gx].isWall;
+  };
+
   for (let y = 1; y < mazeHeight - 1; y++) {
     for (let x = 1; x < mazeWidth - 1; x++) {
       const cell = maze.grid[y][x];
-      // Only place rocks on path cells
-      if (cell.isWall) continue;
-      // Don't place rocks on special cells
-      if (cell.isStart || cell.isEnd || cell.isPowerUp || cell.isStation) continue;
+      // Only place rocks IN WALL cells (inside corn)
+      if (!cell.isWall) continue;
 
-      // Check which sides have walls
-      const wallAbove = maze.grid[y - 1]?.[x]?.isWall;
-      const wallBelow = maze.grid[y + 1]?.[x]?.isWall;
-      const wallLeft = maze.grid[y][x - 1]?.isWall;
-      const wallRight = maze.grid[y][x + 1]?.isWall;
+      // Check which sides have paths (rocks go on wall side of these edges)
+      const pathAbove = isPath(x, y - 1);
+      const pathBelow = isPath(x, y + 1);
+      const pathLeft = isPath(x - 1, y);
+      const pathRight = isPath(x + 1, y);
+
+      // Only place if adjacent to exactly one path (edge of corn)
+      const adjacentPaths = [pathAbove, pathBelow, pathLeft, pathRight].filter(Boolean).length;
+      if (adjacentPaths !== 1) continue;
 
       const seed = x * 1000 + y;
       const placeChance = seededRandom(seed);
 
-      // Place rock near wall edge with some randomness
       if (placeChance < MIN_PLACEMENT_CHANCE) {
         let rockX = x + 0.5;
         let rockZ = y + 0.5;
 
-        // Position near wall edges - keep very close to walls
-        if (wallAbove) rockZ = y + ROCK_EDGE_INSET + seededRandom(seed + 1) * 0.05;
-        else if (wallBelow) rockZ = y + 1 - ROCK_EDGE_INSET - seededRandom(seed + 2) * 0.05;
+        // Position rocks 0.2-0.4 units INTO the wall cell (away from path)
+        const inset = 0.2 + seededRandom(seed + 10) * 0.2;
         
-        if (wallLeft) rockX = x + ROCK_EDGE_INSET + seededRandom(seed + 3) * 0.05;
-        else if (wallRight) rockX = x + 1 - ROCK_EDGE_INSET - seededRandom(seed + 4) * 0.05;
-
-        // Skip if in center with no adjacent walls
-        if (!wallAbove && !wallBelow && !wallLeft && !wallRight) continue;
+        if (pathAbove) rockZ = y + 0.5 + inset;       // Move down into wall
+        else if (pathBelow) rockZ = y + 0.5 - inset;  // Move up into wall
+        else if (pathLeft) rockX = x + 0.5 + inset;   // Move right into wall
+        else if (pathRight) rockX = x + 0.5 - inset;  // Move left into wall
 
         // Check spacing from other rocks
         const tooClose = placedRocks.some((r) => {
