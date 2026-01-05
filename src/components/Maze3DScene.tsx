@@ -1291,6 +1291,40 @@ const RefBasedPlayer = ({
               console.log(`[Turn] Target=${(normalizedTarget * 180 / Math.PI).toFixed(1)}° Current=${(normalizedCurrent * 180 / Math.PI).toFixed(1)}° Diff=${(rotDiff * 180 / Math.PI).toFixed(1)}° Waypoint=(${wp.x.toFixed(2)},${wp.y.toFixed(2)}) dx=${dx.toFixed(2)} dy=${dy.toFixed(2)}`);
             }
             
+            // STUCK DETECTION: If we're not making progress toward the waypoint, skip it
+            const progressDist = Math.sqrt(
+              Math.pow(playerX - pathState.lastProgressX, 2) +
+              Math.pow(playerY - pathState.lastProgressY, 2)
+            );
+            
+            if (progressDist > 0.1) {
+              // Made progress - reset stuck counter
+              pathState.lastProgressX = playerX;
+              pathState.lastProgressY = playerY;
+              pathState.stuckFrames = 0;
+            } else {
+              // Not making progress
+              pathState.stuckFrames++;
+              
+              // If stuck for too long (about 1.5 seconds at 60fps), skip to next waypoint or give up
+              if (pathState.stuckFrames > 90) {
+                console.log(`[PathFollow] STUCK - skipping waypoint ${pathState.currentWaypointIndex}`);
+                pathState.stuckFrames = 0;
+                pathState.currentWaypointIndex++;
+                
+                // If no more waypoints, stop
+                if (pathState.currentWaypointIndex >= pathState.path.length) {
+                  pathState.isFollowingPath = false;
+                  pathState.path = [];
+                  pathState.currentWaypointIndex = 0;
+                  pathState.targetWorldPos = null;
+                  isMovingRef.current = false;
+                }
+                // Skip the rest of this frame's processing
+                return;
+              }
+            }
+            
             // Always turn toward waypoint
             const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
             const turn = Math.max(-maxTurn, Math.min(maxTurn, rotDiff));

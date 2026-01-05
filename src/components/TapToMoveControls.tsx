@@ -245,6 +245,10 @@ export interface PathFollowerState {
   currentWaypointIndex: number;
   isFollowingPath: boolean;
   targetWorldPos: PathPoint | null;
+  // Stuck detection
+  lastProgressX: number;
+  lastProgressY: number;
+  stuckFrames: number;
 }
 
 export function usePathFollower() {
@@ -253,6 +257,9 @@ export function usePathFollower() {
     currentWaypointIndex: 0,
     isFollowingPath: false,
     targetWorldPos: null,
+    lastProgressX: 0,
+    lastProgressY: 0,
+    stuckFrames: 0,
   });
   
   const setPath = useCallback((path: PathPoint[], targetWorldPos: PathPoint | null) => {
@@ -261,6 +268,9 @@ export function usePathFollower() {
       currentWaypointIndex: 0,
       isFollowingPath: path.length > 0,
       targetWorldPos,
+      lastProgressX: 0,
+      lastProgressY: 0,
+      stuckFrames: 0,
     };
   }, []);
   
@@ -270,6 +280,9 @@ export function usePathFollower() {
       currentWaypointIndex: 0,
       isFollowingPath: false,
       targetWorldPos: null,
+      lastProgressX: 0,
+      lastProgressY: 0,
+      stuckFrames: 0,
     };
   }, []);
   
