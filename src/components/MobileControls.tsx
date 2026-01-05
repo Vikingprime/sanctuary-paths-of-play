@@ -218,21 +218,20 @@ export const MobileControls = ({
         
         // Dead zone check - outside deadzone = movement
         if (currentDistance >= deadZone) {
-          // === JOYSTICK DIRECTION = MOVEMENT DIRECTION (PLAYER-RELATIVE) ===
-          // Calculate the angle the joystick is pointing relative to "up"
+          // === JOYSTICK DIRECTION = ABSOLUTE MOVEMENT DIRECTION ===
+          // Calculate the world angle from joystick direction
           // Screen coords: Y+ is down, X+ is right
-          // atan2(x, -y) gives us: up = 0, right = PI/2, left = -PI/2
-          const joystickAngle = Math.atan2(dx, -dy);
+          // We negate dx so that: left on screen = negative angle = turn left
+          const joystickAngle = Math.atan2(-dx, -dy);
           
-          // Target heading is the BASELINE heading + joystick offset
-          // This makes joystick "up" = continue forward, "right" = turn right from current heading
-          const targetHeading = turnStartHeadingRef.current + joystickAngle;
+          // The joystick points in the world direction the animal should face
+          const targetHeading = joystickAngle;
           
           // Always move forward (animal faces joystick direction and moves that way)
           targetThrottle = forwardSpeed;
           
-          // Smooth rotation to target heading
-          const smoothedHeading = lerpAngle(currentHeadingRef.current, targetHeading, turnLerpSpeed);
+          // Faster lerp for responsive direction control
+          const smoothedHeading = lerpAngle(currentHeadingRef.current, targetHeading, 0.25);
           currentHeadingRef.current = smoothedHeading;
           
           // Update player rotation directly
