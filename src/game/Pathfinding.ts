@@ -203,6 +203,79 @@ function isPositionBlockedWithDirection(
 }
 
 /**
+ * Check if a world position is inside a blocked obstacle (character or station)
+ * This is used to reject destinations that are directly on obstacles
+ */
+function isInsideBlockedObstacle(
+  worldX: number,
+  worldY: number,
+  blockedPositions: BlockedPosition[]
+): boolean {
+  for (const blocked of blockedPositions) {
+    const obstacleRadius = blocked.radius ?? 0.4;
+    const dx = worldX - blocked.x;
+    const dy = worldY - blocked.y;
+    const distSq = dx * dx + dy * dy;
+    // Check if point is inside the obstacle's core (not clearance zone)
+    if (distSq < obstacleRadius * obstacleRadius) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Find the nearest valid position outside all blocked obstacles
+ * Searches in a spiral pattern outward from the clicked position
+ */
+function findNearestValidPosition(
+  maze: Maze,
+  worldX: number,
+  worldY: number,
+  blockedPositions: BlockedPosition[],
+  playerX: number,
+  playerY: number
+): { x: number; y: number } | null {
+  // Direction from obstacle toward player (preferred escape direction)
+  const toPlayerX = playerX - worldX;
+  const toPlayerY = playerY - worldY;
+  const toPlayerDist = Math.sqrt(toPlayerX * toPlayerX + toPlayerY * toPlayerY);
+  
+  // Normalize direction
+  const dirX = toPlayerDist > 0.1 ? toPlayerX / toPlayerDist : 0;
+  const dirY = toPlayerDist > 0.1 ? toPlayerY / toPlayerDist : -1;
+  
+  // Search in expanding circles, preferring direction toward player
+  const searchDistances = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+  const angleOffsets = [0, 0.5, -0.5, 1.0, -1.0, 1.5, -1.5, Math.PI]; // Radians from player direction
+  
+  for (const dist of searchDistances) {
+    for (const angleOffset of angleOffsets) {
+      const baseAngle = Math.atan2(dirY, dirX);
+      const searchAngle = baseAngle + angleOffset;
+      const testX = worldX + Math.cos(searchAngle) * dist;
+      const testY = worldY + Math.sin(searchAngle) * dist;
+      
+      // Check if this position is valid (not in wall, not in obstacle)
+      const gridX = Math.floor(testX);
+      const gridY = Math.floor(testY);
+      
+      if (isWall(maze, gridX, gridY)) continue;
+      if (isInsideBlockedObstacle(testX, testY, blockedPositions)) continue;
+      
+      // Also check clearance
+      const fineX = Math.round(testX / GRID_RESOLUTION);
+      const fineY = Math.round(testY / GRID_RESOLUTION);
+      if (isPositionBlocked(maze, fineX, fineY, blockedPositions, 0.3)) continue;
+      
+      return { x: testX, y: testY };
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Find path from start to goal using A* algorithm with fine grid
  * Uses rotation-aware cost to prefer smoother paths
  */
@@ -222,6 +295,19 @@ export function findPath(
   
   // Use the blockedPositions array directly for radius-based collision
   const blocked = blockedPositions ?? [];
+  
+  // FIRST: Check if goal is directly inside a blocked obstacle (map tower, character)
+  // If so, find the nearest valid position outside
+  if (isInsideBlockedObstacle(goalX, goalY, blocked)) {
+    const alternate = findNearestValidPosition(maze, goalX, goalY, blocked, startX, startY);
+    if (!alternate) {
+      console.log('[Pathfinding] Goal is inside obstacle and no alternate found');
+      return null;
+    }
+    console.log(`[Pathfinding] Goal inside obstacle, redirecting to (${alternate.x.toFixed(2)}, ${alternate.y.toFixed(2)})`);
+    // Recursively find path to the alternate position
+    return findPath(maze, startX, startY, alternate.x, alternate.y, blockedPositions);
+  }
   
   // Quick check: if goal is blocked, try to find nearest unblocked point
   // Use smaller radius for goal check to allow getting closer to obstacles
@@ -359,18 +445,51 @@ export function findPath(
       const worldNx = nx * GRID_RESOLUTION;
       const worldNy = ny * GRID_RESOLUTION;
       let nearObstacle = false;
+      let obstaclePenalty = 0;
       for (const obs of blocked) {
         const dx = worldNx - obs.x;
         const dy = worldNy - obs.y;
-        if (dx * dx + dy * dy < 2.0) { // Within 1.4 units of an obstacle
+        const distSq = dx * dx + dy * dy;
+        if (distSq < 2.0) { // Within 1.4 units of an obstacle
           nearObstacle = true;
-          break;
+          // Add cost for being close to obstacles (encourages going around)
+          const dist = Math.sqrt(distSq);
+          const obsRadius = obs.radius ?? 0.4;
+          // Penalty increases as we get closer to obstacle
+          if (dist < obsRadius + 0.8) {
+            obstaclePenalty += (obsRadius + 0.8 - dist) * 2.0;
+          }
         }
       }
       
-      // If near an obstacle, do the more expensive capsule check
-      if (nearObstacle && isPositionBlockedWithDirection(maze, nx, ny, dir.angle, blocked)) {
-        continue;
+      // If near an obstacle, do the more expensive capsule check with MULTIPLE angles
+      // This allows A* to discover that going around with a different approach angle works
+      if (nearObstacle) {
+        // Check if this direction is blocked
+        if (isPositionBlockedWithDirection(maze, nx, ny, dir.angle, blocked)) {
+          // Before giving up, check if we can pass through at a tangent angle
+          // Try angles that would let the cow "squeeze" past
+          const tangentAngles = [
+            (dir.angle + 1) % 8,  // +45 degrees
+            (dir.angle + 7) % 8,  // -45 degrees
+            (dir.angle + 2) % 8,  // +90 degrees
+            (dir.angle + 6) % 8,  // -90 degrees
+          ];
+          
+          let canPassWithTangent = false;
+          for (const tangentAngle of tangentAngles) {
+            if (!isPositionBlockedWithDirection(maze, nx, ny, tangentAngle, blocked)) {
+              canPassWithTangent = true;
+              // Add extra cost for requiring a tangent approach
+              obstaclePenalty += 0.5;
+              break;
+            }
+          }
+          
+          if (!canPassWithTangent) {
+            continue; // Truly blocked at all reasonable angles
+          }
+        }
       }
       
       // Calculate movement cost (diagonal costs more)
@@ -381,7 +500,7 @@ export function findPath(
       // Add turn cost to prefer straighter paths
       const turnCost = getTurnCost(current.direction, dir.angle);
       
-      const g = current.g + moveCost + turnCost;
+      const g = current.g + moveCost + turnCost + obstaclePenalty;
       const h = heuristic(nx, ny);
       const f = g + h;
       
