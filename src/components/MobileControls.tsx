@@ -218,15 +218,15 @@ export const MobileControls = ({
         
         // Dead zone check - outside deadzone = movement
         if (currentDistance >= deadZone) {
-          // === JOYSTICK DIRECTION = MOVEMENT DIRECTION ===
-          // Calculate the angle the joystick is pointing (in world space)
+          // === JOYSTICK DIRECTION = MOVEMENT DIRECTION (PLAYER-RELATIVE) ===
+          // Calculate the angle the joystick is pointing relative to "up"
           // Screen coords: Y+ is down, X+ is right
-          // We want: up = forward (negative Y in screen), right = positive X
-          // atan2(x, -y) gives us angle where up = 0, right = PI/2
+          // atan2(x, -y) gives us: up = 0, right = PI/2, left = -PI/2
           const joystickAngle = Math.atan2(dx, -dy);
           
-          // Target heading is the joystick angle
-          const targetHeading = joystickAngle;
+          // Target heading is the BASELINE heading + joystick offset
+          // This makes joystick "up" = continue forward, "right" = turn right from current heading
+          const targetHeading = turnStartHeadingRef.current + joystickAngle;
           
           // Always move forward (animal faces joystick direction and moves that way)
           targetThrottle = forwardSpeed;
