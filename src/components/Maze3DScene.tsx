@@ -1340,20 +1340,28 @@ const RefBasedPlayer = ({
     groupRef.current.position.x = smoothPositionX.current;
     groupRef.current.position.z = smoothPositionZ.current;
     
+    // Helper to normalize angles to [-PI, PI] for consistent shortest-path calculation
+    const normalizeToPI = (angle: number) => {
+      while (angle > Math.PI) angle -= Math.PI * 2;
+      while (angle < -Math.PI) angle += Math.PI * 2;
+      return angle;
+    };
+    
     // Smooth rotation with fixed lerp factor (not delta-dependent)
-    const targetRotation = -playerStateRef.current.rotation + Math.PI;
-    let rotDiff = targetRotation - (smoothRotation.current ?? targetRotation);
-    if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-    if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+    // Calculate target visual rotation and normalize to [-PI, PI]
+    const rawTargetRotation = -playerStateRef.current.rotation + Math.PI;
+    const targetRotation = normalizeToPI(rawTargetRotation);
+    
+    // Normalize current smooth rotation to same range for consistent comparison
+    const currentSmooth = normalizeToPI(smoothRotation.current ?? targetRotation);
+    
+    // Compute shortest-path difference (both angles now in [-PI, PI])
+    const rotDiff = normalizeToPI(targetRotation - currentSmooth);
     
     // Use faster lerp when difference is large (new path started)
     // This prevents visual "overturn" when rotation suddenly changes
     const lerpFactor = Math.abs(rotDiff) > 1.5 ? 0.5 : 0.15;
-    smoothRotation.current = (smoothRotation.current ?? targetRotation) + rotDiff * lerpFactor;
-    
-    // Normalize rotation
-    if (smoothRotation.current > Math.PI * 2) smoothRotation.current -= Math.PI * 2;
-    if (smoothRotation.current < 0) smoothRotation.current += Math.PI * 2;
+    smoothRotation.current = normalizeToPI(currentSmooth + rotDiff * lerpFactor);
     
     groupRef.current.rotation.y = smoothRotation.current;
     
