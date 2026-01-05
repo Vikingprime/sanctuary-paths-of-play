@@ -915,32 +915,55 @@ export const MazeGame3D = ({
               return;
             }
             
-            // Calculate total walking distance along the path
-            let walkingDistance = 0;
+            // Calculate cumulative walking distance along the path and clamp if needed
+            const MAX_WALKING_DISTANCE = 5.0;
+            let cumulativeDistance = 0;
             let prevX = playerX;
             let prevY = playerY;
-            for (const wp of path) {
-              walkingDistance += Math.sqrt(
+            let clampedPath = [...path];
+            
+            for (let i = 0; i < path.length; i++) {
+              const wp = path[i];
+              const segmentDist = Math.sqrt(
                 Math.pow(wp.x - prevX, 2) + Math.pow(wp.y - prevY, 2)
               );
+              
+              if (cumulativeDistance + segmentDist > MAX_WALKING_DISTANCE) {
+                // This segment would exceed the limit - find the point along it that hits the limit
+                const remainingDist = MAX_WALKING_DISTANCE - cumulativeDistance;
+                if (remainingDist > 0.3) {  // Only add if meaningful distance remaining
+                  const ratio = remainingDist / segmentDist;
+                  const clampedX = prevX + (wp.x - prevX) * ratio;
+                  const clampedY = prevY + (wp.y - prevY) * ratio;
+                  clampedPath = path.slice(0, i);
+                  clampedPath.push({ x: clampedX, y: clampedY });
+                } else {
+                  clampedPath = path.slice(0, i);
+                }
+                if (debugMode) console.log(`[TapMove] Clamped path at ${MAX_WALKING_DISTANCE}m walking distance`);
+                break;
+              }
+              
+              cumulativeDistance += segmentDist;
               prevX = wp.x;
               prevY = wp.y;
             }
             
-            // Limit to max walking distance (prevents clicking to far-away sections)
-            const MAX_WALKING_DISTANCE = 5.0;
-            if (walkingDistance > MAX_WALKING_DISTANCE) {
-              if (debugMode) console.log(`[TapMove] Walking distance ${walkingDistance.toFixed(1)} > ${MAX_WALKING_DISTANCE}, ignoring`);
+            // Use clamped path
+            if (clampedPath.length === 0) {
+              if (debugMode) console.log('[TapMove] Path too short after clamping, ignoring');
               return;
             }
             
             // DEBUG: Log new destination tap
+            const walkingDistance = cumulativeDistance;
             const currentRotDeg = (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1);
-            console.log(`[NewTap] From=(${playerX.toFixed(2)},${playerY.toFixed(2)}) To=(${worldX.toFixed(2)},${worldZ.toFixed(2)}) CurrentRotation=${currentRotDeg}° WalkDist=${walkingDistance.toFixed(1)}`);
-            console.log(`[NewTap] Path waypoints: ${path.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> ')}`);
+            const finalDest = clampedPath[clampedPath.length - 1];
+            console.log(`[NewTap] From=(${playerX.toFixed(2)},${playerY.toFixed(2)}) To=(${finalDest.x.toFixed(2)},${finalDest.y.toFixed(2)}) CurrentRotation=${currentRotDeg}° WalkDist=${walkingDistance.toFixed(1)}`);
+            console.log(`[NewTap] Path waypoints: ${clampedPath.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> ')}`);
             
             // Path is already simplified by the fine-grid pathfinder
-            let simplifiedPath = path;
+            let simplifiedPath = clampedPath;
             
             console.log('[TapMove] Path:', simplifiedPath.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> '));
             console.log('[TapMove] Player at:', playerX.toFixed(2), playerY.toFixed(2), 'rotation:', (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1) + '°');
