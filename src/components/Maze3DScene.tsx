@@ -1283,11 +1283,6 @@ const RefBasedPlayer = ({
             newRotation = normalizeAngle(currentRotation + Math.sign(rotDiff) * maxRotThisFrame);
           }
           
-          playerStateRef.current = {
-            ...playerStateRef.current,
-            rotation: newRotation
-          };
-          
           // Build movement input (always forward since we're rotating to face direction)
           input = {
             forward: true,
@@ -1299,6 +1294,19 @@ const RefBasedPlayer = ({
           };
           
           isMovingRef.current = true;
+          
+          // Calculate movement - pass the target rotation so movement goes in camera direction
+          const prevWithCameraRotation = {
+            ...playerStateRef.current,
+            rotation: newRotation  // Use camera-relative rotation for movement calculation
+          };
+          const newState = calculateMovement(maze, prevWithCameraRotation, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+          
+          // Keep the camera-relative rotation (calculateMovement may have modified it)
+          playerStateRef.current = {
+            ...newState,
+            rotation: newRotation  // Preserve our camera-relative rotation
+          };
         } else {
           // Not moving
           input = {
@@ -1310,12 +1318,9 @@ const RefBasedPlayer = ({
             speedMultiplier: 0,
           };
           isMovingRef.current = false;
+          
+          // No movement calculation needed when not moving
         }
-        
-        // Calculate movement (position only, rotation already set)
-        const prev = playerStateRef.current;
-        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-        playerStateRef.current = newState;
       } else if (mobileActive) {
         // LEGACY MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)
         const yawRate = mobileYawRateRef?.current ?? 0;
