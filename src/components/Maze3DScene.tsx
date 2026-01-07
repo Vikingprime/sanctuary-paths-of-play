@@ -1255,8 +1255,9 @@ const RefBasedPlayer = ({
           const worldDirZ = moveDir.x * Math.sin(cameraYaw) - moveDir.y * Math.cos(cameraYaw);
           
           // Calculate target rotation (character faces movement direction)
-          // atan2(x, z) gives angle from +Z axis, but we need angle where 0 = -Z
-          const targetRotation = Math.atan2(worldDirX, worldDirZ);
+          // atan2(x, z) gives angle from +Z axis, but player rotation 0 = facing -Z
+          // Negate both to convert from "+Z is 0" to "-Z is 0" convention
+          const targetRotation = Math.atan2(-worldDirX, -worldDirZ);
           
           // Smoothly rotate character toward movement direction
           const currentRotation = playerStateRef.current.rotation;
