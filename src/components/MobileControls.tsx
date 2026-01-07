@@ -75,6 +75,7 @@ export const MobileControls = ({
   
   const lastDebugLogRef = useRef<number>(0);
   const animationFrameRef = useRef<number | null>(null);
+  const wasdActiveRef = useRef<boolean>(false); // Track if WASD keys are pressed
   
   // Track screen dimensions for normalization
   const screenDimensionsRef = useRef({ width: window.innerWidth, height: window.innerHeight });
@@ -185,20 +186,15 @@ export const MobileControls = ({
   
   useEffect(() => {
     if (!cameraModeEnabled) {
-      console.log('[Camera] cameraModeEnabled is false, skipping mouse listeners');
       return;
     }
-    
-    console.log('[Camera] Setting up mouse camera control listeners');
     
     const handleMouseDown = (e: MouseEvent) => {
       mouseDownRef.current = true;
       lastMousePosRef.current = { x: e.clientX };
-      console.log('[Camera] mousedown at', e.clientX);
     };
     
     const handleMouseUp = () => {
-      console.log('[Camera] mouseup');
       mouseDownRef.current = false;
       lastMousePosRef.current = null;
     };
@@ -213,7 +209,6 @@ export const MobileControls = ({
       // Update camera yaw
       const yawDelta = -deltaX * CAMERA_SWIPE_CONFIG.mouseSensitivity;
       cameraYawRef.current += yawDelta;
-      console.log('[Camera] mousemove deltaX:', deltaX, 'yaw:', cameraYawRef.current.toFixed(2));
     };
     
     // WASD keyboard controls emulating joystick
@@ -249,15 +244,15 @@ export const MobileControls = ({
       // Normalize diagonal movement
       const magnitude = Math.sqrt(x * x + y * y);
       if (magnitude > 0) {
+        wasdActiveRef.current = true; // Mark WASD as active
         moveDirectionRef.current = { x: x / magnitude, y: y / magnitude };
         throttleRef.current = 1.0;
         isMovingRef.current = true;
-        console.log('[WASD] direction set:', moveDirectionRef.current, 'throttle:', throttleRef.current);
       } else {
+        wasdActiveRef.current = false; // WASD no longer active
         moveDirectionRef.current = { x: 0, y: 0 };
         throttleRef.current = 0;
         isMovingRef.current = false;
-        console.log('[WASD] stopped');
       }
     };
     
@@ -368,10 +363,12 @@ export const MobileControls = ({
                       'throttle:', throttleRef.current.toFixed(2));
         }
       } else {
-        // No joystick active
-        moveDirectionRef.current = { x: 0, y: 0 };
-        throttleRef.current = 0;
-        isMovingRef.current = false;
+        // No touch joystick active - only reset if WASD is also not active
+        if (!wasdActiveRef.current) {
+          moveDirectionRef.current = { x: 0, y: 0 };
+          throttleRef.current = 0;
+          isMovingRef.current = false;
+        }
       }
       
       // Process camera velocity decay (momentum after release)

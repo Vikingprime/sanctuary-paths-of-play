@@ -1230,13 +1230,6 @@ const RefBasedPlayer = ({
       const hasCameraRelativeInput = cameraModeEnabled && moveDirectionRef && 
         (Math.abs(moveDirectionRef.current.x) > 0.01 || Math.abs(moveDirectionRef.current.y) > 0.01);
       
-      // DEBUG: Always log the state every few frames to understand why input isn't detected
-      if (Math.random() < 0.02) {
-        console.log('[Movement-Debug] cameraModeEnabled:', cameraModeEnabled, 
-          'moveDirectionRef exists:', !!moveDirectionRef,
-          'moveDir value:', moveDirectionRef?.current,
-          'hasCameraRelativeInput:', hasCameraRelativeInput);
-      }
       
       let input: MovementInput;
       
@@ -1259,11 +1252,6 @@ const RefBasedPlayer = ({
           const worldDirX = -(moveDir.x * Math.cos(cameraYaw) - moveDir.y * Math.sin(cameraYaw));
           const worldDirZ = -(moveDir.x * Math.sin(cameraYaw) + moveDir.y * Math.cos(cameraYaw));
           
-          // DEBUG: Log calculated world direction
-          if (Math.random() < 0.05) {
-            console.log('[Movement] worldDir:', worldDirX.toFixed(2), worldDirZ.toFixed(2), 
-              'targetRot:', Math.atan2(worldDirX, worldDirZ).toFixed(2));
-          }
           
           // Calculate target rotation (character faces movement direction)
           const targetRotation = Math.atan2(worldDirX, worldDirZ);
