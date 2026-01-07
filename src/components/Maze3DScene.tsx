@@ -1232,14 +1232,14 @@ const RefBasedPlayer = ({
       
       let input: MovementInput;
       
-      if ((mobileActive || hasCameraRelativeInput) && cameraModeEnabled && moveDirectionRef && cameraYawRef) {
-        // CAMERA-RELATIVE MODE: Movement direction is relative to camera
+      if (hasCameraRelativeInput && cameraModeEnabled && moveDirectionRef && cameraYawRef) {
+        // CAMERA-RELATIVE MODE: Movement direction is relative to camera (WASD or joystick)
         const moveDir = moveDirectionRef.current;
-        const throttle = mobileThrottleRef?.current ?? 0;
-        const isMoving = mobileIsMovingRef?.current ?? false;
+        const throttle = mobileThrottleRef?.current ?? 1.0; // Default to full speed for WASD
         const cameraYaw = cameraYawRef.current;
         
-        if (isMoving && (Math.abs(moveDir.x) > 0.01 || Math.abs(moveDir.y) > 0.01)) {
+        // Check if there's meaningful input (already verified by hasCameraRelativeInput)
+        if (Math.abs(moveDir.x) > 0.01 || Math.abs(moveDir.y) > 0.01) {
           // Calculate world-space movement direction from camera-relative joystick input
           // moveDir.x = right (+) / left (-) relative to camera
           // moveDir.y = forward (+) / backward (-) relative to camera
