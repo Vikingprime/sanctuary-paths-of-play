@@ -1243,11 +1243,13 @@ const RefBasedPlayer = ({
           // Calculate world-space movement direction from camera-relative joystick input
           // moveDir.x = right (+) / left (-) relative to camera
           // moveDir.y = forward (+) / backward (-) relative to camera
-          // cameraYaw = camera's facing direction
+          // cameraYaw = the yaw angle the camera orbits around (camera is BEHIND player)
+          // Camera faces OPPOSITE direction of cameraYaw, so we negate the transform
           
           // Rotate joystick direction by camera yaw to get world direction
-          const worldDirX = moveDir.x * Math.cos(cameraYaw) - moveDir.y * Math.sin(cameraYaw);
-          const worldDirZ = moveDir.x * Math.sin(cameraYaw) + moveDir.y * Math.cos(cameraYaw);
+          // Negate because camera looks opposite to cameraYaw direction
+          const worldDirX = -(moveDir.x * Math.cos(cameraYaw) - moveDir.y * Math.sin(cameraYaw));
+          const worldDirZ = -(moveDir.x * Math.sin(cameraYaw) + moveDir.y * Math.cos(cameraYaw));
           
           // Calculate target rotation (character faces movement direction)
           const targetRotation = Math.atan2(worldDirX, worldDirZ);
