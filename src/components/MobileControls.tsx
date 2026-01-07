@@ -365,6 +365,12 @@ export const MobileControls = ({
     e.preventDefault();
     e.stopPropagation();
     
+    // On desktop with camera mode enabled, ignore mouse events for joystick
+    // (mouse controls camera via separate mousemove listener, WASD controls movement)
+    if (cameraModeEnabled && e.pointerType === 'mouse') {
+      return;
+    }
+    
     // First touch becomes joystick
     if (joystickPointerIdRef.current === null) {
       joystickPointerIdRef.current = e.pointerId;
