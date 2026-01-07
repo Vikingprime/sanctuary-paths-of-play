@@ -1230,12 +1230,12 @@ const RefBasedPlayer = ({
       const hasCameraRelativeInput = cameraModeEnabled && moveDirectionRef && 
         (Math.abs(moveDirectionRef.current.x) > 0.01 || Math.abs(moveDirectionRef.current.y) > 0.01);
       
-      // DEBUG: Log every few frames when there's input
-      if (hasCameraRelativeInput && Math.random() < 0.05) {
-        console.log('[Movement] hasCameraRelativeInput:', hasCameraRelativeInput, 
-          'moveDir:', moveDirectionRef?.current, 
-          'cameraYaw:', cameraYawRef?.current?.toFixed(2),
-          'playerRot:', playerStateRef.current.rotation.toFixed(2));
+      // DEBUG: Always log the state every few frames to understand why input isn't detected
+      if (Math.random() < 0.02) {
+        console.log('[Movement-Debug] cameraModeEnabled:', cameraModeEnabled, 
+          'moveDirectionRef exists:', !!moveDirectionRef,
+          'moveDir value:', moveDirectionRef?.current,
+          'hasCameraRelativeInput:', hasCameraRelativeInput);
       }
       
       let input: MovementInput;
