@@ -740,6 +740,9 @@ export const MazeGame3D = ({
         mobileIsMovingRef={mobileIsMovingRef}
         mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
+        cameraYawRef={cameraYawRef}
+        moveDirectionRef={moveDirectionRef}
+        cameraModeEnabled={cameraModeEnabled}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
