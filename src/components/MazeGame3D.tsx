@@ -4,7 +4,7 @@ import { Maze3DCanvas, PerformanceInfo } from './Maze3DScene';
 import { MazePreview } from './MazePreview';
 import { MiniMap } from './MiniMap';
 import { GameHUD } from './GameHUD';
-import { TapToMoveControls, usePathFollower, PathFollowerState } from './TapToMoveControls';
+import { MobileControls } from './MobileControls';
 import { MazeIntroSequence } from './MazeIntroSequence';
 import { Button } from '@/components/ui/button';
 import { Confetti } from '@/components/Confetti';
@@ -12,7 +12,6 @@ import { animals } from '@/data/animals';
 import { formatTime } from '@/lib/utils';
 import { setAutopushEnabled, setLOSFaderEnabled, setVerboseLogging } from '@/lib/debug';
 import { useBackButton } from '@/hooks/useBackButton';
-import { findPath, PathPoint, BlockedPosition } from '@/game/Pathfinding';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -98,26 +97,19 @@ export const MazeGame3D = ({
   const [autopushEnabled, setAutopushEnabled] = useState(true);
   const [losFaderEnabled, setLosFaderEnabled] = useState(true);
   const [verboseLogging, setVerboseLogging] = useState(false);
-  // Path debug mode
-  const [pathDebugEnabled, setPathDebugEnabled] = useState(false);
-  const [pathDebugPaused, setPathDebugPaused] = useState(false);
   // Feature toggles for performance testing
   const [shadowsEnabled, setShadowsEnabled] = useState(true);
   const [grassEnabled, setGrassEnabled] = useState(true);
   const [rocksEnabled, setRocksEnabled] = useState(true);
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
   const [opacityFadeEnabled, setOpacityFadeEnabled] = useState(true);
-  const [cornEnabled, setCornEnabled] = useState(true);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
-  
-  // Tap-to-move path following
-  const { stateRef: pathFollowerRef, setPath, clearPath } = usePathFollower();
-  const [targetMarker, setTargetMarker] = useState<{ x: number; z: number } | null>(null);
-  const [cameraOffset, setCameraOffset] = useState(0);
-  
-  // Ref for raycasting from screen coords to world
-  const raycastHandlerRef = useRef<((screenX: number, screenY: number) => { worldX: number; worldZ: number; clickedOnCorn: boolean; cornEdgeX?: number; cornEdgeZ?: number } | null) | null>(null);
+  // Mobile controls - yaw rate system (steering)
+  const mobileTargetYawRef = useRef<number>(startRotation); // Legacy - not used in new system
+  const mobileYawRateRef = useRef(0); // Yaw rate in radians/sec from steering
+  const mobileIsMovingRef = useRef(false);
+  const mobileThrottleRef = useRef(0); // Throttle: -1 (reverse) to 1 (forward)
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   
@@ -739,15 +731,17 @@ export const MazeGame3D = ({
         isMovingRef={isMovingRef}
         collectedPowerUps={collectedPowerUps}
         keysPressed={keysPressed}
-        pathFollowerRef={pathFollowerRef}
-        cameraOffset={cameraOffset}
+        mobileTargetYawRef={mobileTargetYawRef}
+        mobileYawRateRef={mobileYawRateRef}
+        mobileIsMovingRef={mobileIsMovingRef}
+        mobileThrottleRef={mobileThrottleRef}
+        mobileTouchActiveRef={mobileTouchActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
-        isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null || pathDebugPaused}
+        isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
         isMuted={isMuted}
         onSceneReady={() => setSceneReady(true)}
         onRendererInfo={setRendererInfo}
-        onRaycastHandlerReady={(handler) => { raycastHandlerRef.current = handler; }}
         debugMode={debugMode}
         restartKey={restartKey}
         dialogueTarget={activeDialogue ? (() => {
@@ -760,14 +754,6 @@ export const MazeGame3D = ({
         topDownCamera={topDownCamera}
         groundLevelCamera={groundLevelCamera}
         showCollisionDebug={showCollisionDebug}
-        shadowsEnabled={shadowsEnabled}
-        grassEnabled={grassEnabled}
-        rocksEnabled={rocksEnabled}
-        animationsEnabled={animationsEnabled}
-        opacityFadeEnabled={opacityFadeEnabled}
-        cornEnabled={cornEnabled}
-        targetMarker={targetMarker}
-        pathDebugEnabled={pathDebugEnabled}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -810,40 +796,6 @@ export const MazeGame3D = ({
           onToggleLOSFader={() => setLosFaderEnabled(prev => !prev)}
           verboseLogging={verboseLogging}
           onToggleVerboseLogging={() => setVerboseLogging(prev => !prev)}
-          // Path debug
-          pathDebugEnabled={pathDebugEnabled}
-          onTogglePathDebug={() => setPathDebugEnabled(prev => !prev)}
-          pathDebugPaused={pathDebugPaused}
-          onTogglePathDebugPause={() => setPathDebugPaused(prev => !prev)}
-          onPathDebugStep={() => {
-            // Advance to next waypoint manually
-            if (pathFollowerRef.current && pathFollowerRef.current.path.length > 0) {
-              const state = pathFollowerRef.current;
-              if (state.currentWaypointIndex < state.path.length - 1) {
-                // Move player to current waypoint position
-                const wp = state.path[state.currentWaypointIndex];
-                playerStateRef.current.x = wp.x;
-                playerStateRef.current.y = wp.y;
-                // Calculate rotation toward next waypoint
-                const nextWp = state.path[state.currentWaypointIndex + 1];
-                const dx = nextWp.x - wp.x;
-                const dy = nextWp.y - wp.y;
-                playerStateRef.current.rotation = Math.atan2(dx, -dy);
-                // Advance index
-                state.currentWaypointIndex++;
-                console.log(`[PathDebugStep] Moved to waypoint ${state.currentWaypointIndex - 1}, now targeting waypoint ${state.currentWaypointIndex}`);
-              } else {
-                // At last waypoint, complete the path
-                const wp = state.path[state.currentWaypointIndex];
-                playerStateRef.current.x = wp.x;
-                playerStateRef.current.y = wp.y;
-                state.isFollowingPath = false;
-                state.path = [];
-                state.currentWaypointIndex = 0;
-                console.log('[PathDebugStep] Reached final waypoint, path complete');
-              }
-            }
-          }}
           // Feature toggles
           shadowsEnabled={shadowsEnabled}
           onToggleShadows={() => setShadowsEnabled(prev => !prev)}
@@ -855,311 +807,19 @@ export const MazeGame3D = ({
           onToggleAnimations={() => setAnimationsEnabled(prev => !prev)}
           opacityFadeEnabled={opacityFadeEnabled}
           onToggleOpacityFade={() => setOpacityFadeEnabled(prev => !prev)}
-          cornEnabled={cornEnabled}
-          onToggleCorn={() => setCornEnabled(prev => !prev)}
         />
       )}
 
-      {/* Tap-to-Move Controls - only render after preview ends */}
+      {/* Mobile Controls - only render after preview ends to not block preview buttons */}
       {!isPreviewing && (
-        <TapToMoveControls 
-          onTap={(screenX, screenY) => {
-            // ALWAYS log tap events for debugging
-            console.log(`[TAP] Screen coords: (${screenX}, ${screenY})`);
-            
-            // Use the raycast handler from the 3D scene
-            if (!raycastHandlerRef.current) {
-              console.log('[TAP] ❌ REJECTED: No raycast handler available');
-              return;
-            }
-            
-            const result = raycastHandlerRef.current(screenX, screenY);
-            if (!result) {
-              console.log('[TAP] ❌ REJECTED: Raycast returned null (ray pointing away from ground?)');
-              return;
-            }
-            
-            let { worldX, worldZ, clickedOnCorn, cornEdgeX, cornEdgeZ } = result;
-            console.log(`[TAP] World coords: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)}) clickedOnCorn=${clickedOnCorn}`);
-            
-            // Debounce: If already following a path to a similar destination, ignore repeat clicks
-            const pathState = pathFollowerRef.current;
-            if (pathState.isFollowingPath && pathState.targetWorldPos) {
-              const existingDest = pathState.targetWorldPos;
-              const destDist = Math.sqrt(
-                Math.pow(worldX - existingDest.x, 2) + Math.pow(worldZ - existingDest.y, 2)
-              );
-              // If clicking within 1 unit of existing destination, ignore (prevents stutter)
-              if (destDist < 1.0) {
-                console.log('[TAP] ❌ REJECTED: Already navigating to similar destination');
-                return;
-              }
-            }
-            
-            // Find path from current position to tapped position
-            const playerX = playerStateRef.current.x;
-            const playerY = playerStateRef.current.y;
-            
-            // If tapped directly on corn cell, use the corn edge position if available
-            if (clickedOnCorn) {
-              // First check if corn edge position is valid and usable
-              if (cornEdgeX !== undefined && cornEdgeZ !== undefined) {
-                const edgeGridX = Math.floor(cornEdgeX);
-                const edgeGridZ = Math.floor(cornEdgeZ);
-                const edgeIsWall = edgeGridZ >= 0 && edgeGridZ < maze.grid.length && 
-                                   edgeGridX >= 0 && edgeGridX < maze.grid[0].length && 
-                                   maze.grid[edgeGridZ][edgeGridX].isWall;
-                
-                if (!edgeIsWall) {
-                  console.log(`[TAP] Using corn edge position: (${cornEdgeX.toFixed(2)}, ${cornEdgeZ.toFixed(2)})`);
-                  worldX = cornEdgeX;
-                  worldZ = cornEdgeZ;
-                  clickedOnCorn = false;
-                }
-              }
-              
-              // If still on corn (no valid edge found), try moving toward player
-              if (clickedOnCorn) {
-                const dx = playerX - worldX;
-                const dz = playerY - worldZ;
-                const dist = Math.sqrt(dx * dx + dz * dz);
-                
-                if (dist > 0.1) {
-                  // Search along the line toward player for a non-corn spot
-                  for (let step = 0.25; step <= 2.0; step += 0.25) {
-                    const testX = worldX + (dx / dist) * step;
-                    const testZ = worldZ + (dz / dist) * step;
-                    const testGridX = Math.floor(testX);
-                    const testGridZ = Math.floor(testZ);
-                    
-                    const isWall = testGridZ >= 0 && testGridZ < maze.grid.length && 
-                                   testGridX >= 0 && testGridX < maze.grid[0].length && 
-                                   maze.grid[testGridZ][testGridX].isWall;
-                    
-                    if (!isWall) {
-                      worldX = testX;
-                      worldZ = testZ;
-                      clickedOnCorn = false;
-                      console.log(`[TAP] Adjusted corn click to: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`);
-                      break;
-                    }
-                  }
-                }
-              }
-              
-              // If still on corn after all adjustments, ignore
-              if (clickedOnCorn) {
-                console.log('[TAP] ❌ REJECTED: Could not find valid position near corn');
-                return;
-              }
-            }
-            
-            // For very close taps, handle specially to avoid pathfinding issues near obstacles
-            const distToTap = Math.sqrt(
-              Math.pow(worldX - playerX, 2) + Math.pow(worldZ - playerY, 2)
-            );
-            
-            console.log(`[TAP] Player at: (${playerX.toFixed(2)}, ${playerY.toFixed(2)}) rotation=${(playerStateRef.current.rotation * 180 / Math.PI).toFixed(1)}°`);
-            console.log(`[TAP] Distance to tap: ${distToTap.toFixed(2)} units`);
-            
-            if (distToTap < 3.0) {
-              // Close/medium tap - check if it's roughly forward or a turn
-              const dx = worldX - playerX;
-              const dz = worldZ - playerY;
-              const targetRotation = Math.atan2(dx, -dz);
-              const currentRotation = playerStateRef.current.rotation;
-              // Inline angle normalization to avoid declaration order issues
-              const normAngle = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
-              const angleDiff = Math.abs(normAngle(targetRotation - currentRotation));
-              
-              console.log(`[TAP] Close/medium tap detected. Target rotation: ${(targetRotation * 180 / Math.PI).toFixed(1)}° angleDiff: ${(angleDiff * 180 / Math.PI).toFixed(1)}°`);
-              
-              // If tapping roughly forward (within 70°), move forward in that direction
-              // This allows escaping from near obstacles without pathfinding
-              if (angleDiff < Math.PI * 0.39) {
-                // Move forward toward the tapped direction (bypasses obstacle blocking)
-                const moveDistance = Math.min(distToTap, 2.5);  // Cap at 2.5 units for close taps
-                const forwardPoint = {
-                  x: playerX + Math.sin(targetRotation) * moveDistance,
-                  y: playerY - Math.cos(targetRotation) * moveDistance
-                };
-                
-                // Quick wall check - don't walk into corn
-                const targetGridX = Math.floor(forwardPoint.x);
-                const targetGridY = Math.floor(forwardPoint.y);
-                const isTargetWall = targetGridY >= 0 && targetGridY < maze.grid.length && 
-                                     targetGridX >= 0 && targetGridX < maze.grid[0].length && 
-                                     maze.grid[targetGridY][targetGridX].isWall;
-                
-                if (!isTargetWall) {
-                  console.log(`[TAP] ✅ ACCEPTED: Close/medium forward tap - moving straight ${moveDistance.toFixed(1)} units`);
-                  setPath([forwardPoint], forwardPoint);
-                  setTargetMarker({ x: forwardPoint.x, z: forwardPoint.y });
-                  return;
-                } else {
-                  console.log(`[TAP] Close forward tap blocked by wall at grid (${targetGridX}, ${targetGridY})`);
-                }
-              }
-              
-              // For very close taps, turn in place; for medium taps, fall through to pathfinding
-              if (distToTap < 1.5) {
-                // It's a turn - just rotate in place
-                const turnPoint = {
-                  x: playerX + Math.sin(targetRotation) * 0.3,
-                  y: playerY - Math.cos(targetRotation) * 0.3
-                };
-                
-                console.log(`[TAP] ✅ ACCEPTED: Close tap - turning in place toward ${(targetRotation * 180 / Math.PI).toFixed(1)}°`);
-                setPath([turnPoint], turnPoint);
-                setTargetMarker({ x: turnPoint.x, z: turnPoint.y });
-                return;
-              }
-              // else: fall through to pathfinding for medium-distance side taps
-            }
-            
-            // Build blocked positions from characters AND stations
-            // Capsule-aware pathfinding will simulate the cow's body orientation near these
-            const blockedPositions: BlockedPosition[] = [];
-            if (maze.characters) {
-              for (const char of maze.characters) {
-                // Character collision radius for pathfinding (actual collision handled by game)
-                blockedPositions.push({ x: char.position.x, y: char.position.y, radius: 0.3 });
-              }
-            }
-            // Block station cells (map towers)
-            for (let y = 0; y < maze.grid.length; y++) {
-              for (let x = 0; x < maze.grid[y].length; x++) {
-                if (maze.grid[y][x].isStation) {
-                  blockedPositions.push({ x: x + 0.5, y: y + 0.5, radius: 0.25 });
-                }
-              }
-            }
-            
-            const playerRotation = playerStateRef.current.rotation;
-            let path = findPath(maze, playerX, playerY, worldX, worldZ, blockedPositions, playerRotation);
-            
-            // If no path found, try adjusting destination slightly toward player
-            // This helps when clicking near blocked areas (stations, characters)
-            if (!path || path.length === 0) {
-              const dx = playerX - worldX;
-              const dz = playerY - worldZ;
-              const adjustDist = Math.sqrt(dx * dx + dz * dz);
-              if (adjustDist > 0.5) {
-                // Try a point 0.5 units back toward player
-                const adjustedX = worldX + (dx / adjustDist) * 0.5;
-                const adjustedZ = worldZ + (dz / adjustDist) * 0.5;
-                path = findPath(maze, playerX, playerY, adjustedX, adjustedZ, blockedPositions, playerRotation);
-                if (path && path.length > 0) {
-                  console.log('[TapMove] Adjusted destination to avoid blocked area');
-                }
-              }
-            }
-            
-            // Check if path exists and calculate walking distance
-            if (!path || path.length === 0) {
-              console.log('[TapMove] No path found, ignoring');
-              return;
-            }
-            
-            // Calculate cumulative walking distance along the path and clamp if needed
-            const MAX_WALKING_DISTANCE = 5.0;
-            let cumulativeDistance = 0;
-            let prevX = playerX;
-            let prevY = playerY;
-            let clampedPath = [...path];
-            
-            for (let i = 0; i < path.length; i++) {
-              const wp = path[i];
-              const segmentDist = Math.sqrt(
-                Math.pow(wp.x - prevX, 2) + Math.pow(wp.y - prevY, 2)
-              );
-              
-              if (cumulativeDistance + segmentDist > MAX_WALKING_DISTANCE) {
-                // This segment would exceed the limit - find the point along it that hits the limit
-                const remainingDist = MAX_WALKING_DISTANCE - cumulativeDistance;
-                if (remainingDist > 0.3) {  // Only add if meaningful distance remaining
-                  const ratio = remainingDist / segmentDist;
-                  const clampedX = prevX + (wp.x - prevX) * ratio;
-                  const clampedY = prevY + (wp.y - prevY) * ratio;
-                  clampedPath = path.slice(0, i);
-                  clampedPath.push({ x: clampedX, y: clampedY });
-                } else {
-                  clampedPath = path.slice(0, i);
-                }
-                if (debugMode) console.log(`[TapMove] Clamped path at ${MAX_WALKING_DISTANCE}m walking distance`);
-                break;
-              }
-              
-              cumulativeDistance += segmentDist;
-              prevX = wp.x;
-              prevY = wp.y;
-            }
-            
-            // Use clamped path
-            if (clampedPath.length === 0) {
-              if (debugMode) console.log('[TapMove] Path too short after clamping, ignoring');
-              return;
-            }
-            
-            // DEBUG: Log new destination tap
-            const walkingDistance = cumulativeDistance;
-            const currentRotDeg = (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1);
-            const finalDest = clampedPath[clampedPath.length - 1];
-            console.log(`[NewTap] From=(${playerX.toFixed(2)},${playerY.toFixed(2)}) To=(${finalDest.x.toFixed(2)},${finalDest.y.toFixed(2)}) CurrentRotation=${currentRotDeg}° WalkDist=${walkingDistance.toFixed(1)}`);
-            console.log(`[NewTap] Path waypoints: ${clampedPath.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> ')}`);
-            
-            // Path is already simplified by the fine-grid pathfinder
-            let simplifiedPath = clampedPath;
-            
-            console.log('[TapMove] Path:', simplifiedPath.map(p => `(${p.x.toFixed(2)},${p.y.toFixed(2)})`).join(' -> '));
-            console.log('[TapMove] Player at:', playerX.toFixed(2), playerY.toFixed(2), 'rotation:', (playerStateRef.current.rotation * 180 / Math.PI).toFixed(1) + '°');
-              
-              // Helper to normalize angle to [-PI, PI]
-              const normalizeAngle = (angle: number): number => {
-                while (angle > Math.PI) angle -= Math.PI * 2;
-                while (angle < -Math.PI) angle += Math.PI * 2;
-                return angle;
-              };
-              
-              const currentRot = playerStateRef.current.rotation;
-              
-              // Skip waypoints that are too close OR behind the player
-              // This ensures the first waypoint is far enough and in a forward direction
-              while (simplifiedPath.length > 1) {
-                const wp = simplifiedPath[0];
-                const dx = wp.x - playerX;
-                const dy = wp.y - playerY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                // Calculate angle to waypoint
-                const wpAngle = Math.atan2(dx, -dy);
-                const angleDiff = Math.abs(normalizeAngle(wpAngle - currentRot));
-                
-                // Skip if too close
-                if (dist < 0.5) {
-                  console.log('[TapMove] Skipping close waypoint:', wp.x.toFixed(2), wp.y.toFixed(2), 'dist:', dist.toFixed(2));
-                  simplifiedPath = simplifiedPath.slice(1);
-                }
-                // Skip if behind us (>100° turn) and close enough to skip safely
-                else if (angleDiff > Math.PI * 0.55 && dist < 1.5) {
-                  console.log('[TapMove] Skipping behind waypoint:', wp.x.toFixed(2), wp.y.toFixed(2), 'angleDiff:', (angleDiff * 180 / Math.PI).toFixed(0) + '°');
-                  simplifiedPath = simplifiedPath.slice(1);
-                } else {
-                  break;
-                }
-              }
-              
-              // DON'T set initial rotation - let path follower handle turning smoothly
-              // This prevents the "snap to wrong direction" issue
-              console.log('[TapMove] Final path has', simplifiedPath.length, 'waypoints, letting path follower handle rotation');
-              
-              setPath(simplifiedPath, { x: worldX, y: worldZ });
-              setTargetMarker({ x: worldX, z: worldZ });
-              if (debugMode) console.log('[TapMove] Path found with', simplifiedPath.length, 'waypoints');
-          }}
-          onCameraOffsetChange={setCameraOffset}
+        <MobileControls 
+          playerStateRef={playerStateRef}
+          targetYawRef={mobileTargetYawRef}
+          yawRateRef={mobileYawRateRef}
+          isMovingRef={mobileIsMovingRef}
+          throttleRef={mobileThrottleRef}
+          mobileTouchActiveRef={mobileTouchActiveRef}
           debugMode={debugMode}
-          disabled={showMiniMap || showMapOptions || mapCountdown !== null || activeDialogue !== null}
         />
       )}
 

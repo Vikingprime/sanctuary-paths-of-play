@@ -1,18 +1,18 @@
-import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef, useCallback } from 'react';
+import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Vector2, PlaneGeometry } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor } from '@/game/CharacterConfig';
-import { findBestDirectionAngle, isWall } from '@/game/MazeUtils';
+import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics, checkGcSpike } from '@/lib/debug';
-import { PathFollowerState, TAP_MOVE_CONFIG } from './TapToMoveControls';
-
+import { MOBILE_CONTROL_CONFIG } from './MobileControls';
+// LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
@@ -50,9 +50,12 @@ interface Maze3DSceneProps {
   isMovingRef: MutableRefObject<boolean>;
   collectedPowerUps?: Set<string>;
   keysPressed: MutableRefObject<Set<string>>;
-  // Tap-to-move path following
-  pathFollowerRef?: MutableRefObject<PathFollowerState>;
-  cameraOffset?: number;  // Camera yaw offset from swipe
+  // Mobile controls - yaw rate system
+  mobileTargetYawRef?: MutableRefObject<number>; // Legacy - not used in new system
+  mobileYawRateRef?: MutableRefObject<number>;   // Yaw rate in radians/sec from steering
+  mobileIsMovingRef?: MutableRefObject<boolean>;
+  mobileThrottleRef?: MutableRefObject<number>;  // -1 (reverse) to 1 (forward)
+  mobileTouchActiveRef?: MutableRefObject<boolean>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -62,7 +65,6 @@ interface Maze3DSceneProps {
   lowPixelRatio?: boolean;
   onRendererInfo?: (info: PerformanceInfo) => void;
   onCullStats?: (stats: CullStats) => void;
-  onRaycastHandlerReady?: (handler: (screenX: number, screenY: number) => { worldX: number; worldZ: number; clickedOnCorn: boolean; cornEdgeX?: number; cornEdgeZ?: number } | null) => void;
   debugMode?: boolean;
   restartKey?: number; // Increment to force camera reset
   dialogueTarget?: DialogueTarget | null; // Active dialogue speaker position for cutscene camera
@@ -75,11 +77,6 @@ interface Maze3DSceneProps {
   rocksEnabled?: boolean;
   animationsEnabled?: boolean;
   opacityFadeEnabled?: boolean;
-  cornEnabled?: boolean;
-  // Target marker for tap-to-move
-  targetMarker?: { x: number; z: number } | null;
-  // Path debug visualization
-  pathDebugEnabled?: boolean;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -1157,7 +1154,10 @@ const RefBasedPlayer = ({
   isMovingRef,
   maze,
   keysPressed,
-  pathFollowerRef,
+  mobileYawRateRef,
+  mobileIsMovingRef,
+  mobileThrottleRef,
+  mobileTouchActiveRef,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1171,7 +1171,10 @@ const RefBasedPlayer = ({
   isMovingRef: MutableRefObject<boolean>;
   maze: Maze;
   keysPressed: MutableRefObject<Set<string>>;
-  pathFollowerRef?: MutableRefObject<PathFollowerState>;
+  mobileYawRateRef?: MutableRefObject<number>;
+  mobileIsMovingRef?: MutableRefObject<boolean>;
+  mobileThrottleRef?: MutableRefObject<number>;
+  mobileTouchActiveRef?: MutableRefObject<boolean>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1211,145 +1214,70 @@ const RefBasedPlayer = ({
       // Clamp delta to prevent large jumps on frame drops
       const clampedDelta = Math.min(delta, 0.05);
       
-      // Check if following a path (tap-to-move)
-      const pathState = pathFollowerRef?.current;
-      const isFollowingPath = pathState?.isFollowingPath && pathState.path.length > 0;
+      // Check if mobile touch is active (use boolean ref, not null check)
+      const mobileActive = mobileTouchActiveRef?.current ?? false;
       
       let input: MovementInput;
       
-      if (isFollowingPath && pathState) {
-        // SIMPLE PATH FOLLOWING: Move toward waypoints, skip when close
-        const playerX = playerStateRef.current.x;
-        const playerY = playerStateRef.current.y;
+      if (mobileActive) {
+        // MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)
+        const yawRate = mobileYawRateRef?.current ?? 0;
+        let newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
         
-        // Get current waypoint
-        if (pathState.currentWaypointIndex >= pathState.path.length) {
-          // Done - stop
-          pathState.isFollowingPath = false;
-          pathState.path = [];
-          pathState.currentWaypointIndex = 0;
-          pathState.targetWorldPos = null;
-          isMovingRef.current = false;
-        } else {
-          const wp = pathState.path[pathState.currentWaypointIndex];
-          const dx = wp.x - playerX;
-          const dy = wp.y - playerY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+        // === ANGULAR SNAPPING (Cardinal Alignment Assist) ===
+        // If rotation is within ~5 degrees of a cardinal direction and not actively turning hard
+        const cardinalSnapThreshold = 0.087; // ~5 degrees
+        const cardinalSnapStrength = 0.03;
+        const absYawRate = Math.abs(yawRate);
+        
+        // Only snap when not turning hard (yaw rate < 0.5)
+        if (absYawRate < 0.5) {
+          // Cardinal directions: 0, π/2, π, 3π/2 (N, E, S, W)
+          const cardinals = [0, Math.PI / 2, Math.PI, Math.PI * 1.5, Math.PI * 2];
           
-          // Advance to next waypoint if close enough
-          // Use larger threshold for intermediate waypoints, smaller for final
-          const isFinalWaypoint = pathState.currentWaypointIndex === pathState.path.length - 1;
-          const arrivalDist = isFinalWaypoint ? 0.2 : 0.4;
-          
-          if (dist < arrivalDist) {
-            pathState.currentWaypointIndex++;
+          for (const cardinal of cardinals) {
+            let diff = newRotation - cardinal;
+            // Normalize diff to -π to π
+            if (diff > Math.PI) diff -= Math.PI * 2;
+            if (diff < -Math.PI) diff += Math.PI * 2;
             
-            // Skip waypoints that are behind us (require >90° turn)
-            // This prevents awkward spinning when advancing to next waypoint
-            while (pathState.currentWaypointIndex < pathState.path.length - 1) {
-              const nextWp = pathState.path[pathState.currentWaypointIndex];
-              const nextDx = nextWp.x - playerX;
-              const nextDy = nextWp.y - playerY;
-              const nextDist = Math.sqrt(nextDx * nextDx + nextDy * nextDy);
-              
-              // Calculate angle to this waypoint
-              const wpAngle = Math.atan2(nextDx, -nextDy);
-              const angleDiff = Math.abs(normalizeAngle(wpAngle - playerStateRef.current.rotation));
-              
-              // If waypoint is behind us (>100° turn) and close, skip it
-              if (angleDiff > Math.PI * 0.55 && nextDist < 1.0) {
-                console.log(`[PathFollow] Skipping behind waypoint ${pathState.currentWaypointIndex} (angle diff: ${(angleDiff * 180 / Math.PI).toFixed(0)}°)`);
-                pathState.currentWaypointIndex++;
-              } else {
-                break;
-              }
+            if (Math.abs(diff) < cardinalSnapThreshold) {
+              // Snap toward cardinal direction
+              newRotation = normalizeAngle(newRotation - diff * cardinalSnapStrength);
+              break;
             }
-            
-            // Don't turn after arriving at final point - just stop
-            if (pathState.currentWaypointIndex >= pathState.path.length) {
-              pathState.isFollowingPath = false;
-              pathState.path = [];
-              pathState.currentWaypointIndex = 0;
-              pathState.targetWorldPos = null;
-              isMovingRef.current = false;
-            }
-          } else {
-            // Steer toward waypoint - use shortest rotation
-            // Movement uses sin(rot) for X and -cos(rot) for Y, so:
-            // rotation=0 → moves -Y, rotation=π → moves +Y
-            // atan2(dx, -dy) gives correct angle for this system
-            const targetRotation = Math.atan2(dx, -dy);
-            const currentRotation = playerStateRef.current.rotation;
-            
-            // Normalize both angles to [-PI, PI] for consistent shortest-path
-            const normalizedTarget = normalizeAngle(targetRotation);
-            const normalizedCurrent = normalizeAngle(currentRotation);
-            let rotDiff = normalizeAngle(normalizedTarget - normalizedCurrent);
-            
-            // DEBUG: Log turning info when rotation difference is significant
-            if (Math.abs(rotDiff) > 0.1) {
-              console.log(`[Turn] Target=${(normalizedTarget * 180 / Math.PI).toFixed(1)}° Current=${(normalizedCurrent * 180 / Math.PI).toFixed(1)}° Diff=${(rotDiff * 180 / Math.PI).toFixed(1)}° Waypoint=(${wp.x.toFixed(2)},${wp.y.toFixed(2)}) dx=${dx.toFixed(2)} dy=${dy.toFixed(2)}`);
-            }
-            
-            // STUCK DETECTION: If we're not making progress toward the waypoint, skip it
-            const progressDist = Math.sqrt(
-              Math.pow(playerX - pathState.lastProgressX, 2) +
-              Math.pow(playerY - pathState.lastProgressY, 2)
-            );
-            
-            if (progressDist > 0.1) {
-              // Made progress - reset stuck counter
-              pathState.lastProgressX = playerX;
-              pathState.lastProgressY = playerY;
-              pathState.stuckFrames = 0;
-            } else {
-              // Not making progress
-              pathState.stuckFrames++;
-              
-              // If stuck for too long (about 1.5 seconds at 60fps), skip to next waypoint or give up
-              if (pathState.stuckFrames > 90) {
-                console.log(`[PathFollow] STUCK - skipping waypoint ${pathState.currentWaypointIndex}`);
-                pathState.stuckFrames = 0;
-                pathState.currentWaypointIndex++;
-                
-                // If no more waypoints, stop
-                if (pathState.currentWaypointIndex >= pathState.path.length) {
-                  pathState.isFollowingPath = false;
-                  pathState.path = [];
-                  pathState.currentWaypointIndex = 0;
-                  pathState.targetWorldPos = null;
-                  isMovingRef.current = false;
-                }
-                // Skip the rest of this frame's processing
-                return;
-              }
-            }
-            
-            // Always turn toward waypoint
-            const maxTurn = TAP_MOVE_CONFIG.turnSpeed * clampedDelta;
-            const turn = Math.max(-maxTurn, Math.min(maxTurn, rotDiff));
-            playerStateRef.current.rotation = normalizeAngle(currentRotation + turn);
-            
-            // Only move forward if we're facing roughly the right direction
-            // This creates "turn first, then move" behavior for large turns
-            const shouldMove = Math.abs(rotDiff) < Math.PI * 0.4; // Move only when within ~72° of target
-            const turnFactor = shouldMove ? (1 - Math.min(1, Math.abs(rotDiff) / Math.PI) * 0.3) : 0;
-            
-            input = {
-              forward: shouldMove,
-              backward: false,
-              rotateLeft: false,
-              rotateRight: false,
-              speedMultiplier: turnFactor,
-            };
-            
-            isMovingRef.current = shouldMove;
-          
-            const prev = playerStateRef.current;
-            const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-            playerStateRef.current = newState;
           }
         }
+        
+        playerStateRef.current = {
+          ...playerStateRef.current,
+          rotation: newRotation
+        };
+        
+        // Get throttle value (-1 to 1, supports reverse)
+        const throttle = mobileThrottleRef?.current ?? 0;
+        const isMoving = mobileIsMovingRef?.current ?? false;
+        const isForward = throttle > 0;
+        const isBackward = throttle < 0;
+        
+        // Build input with forward/backward from throttle
+        // (rotation already handled above)
+        input = {
+          forward: isMoving && isForward,
+          backward: isMoving && isBackward,
+          rotateLeft: false,
+          rotateRight: false,
+          rotationIntensity: 0,
+          speedMultiplier: Math.abs(throttle),
+        };
+        
+        // Update isMoving ref
+        isMovingRef.current = isMoving;
+        
+        // Calculate movement (position only, rotation already set)
+        const prev = playerStateRef.current;
+        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+        playerStateRef.current = newState;
       } else {
         // KEYBOARD MODE: Original per-frame rotation accumulation
         const isKeyboardRotation = keysPressed.current.has('arrowleft') || keysPressed.current.has('a') || 
@@ -1379,12 +1307,8 @@ const RefBasedPlayer = ({
         onCellInteraction(playerStateRef.current.x, playerStateRef.current.y);
       }
     } else {
-      // When paused (including dialogue), freeze movement and clear path
+      // When paused (including dialogue), freeze movement
       isMovingRef.current = false;
-      if (pathFollowerRef?.current) {
-        pathFollowerRef.current.isFollowingPath = false;
-        pathFollowerRef.current.path = [];
-      }
     }
     
     // Initialize smooth position and rotation on first frame
@@ -1406,41 +1330,28 @@ const RefBasedPlayer = ({
     groupRef.current.position.x = smoothPositionX.current;
     groupRef.current.position.z = smoothPositionZ.current;
     
-    // Helper to normalize angles to [-PI, PI] for consistent shortest-path calculation
-    const normalizeToPI = (angle: number) => {
-      while (angle > Math.PI) angle -= Math.PI * 2;
-      while (angle < -Math.PI) angle += Math.PI * 2;
-      return angle;
-    };
-    
     // Smooth rotation with fixed lerp factor (not delta-dependent)
-    // Calculate target visual rotation and normalize to [-PI, PI]
-    const rawTargetRotation = -playerStateRef.current.rotation + Math.PI;
-    const targetRotation = normalizeToPI(rawTargetRotation);
+    const targetRotation = -playerStateRef.current.rotation + Math.PI;
+    let rotDiff = targetRotation - (smoothRotation.current ?? targetRotation);
+    if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+    if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
     
-    // Normalize current smooth rotation to same range for consistent comparison
-    const currentSmooth = normalizeToPI(smoothRotation.current ?? targetRotation);
+    // Fixed lerp factor for consistent rotation smoothing
+    smoothRotation.current = (smoothRotation.current ?? targetRotation) + rotDiff * 0.15;
     
-    // Compute shortest-path difference (both angles now in [-PI, PI])
-    const rotDiff = normalizeToPI(targetRotation - currentSmooth);
-    
-    // Use faster lerp when difference is large (new path started)
-    // This prevents visual "overturn" when rotation suddenly changes
-    const lerpFactor = Math.abs(rotDiff) > 1.5 ? 0.5 : 0.15;
-    smoothRotation.current = normalizeToPI(currentSmooth + rotDiff * lerpFactor);
+    // Normalize rotation
+    if (smoothRotation.current > Math.PI * 2) smoothRotation.current -= Math.PI * 2;
+    if (smoothRotation.current < 0) smoothRotation.current += Math.PI * 2;
     
     groupRef.current.rotation.y = smoothRotation.current;
     
     // === BANKING / LEANING ===
-    // Bank angle based on current turning rate
+    // Bank angle is based on yaw rate - lean into turns
     const MAX_BANK_ANGLE = 0.18; // ~10 degrees max lean
-    
-    // Calculate turning rate from rotation change
-    const rotationDelta = normalizeAngle(playerStateRef.current.rotation - (lastRotationRef.current ?? playerStateRef.current.rotation));
-    lastRotationRef.current = playerStateRef.current.rotation;
+    const yawRate = mobileYawRateRef?.current ?? 0;
     
     // Target bank is opposite of turn direction (lean into the turn)
-    const targetBank = -rotationDelta * 3.0; // Scale rotation delta to bank angle
+    const targetBank = -yawRate * 0.08; // Scale yaw rate to bank angle
     const clampedTargetBank = Math.max(-MAX_BANK_ANGLE, Math.min(MAX_BANK_ANGLE, targetBank));
     
     // Smooth the bank angle
@@ -1449,9 +1360,6 @@ const RefBasedPlayer = ({
     // Apply bank (Z-axis rotation for roll)
     groupRef.current.rotation.z = smoothBankAngle.current;
   });
-  
-  // Track last rotation for banking calculation
-  const lastRotationRef = useRef<number | null>(null);
   
   return (
     <group ref={groupRef}>
@@ -2077,205 +1985,12 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-// Path Debug Visualizer - shows waypoints, direction arrow, and current waypoint index
-const PathDebugVisualizer = ({ 
-  pathFollowerRef, 
-  playerStateRef 
-}: { 
-  pathFollowerRef?: MutableRefObject<PathFollowerState>;
-  playerStateRef: MutableRefObject<PlayerState>;
-}) => {
-  const groupRef = useRef<Group>(null);
-  
-  useFrame(() => {
-    // Update group ref for any animations if needed
-  });
-  
-  const pathState = pathFollowerRef?.current;
-  const path = pathState?.path || [];
-  const currentIndex = pathState?.currentWaypointIndex || 0;
-  const playerX = playerStateRef.current.x;
-  const playerZ = playerStateRef.current.y;
-  const playerRot = playerStateRef.current.rotation;
-  
-  // Calculate forward direction from rotation
-  // rotation=0 → -Z, rotation=π/2 → +X
-  const forwardX = Math.sin(playerRot);
-  const forwardZ = -Math.cos(playerRot);
-  
-  return (
-    <group ref={groupRef}>
-      {/* Direction Arrow - shows which way the animal is facing */}
-      <group position={[playerX, 0.5, playerZ]}>
-        {/* Arrow shaft */}
-        <mesh position={[forwardX * 0.4, 0, forwardZ * 0.4]} rotation={[0, -playerRot, 0]}>
-          <boxGeometry args={[0.08, 0.08, 0.8]} />
-          <meshBasicMaterial color="#ff00ff" transparent opacity={0.9} />
-        </mesh>
-        {/* Arrow head */}
-        <mesh position={[forwardX * 0.9, 0, forwardZ * 0.9]} rotation={[-Math.PI / 2, 0, -playerRot]}>
-          <coneGeometry args={[0.15, 0.3, 8]} />
-          <meshBasicMaterial color="#ff00ff" transparent opacity={0.9} />
-        </mesh>
-      </group>
-      
-      {/* Waypoint markers */}
-      {path.map((wp, i) => {
-        const isCurrent = i === currentIndex;
-        const isPast = i < currentIndex;
-        const isFuture = i > currentIndex;
-        
-        // Color coding: past=gray, current=green, future=yellow
-        const color = isPast ? '#666666' : isCurrent ? '#00ff00' : '#ffff00';
-        const height = isCurrent ? 0.8 : 0.4;
-        const opacity = isPast ? 0.3 : isCurrent ? 1 : 0.7;
-        
-        return (
-          <group key={`wp-${i}`} position={[wp.x, 0, wp.y]}>
-            {/* Waypoint pillar */}
-            <mesh position={[0, height / 2, 0]}>
-              <cylinderGeometry args={[0.1, 0.1, height, 8]} />
-              <meshBasicMaterial color={color} transparent opacity={opacity} />
-            </mesh>
-            {/* Waypoint number */}
-            <Html position={[0, height + 0.3, 0]} center>
-              <div style={{
-                background: isPast ? 'rgba(0,0,0,0.5)' : isCurrent ? 'rgba(0,255,0,0.8)' : 'rgba(255,255,0,0.8)',
-                color: isPast ? '#aaa' : '#000',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                fontFamily: 'monospace',
-                whiteSpace: 'nowrap',
-              }}>
-                {i}
-              </div>
-            </Html>
-            {/* Ground ring */}
-            <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <ringGeometry args={[0.2, 0.3, 16]} />
-              <meshBasicMaterial color={color} transparent opacity={opacity} side={DoubleSide} />
-            </mesh>
-          </group>
-        );
-      })}
-      
-      {/* Path lines connecting waypoints */}
-      {path.length > 1 && path.map((wp, i) => {
-        if (i === 0) return null;
-        const prev = path[i - 1];
-        const dx = wp.x - prev.x;
-        const dy = wp.y - prev.y;
-        const length = Math.sqrt(dx * dx + dy * dy);
-        const angle = Math.atan2(dx, dy);
-        const midX = (wp.x + prev.x) / 2;
-        const midZ = (wp.y + prev.y) / 2;
-        const isPast = i <= currentIndex;
-        
-        return (
-          <mesh 
-            key={`line-${i}`} 
-            position={[midX, 0.1, midZ]} 
-            rotation={[0, angle, 0]}
-          >
-            <boxGeometry args={[0.05, 0.05, length]} />
-            <meshBasicMaterial 
-              color={isPast ? '#444444' : '#888800'} 
-              transparent 
-              opacity={isPast ? 0.3 : 0.6} 
-            />
-          </mesh>
-        );
-      })}
-    </group>
-  );
-};
-
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, pathFollowerRef, cameraOffset = 0, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, onRaycastHandlerReady, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, targetMarker, pathDebugEnabled = false }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
   // Ref for corn walls - used by camera autopush raycasting
   const foliageGroupRef = useRef<Group>(null);
-  
-  // Ground plane raycaster for tap-to-move
-  const { camera, size } = useThree();
-  const groundRaycaster = useRef(new Raycaster());
-  const groundPlane = useRef(new Vector3(0, 1, 0)); // Normal for Y=0 plane
-  const pointer = useRef(new Vector2());
-  const groundIntersect = useRef(new Vector3());
-  
-  // Create raycast handler for tap-to-move
-  // Returns ground intersection, whether clicked on corn, and where ray first hits corn edge
-  const raycastHandler = useCallback((screenX: number, screenY: number): { worldX: number; worldZ: number; clickedOnCorn: boolean; cornEdgeX?: number; cornEdgeZ?: number } | null => {
-    // Convert screen coords to normalized device coords
-    pointer.current.x = (screenX / size.width) * 2 - 1;
-    pointer.current.y = -(screenY / size.height) * 2 + 1;
-    
-    // Update raycaster from camera
-    groundRaycaster.current.setFromCamera(pointer.current, camera);
-    
-    // Calculate intersection with ground plane (Y=0)
-    const ray = groundRaycaster.current.ray;
-    const t = -ray.origin.y / ray.direction.y;
-    
-    if (t < 0) return null; // Ray pointing away from ground
-    
-    groundIntersect.current.copy(ray.origin).addScaledVector(ray.direction, t);
-    
-    const worldX = groundIntersect.current.x;
-    const worldZ = groundIntersect.current.z;
-    
-    // Check if this position is directly in a wall (corn) cell
-    const gridX = Math.floor(worldX);
-    const gridZ = Math.floor(worldZ);
-    const clickedOnCorn = isWall(maze, gridX, gridZ);
-    
-    // Find where the ray first enters corn (for far wall clicks)
-    // Sample along the ray from camera to ground intersection
-    let cornEdgeX: number | undefined;
-    let cornEdgeZ: number | undefined;
-    
-    const cameraPos = camera.position;
-    const rayDirX = worldX - cameraPos.x;
-    const rayDirZ = worldZ - cameraPos.z;
-    const rayLength = Math.sqrt(rayDirX * rayDirX + rayDirZ * rayDirZ);
-    
-    // Sample every 0.25 units along the ground projection of the ray
-    const numSamples = Math.ceil(rayLength * 4);
-    let lastNonCornX = cameraPos.x;
-    let lastNonCornZ = cameraPos.z;
-    
-    for (let i = 1; i <= numSamples; i++) {
-      const sampleT = i / numSamples;
-      const sampleX = cameraPos.x + rayDirX * sampleT;
-      const sampleZ = cameraPos.z + rayDirZ * sampleT;
-      
-      const sampleGridX = Math.floor(sampleX);
-      const sampleGridZ = Math.floor(sampleZ);
-      
-      if (isWall(maze, sampleGridX, sampleGridZ)) {
-        // Found corn! The edge is just before this point
-        // Back up slightly (0.3 units) from the corn wall
-        const backupT = Math.max(0, (i - 1.2) / numSamples);
-        cornEdgeX = cameraPos.x + rayDirX * backupT;
-        cornEdgeZ = cameraPos.z + rayDirZ * backupT;
-        break;
-      }
-      lastNonCornX = sampleX;
-      lastNonCornZ = sampleZ;
-    }
-    
-    return { worldX, worldZ, clickedOnCorn, cornEdgeX, cornEdgeZ };
-  }, [camera, size, maze]);
-  
-  // Register raycast handler with parent
-  useEffect(() => {
-    if (onRaycastHandlerReady) {
-      onRaycastHandlerReady(raycastHandler);
-    }
-  }, [onRaycastHandlerReady, raycastHandler]);
   
   useFrame(() => {
     if (!hasSignaled.current && onSceneReady) {
@@ -2381,7 +2096,7 @@ return (
         position={[15, 35, 15]}
         intensity={3.5}
         color="#FFFDF5"
-        castShadow={shadowsEnabled}
+        castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={0.5}
         shadow-camera-far={100}
@@ -2415,16 +2130,14 @@ return (
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} />
       
-      {/* Maze Walls (corn) with optimizations - toggleable for performance testing */}
-      {cornEnabled && (
-        <MazeWalls 
-          ref={foliageGroupRef}
-          maze={maze} 
-          playerStateRef={playerStateRef}
-          optimizationSettings={cornOptimizationSettings}
-          onCullStats={onCullStats}
-        />
-      )}
+      {/* Maze Walls (corn) with optimizations */}
+      <MazeWalls 
+        ref={foliageGroupRef}
+        maze={maze} 
+        playerStateRef={playerStateRef}
+        optimizationSettings={cornOptimizationSettings}
+        onCullStats={onCullStats}
+      />
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (
@@ -2464,21 +2177,7 @@ return (
         />
       ))}
       
-      {/* Target marker for tap-to-move */}
-      {targetMarker && (
-        <mesh position={[targetMarker.x, 0.05, targetMarker.z]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.2, 0.3, 16]} />
-          <meshBasicMaterial color="#00ff00" transparent opacity={0.7} side={DoubleSide} />
-        </mesh>
-      )}
-      
-      {/* Path Debug Visualizer - shows waypoints and direction arrow */}
-      {pathDebugEnabled && (
-        <PathDebugVisualizer 
-          pathFollowerRef={pathFollowerRef}
-          playerStateRef={playerStateRef}
-        />
-      )}
+      {/* Note: GoalMarker removed - farmer is now a regular PlacedCharacter */}
       
       {/* Player - handles movement + rendering in sync */}
       <RefBasedPlayer 
@@ -2487,7 +2186,10 @@ return (
         isMovingRef={isMovingRef}
         maze={maze}
         keysPressed={keysPressed}
-        pathFollowerRef={pathFollowerRef}
+        mobileYawRateRef={mobileYawRateRef}
+        mobileIsMovingRef={mobileIsMovingRef}
+        mobileThrottleRef={mobileThrottleRef}
+        mobileTouchActiveRef={mobileTouchActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}
