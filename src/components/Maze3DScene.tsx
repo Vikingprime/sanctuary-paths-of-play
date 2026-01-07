@@ -50,12 +50,16 @@ interface Maze3DSceneProps {
   isMovingRef: MutableRefObject<boolean>;
   collectedPowerUps?: Set<string>;
   keysPressed: MutableRefObject<Set<string>>;
-  // Mobile controls - yaw rate system
+  // Mobile controls - camera-relative movement system
   mobileTargetYawRef?: MutableRefObject<number>; // Legacy - not used in new system
-  mobileYawRateRef?: MutableRefObject<number>;   // Yaw rate in radians/sec from steering
+  mobileYawRateRef?: MutableRefObject<number>;   // Legacy - not used in camera-relative system
   mobileIsMovingRef?: MutableRefObject<boolean>;
-  mobileThrottleRef?: MutableRefObject<number>;  // -1 (reverse) to 1 (forward)
+  mobileThrottleRef?: MutableRefObject<number>;  // 0 to 1 (speed)
   mobileTouchActiveRef?: MutableRefObject<boolean>;
+  // New camera-relative movement refs
+  cameraYawRef?: MutableRefObject<number>;       // Camera yaw angle (controlled by swipe)
+  moveDirectionRef?: MutableRefObject<{ x: number; y: number }>; // Joystick direction relative to camera
+  cameraModeEnabled?: boolean;                   // Whether camera control is active
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1159,6 +1163,9 @@ const RefBasedPlayer = ({
   mobileIsMovingRef,
   mobileThrottleRef,
   mobileTouchActiveRef,
+  cameraYawRef,
+  moveDirectionRef,
+  cameraModeEnabled = true,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1176,6 +1183,9 @@ const RefBasedPlayer = ({
   mobileIsMovingRef?: MutableRefObject<boolean>;
   mobileThrottleRef?: MutableRefObject<number>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
+  cameraYawRef?: MutableRefObject<number>;
+  moveDirectionRef?: MutableRefObject<{ x: number; y: number }>;
+  cameraModeEnabled?: boolean;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1191,8 +1201,6 @@ const RefBasedPlayer = ({
   const positionInitialized = useRef(false);
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   const smoothBankAngle = useRef(0); // For banking/leaning during turns
-  
-  // Mobile steering no longer uses these (yaw rate system instead)
   
   // Helper: normalize angle to [-PI, PI]
   const normalizeAngle = (angle: number): number => {
@@ -1220,30 +1228,91 @@ const RefBasedPlayer = ({
       
       let input: MovementInput;
       
-      if (mobileActive) {
-        // MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)
+      if (mobileActive && cameraModeEnabled && moveDirectionRef && cameraYawRef) {
+        // CAMERA-RELATIVE MODE: Movement direction is relative to camera
+        const moveDir = moveDirectionRef.current;
+        const throttle = mobileThrottleRef?.current ?? 0;
+        const isMoving = mobileIsMovingRef?.current ?? false;
+        const cameraYaw = cameraYawRef.current;
+        
+        if (isMoving && (Math.abs(moveDir.x) > 0.01 || Math.abs(moveDir.y) > 0.01)) {
+          // Calculate world-space movement direction from camera-relative joystick input
+          // moveDir.x = right (+) / left (-) relative to camera
+          // moveDir.y = forward (+) / backward (-) relative to camera
+          // cameraYaw = camera's facing direction
+          
+          // Rotate joystick direction by camera yaw to get world direction
+          const worldDirX = moveDir.x * Math.cos(cameraYaw) - moveDir.y * Math.sin(cameraYaw);
+          const worldDirZ = moveDir.x * Math.sin(cameraYaw) + moveDir.y * Math.cos(cameraYaw);
+          
+          // Calculate target rotation (character faces movement direction)
+          const targetRotation = Math.atan2(worldDirX, worldDirZ);
+          
+          // Smoothly rotate character toward movement direction
+          const currentRotation = playerStateRef.current.rotation;
+          let rotDiff = normalizeAngle(targetRotation - currentRotation);
+          
+          // Rotation speed based on angle difference (faster for larger angles)
+          const rotSpeed = 8.0; // radians per second
+          const maxRotThisFrame = rotSpeed * clampedDelta;
+          
+          let newRotation: number;
+          if (Math.abs(rotDiff) < maxRotThisFrame) {
+            newRotation = targetRotation;
+          } else {
+            newRotation = normalizeAngle(currentRotation + Math.sign(rotDiff) * maxRotThisFrame);
+          }
+          
+          playerStateRef.current = {
+            ...playerStateRef.current,
+            rotation: newRotation
+          };
+          
+          // Build movement input (always forward since we're rotating to face direction)
+          input = {
+            forward: true,
+            backward: false,
+            rotateLeft: false,
+            rotateRight: false,
+            rotationIntensity: 0,
+            speedMultiplier: throttle,
+          };
+          
+          isMovingRef.current = true;
+        } else {
+          // Not moving
+          input = {
+            forward: false,
+            backward: false,
+            rotateLeft: false,
+            rotateRight: false,
+            rotationIntensity: 0,
+            speedMultiplier: 0,
+          };
+          isMovingRef.current = false;
+        }
+        
+        // Calculate movement (position only, rotation already set)
+        const prev = playerStateRef.current;
+        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+        playerStateRef.current = newState;
+      } else if (mobileActive) {
+        // LEGACY MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)
         const yawRate = mobileYawRateRef?.current ?? 0;
         let newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
         
         // === ANGULAR SNAPPING (Cardinal Alignment Assist) ===
-        // If rotation is within ~5 degrees of a cardinal direction and not actively turning hard
         const cardinalSnapThreshold = 0.087; // ~5 degrees
         const cardinalSnapStrength = 0.03;
         const absYawRate = Math.abs(yawRate);
         
-        // Only snap when not turning hard (yaw rate < 0.5)
         if (absYawRate < 0.5) {
-          // Cardinal directions: 0, π/2, π, 3π/2 (N, E, S, W)
           const cardinals = [0, Math.PI / 2, Math.PI, Math.PI * 1.5, Math.PI * 2];
-          
           for (const cardinal of cardinals) {
             let diff = newRotation - cardinal;
-            // Normalize diff to -π to π
             if (diff > Math.PI) diff -= Math.PI * 2;
             if (diff < -Math.PI) diff += Math.PI * 2;
-            
             if (Math.abs(diff) < cardinalSnapThreshold) {
-              // Snap toward cardinal direction
               newRotation = normalizeAngle(newRotation - diff * cardinalSnapStrength);
               break;
             }
@@ -1255,14 +1324,11 @@ const RefBasedPlayer = ({
           rotation: newRotation
         };
         
-        // Get throttle value (-1 to 1, supports reverse)
         const throttle = mobileThrottleRef?.current ?? 0;
         const isMoving = mobileIsMovingRef?.current ?? false;
         const isForward = throttle > 0;
         const isBackward = throttle < 0;
         
-        // Build input with forward/backward from throttle
-        // (rotation already handled above)
         input = {
           forward: isMoving && isForward,
           backward: isMoving && isBackward,
@@ -1272,10 +1338,8 @@ const RefBasedPlayer = ({
           speedMultiplier: Math.abs(throttle),
         };
         
-        // Update isMoving ref
         isMovingRef.current = isMoving;
         
-        // Calculate movement (position only, rotation already set)
         const prev = playerStateRef.current;
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         playerStateRef.current = newState;
@@ -2193,6 +2257,9 @@ return (
         mobileIsMovingRef={mobileIsMovingRef}
         mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
+        cameraYawRef={cameraYawRef}
+        moveDirectionRef={moveDirectionRef}
+        cameraModeEnabled={cameraModeEnabled}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}
