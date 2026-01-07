@@ -207,8 +207,8 @@ export const MobileControls = ({
       const deltaX = e.clientX - lastMousePosRef.current.x;
       lastMousePosRef.current = { x: e.clientX };
       
-      // Update camera yaw (positive deltaX = drag right = camera rotates right = yaw increases)
-      const yawDelta = deltaX * CAMERA_SWIPE_CONFIG.mouseSensitivity;
+      // Update camera yaw (inverted: drag right = camera rotates left = yaw decreases)
+      const yawDelta = -deltaX * CAMERA_SWIPE_CONFIG.mouseSensitivity;
       cameraYawRef.current += yawDelta;
       // Normalize to prevent unbounded growth
       if (cameraYawRef.current > Math.PI) cameraYawRef.current -= Math.PI * 2;
@@ -468,7 +468,8 @@ export const MobileControls = ({
     if (e.pointerId === cameraPointerIdRef.current && cameraLastPosRef.current) {
       const deltaX = e.clientX - cameraLastPosRef.current.x;
       
-      const yawDelta = deltaX * CAMERA_SWIPE_CONFIG.sensitivity;
+      // Inverted: swipe right = camera rotates left = yaw decreases
+      const yawDelta = -deltaX * CAMERA_SWIPE_CONFIG.sensitivity;
       cameraYawRef.current += yawDelta;
       
       if (cameraYawRef.current > Math.PI) cameraYawRef.current -= Math.PI * 2;
