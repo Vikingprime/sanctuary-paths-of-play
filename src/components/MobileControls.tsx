@@ -252,10 +252,12 @@ export const MobileControls = ({
         moveDirectionRef.current = { x: x / magnitude, y: y / magnitude };
         throttleRef.current = 1.0;
         isMovingRef.current = true;
+        console.log('[WASD] direction set:', moveDirectionRef.current, 'throttle:', throttleRef.current);
       } else {
         moveDirectionRef.current = { x: 0, y: 0 };
         throttleRef.current = 0;
         isMovingRef.current = false;
+        console.log('[WASD] stopped');
       }
     };
     
