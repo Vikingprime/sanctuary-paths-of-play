@@ -179,12 +179,29 @@ export const MobileControls = ({
   }, [resetControls]);
 
   // Desktop mouse camera control (when cameraModeEnabled is true)
+  // Track mouse state for click-and-drag camera control
+  const mouseDownRef = useRef(false);
+  const lastMousePosRef = useRef<{ x: number } | null>(null);
+  
   useEffect(() => {
     if (!cameraModeEnabled) return;
     
+    const handleMouseDown = (e: MouseEvent) => {
+      mouseDownRef.current = true;
+      lastMousePosRef.current = { x: e.clientX };
+    };
+    
+    const handleMouseUp = () => {
+      mouseDownRef.current = false;
+      lastMousePosRef.current = null;
+    };
+    
     const handleMouseMove = (e: MouseEvent) => {
-      // Only control camera when mouse is moving (no button needed)
-      const deltaX = e.movementX;
+      // Only control camera when mouse is held down (click-and-drag)
+      if (!mouseDownRef.current || !lastMousePosRef.current) return;
+      
+      const deltaX = e.clientX - lastMousePosRef.current.x;
+      lastMousePosRef.current = { x: e.clientX };
       
       // Update camera yaw
       const yawDelta = -deltaX * CAMERA_SWIPE_CONFIG.mouseSensitivity;
@@ -263,11 +280,15 @@ export const MobileControls = ({
       updateWASDDirectionFromState();
     };
     
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('keydown', handleWASDKeyDown);
     window.addEventListener('keyup', handleWASDKeyUp);
     
     return () => {
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('keydown', handleWASDKeyDown);
       window.removeEventListener('keyup', handleWASDKeyUp);
