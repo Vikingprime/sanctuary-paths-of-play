@@ -1499,7 +1499,8 @@ const OverShoulderCameraController = ({
   maze,
   cameraYawRef,
   cameraModeEnabled = false,
-}: { 
+  opacityFadeEnabled = true,
+}: {
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
   topDownCamera?: boolean;
@@ -1510,6 +1511,7 @@ const OverShoulderCameraController = ({
   maze?: Maze;
   cameraYawRef?: MutableRefObject<number>;
   cameraModeEnabled?: boolean;
+  opacityFadeEnabled?: boolean;
 }) => {
   const { camera, scene } = useThree();
   
@@ -1778,7 +1780,9 @@ const OverShoulderCameraController = ({
       // Constants for fading - will be applied AFTER we determine if autopush is triggered
       const FADE_TARGET = 0.55;       // Target opacity when faded (more visible)
       const FADE_IN_SPEED = 0.15;     // How fast corn fades out (per frame)
-      const FADE_OUT_SPEED = 0.03;    // How fast corn fades back in (per frame)
+      // Fade back in over ~0.5 seconds (30 frames at 60fps) -> 1/30 = 0.033
+      // Use slower speed for smoother transition
+      const FADE_OUT_SPEED = 0.033;   // How fast corn fades back in (per frame) - ~0.5s at 60fps
       const HOLD_TIME = 200;          // ms to hold fade before starting fade-out
       
       // We'll apply fading ONLY after determining if autopush is actually pushing
@@ -1859,13 +1863,18 @@ const OverShoulderCameraController = ({
             state.opacity = Math.min(1.0, state.opacity + FADE_OUT_SPEED);
           }
           
-          // Apply opacity to corn instances
-          const [cx, cz] = cellKey.split(',').map(Number);
-          setCellOpacity(cx, cz, state.opacity);
+          // Apply opacity to corn instances (only if opacity fade is enabled)
+          if (opacityFadeEnabled) {
+            const [cx, cz] = cellKey.split(',').map(Number);
+            setCellOpacity(cx, cz, state.opacity);
+          }
           
           // Remove fully opaque cells that haven't been hit recently
           if (state.opacity >= 0.99 && timeSinceHit > 1000) {
-            setCellOpacity(cx, cz, 1.0); // Ensure fully reset
+            if (opacityFadeEnabled) {
+              const [cx, cz] = cellKey.split(',').map(Number);
+              setCellOpacity(cx, cz, 1.0); // Ensure fully reset
+            }
             fadedCellsRef.current.delete(cellKey);
           }
         }
@@ -1890,13 +1899,18 @@ const OverShoulderCameraController = ({
             state.opacity = Math.min(1.0, state.opacity + FADE_OUT_SPEED);
           }
           
-          // Apply opacity to corn instances
-          const [cx, cz] = cellKey.split(',').map(Number);
-          setCellOpacity(cx, cz, state.opacity);
+          // Apply opacity to corn instances (only if opacity fade is enabled)
+          if (opacityFadeEnabled) {
+            const [cx, cz] = cellKey.split(',').map(Number);
+            setCellOpacity(cx, cz, state.opacity);
+          }
           
           // Remove fully opaque cells that haven't been hit recently
           if (state.opacity >= 0.99 && timeSinceHitCell > 1000) {
-            setCellOpacity(cx, cz, 1.0); // Ensure fully reset
+            if (opacityFadeEnabled) {
+              const [cx, cz] = cellKey.split(',').map(Number);
+              setCellOpacity(cx, cz, 1.0); // Ensure fully reset
+            }
             fadedCellsRef.current.delete(cellKey);
           }
         }
@@ -2317,6 +2331,7 @@ return (
             maze={maze}
             cameraYawRef={cameraYawRef}
             cameraModeEnabled={cameraModeEnabled}
+            opacityFadeEnabled={opacityFadeEnabled}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
         </>

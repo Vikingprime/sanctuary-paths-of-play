@@ -209,6 +209,9 @@ export const MobileControls = ({
       // Update camera yaw (positive deltaX = drag right = camera rotates right = yaw increases)
       const yawDelta = deltaX * CAMERA_SWIPE_CONFIG.mouseSensitivity;
       cameraYawRef.current += yawDelta;
+      // Normalize to prevent unbounded growth
+      if (cameraYawRef.current > Math.PI) cameraYawRef.current -= Math.PI * 2;
+      else if (cameraYawRef.current < -Math.PI) cameraYawRef.current += Math.PI * 2;
     };
     
     // WASD keyboard controls emulating joystick
@@ -377,6 +380,14 @@ export const MobileControls = ({
         cameraVelocityRef.current *= CAMERA_SWIPE_CONFIG.velocityDecay;
       }
       
+      // Normalize camera yaw to prevent unbounded growth (keep in -PI to PI range)
+      // This prevents floating point precision issues that cause infinite rotation
+      if (cameraYawRef.current > Math.PI) {
+        cameraYawRef.current -= Math.PI * 2;
+      } else if (cameraYawRef.current < -Math.PI) {
+        cameraYawRef.current += Math.PI * 2;
+      }
+      
       animationFrameRef.current = requestAnimationFrame(updateLoop);
     };
     
@@ -466,6 +477,9 @@ export const MobileControls = ({
       // Update camera yaw (positive deltaX = swipe right = camera rotates right = yaw increases)
       const yawDelta = deltaX * CAMERA_SWIPE_CONFIG.sensitivity;
       cameraYawRef.current += yawDelta;
+      // Normalize to prevent unbounded growth
+      if (cameraYawRef.current > Math.PI) cameraYawRef.current -= Math.PI * 2;
+      else if (cameraYawRef.current < -Math.PI) cameraYawRef.current += Math.PI * 2;
       
       // Track velocity for momentum
       cameraVelocityRef.current = yawDelta * CAMERA_SWIPE_CONFIG.smoothing;
