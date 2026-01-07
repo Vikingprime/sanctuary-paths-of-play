@@ -184,14 +184,21 @@ export const MobileControls = ({
   const lastMousePosRef = useRef<{ x: number } | null>(null);
   
   useEffect(() => {
-    if (!cameraModeEnabled) return;
+    if (!cameraModeEnabled) {
+      console.log('[Camera] cameraModeEnabled is false, skipping mouse listeners');
+      return;
+    }
+    
+    console.log('[Camera] Setting up mouse camera control listeners');
     
     const handleMouseDown = (e: MouseEvent) => {
       mouseDownRef.current = true;
       lastMousePosRef.current = { x: e.clientX };
+      console.log('[Camera] mousedown at', e.clientX);
     };
     
     const handleMouseUp = () => {
+      console.log('[Camera] mouseup');
       mouseDownRef.current = false;
       lastMousePosRef.current = null;
     };
@@ -206,6 +213,7 @@ export const MobileControls = ({
       // Update camera yaw
       const yawDelta = -deltaX * CAMERA_SWIPE_CONFIG.mouseSensitivity;
       cameraYawRef.current += yawDelta;
+      console.log('[Camera] mousemove deltaX:', deltaX, 'yaw:', cameraYawRef.current.toFixed(2));
     };
     
     // WASD keyboard controls emulating joystick
