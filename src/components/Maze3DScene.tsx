@@ -1571,11 +1571,16 @@ const OverShoulderCameraController = ({
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
   const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
   
-  useFrame(() => {
+  useFrame((_, delta) => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
     // In camera mode, use cameraYawRef for camera rotation instead of player rotation
     const cameraRotation = (cameraModeEnabled && cameraYawRef) ? cameraYawRef.current : playerRotation;
+    
+    // Debug logging (throttled)
+    if (cameraModeEnabled && cameraYawRef && Math.random() < 0.01) {
+      console.log('[CameraController] cameraModeEnabled:', cameraModeEnabled, 'yawRef:', cameraYawRef.current.toFixed(2), 'smoothRot:', smoothRotation.current.toFixed(2));
+    }
     
     // Store initial position on first frame (after initialization)
     if (initialized.current && initialPlayerPos.current === null) {
