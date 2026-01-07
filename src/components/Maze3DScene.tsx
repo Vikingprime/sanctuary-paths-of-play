@@ -1226,9 +1226,13 @@ const RefBasedPlayer = ({
       // Check if mobile touch is active (use boolean ref, not null check)
       const mobileActive = mobileTouchActiveRef?.current ?? false;
       
+      // Check if there's camera-relative movement input (from touch or WASD)
+      const hasCameraRelativeInput = cameraModeEnabled && moveDirectionRef && 
+        (Math.abs(moveDirectionRef.current.x) > 0.01 || Math.abs(moveDirectionRef.current.y) > 0.01);
+      
       let input: MovementInput;
       
-      if (mobileActive && cameraModeEnabled && moveDirectionRef && cameraYawRef) {
+      if ((mobileActive || hasCameraRelativeInput) && cameraModeEnabled && moveDirectionRef && cameraYawRef) {
         // CAMERA-RELATIVE MODE: Movement direction is relative to camera
         const moveDir = moveDirectionRef.current;
         const throttle = mobileThrottleRef?.current ?? 0;

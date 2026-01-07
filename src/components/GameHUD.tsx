@@ -56,6 +56,9 @@ interface GameHUDProps {
   onToggleOpacityFade?: () => void;
   cornEnabled?: boolean;
   onToggleCorn?: () => void;
+  // Camera mode toggle (mouse camera on desktop)
+  cameraModeEnabled?: boolean;
+  onToggleCameraMode?: () => void;
 }
 
 export const GameHUD = ({
@@ -95,6 +98,8 @@ export const GameHUD = ({
   onToggleOpacityFade,
   cornEnabled = true,
   onToggleCorn,
+  cameraModeEnabled = false,
+  onToggleCameraMode,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -249,6 +254,18 @@ export const GameHUD = ({
                   title="Verbose collision/autopush logging"
                 >
                   📝 Verbose {verboseLogging ? 'On' : 'Off'}
+                </button>
+              )}
+              {onToggleCameraMode && (
+                <button
+                  onClick={onToggleCameraMode}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    cameraModeEnabled ? 'text-purple-500' : 'text-muted-foreground'
+                  )}
+                  title="Mouse camera mode (WASD moves, mouse rotates camera)"
+                >
+                  🖱️ CamMode {cameraModeEnabled ? 'On' : 'Off'}
                 </button>
               )}
             </div>

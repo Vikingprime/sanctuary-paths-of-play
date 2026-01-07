@@ -819,6 +819,8 @@ export const MazeGame3D = ({
           onToggleOpacityFade={() => setOpacityFadeEnabled(prev => !prev)}
           cornEnabled={cornEnabled}
           onToggleCorn={() => setCornEnabled(prev => !prev)}
+          cameraModeEnabled={cameraModeEnabled}
+          onToggleCameraMode={() => setCameraModeEnabled(prev => !prev)}
         />
       )}
 

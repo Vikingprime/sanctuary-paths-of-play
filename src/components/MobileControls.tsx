@@ -22,6 +22,9 @@ export const CAMERA_SWIPE_CONFIG = {
   // Sensitivity (radians per pixel of movement)
   sensitivity: 0.004,
   
+  // Mouse sensitivity (for desktop camera mode)
+  mouseSensitivity: 0.003,
+  
   // Smoothing factor (0-1, higher = more responsive)
   smoothing: 0.15,
   
@@ -174,6 +177,102 @@ export const MobileControls = ({
       }
     };
   }, [resetControls]);
+
+  // Desktop mouse camera control (when cameraModeEnabled is true)
+  useEffect(() => {
+    if (!cameraModeEnabled) return;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      // Only control camera when mouse is moving (no button needed)
+      const deltaX = e.movementX;
+      
+      // Update camera yaw
+      const yawDelta = -deltaX * CAMERA_SWIPE_CONFIG.mouseSensitivity;
+      cameraYawRef.current += yawDelta;
+    };
+    
+    // WASD keyboard controls emulating joystick
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
+        updateWASDDirection();
+        isMovingRef.current = true;
+        throttleRef.current = 1.0; // Full speed
+      }
+    };
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
+        // Re-evaluate direction after a key release
+        setTimeout(updateWASDDirection, 0);
+      }
+    };
+    
+    // Track which WASD keys are currently pressed
+    const wasdState = { w: false, a: false, s: false, d: false };
+    
+    const updateWASDDirectionFromState = () => {
+      let x = 0;
+      let y = 0;
+      
+      if (wasdState.w) y += 1;  // Forward
+      if (wasdState.s) y -= 1;  // Backward
+      if (wasdState.a) x -= 1;  // Left
+      if (wasdState.d) x += 1;  // Right
+      
+      // Normalize diagonal movement
+      const magnitude = Math.sqrt(x * x + y * y);
+      if (magnitude > 0) {
+        moveDirectionRef.current = { x: x / magnitude, y: y / magnitude };
+        throttleRef.current = 1.0;
+        isMovingRef.current = true;
+      } else {
+        moveDirectionRef.current = { x: 0, y: 0 };
+        throttleRef.current = 0;
+        isMovingRef.current = false;
+      }
+    };
+    
+    const handleWASDKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (key === 'w') wasdState.w = true;
+      else if (key === 'a') wasdState.a = true;
+      else if (key === 's') wasdState.s = true;
+      else if (key === 'd') wasdState.d = true;
+      
+      if (['w', 'a', 's', 'd'].includes(key)) {
+        updateWASDDirectionFromState();
+      }
+    };
+    
+    const handleWASDKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (key === 'w') wasdState.w = false;
+      else if (key === 'a') wasdState.a = false;
+      else if (key === 's') wasdState.s = false;
+      else if (key === 'd') wasdState.d = false;
+      
+      if (['w', 'a', 's', 'd'].includes(key)) {
+        updateWASDDirectionFromState();
+      }
+    };
+    
+    // Unused helper - keeping for reference
+    const updateWASDDirection = () => {
+      updateWASDDirectionFromState();
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('keydown', handleWASDKeyDown);
+    window.addEventListener('keyup', handleWASDKeyUp);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('keydown', handleWASDKeyDown);
+      window.removeEventListener('keyup', handleWASDKeyUp);
+    };
+  }, [cameraModeEnabled, cameraYawRef, moveDirectionRef, isMovingRef, throttleRef]);
 
   // Animation loop for joystick input processing
   useEffect(() => {
