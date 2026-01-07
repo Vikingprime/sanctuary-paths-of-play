@@ -15,6 +15,10 @@ export const MOBILE_CONTROL_CONFIG = {
   
   // Movement speed multiplier
   moveSpeedMultiplier: 1.0,
+  
+  // Fixed joystick position (percentage from edges)
+  fixedPositionLeft: 0.12, // 12% from left edge
+  fixedPositionBottom: 0.18, // 18% from bottom edge
 };
 
 // Camera swipe sensitivity config
@@ -61,10 +65,10 @@ export const MobileControls = ({
   debugMode = false,
   cameraModeEnabled = true,
 }: MobileControlsProps) => {
-  const overlayRef = useRef<HTMLDivElement>(null);
+  const cameraSurfaceRef = useRef<HTMLDivElement>(null);
+  const joystickSurfaceRef = useRef<HTMLDivElement>(null);
   
-  // Joystick state (movement)
-  const joystickAnchorRef = useRef<{ x: number; y: number } | null>(null);
+  // Joystick state (movement) - fixed position
   const joystickFingerRef = useRef<{ x: number; y: number } | null>(null);
   const joystickPointerIdRef = useRef<number | null>(null);
   
@@ -80,30 +84,27 @@ export const MobileControls = ({
   // Track screen dimensions for normalization
   const screenDimensionsRef = useRef({ width: window.innerWidth, height: window.innerHeight });
   
-  // Visual state for joystick
-  const [joystickState, setJoystickState] = useState<{
-    visible: boolean;
-    baseX: number;
-    baseY: number;
-    knobX: number;
-    knobY: number;
-  }>({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
+  // Visual state for joystick knob offset
+  const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Calculate pixel values from percentage-based config
   const getPixelValues = useCallback(() => {
     const screenHeight = screenDimensionsRef.current.height;
+    const screenWidth = screenDimensionsRef.current.width;
     return {
       deadZone: screenHeight * MOBILE_CONTROL_CONFIG.maxRadiusPercent * MOBILE_CONTROL_CONFIG.deadZonePercent,
       maxRadius: screenHeight * MOBILE_CONTROL_CONFIG.maxRadiusPercent,
       baseRadius: screenHeight * MOBILE_CONTROL_CONFIG.baseRadiusPercent,
       knobRadius: screenHeight * MOBILE_CONTROL_CONFIG.knobRadiusPercent,
+      // Fixed joystick center position
+      joystickCenterX: screenWidth * MOBILE_CONTROL_CONFIG.fixedPositionLeft,
+      joystickCenterY: screenHeight * (1 - MOBILE_CONTROL_CONFIG.fixedPositionBottom),
     };
   }, []);
 
   // Reset all control state - used on orientation change
   const resetControls = useCallback(() => {
     joystickPointerIdRef.current = null;
-    joystickAnchorRef.current = null;
     joystickFingerRef.current = null;
     cameraPointerIdRef.current = null;
     cameraLastPosRef.current = null;
@@ -112,7 +113,7 @@ export const MobileControls = ({
     isMovingRef.current = false;
     mobileTouchActiveRef.current = false;
     moveDirectionRef.current = { x: 0, y: 0 };
-    setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
+    setKnobOffset({ x: 0, y: 0 });
     
     // Update screen dimensions
     screenDimensionsRef.current = { width: window.innerWidth, height: window.innerHeight };
@@ -137,7 +138,8 @@ export const MobileControls = ({
     
     const preventGestures = (e: TouchEvent) => {
       const target = e.target as HTMLElement;
-      if (target.id === 'mobileControlSurface' || target.closest('#mobileControlSurface')) {
+      if (target.id === 'cameraSurface' || target.id === 'joystickSurface' || 
+          target.closest('#cameraSurface') || target.closest('#joystickSurface')) {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -200,7 +202,6 @@ export const MobileControls = ({
     };
     
     const handleMouseMove = (e: MouseEvent) => {
-      // Only control camera when mouse is held down (click-and-drag)
       if (!mouseDownRef.current || !lastMousePosRef.current) return;
       
       const deltaX = e.clientX - lastMousePosRef.current.x;
@@ -214,78 +215,57 @@ export const MobileControls = ({
       else if (cameraYawRef.current < -Math.PI) cameraYawRef.current += Math.PI * 2;
     };
     
-    // WASD keyboard controls emulating joystick
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
-        updateWASDDirection();
-        isMovingRef.current = true;
-        throttleRef.current = 1.0; // Full speed
-      }
-    };
-    
-    const handleKeyUp = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
-        // Re-evaluate direction after a key release
-        setTimeout(updateWASDDirection, 0);
-      }
-    };
-    
-    // Track which WASD keys are currently pressed
-    const wasdState = { w: false, a: false, s: false, d: false };
-    
-    const updateWASDDirectionFromState = () => {
-      let x = 0;
-      let y = 0;
-      
-      if (wasdState.w) y += 1;  // Forward
-      if (wasdState.s) y -= 1;  // Backward
-      if (wasdState.a) x -= 1;  // Left
-      if (wasdState.d) x += 1;  // Right
-      
-      // Normalize diagonal movement
-      const magnitude = Math.sqrt(x * x + y * y);
-      if (magnitude > 0) {
-        wasdActiveRef.current = true; // Mark WASD as active
-        moveDirectionRef.current = { x: x / magnitude, y: y / magnitude };
-        throttleRef.current = 1.0;
-        isMovingRef.current = true;
-      } else {
-        wasdActiveRef.current = false; // WASD no longer active
-        moveDirectionRef.current = { x: 0, y: 0 };
-        throttleRef.current = 0;
-        isMovingRef.current = false;
-      }
-    };
-    
+    // Handle WASD keyboard input for camera mode
     const handleWASDKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
-      if (key === 'w') wasdState.w = true;
-      else if (key === 'a') wasdState.a = true;
-      else if (key === 's') wasdState.s = true;
-      else if (key === 'd') wasdState.d = true;
+      if (!['w', 'a', 's', 'd'].includes(key)) return;
       
-      if (['w', 'a', 's', 'd'].includes(key)) {
-        updateWASDDirectionFromState();
+      wasdActiveRef.current = true;
+      
+      // Calculate movement direction based on WASD
+      // W/S = forward/backward (y axis), A/D = left/right (x axis)
+      let x = 0, y = 0;
+      if (key === 'w') y = 1;  // Forward
+      if (key === 's') y = -1; // Backward
+      if (key === 'a') x = -1; // Left
+      if (key === 'd') x = 1;  // Right
+      
+      // Combine with existing direction for diagonal movement
+      const current = moveDirectionRef.current;
+      if (key === 'w' || key === 's') {
+        moveDirectionRef.current = { x: current.x, y };
+      } else {
+        moveDirectionRef.current = { x, y: current.y };
       }
+      
+      // Normalize diagonal movement
+      const len = Math.sqrt(moveDirectionRef.current.x ** 2 + moveDirectionRef.current.y ** 2);
+      if (len > 1) {
+        moveDirectionRef.current.x /= len;
+        moveDirectionRef.current.y /= len;
+      }
+      
+      isMovingRef.current = true;
+      throttleRef.current = 1;
     };
     
     const handleWASDKeyUp = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
-      if (key === 'w') wasdState.w = false;
-      else if (key === 'a') wasdState.a = false;
-      else if (key === 's') wasdState.s = false;
-      else if (key === 'd') wasdState.d = false;
+      if (!['w', 'a', 's', 'd'].includes(key)) return;
       
-      if (['w', 'a', 's', 'd'].includes(key)) {
-        updateWASDDirectionFromState();
+      // Clear the direction for the released key
+      const current = moveDirectionRef.current;
+      if (key === 'w' && current.y > 0) moveDirectionRef.current = { ...current, y: 0 };
+      if (key === 's' && current.y < 0) moveDirectionRef.current = { ...current, y: 0 };
+      if (key === 'a' && current.x < 0) moveDirectionRef.current = { ...current, x: 0 };
+      if (key === 'd' && current.x > 0) moveDirectionRef.current = { ...current, x: 0 };
+      
+      // Check if still moving
+      if (moveDirectionRef.current.x === 0 && moveDirectionRef.current.y === 0) {
+        wasdActiveRef.current = false;
+        isMovingRef.current = false;
+        throttleRef.current = 0;
       }
-    };
-    
-    // Unused helper - keeping for reference
-    const updateWASDDirection = () => {
-      updateWASDDirectionFromState();
     };
     
     window.addEventListener('mousedown', handleMouseDown);
@@ -306,12 +286,12 @@ export const MobileControls = ({
   // Animation loop for joystick input processing
   useEffect(() => {
     const updateLoop = () => {
-      const { maxRadius, deadZone } = getPixelValues();
+      const { maxRadius, deadZone, joystickCenterX, joystickCenterY } = getPixelValues();
       
       // Process joystick input
-      if (joystickAnchorRef.current && joystickFingerRef.current) {
-        let dx = joystickFingerRef.current.x - joystickAnchorRef.current.x;
-        let dy = joystickFingerRef.current.y - joystickAnchorRef.current.y;
+      if (joystickFingerRef.current) {
+        let dx = joystickFingerRef.current.x - joystickCenterX;
+        let dy = joystickFingerRef.current.y - joystickCenterY;
         let distance = Math.sqrt(dx * dx + dy * dy);
         
         // Clamp finger position to max radius (stick can't go past circle)
@@ -320,20 +300,10 @@ export const MobileControls = ({
           dx *= scale;
           dy *= scale;
           distance = maxRadius;
-          
-          // Update actual finger position to clamped position for visual
-          joystickFingerRef.current.x = joystickAnchorRef.current.x + dx;
-          joystickFingerRef.current.y = joystickAnchorRef.current.y + dy;
         }
         
-        // Update visuals with clamped position
-        setJoystickState({
-          visible: true,
-          baseX: joystickAnchorRef.current.x,
-          baseY: joystickAnchorRef.current.y,
-          knobX: joystickFingerRef.current.x,
-          knobY: joystickFingerRef.current.y,
-        });
+        // Update knob visual offset
+        setKnobOffset({ x: dx, y: dy });
         
         // Process movement
         if (distance >= deadZone) {
@@ -372,6 +342,8 @@ export const MobileControls = ({
           throttleRef.current = 0;
           isMovingRef.current = false;
         }
+        // Reset knob to center
+        setKnobOffset({ x: 0, y: 0 });
       }
       
       // Process camera velocity decay (momentum after release)
@@ -381,7 +353,6 @@ export const MobileControls = ({
       }
       
       // Normalize camera yaw to prevent unbounded growth (keep in -PI to PI range)
-      // This prevents floating point precision issues that cause infinite rotation
       if (cameraYawRef.current > Math.PI) {
         cameraYawRef.current -= Math.PI * 2;
       } else if (cameraYawRef.current < -Math.PI) {
@@ -400,31 +371,17 @@ export const MobileControls = ({
     };
   }, [debugMode, isMovingRef, throttleRef, moveDirectionRef, cameraYawRef, getPixelValues]);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // On desktop with camera mode enabled, let mouse events pass through to window listeners
-    // (mouse controls camera via separate mousedown/mousemove listener, WASD controls movement)
-    if (cameraModeEnabled && e.pointerType === 'mouse') {
-      // Don't preventDefault - let the event bubble to window listeners
-      return;
-    }
+  // ========== JOYSTICK HANDLERS ==========
+  const handleJoystickPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (cameraModeEnabled && e.pointerType === 'mouse') return;
     
     e.preventDefault();
     e.stopPropagation();
     
-    // First touch becomes joystick
     if (joystickPointerIdRef.current === null) {
       joystickPointerIdRef.current = e.pointerId;
-      joystickAnchorRef.current = { x: e.clientX, y: e.clientY };
       joystickFingerRef.current = { x: e.clientX, y: e.clientY };
       mobileTouchActiveRef.current = true;
-      
-      setJoystickState({
-        visible: true,
-        baseX: e.clientX,
-        baseY: e.clientY,
-        knobX: e.clientX,
-        knobY: e.clientY,
-      });
       
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -435,14 +392,60 @@ export const MobileControls = ({
       if (debugMode) {
         console.log('[Mobile] joystick down at', e.clientX.toFixed(0), e.clientY.toFixed(0));
       }
-      return;
     }
+  }, [mobileTouchActiveRef, debugMode, cameraModeEnabled]);
+
+  const handleJoystickPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (cameraModeEnabled && e.pointerType === 'mouse') return;
     
-    // Second touch becomes camera control (if enabled)
-    if (cameraModeEnabled && cameraPointerIdRef.current === null) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.pointerId === joystickPointerIdRef.current) {
+      joystickFingerRef.current = { x: e.clientX, y: e.clientY };
+    }
+  }, [cameraModeEnabled]);
+
+  const handleJoystickPointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.pointerId === joystickPointerIdRef.current) {
+      joystickPointerIdRef.current = null;
+      joystickFingerRef.current = null;
+      throttleRef.current = 0;
+      isMovingRef.current = false;
+      moveDirectionRef.current = { x: 0, y: 0 };
+      
+      if (cameraPointerIdRef.current === null) {
+        mobileTouchActiveRef.current = false;
+      }
+      
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch (err) {
+        // Ignore
+      }
+      
+      if (debugMode) {
+        console.log('[Mobile] joystick up');
+      }
+    }
+  }, [mobileTouchActiveRef, throttleRef, isMovingRef, moveDirectionRef, debugMode]);
+
+  // ========== CAMERA HANDLERS ==========
+  const handleCameraPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (cameraModeEnabled && e.pointerType === 'mouse') return;
+    if (!cameraModeEnabled) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (cameraPointerIdRef.current === null) {
       cameraPointerIdRef.current = e.pointerId;
       cameraLastPosRef.current = { x: e.clientX, y: e.clientY };
       cameraVelocityRef.current = 0;
+      mobileTouchActiveRef.current = true;
       
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -456,77 +459,34 @@ export const MobileControls = ({
     }
   }, [mobileTouchActiveRef, debugMode, cameraModeEnabled]);
 
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Let mouse events pass through when camera mode is enabled
-    if (cameraModeEnabled && e.pointerType === 'mouse') {
-      return;
-    }
+  const handleCameraPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (cameraModeEnabled && e.pointerType === 'mouse') return;
     
     e.preventDefault();
     e.stopPropagation();
     
-    // Joystick movement
-    if (e.pointerId === joystickPointerIdRef.current && joystickAnchorRef.current) {
-      joystickFingerRef.current = { x: e.clientX, y: e.clientY };
-    }
-    
-    // Camera swipe movement
-    if (cameraModeEnabled && e.pointerId === cameraPointerIdRef.current && cameraLastPosRef.current) {
+    if (e.pointerId === cameraPointerIdRef.current && cameraLastPosRef.current) {
       const deltaX = e.clientX - cameraLastPosRef.current.x;
       
-      // Update camera yaw (positive deltaX = swipe right = camera rotates right = yaw increases)
       const yawDelta = deltaX * CAMERA_SWIPE_CONFIG.sensitivity;
       cameraYawRef.current += yawDelta;
-      // Normalize to prevent unbounded growth
+      
       if (cameraYawRef.current > Math.PI) cameraYawRef.current -= Math.PI * 2;
       else if (cameraYawRef.current < -Math.PI) cameraYawRef.current += Math.PI * 2;
       
-      // Track velocity for momentum
       cameraVelocityRef.current = yawDelta * CAMERA_SWIPE_CONFIG.smoothing;
-      
       cameraLastPosRef.current = { x: e.clientX, y: e.clientY };
     }
   }, [cameraYawRef, cameraModeEnabled]);
 
-  const handlePointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  const handleCameraPointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Joystick released
-    if (e.pointerId === joystickPointerIdRef.current) {
-      joystickPointerIdRef.current = null;
-      joystickAnchorRef.current = null;
-      joystickFingerRef.current = null;
-      
-      throttleRef.current = 0;
-      isMovingRef.current = false;
-      moveDirectionRef.current = { x: 0, y: 0 };
-      
-      // Only set mobileTouchActive to false if camera isn't active
-      if (cameraPointerIdRef.current === null) {
-        mobileTouchActiveRef.current = false;
-      }
-      
-      setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
-      
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch (err) {
-        // Ignore
-      }
-      
-      if (debugMode) {
-        console.log('[Mobile] joystick up');
-      }
-    }
-    
-    // Camera released
     if (e.pointerId === cameraPointerIdRef.current) {
       cameraPointerIdRef.current = null;
       cameraLastPosRef.current = null;
-      // Keep velocity for momentum decay
       
-      // Only set mobileTouchActive to false if joystick isn't active
       if (joystickPointerIdRef.current === null) {
         mobileTouchActiveRef.current = false;
       }
@@ -541,51 +501,25 @@ export const MobileControls = ({
         console.log('[Mobile] camera up, velocity:', cameraVelocityRef.current.toFixed(4));
       }
     }
-  }, [mobileTouchActiveRef, throttleRef, isMovingRef, moveDirectionRef, debugMode]);
-
-  // Handle pointer leaving the window - clears stuck drag state
-  // IMPORTANT: Only reset movement refs if a TOUCH joystick was active, not for WASD
-  const handlePointerLeave = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Clear joystick if it matches (only for TOUCH input, not WASD)
-    if (joystickPointerIdRef.current === e.pointerId) {
-      joystickPointerIdRef.current = null;
-      joystickAnchorRef.current = null;
-      joystickFingerRef.current = null;
-      throttleRef.current = 0;
-      isMovingRef.current = false;
-      moveDirectionRef.current = { x: 0, y: 0 };
-      setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
-    }
-    
-    // Clear camera if it matches
-    if (cameraPointerIdRef.current === e.pointerId) {
-      cameraPointerIdRef.current = null;
-      cameraLastPosRef.current = null;
-    }
-    
-    // Clear mobile touch active if neither active
-    if (joystickPointerIdRef.current === null && cameraPointerIdRef.current === null) {
-      mobileTouchActiveRef.current = false;
-    }
-    
-    if (debugMode) {
-      console.log('[Mobile] pointerleave - cleared stuck state for pointer:', e.pointerId);
-    }
-  }, [mobileTouchActiveRef, throttleRef, isMovingRef, moveDirectionRef, debugMode]);
+  }, [mobileTouchActiveRef, debugMode]);
 
   // Get current pixel values for rendering
-  const { baseRadius, knobRadius } = getPixelValues();
+  const { baseRadius, knobRadius, joystickCenterX, joystickCenterY } = getPixelValues();
+  
+  // Calculate joystick zone size (touch area around the fixed joystick)
+  const joystickZoneSize = baseRadius * 2.5;
 
   return (
     <>
+      {/* Camera swipe surface - covers the whole screen but sits behind the joystick zone */}
       <div
-        ref={overlayRef}
-        id="mobileControlSurface"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerEnd}
-        onPointerCancel={handlePointerEnd}
-        onPointerLeave={handlePointerLeave}
+        ref={cameraSurfaceRef}
+        id="cameraSurface"
+        onPointerDown={handleCameraPointerDown}
+        onPointerMove={handleCameraPointerMove}
+        onPointerUp={handleCameraPointerEnd}
+        onPointerCancel={handleCameraPointerEnd}
+        onPointerLeave={handleCameraPointerEnd}
         style={{
           position: 'fixed',
           top: 0,
@@ -601,40 +535,64 @@ export const MobileControls = ({
         }}
       />
       
-      {/* Joystick Base */}
-      {joystickState.visible && (
-        <>
-          <div
-            style={{
-              position: 'fixed',
-              left: joystickState.baseX - baseRadius,
-              top: joystickState.baseY - baseRadius,
-              width: baseRadius * 2,
-              height: baseRadius * 2,
-              borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.15)',
-              border: '2px solid rgba(255, 255, 255, 0.3)',
-              pointerEvents: 'none',
-              zIndex: 11,
-            }}
-          />
-          {/* Joystick Knob */}
-          <div
-            style={{
-              position: 'fixed',
-              left: joystickState.knobX - knobRadius,
-              top: joystickState.knobY - knobRadius,
-              width: knobRadius * 2,
-              height: knobRadius * 2,
-              borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.5)',
-              border: '2px solid rgba(255, 255, 255, 0.7)',
-              pointerEvents: 'none',
-              zIndex: 12,
-            }}
-          />
-        </>
-      )}
+      {/* Fixed Joystick Zone - sits on top of camera surface */}
+      <div
+        ref={joystickSurfaceRef}
+        id="joystickSurface"
+        onPointerDown={handleJoystickPointerDown}
+        onPointerMove={handleJoystickPointerMove}
+        onPointerUp={handleJoystickPointerEnd}
+        onPointerCancel={handleJoystickPointerEnd}
+        onPointerLeave={handleJoystickPointerEnd}
+        style={{
+          position: 'fixed',
+          left: joystickCenterX - joystickZoneSize / 2,
+          top: joystickCenterY - joystickZoneSize / 2,
+          width: joystickZoneSize,
+          height: joystickZoneSize,
+          zIndex: 11,
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          WebkitTouchCallout: 'none',
+          background: 'transparent',
+        }}
+      />
+      
+      {/* Always-visible Joystick Base */}
+      <div
+        style={{
+          position: 'fixed',
+          left: joystickCenterX - baseRadius,
+          top: joystickCenterY - baseRadius,
+          width: baseRadius * 2,
+          height: baseRadius * 2,
+          borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.15)',
+          border: '2px solid rgba(255, 255, 255, 0.3)',
+          pointerEvents: 'none',
+          zIndex: 12,
+        }}
+      />
+      
+      {/* Joystick Knob - moves based on input */}
+      <div
+        style={{
+          position: 'fixed',
+          left: joystickCenterX + knobOffset.x - knobRadius,
+          top: joystickCenterY + knobOffset.y - knobRadius,
+          width: knobRadius * 2,
+          height: knobRadius * 2,
+          borderRadius: '50%',
+          background: joystickPointerIdRef.current !== null 
+            ? 'rgba(255, 255, 255, 0.7)' 
+            : 'rgba(255, 255, 255, 0.5)',
+          border: '2px solid rgba(255, 255, 255, 0.8)',
+          pointerEvents: 'none',
+          zIndex: 13,
+          transition: joystickPointerIdRef.current === null ? 'all 0.15s ease-out' : 'none',
+        }}
+      />
     </>
   );
 };
