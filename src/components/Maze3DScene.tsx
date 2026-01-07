@@ -1485,6 +1485,8 @@ const OverShoulderCameraController = ({
   autopush = DEFAULT_AUTOPUSH,
   animalType,
   maze,
+  cameraYawRef,
+  cameraModeEnabled = false,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
@@ -1494,6 +1496,8 @@ const OverShoulderCameraController = ({
   autopush?: AutopushConfig;
   animalType?: AnimalType;
   maze?: Maze;
+  cameraYawRef?: MutableRefObject<number>;
+  cameraModeEnabled?: boolean;
 }) => {
   const { camera, scene } = useThree();
   
@@ -1570,6 +1574,9 @@ const OverShoulderCameraController = ({
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
+    // In camera mode, use cameraYawRef for camera rotation instead of player rotation
+    const cameraRotation = (cameraModeEnabled && cameraYawRef) ? cameraYawRef.current : playerRotation;
+    
     // Store initial position on first frame (after initialization)
     if (initialized.current && initialPlayerPos.current === null) {
       initialPlayerPos.current = { x: playerX, z: playerZ };
@@ -1614,7 +1621,7 @@ const OverShoulderCameraController = ({
     }
     
     // Smoothly interpolate rotation using shortest path
-    let rotDiff = playerRotation - smoothRotation.current;
+    let rotDiff = cameraRotation - smoothRotation.current;
     // Handle wrap-around (shortest path)
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
@@ -2291,6 +2298,8 @@ return (
             foliageGroupRef={foliageGroupRef}
             animalType={animalType}
             maze={maze}
+            cameraYawRef={cameraYawRef}
+            cameraModeEnabled={cameraModeEnabled}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
         </>
