@@ -1230,6 +1230,14 @@ const RefBasedPlayer = ({
       const hasCameraRelativeInput = cameraModeEnabled && moveDirectionRef && 
         (Math.abs(moveDirectionRef.current.x) > 0.01 || Math.abs(moveDirectionRef.current.y) > 0.01);
       
+      // DEBUG: Log every few frames when there's input
+      if (hasCameraRelativeInput && Math.random() < 0.05) {
+        console.log('[Movement] hasCameraRelativeInput:', hasCameraRelativeInput, 
+          'moveDir:', moveDirectionRef?.current, 
+          'cameraYaw:', cameraYawRef?.current?.toFixed(2),
+          'playerRot:', playerStateRef.current.rotation.toFixed(2));
+      }
+      
       let input: MovementInput;
       
       if (hasCameraRelativeInput && cameraModeEnabled && moveDirectionRef && cameraYawRef) {
@@ -1250,6 +1258,12 @@ const RefBasedPlayer = ({
           // Negate because camera looks opposite to cameraYaw direction
           const worldDirX = -(moveDir.x * Math.cos(cameraYaw) - moveDir.y * Math.sin(cameraYaw));
           const worldDirZ = -(moveDir.x * Math.sin(cameraYaw) + moveDir.y * Math.cos(cameraYaw));
+          
+          // DEBUG: Log calculated world direction
+          if (Math.random() < 0.05) {
+            console.log('[Movement] worldDir:', worldDirX.toFixed(2), worldDirZ.toFixed(2), 
+              'targetRot:', Math.atan2(worldDirX, worldDirZ).toFixed(2));
+          }
           
           // Calculate target rotation (character faces movement direction)
           const targetRotation = Math.atan2(worldDirX, worldDirZ);
