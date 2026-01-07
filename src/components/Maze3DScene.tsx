@@ -1244,16 +1244,18 @@ const RefBasedPlayer = ({
           // Calculate world-space movement direction from camera-relative joystick input
           // moveDir.x = right (+) / left (-) relative to camera
           // moveDir.y = forward (+) / backward (-) relative to camera
-          // cameraYaw = the yaw angle the camera orbits around (camera is BEHIND player)
-          // Camera faces OPPOSITE direction of cameraYaw, so we negate the transform
+          // cameraYaw = the rotation angle the camera uses (same as player rotation in normal mode)
+          // Camera is positioned at (playerX - sin(yaw), playerZ + cos(yaw)) - behind player
+          // Camera forward direction is (sin(yaw), -cos(yaw)) in world (X, Z)
+          // Player rotation 0 = facing -Z, rotation π/2 = facing -X
           
-          // Rotate joystick direction by camera yaw to get world direction
-          // Negate because camera looks opposite to cameraYaw direction
-          const worldDirX = -(moveDir.x * Math.cos(cameraYaw) - moveDir.y * Math.sin(cameraYaw));
-          const worldDirZ = -(moveDir.x * Math.sin(cameraYaw) + moveDir.y * Math.cos(cameraYaw));
-          
+          // Transform joystick input to world direction using camera's orientation
+          // Camera right = (cos(yaw), sin(yaw)), Camera forward = (sin(yaw), -cos(yaw))
+          const worldDirX = moveDir.x * Math.cos(cameraYaw) + moveDir.y * Math.sin(cameraYaw);
+          const worldDirZ = moveDir.x * Math.sin(cameraYaw) - moveDir.y * Math.cos(cameraYaw);
           
           // Calculate target rotation (character faces movement direction)
+          // atan2(x, z) gives angle from +Z axis, but we need angle where 0 = -Z
           const targetRotation = Math.atan2(worldDirX, worldDirZ);
           
           // Smoothly rotate character toward movement direction
