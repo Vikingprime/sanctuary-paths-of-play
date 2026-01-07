@@ -103,6 +103,7 @@ export const MazeGame3D = ({
   const [rocksEnabled, setRocksEnabled] = useState(true);
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
   const [opacityFadeEnabled, setOpacityFadeEnabled] = useState(true);
+  const [cornEnabled, setCornEnabled] = useState(true);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
   // Mobile controls - yaw rate system (steering)
@@ -754,6 +755,12 @@ export const MazeGame3D = ({
         topDownCamera={topDownCamera}
         groundLevelCamera={groundLevelCamera}
         showCollisionDebug={showCollisionDebug}
+        shadowsEnabled={shadowsEnabled}
+        grassEnabled={grassEnabled}
+        rocksEnabled={rocksEnabled}
+        animationsEnabled={animationsEnabled}
+        opacityFadeEnabled={opacityFadeEnabled}
+        cornEnabled={cornEnabled}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -807,6 +814,8 @@ export const MazeGame3D = ({
           onToggleAnimations={() => setAnimationsEnabled(prev => !prev)}
           opacityFadeEnabled={opacityFadeEnabled}
           onToggleOpacityFade={() => setOpacityFadeEnabled(prev => !prev)}
+          cornEnabled={cornEnabled}
+          onToggleCorn={() => setCornEnabled(prev => !prev)}
         />
       )}
 

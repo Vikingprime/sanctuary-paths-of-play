@@ -54,6 +54,8 @@ interface GameHUDProps {
   onToggleAnimations?: () => void;
   opacityFadeEnabled?: boolean;
   onToggleOpacityFade?: () => void;
+  cornEnabled?: boolean;
+  onToggleCorn?: () => void;
 }
 
 export const GameHUD = ({
@@ -91,6 +93,8 @@ export const GameHUD = ({
   onToggleAnimations,
   opacityFadeEnabled = true,
   onToggleOpacityFade,
+  cornEnabled = true,
+  onToggleCorn,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -411,6 +415,17 @@ export const GameHUD = ({
                   )}
                 >
                   Opacity
+                </button>
+              )}
+              {onToggleCorn && (
+                <button
+                  onClick={onToggleCorn}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    cornEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Corn
                 </button>
               )}
             </div>

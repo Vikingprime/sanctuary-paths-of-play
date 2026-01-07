@@ -77,6 +77,7 @@ interface Maze3DSceneProps {
   rocksEnabled?: boolean;
   animationsEnabled?: boolean;
   opacityFadeEnabled?: boolean;
+  cornEnabled?: boolean;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -1985,7 +1986,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2096,7 +2097,7 @@ return (
         position={[15, 35, 15]}
         intensity={3.5}
         color="#FFFDF5"
-        castShadow
+        castShadow={shadowsEnabled}
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={0.5}
         shadow-camera-far={100}
@@ -2131,13 +2132,15 @@ return (
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} />
       
       {/* Maze Walls (corn) with optimizations */}
-      <MazeWalls 
-        ref={foliageGroupRef}
-        maze={maze} 
-        playerStateRef={playerStateRef}
-        optimizationSettings={cornOptimizationSettings}
-        onCullStats={onCullStats}
-      />
+      {cornEnabled && (
+        <MazeWalls 
+          ref={foliageGroupRef}
+          maze={maze} 
+          playerStateRef={playerStateRef}
+          optimizationSettings={cornOptimizationSettings}
+          onCullStats={onCullStats}
+        />
+      )}
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (
