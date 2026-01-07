@@ -391,14 +391,15 @@ export const MobileControls = ({
   }, [debugMode, isMovingRef, throttleRef, moveDirectionRef, cameraYawRef, getPixelValues]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // On desktop with camera mode enabled, ignore mouse events for joystick
-    // (mouse controls camera via separate mousemove listener, WASD controls movement)
+    // On desktop with camera mode enabled, let mouse events pass through to window listeners
+    // (mouse controls camera via separate mousedown/mousemove listener, WASD controls movement)
     if (cameraModeEnabled && e.pointerType === 'mouse') {
+      // Don't preventDefault - let the event bubble to window listeners
       return;
     }
+    
+    e.preventDefault();
+    e.stopPropagation();
     
     // First touch becomes joystick
     if (joystickPointerIdRef.current === null) {
@@ -446,6 +447,11 @@ export const MobileControls = ({
   }, [mobileTouchActiveRef, debugMode, cameraModeEnabled]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    // Let mouse events pass through when camera mode is enabled
+    if (cameraModeEnabled && e.pointerType === 'mouse') {
+      return;
+    }
+    
     e.preventDefault();
     e.stopPropagation();
     
