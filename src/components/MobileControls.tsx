@@ -533,8 +533,9 @@ export const MobileControls = ({
   }, [mobileTouchActiveRef, throttleRef, isMovingRef, moveDirectionRef, debugMode]);
 
   // Handle pointer leaving the window - clears stuck drag state
+  // IMPORTANT: Only reset movement refs if a TOUCH joystick was active, not for WASD
   const handlePointerLeave = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Clear joystick if it matches
+    // Clear joystick if it matches (only for TOUCH input, not WASD)
     if (joystickPointerIdRef.current === e.pointerId) {
       joystickPointerIdRef.current = null;
       joystickAnchorRef.current = null;
@@ -557,7 +558,7 @@ export const MobileControls = ({
     }
     
     if (debugMode) {
-      console.log('[Mobile] pointerleave - cleared stuck state');
+      console.log('[Mobile] pointerleave - cleared stuck state for pointer:', e.pointerId);
     }
   }, [mobileTouchActiveRef, throttleRef, isMovingRef, moveDirectionRef, debugMode]);
 
