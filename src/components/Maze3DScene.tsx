@@ -1211,7 +1211,7 @@ const RefBasedPlayer = ({
   const smoothBankAngle = useRef(0); // For banking/leaning during turns
   
   // Turn delay: character rotation lags behind camera by ~200ms
-  const TURN_DELAY_MS = 400;
+  const TURN_DELAY_MS = 200;
   const delayedCameraYawRef = useRef<number>(cameraYawRef?.current ?? 0);
   const cameraYawHistoryRef = useRef<Array<{ yaw: number; time: number }>>([]);
   
