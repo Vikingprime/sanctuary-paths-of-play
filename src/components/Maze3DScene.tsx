@@ -1554,6 +1554,12 @@ const OverShoulderCameraController = ({
   const cachedCameraBlockers = useRef<Object3D[]>([]);
   const lastFoliageChildCount = useRef<number>(0);
   
+  // Reusable refs for per-frame allocations (avoid GC pressure)
+  const headPosRef = useRef(new Vector3());
+  const finalTargetPosRef = useRef(new Vector3());
+  const hitCellsRef = useRef(new Set<string>());
+  const centerRayHitCellsRef = useRef(new Set<string>());
+  
   // Reset camera state when restartKey changes
   useEffect(() => {
     if (restartKey !== lastRestartKey.current) {
@@ -1667,18 +1673,18 @@ const OverShoulderCameraController = ({
     );
     
     // Calculate target head position (for raycasting origin) - use character-scaled height
-    const headPos = new Vector3(playerX, targetHeight, playerZ);
+    headPosRef.current.set(playerX, targetHeight, playerZ);
     
     // === AUTOPUSH LOGIC ===
-    let finalTargetPos = targetPos.current.clone();
+    finalTargetPosRef.current.copy(targetPos.current);
     
     // Check if autopush is enabled via debug toggle
     const autopushEnabled = getAutopushEnabled();
     
     if (autopush.enabled && autopushEnabled && foliageGroupRef?.current && !DEBUG_OVERHEAD_VIEW && !groundLevelCamera) {
       // Calculate direction from head to desired camera position
-      rayDir.current.copy(targetPos.current).sub(headPos).normalize();
-      const rayLength = headPos.distanceTo(targetPos.current);
+      rayDir.current.copy(targetPos.current).sub(headPosRef.current).normalize();
+      const rayLength = headPosRef.current.distanceTo(targetPos.current);
       
       // Cache camera blockers - only rebuild when foliage group changes
       const currentChildCount = foliageGroupRef.current.children.length;
@@ -1696,10 +1702,10 @@ const OverShoulderCameraController = ({
       // Perform raycasts (1 or 3 rays)
       let closestHitDist = rayLength;
       let hitObjectName = '';
-      const hitCells = new Set<string>(); // Track which cells were hit for fading
+      hitCellsRef.current.clear(); // Reuse set instead of allocating new one
       
       const performRaycast = (direction: Vector3) => {
-        rayOrigin.current.copy(headPos);
+        rayOrigin.current.copy(headPosRef.current);
         raycaster.current.set(rayOrigin.current, direction);
         raycaster.current.far = rayLength;
         
@@ -1717,7 +1723,7 @@ const OverShoulderCameraController = ({
             const cellX = hit.object.userData.cellX;
             const cellZ = hit.object.userData.cellZ;
             if (cellX !== undefined && cellZ !== undefined) {
-              hitCells.add(`${cellX},${cellZ}`);
+              hitCellsRef.current.add(`${cellX},${cellZ}`);
               
               // Also fade adjacent cells to catch visual corn leaves extending from neighbors
               if (maze) {
@@ -1731,7 +1737,7 @@ const OverShoulderCameraController = ({
                       az < maze.grid.length && 
                       ax < maze.grid[0].length && 
                       maze.grid[az][ax].isWall) {
-                    hitCells.add(`${ax},${az}`);
+                    hitCellsRef.current.add(`${ax},${az}`);
                   }
                 }
               }
@@ -1741,13 +1747,13 @@ const OverShoulderCameraController = ({
       };
       
       // Only use CENTER ray for corn fading - side rays hit corn that's not blocking view
-      // Store original hitCells before side rays
-      const centerRayHitCells = new Set<string>();
+      // Store center ray hits before side rays (reuse ref)
+      centerRayHitCellsRef.current.clear();
       
       // Center ray - collect hits for both autopush AND fading
       performRaycast(rayDir.current);
       frameMetrics.raycastCount++; // Track raycasts for debug
-      hitCells.forEach(cell => centerRayHitCells.add(cell));
+      hitCellsRef.current.forEach(cell => centerRayHitCellsRef.current.add(cell));
       
       // Side rays (if enabled) - only for autopush, NOT for fading
       if (autopush.rayCount === 3) {
@@ -1755,9 +1761,8 @@ const OverShoulderCameraController = ({
         const perpX = -rayDir.current.z;
         const perpZ = rayDir.current.x;
         
-        // Temporarily clear hitCells so side rays don't add to fade list
-        const savedHitCells = new Set(hitCells);
-        hitCells.clear();
+        // Clear hitCells so side rays don't add to fade list
+        hitCellsRef.current.clear();
         
         // Left ray
         tempVec.current.set(
@@ -1777,8 +1782,8 @@ const OverShoulderCameraController = ({
         performRaycast(tempVec.current);
         frameMetrics.raycastCount++;
         // Restore only center ray hits for fading
-        hitCells.clear();
-        centerRayHitCells.forEach(cell => hitCells.add(cell));
+        hitCellsRef.current.clear();
+        centerRayHitCellsRef.current.forEach(cell => hitCellsRef.current.add(cell));
       }
       
       // Get current time for hysteresis
@@ -1833,7 +1838,7 @@ const OverShoulderCameraController = ({
             const hasExistingFadedCells = fadedCellsRef.current.size > 0;
             frameMetrics.activeFadedCells = fadedCellsRef.current.size; // Track for debug
             
-            for (const cellKey of hitCells) {
+            for (const cellKey of hitCellsRef.current) {
               const existing = fadedCellsRef.current.get(cellKey);
               if (existing) {
                 existing.lastHitTime = now;
@@ -1860,7 +1865,7 @@ const OverShoulderCameraController = ({
           Math.abs(currentAutopushDist.current - targetDist) < 0.15;
         
         for (const [cellKey, state] of fadedCellsRef.current) {
-          const isCurrentlyHit = hitCells.has(cellKey) && isSignificantHit && lerpSettledForFade;
+          const isCurrentlyHit = hitCellsRef.current.has(cellKey) && isSignificantHit && lerpSettledForFade;
           const timeSinceHit = now - state.lastHitTime;
           
           if (isCurrentlyHit) {
@@ -1975,12 +1980,12 @@ const OverShoulderCameraController = ({
       currentAutopushDist.current = Math.max(absoluteMinDist, Math.min(currentAutopushDist.current, desiredDistForAutopush));
       
       // Apply autopush: position camera at the smoothed distance
-      finalTargetPos.copy(headPos).add(
+      finalTargetPosRef.current.copy(headPosRef.current).add(
         rayDir.current.clone().multiplyScalar(currentAutopushDist.current)
       );
       
       // Preserve the Y height from the original target
-      finalTargetPos.y = currentHeight;
+      finalTargetPosRef.current.y = currentHeight;
     }
     
     // Calculate look target ahead of player (reuse vector to avoid GC)
@@ -1992,7 +1997,7 @@ const OverShoulderCameraController = ({
     );
     
     // Smooth position interpolation
-    currentPosition.current.lerp(finalTargetPos, POSITION_SMOOTHING);
+    currentPosition.current.lerp(finalTargetPosRef.current, POSITION_SMOOTHING);
     currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
     
     // Apply to camera
