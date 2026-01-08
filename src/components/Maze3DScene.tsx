@@ -575,28 +575,36 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     return { clonedScenes: scenes, materialRefs: matRefs };
   }, [allGrassData, grass231, grass232]);
   
+  // Reusable Vector3 for camera direction - avoid GC pressure
+  const camDirRef = useRef(new Vector3());
+  const frameCountRef = useRef(0);
+  
   // Update visible grass based on player distance + camera direction with opacity fade
   // Uses camera position (not player) for back-culling to avoid flicker
   useFrame(() => {
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
     
-    // Get camera position and direction
+    // Get camera position and direction - reuse Vector3
     const camPos = camera.position;
-    const camDir = new Vector3();
-    camera.getWorldDirection(camDir);
-    camDir.y = 0;
-    camDir.normalize();
+    camera.getWorldDirection(camDirRef.current);
+    camDirRef.current.y = 0;
+    camDirRef.current.normalize();
     
-    // Throttle updates - check both player and camera movement
+    // Throttle camera direction checks - only every 6 frames (~10 times/sec at 60fps)
+    frameCountRef.current++;
+    const checkCameraDir = frameCountRef.current % 6 === 0;
+    
+    // Throttle updates - check player movement always, camera direction only periodically
     const dx = px - lastUpdateRef.current.x;
     const dz = pz - lastUpdateRef.current.z;
-    const camDx = camDir.x - lastUpdateRef.current.dirX;
-    const camDz = camDir.z - lastUpdateRef.current.dirZ;
-    const shouldUpdate = dx*dx + dz*dz >= 0.1 || camDx*camDx + camDz*camDz >= 0.01 || lastUpdateRef.current.x === -999;
+    const camDx = camDirRef.current.x - lastUpdateRef.current.dirX;
+    const camDz = camDirRef.current.z - lastUpdateRef.current.dirZ;
+    // Increased camera direction threshold from 0.01 to 0.05 for less sensitive updates
+    const shouldUpdate = dx*dx + dz*dz >= 0.1 || (checkCameraDir && camDx*camDx + camDz*camDz >= 0.05) || lastUpdateRef.current.x === -999;
     
     if (!shouldUpdate) return;
-    lastUpdateRef.current = { x: px, z: pz, dirX: camDir.x, dirZ: camDir.z };
+    lastUpdateRef.current = { x: px, z: pz, dirX: camDirRef.current.x, dirZ: camDirRef.current.z };
     
     const cullDistSq = GRASS_CULL_DISTANCE * GRASS_CULL_DISTANCE;
     const nearDistSq = GRASS_NEAR_DISTANCE * GRASS_NEAR_DISTANCE;
@@ -620,7 +628,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
         const toGrassZ = g.z - camPos.z;
         const len = Math.sqrt(toGrassX * toGrassX + toGrassZ * toGrassZ);
         if (len > 0.001) {
-          const dot = (toGrassX / len) * camDir.x + (toGrassZ / len) * camDir.z;
+          const dot = (toGrassX / len) * camDirRef.current.x + (toGrassZ / len) * camDirRef.current.z;
           // If grass is behind camera (dot < threshold), hide it
           if (dot < GRASS_BACK_CULL_DOT) {
             clonedScenes[i].visible = false;
@@ -1540,7 +1548,7 @@ const OverShoulderCameraController = ({
   const tempVec = useRef(new Vector3());
   
   // Corn fading state - track cells that are currently faded
-  const fadedCellsRef = useRef<Map<string, { opacity: number; lastHitTime: number }>>(new Map());
+  const fadedCellsRef = useRef<Map<string, { opacity: number; lastHitTime: number; prevOpacity?: number }>>(new Map());
   
   // Cached camera blockers to avoid traversing every frame
   const cachedCameraBlockers = useRef<Object3D[]>([]);
@@ -1864,9 +1872,15 @@ const OverShoulderCameraController = ({
           }
           
           // Apply opacity to corn instances (only if opacity fade is enabled)
+          // Throttle: only update if opacity changed significantly
           if (opacityFadeEnabled) {
-            const [cx, cz] = cellKey.split(',').map(Number);
-            setCellOpacity(cx, cz, state.opacity);
+            const prevOpacity = state.prevOpacity ?? 1.0;
+            if (Math.abs(state.opacity - prevOpacity) > 0.01) {
+              const [cx, cz] = cellKey.split(',').map(Number);
+              setCellOpacity(cx, cz, state.opacity);
+              state.prevOpacity = state.opacity;
+              frameMetrics.opacityBufferUpdates++;
+            }
           }
           
           // Remove fully opaque cells that haven't been hit recently
@@ -1900,9 +1914,15 @@ const OverShoulderCameraController = ({
           }
           
           // Apply opacity to corn instances (only if opacity fade is enabled)
+          // Throttle: only update if opacity changed significantly
           if (opacityFadeEnabled) {
-            const [cx, cz] = cellKey.split(',').map(Number);
-            setCellOpacity(cx, cz, state.opacity);
+            const prevOpacity = state.prevOpacity ?? 1.0;
+            if (Math.abs(state.opacity - prevOpacity) > 0.01) {
+              const [cx, cz] = cellKey.split(',').map(Number);
+              setCellOpacity(cx, cz, state.opacity);
+              state.prevOpacity = state.opacity;
+              frameMetrics.opacityBufferUpdates++;
+            }
           }
           
           // Remove fully opaque cells that haven't been hit recently
