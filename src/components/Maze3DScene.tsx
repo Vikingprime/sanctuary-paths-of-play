@@ -1210,11 +1210,6 @@ const RefBasedPlayer = ({
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   const smoothBankAngle = useRef(0); // For banking/leaning during turns
   
-  // Turn delay: character rotation lags behind camera by ~200ms
-  const TURN_DELAY_MS = 200;
-  const delayedCameraYawRef = useRef<number>(cameraYawRef?.current ?? 0);
-  const cameraYawHistoryRef = useRef<Array<{ yaw: number; time: number }>>([]);
-  
   // Helper: normalize angle to [-PI, PI]
   const normalizeAngle = (angle: number): number => {
     while (angle > Math.PI) angle -= Math.PI * 2;
@@ -1251,43 +1246,26 @@ const RefBasedPlayer = ({
         const moveDir = moveDirectionRef.current;
         const throttle = mobileThrottleRef?.current ?? 1.0; // Default to full speed for WASD
         const cameraYaw = cameraYawRef.current;
-        const now = performance.now();
-        
-        // --- TURN DELAY LOGIC ---
-        // Record current camera yaw with timestamp
-        cameraYawHistoryRef.current.push({ yaw: cameraYaw, time: now });
-        
-        // Prune old entries (keep only last 500ms of history)
-        while (cameraYawHistoryRef.current.length > 0 && 
-               now - cameraYawHistoryRef.current[0].time > 500) {
-          cameraYawHistoryRef.current.shift();
-        }
-        
-        // Find the yaw value from TURN_DELAY_MS ago
-        const targetTime = now - TURN_DELAY_MS;
-        let delayedYaw = cameraYaw; // Default to current if no history
-        
-        for (let i = cameraYawHistoryRef.current.length - 1; i >= 0; i--) {
-          if (cameraYawHistoryRef.current[i].time <= targetTime) {
-            delayedYaw = cameraYawHistoryRef.current[i].yaw;
-            break;
-          }
-        }
-        
-        // Use delayed yaw for character rotation, but current yaw for movement direction
-        // This makes camera move first, then character follows 200ms later
         
         // Check if there's meaningful input (already verified by hasCameraRelativeInput)
         if (Math.abs(moveDir.x) > 0.01 || Math.abs(moveDir.y) > 0.01) {
           // Calculate world-space movement direction from camera-relative joystick input
-          // Use CURRENT camera yaw for movement so player moves in direction camera is facing
+          // moveDir.x = right (+) / left (-) relative to camera
+          // moveDir.y = forward (+) / backward (-) relative to camera
+          // cameraYaw = the rotation angle the camera uses (same as player rotation in normal mode)
+          // Camera is positioned at (playerX - sin(yaw), playerZ + cos(yaw)) - behind player
+          // Camera forward direction is (sin(yaw), -cos(yaw)) in world (X, Z)
+          // Player rotation 0 = facing -Z, rotation π/2 = facing -X
+          
+          // Transform joystick input to world direction using camera's orientation
+          // Camera right = (cos(yaw), sin(yaw)), Camera forward = (sin(yaw), -cos(yaw))
           const worldDirX = moveDir.x * Math.cos(cameraYaw) + moveDir.y * Math.sin(cameraYaw);
           const worldDirZ = moveDir.x * Math.sin(cameraYaw) - moveDir.y * Math.cos(cameraYaw);
           
-          // Calculate target rotation using DELAYED yaw so character turn lags behind camera
-          const delayedWorldDirX = moveDir.x * Math.cos(delayedYaw) + moveDir.y * Math.sin(delayedYaw);
-          const delayedWorldDirZ = moveDir.x * Math.sin(delayedYaw) - moveDir.y * Math.cos(delayedYaw);
-          const targetRotation = Math.atan2(delayedWorldDirX, -delayedWorldDirZ);
+          // Calculate target rotation (character faces movement direction)
+          // Player movement uses sin(rotation) for X, -cos(rotation) for Z
+          // So rotation = atan2(worldDirX, -worldDirZ) gives correct facing
+          const targetRotation = Math.atan2(worldDirX, -worldDirZ);
           
           // Smoothly rotate character toward movement direction
           const currentRotation = playerStateRef.current.rotation;
@@ -1316,24 +1294,20 @@ const RefBasedPlayer = ({
           
           isMovingRef.current = true;
           
-          // Calculate movement - use the CURRENT camera direction for actual movement
-          // but the delayed rotation for visual character facing
-          const movementRotation = Math.atan2(worldDirX, -worldDirZ);
+          // Calculate movement - pass the target rotation so movement goes in camera direction
           const prevWithCameraRotation = {
             ...playerStateRef.current,
-            rotation: movementRotation  // Use current camera direction for movement
+            rotation: newRotation  // Use camera-relative rotation for movement calculation
           };
           const newState = calculateMovement(maze, prevWithCameraRotation, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
           
-          // Apply delayed rotation for visual character facing
+          // Keep the camera-relative rotation (calculateMovement may have modified it)
           playerStateRef.current = {
             ...newState,
-            rotation: newRotation  // Use delayed rotation for character visual
+            rotation: newRotation  // Preserve our camera-relative rotation
           };
         } else {
-          // Not moving - clear history so next movement starts fresh
-          cameraYawHistoryRef.current = [];
-          
+          // Not moving
           input = {
             forward: false,
             backward: false,
@@ -1343,6 +1317,8 @@ const RefBasedPlayer = ({
             speedMultiplier: 0,
           };
           isMovingRef.current = false;
+          
+          // No movement calculation needed when not moving
         }
       } else if (mobileActive) {
         // LEGACY MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)

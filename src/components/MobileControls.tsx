@@ -24,10 +24,10 @@ export const MOBILE_CONTROL_CONFIG = {
 // Camera swipe sensitivity config
 export const CAMERA_SWIPE_CONFIG = {
   // Sensitivity (radians per pixel of movement)
-  sensitivity: 0.016,
+  sensitivity: 0.013,
   
   // Mouse sensitivity (for desktop camera mode)
-  mouseSensitivity: 0.010,
+  mouseSensitivity: 0.008,
   
   // Smoothing factor (0-1, higher = more responsive)
   smoothing: 0.15,
