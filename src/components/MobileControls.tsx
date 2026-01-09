@@ -61,6 +61,7 @@ export const MobileControls = ({
   const rightStartRef = useRef<{ x: number; y: number } | null>(null);
   const rightPointerIdRef = useRef<number | null>(null);
   const rightLastXRef = useRef<number | null>(null); // Track last X for velocity-based turning
+  const edgeHoldDirectionRef = useRef<'a' | 'd' | null>(null); // Track edge-hold state
   
   const lastDebugLogRef = useRef<number>(0);
   const animationFrameRef = useRef<number | null>(null);
@@ -295,16 +296,35 @@ export const MobileControls = ({
       
       // Set A/D based on movement direction with threshold
       const threshold = MOBILE_CONTROL_CONFIG.swipeThreshold;
-      wasdRef.current.a = dx < -threshold;
-      wasdRef.current.d = dx > threshold;
       
-      // Calculate proportional intensity: larger drags = faster turns
-      // Scale from 1.0 (at threshold) to 3.0 (at 30px drag)
+      // Check for edge-hold: finger at screen edge with recent movement in that direction
+      const edgeMargin = 20; // pixels from edge
+      const screenWidth = screenDimensionsRef.current.width;
+      const atLeftEdge = e.clientX <= edgeMargin;
+      const atRightEdge = e.clientX >= screenWidth - edgeMargin;
+      
       if (absDx > threshold) {
+        // Active movement - set direction and track for edge-hold
+        wasdRef.current.a = dx < -threshold;
+        wasdRef.current.d = dx > threshold;
+        edgeHoldDirectionRef.current = dx < -threshold ? 'a' : dx > threshold ? 'd' : null;
+        
+        // Calculate proportional intensity: larger drags = faster turns
+        // Scale from 1.0 (at threshold) to 3.0 (at 30px drag)
         const maxDrag = 30; // pixels for max intensity
         const normalized = Math.min((absDx - threshold) / (maxDrag - threshold), 1.0);
         turnIntensityRef.current = 1.0 + normalized * 2.0; // 1.0 to 3.0
+      } else if ((atLeftEdge && edgeHoldDirectionRef.current === 'a') || 
+                 (atRightEdge && edgeHoldDirectionRef.current === 'd')) {
+        // Edge-hold: finger at edge with matching prior direction - maintain turn
+        wasdRef.current.a = edgeHoldDirectionRef.current === 'a';
+        wasdRef.current.d = edgeHoldDirectionRef.current === 'd';
+        // Keep current intensity (don't reset)
       } else {
+        // No movement and not at edge - stop turning
+        wasdRef.current.a = false;
+        wasdRef.current.d = false;
+        edgeHoldDirectionRef.current = null;
         turnIntensityRef.current = 1.0;
       }
       
@@ -337,6 +357,7 @@ export const MobileControls = ({
       rightPointerIdRef.current = null;
       rightStartRef.current = null;
       rightLastXRef.current = null;
+      edgeHoldDirectionRef.current = null;
       
       wasdRef.current.a = false;
       wasdRef.current.d = false;
@@ -367,6 +388,7 @@ export const MobileControls = ({
       rightPointerIdRef.current = null;
       rightStartRef.current = null;
       rightLastXRef.current = null;
+      edgeHoldDirectionRef.current = null;
       wasdRef.current.a = false;
       wasdRef.current.d = false;
       turnIntensityRef.current = 1.0; // Reset intensity
