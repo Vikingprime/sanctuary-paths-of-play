@@ -302,7 +302,7 @@ export const MobileControls = ({
       // For rightward turns, edge is the right edge of screen
       const edgeMargin = 20; // pixels from edge
       const screenWidth = screenDimensionsRef.current.width;
-      const atLeftEdge = e.clientX <= screenWidth * 0.5; // Middle of screen is "edge" for left turns
+      const atLeftEdge = e.clientX <= screenWidth * 0.67; // 2/3 of screen is "edge" for left turns
       const atRightEdge = e.clientX >= screenWidth - edgeMargin;
       
       if (absDx > threshold) {
