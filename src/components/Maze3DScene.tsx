@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
@@ -439,21 +439,20 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
   );
 };
 
-// 3D Grass tufts - with distance + camera culling for performance
-const GRASS_CULL_DISTANCE = 15; // Match corn culling distance
-const GRASS_NEAR_DISTANCE = 3;  // No back-culling within this distance
-const GRASS_BACK_CULL_DOT = -0.707; // cos(135°)
+// 3D Grass tufts - InstancedMesh for performance (no per-frame updates)
+const GRASS_CULL_DISTANCE = 12;
 
 const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: MutableRefObject<PlayerState> }) => {
-  const grass231 = useGLTF('/models/Grass_231.glb');
-  const grass232 = useGLTF('/models/Grass_232.glb');
-  const groupRef = useRef<Group>(null);
-  const { camera } = useThree();
-  const lastUpdateRef = useRef({ x: -999, z: -999, dirX: 0, dirZ: -1 });
+  const meshRef = useRef<InstancedMesh>(null);
+  const initializedRef = useRef(false);
+  const lastUpdateRef = useRef({ x: -999, z: -999 });
+  const lastVisibleCountRef = useRef(-1);
   
   // Pre-calculate all grass positions once
-  const allGrassData = useMemo(() => {
-    const positions: { x: number; z: number; scale: number; rotation: number; type: 1 | 2 }[] = [];
+  const grassTransforms = useMemo(() => {
+    const transforms: { matrix: Matrix4; x: number; z: number }[] = [];
+    const tempObject = new Object3D();
+    
     const seededRandom = (seed: number) => {
       const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
       return x - Math.floor(x);
@@ -462,7 +461,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
     
-    // Place grass on wall edges facing paths - reduced to 16% (80% reduction from 80%)
+    // Place grass on wall edges facing paths - 16% spawn rate
     for (let y = 1; y < mazeHeight - 1; y++) {
       for (let x = 1; x < mazeWidth - 1; x++) {
         if (!maze.grid[y][x].isWall) continue;
@@ -474,170 +473,103 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
         const pathDown = y < mazeHeight - 1 && !maze.grid[y+1][x].isWall;
         const pathUp = y > 0 && !maze.grid[y-1][x].isWall;
         
-        // Place grass 80% of the time on each edge (increased from 33%)
+        const addGrass = (gx: number, gz: number, seedOffset: number) => {
+          const scale = (0.10 + seededRandom(seedOffset + 2) * 0.05) * 0.04;
+          const rotation = seededRandom(seedOffset + 3) * Math.PI * 2;
+          tempObject.position.set(gx, 0, gz);
+          tempObject.rotation.set(0, rotation, 0);
+          tempObject.scale.set(scale, scale, scale);
+          tempObject.updateMatrix();
+          transforms.push({ matrix: tempObject.matrix.clone(), x: gx, z: gz });
+        };
+        
         if (pathRight && seededRandom(seed + 500) < 0.16) {
-          positions.push({
-            x: x + 0.55 + seededRandom(seed) * 0.2,
-            z: y + 0.3 + seededRandom(seed + 1) * 0.4,
-            scale: 0.10 + seededRandom(seed + 2) * 0.05,
-            rotation: seededRandom(seed + 3) * Math.PI * 2,
-            type: seededRandom(seed + 4) > 0.5 ? 1 : 2,
-          });
+          addGrass(x + 0.55 + seededRandom(seed) * 0.2, y + 0.3 + seededRandom(seed + 1) * 0.4, seed);
         }
         if (pathLeft && seededRandom(seed + 600) < 0.16) {
-          positions.push({
-            x: x + 0.25 + seededRandom(seed + 100) * 0.2,
-            z: y + 0.3 + seededRandom(seed + 101) * 0.4,
-            scale: 0.10 + seededRandom(seed + 102) * 0.05,
-            rotation: seededRandom(seed + 103) * Math.PI * 2,
-            type: seededRandom(seed + 104) > 0.5 ? 1 : 2,
-          });
+          addGrass(x + 0.25 + seededRandom(seed + 100) * 0.2, y + 0.3 + seededRandom(seed + 101) * 0.4, seed + 100);
         }
         if (pathDown && seededRandom(seed + 700) < 0.16) {
-          positions.push({
-            x: x + 0.3 + seededRandom(seed + 200) * 0.4,
-            z: y + 0.55 + seededRandom(seed + 201) * 0.2,
-            scale: 0.10 + seededRandom(seed + 202) * 0.05,
-            rotation: seededRandom(seed + 203) * Math.PI * 2,
-            type: seededRandom(seed + 204) > 0.5 ? 1 : 2,
-          });
+          addGrass(x + 0.3 + seededRandom(seed + 200) * 0.4, y + 0.55 + seededRandom(seed + 201) * 0.2, seed + 200);
         }
         if (pathUp && seededRandom(seed + 800) < 0.16) {
-          positions.push({
-            x: x + 0.3 + seededRandom(seed + 300) * 0.4,
-            z: y + 0.25 + seededRandom(seed + 301) * 0.2,
-            scale: 0.10 + seededRandom(seed + 302) * 0.05,
-            rotation: seededRandom(seed + 303) * Math.PI * 2,
-            type: seededRandom(seed + 304) > 0.5 ? 1 : 2,
-          });
+          addGrass(x + 0.3 + seededRandom(seed + 300) * 0.4, y + 0.25 + seededRandom(seed + 301) * 0.2, seed + 300);
         }
       }
     }
     
-    return positions;
+    return transforms;
   }, [maze]);
   
-  // Pre-clone all scenes once and make materials transparent for fading
-  const { clonedScenes, materialRefs } = useMemo(() => {
-    const scenes = allGrassData.map((tuft) => {
-      const scene = (tuft.type === 1 ? grass231 : grass232).scene.clone();
-      scene.position.set(tuft.x, 0, tuft.z);
-      scene.rotation.set(0, tuft.rotation, 0);
-      const s = tuft.scale * 0.04;
-      scene.scale.set(s, s, s);
-      
-      // Replace PBR materials with MeshBasicMaterial to ignore lighting completely
-      // This fixes the issue where grass appears dark when viewed directly and bright when turning
-      scene.traverse((child: Object3D) => {
-        if ((child as any).isMesh) {
-          const mesh = child as Mesh;
-          const oldMats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-          
-          // Create new MeshBasicMaterial with the original color - ignores all lighting
-          const newMats = oldMats.map(oldMat => {
-            const color = (oldMat as any).color?.clone() || new Color(0x4a7c3f);
-            return new MeshBasicMaterial({
-              color,
-              transparent: true,
-              opacity: 1,
-              side: DoubleSide,
-            });
-          });
-          
-          mesh.material = newMats.length === 1 ? newMats[0] : newMats;
-        }
-      });
-      
-      return scene;
-    });
-    
-    // Store material references for each grass tuft for opacity updates
-    const matRefs = scenes.map(scene => {
-      const materials: Material[] = [];
-      scene.traverse((child: Object3D) => {
-        if ((child as any).isMesh) {
-          const mesh = child as Mesh;
-          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-          materials.push(...mats);
-        }
-      });
-      return materials;
-    });
-    
-    return { clonedScenes: scenes, materialRefs: matRefs };
-  }, [allGrassData, grass231, grass232]);
+  // Simple grass geometry - flat planes are much faster than GLTF models
+  const geometry = useMemo(() => {
+    const geo = new PlaneGeometry(0.3, 0.4);
+    geo.translate(0, 0.2, 0); // Offset so base is at y=0
+    return geo;
+  }, []);
   
-  // Cache visibility state to avoid redundant updates
-  const visibilityCache = useRef<boolean[]>([]);
+  const material = useMemo(() => {
+    return new MeshBasicMaterial({
+      color: "#4a7c3f",
+      side: DoubleSide,
+      transparent: false,
+    });
+  }, []);
   
-  // Update visible grass based on player distance + camera direction
+  // Initialize all grass on mount
+  useEffect(() => {
+    if (!meshRef.current || grassTransforms.length === 0) return;
+    
+    grassTransforms.forEach((t, i) => {
+      meshRef.current!.setMatrixAt(i, t.matrix);
+    });
+    meshRef.current.count = grassTransforms.length;
+    meshRef.current.instanceMatrix.needsUpdate = true;
+    initializedRef.current = true;
+  }, [grassTransforms]);
+  
+  // Distance culling - only update when visible set changes
   useFrame(() => {
+    if (!meshRef.current || !initializedRef.current) return;
+    
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
     
-    // Get camera position and direction
-    const camPos = camera.position;
-    const camDir = new Vector3();
-    camera.getWorldDirection(camDir);
-    camDir.y = 0;
-    camDir.normalize();
-    
-    // Throttle updates - larger threshold for better performance
+    // Throttle updates
     const dx = px - lastUpdateRef.current.x;
     const dz = pz - lastUpdateRef.current.z;
-    const camDx = camDir.x - lastUpdateRef.current.dirX;
-    const camDz = camDir.z - lastUpdateRef.current.dirZ;
-    const shouldUpdate = dx*dx + dz*dz >= 0.5 || camDx*camDx + camDz*camDz >= 0.02 || lastUpdateRef.current.x === -999;
-    
-    if (!shouldUpdate) return;
-    lastUpdateRef.current = { x: px, z: pz, dirX: camDir.x, dirZ: camDir.z };
+    if (dx*dx + dz*dz < 0.25 && lastUpdateRef.current.x !== -999) return;
+    lastUpdateRef.current = { x: px, z: pz };
     
     const cullDistSq = GRASS_CULL_DISTANCE * GRASS_CULL_DISTANCE;
-    const nearDistSq = GRASS_NEAR_DISTANCE * GRASS_NEAR_DISTANCE;
+    let visibleCount = 0;
     
-    // Initialize cache if needed
-    if (visibilityCache.current.length !== allGrassData.length) {
-      visibilityCache.current = new Array(allGrassData.length).fill(false);
-    }
-    
-    for (let i = 0; i < allGrassData.length; i++) {
-      const g = allGrassData[i];
-      const distSq = (g.x - px) ** 2 + (g.z - pz) ** 2;
-      
-      let shouldBeVisible = false;
+    for (let i = 0; i < grassTransforms.length; i++) {
+      const t = grassTransforms[i];
+      const distSq = (px - t.x) ** 2 + (pz - t.z) ** 2;
       
       if (distSq < cullDistSq) {
-        // Check camera back-culling for distant grass
-        if (distSq >= nearDistSq) {
-          const toGrassX = g.x - camPos.x;
-          const toGrassZ = g.z - camPos.z;
-          const len = Math.sqrt(toGrassX * toGrassX + toGrassZ * toGrassZ);
-          if (len > 0.001) {
-            const dot = (toGrassX / len) * camDir.x + (toGrassZ / len) * camDir.z;
-            shouldBeVisible = dot >= GRASS_BACK_CULL_DOT;
-          } else {
-            shouldBeVisible = true;
-          }
-        } else {
-          shouldBeVisible = true;
-        }
+        meshRef.current.setMatrixAt(visibleCount, t.matrix);
+        visibleCount++;
       }
-      
-      // Only update if visibility changed
-      if (visibilityCache.current[i] !== shouldBeVisible) {
-        visibilityCache.current[i] = shouldBeVisible;
-        clonedScenes[i].visible = shouldBeVisible;
-      }
+    }
+    
+    // Only update GPU if count changed
+    if (lastVisibleCountRef.current !== visibleCount) {
+      meshRef.current.count = visibleCount;
+      meshRef.current.instanceMatrix.needsUpdate = true;
+      lastVisibleCountRef.current = visibleCount;
     }
   });
   
-  // Render ALL grass once - visibility is toggled via scene.visible
+  if (grassTransforms.length === 0) return null;
+  
   return (
-    <group ref={groupRef}>
-      {clonedScenes.map((scene, i) => (
-        <primitive key={i} object={scene} />
-      ))}
-    </group>
+    <instancedMesh 
+      ref={meshRef} 
+      args={[geometry, material, grassTransforms.length]}
+      frustumCulled={false}
+    />
   );
 };
 
