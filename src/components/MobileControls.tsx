@@ -65,6 +65,7 @@ export const MobileControls = ({
   const rightPointerIdRef = useRef<number | null>(null);
   const rightLastXRef = useRef<number | null>(null); // Track last X for velocity-based turning
   const edgeHoldDirectionRef = useRef<'a' | 'd' | null>(null); // Track edge-hold state
+  const largeTurnOriginRef = useRef<boolean>(false); // True if turn started from a large swipe
   
   const lastDebugLogRef = useRef<number>(0);
   const animationFrameRef = useRef<number | null>(null);
@@ -310,29 +311,34 @@ export const MobileControls = ({
       const currentlyTurning = wasdRef.current.a || wasdRef.current.d;
       const currentDir = wasdRef.current.a ? 'a' : wasdRef.current.d ? 'd' : null;
       
+      // Define "large swipe" threshold for continuous turn eligibility
+      const largeTurnThreshold = sensitivityConfig.maxDragPixels * 0.5;
+      
       if (absDx > threshold) {
         const newDir = dx < -threshold ? 'a' : 'd';
+        
+        // Track if this is a large turn origin
+        if (absDx >= largeTurnThreshold) {
+          largeTurnOriginRef.current = true;
+        }
         
         // Set direction
         wasdRef.current.a = newDir === 'a';
         wasdRef.current.d = newDir === 'd';
         edgeHoldDirectionRef.current = newDir;
         
-        // Calculate proportional intensity using sensitivityConfig:
-        // Small movements = MORE sensitive (higher multiplier)
-        // Large movements = LESS sensitive (lower multiplier) 
+        // Calculate proportional intensity using sensitivityConfig
         const maxDrag = sensitivityConfig.maxDragPixels;
         const normalized = Math.min((absDx - threshold) / (maxDrag - threshold), 1.0);
-        // Inverted curve: starts at smallMoveSensitivity, decreases toward largeMoveSensitivity as drag increases
         const curved = 1.0 - (normalized * normalized);
         const range = sensitivityConfig.smallMoveSensitivity - sensitivityConfig.largeMoveSensitivity;
         turnIntensityRef.current = sensitivityConfig.largeMoveSensitivity + curved * range;
         
         // Update last position
         rightLastXRef.current = e.clientX;
-      } else if (currentlyTurning) {
-        // Already turning - use hysteresis: only stop if moving opposite direction
-        const oppositeThreshold = threshold * 2; // Require more movement to stop/reverse
+      } else if (currentlyTurning && largeTurnOriginRef.current) {
+        // Only allow continuous turn if it originated from a large swipe
+        const oppositeThreshold = threshold * 2;
         const movingOpposite = (currentDir === 'a' && dx > oppositeThreshold) || 
                                (currentDir === 'd' && dx < -oppositeThreshold);
         
@@ -341,23 +347,24 @@ export const MobileControls = ({
           wasdRef.current.a = false;
           wasdRef.current.d = false;
           edgeHoldDirectionRef.current = null;
+          largeTurnOriginRef.current = false;
           turnIntensityRef.current = 1.0;
           rightLastXRef.current = e.clientX;
         } else if ((atLeftEdge && currentDir === 'a') || (atRightEdge && currentDir === 'd')) {
-          // Edge-hold: maintain turn
-          // Keep current intensity, don't update lastX (so we don't drift)
+          // Edge-hold: maintain turn only if large turn origin
+          // Keep current intensity
         } else {
-          // Small movement in same direction or stationary - maintain turn at reduced intensity
-          turnIntensityRef.current = Math.max(1.5, turnIntensityRef.current * 0.95);
-          // Don't update lastX to prevent drift accumulation
+          // Holding after large swipe - maintain turn at reduced intensity
+          turnIntensityRef.current = Math.max(1.0, turnIntensityRef.current * 0.95);
         }
-      } else if ((atLeftEdge && edgeHoldDirectionRef.current === 'a') || 
-                 (atRightEdge && edgeHoldDirectionRef.current === 'd')) {
-        // Edge-hold restart
-        wasdRef.current.a = edgeHoldDirectionRef.current === 'a';
-        wasdRef.current.d = edgeHoldDirectionRef.current === 'd';
+      } else if (currentlyTurning && !largeTurnOriginRef.current) {
+        // Small turn origin - stop turning when movement stops
+        wasdRef.current.a = false;
+        wasdRef.current.d = false;
+        turnIntensityRef.current = 1.0;
+        rightLastXRef.current = e.clientX;
       }
-      // If not turning and below threshold, stay stopped
+      // If not turning and below threshold, stay stopped (resting finger = no turn)
     }
   }, [wasdRef, yawRateRef, turnIntensityRef]);
 
@@ -386,6 +393,7 @@ export const MobileControls = ({
       rightStartRef.current = null;
       rightLastXRef.current = null;
       edgeHoldDirectionRef.current = null;
+      largeTurnOriginRef.current = false; // Reset large turn tracking
       
       wasdRef.current.a = false;
       wasdRef.current.d = false;
