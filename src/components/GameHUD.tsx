@@ -23,9 +23,9 @@ export interface SensitivityConfig {
 }
 
 export const DEFAULT_SENSITIVITY: SensitivityConfig = {
-  smallMoveSensitivity: 3.0,
-  largeMoveSensitivity: 1.5,
-  maxDragPixels: 50,
+  smallMoveSensitivity: 1.5,  // Reduced from 3.0 - less aggressive small moves
+  largeMoveSensitivity: 1.0,  // Reduced from 1.5 - smoother large moves
+  maxDragPixels: 60,          // Slightly wider range
 };
 
 interface GameHUDProps {
