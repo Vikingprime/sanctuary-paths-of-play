@@ -314,12 +314,16 @@ export const MobileControls = ({
       // Define "large swipe" threshold for continuous turn eligibility
       const largeTurnThreshold = sensitivityConfig.maxDragPixels * 0.5;
       
+      // Track if we're STARTING a new turn (wasn't turning before)
+      const wasNotTurning = !wasdRef.current.a && !wasdRef.current.d;
+      
       if (absDx > threshold) {
         const newDir = dx < -threshold ? 'a' : 'd';
         
-        // Track if this is a large turn origin
-        if (absDx >= largeTurnThreshold) {
-          largeTurnOriginRef.current = true;
+        // Only set large turn origin on the INITIAL swipe that starts turning
+        // Once set (or not set), it stays that way until pointer up
+        if (wasNotTurning) {
+          largeTurnOriginRef.current = absDx >= largeTurnThreshold;
         }
         
         // Set direction
