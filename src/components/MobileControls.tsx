@@ -311,11 +311,14 @@ export const MobileControls = ({
         wasdRef.current.d = dx > threshold;
         edgeHoldDirectionRef.current = dx < -threshold ? 'a' : dx > threshold ? 'd' : null;
         
-        // Calculate proportional intensity: larger drags = faster turns
-        // Scale from 1.0 (at threshold) to 3.0 (at 30px drag)
-        const maxDrag = 30; // pixels for max intensity
+        // Calculate proportional intensity with exponential curve
+        // Small drags are less sensitive, large drags are more sensitive
+        const maxDrag = 40; // pixels for max intensity
         const normalized = Math.min((absDx - threshold) / (maxDrag - threshold), 1.0);
-        turnIntensityRef.current = 1.0 + normalized * 2.0; // 1.0 to 3.0
+        // Apply exponential curve: x^2 makes small values smaller, large values stay large
+        const curved = normalized * normalized;
+        // Scale from 1.5 (minimum) to 4.5 (max) for better range
+        turnIntensityRef.current = 1.5 + curved * 3.0;
       } else if ((atLeftEdge && edgeHoldDirectionRef.current === 'a') || 
                  (atRightEdge && edgeHoldDirectionRef.current === 'd')) {
         // Edge-hold: finger at edge with matching prior direction - maintain turn
