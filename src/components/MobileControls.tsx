@@ -96,27 +96,28 @@ export const MobileControls = ({
     // Convert to degrees for easier reasoning (0 = right, 90 = down, -90 = up, 180/-180 = left)
     const degrees = angle * (180 / Math.PI);
     
-    // Define regions with some overlap for diagonal movement
-    // Each direction covers a 90-degree arc, with 45-degree overlaps for diagonals
+    // Each cardinal direction covers 135 degrees (67.5 on each side of center)
+    // This creates 45-degree overlap zones for diagonals
+    // W center: -90, D center: 0, S center: 90, A center: ±180
     const wasd: WASDState = { w: false, a: false, s: false, d: false };
     
-    // W (up): -135 to -45 degrees
-    if (degrees >= -135 && degrees <= -45) {
+    // W (up): -157.5 to -22.5 degrees (centered at -90)
+    if (degrees >= -157.5 && degrees <= -22.5) {
       wasd.w = true;
     }
     
-    // S (down): 45 to 135 degrees
-    if (degrees >= 45 && degrees <= 135) {
+    // S (down): 22.5 to 157.5 degrees (centered at 90)
+    if (degrees >= 22.5 && degrees <= 157.5) {
       wasd.s = true;
     }
     
-    // A (left): 135 to 180 or -180 to -135 degrees
-    if (degrees >= 135 || degrees <= -135) {
+    // A (left): 112.5 to 180 or -180 to -112.5 degrees (centered at ±180)
+    if (degrees >= 112.5 || degrees <= -112.5) {
       wasd.a = true;
     }
     
-    // D (right): -45 to 45 degrees
-    if (degrees >= -45 && degrees <= 45) {
+    // D (right): -67.5 to 67.5 degrees (centered at 0)
+    if (degrees >= -67.5 && degrees <= 67.5) {
       wasd.d = true;
     }
     
