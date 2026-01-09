@@ -298,43 +298,59 @@ export const MobileControls = ({
       const threshold = MOBILE_CONTROL_CONFIG.swipeThreshold;
       
       // Check for edge-hold: finger at screen edge with recent movement in that direction
-      // For leftward turns, "edge" is the middle of screen (since right side is for turning)
-      // For rightward turns, edge is the right edge of screen
       const edgeMargin = 20; // pixels from edge
       const screenWidth = screenDimensionsRef.current.width;
       const atLeftEdge = e.clientX <= screenWidth * 0.67; // 2/3 of screen is "edge" for left turns
       const atRightEdge = e.clientX >= screenWidth - edgeMargin;
       
+      // Current turn direction
+      const currentlyTurning = wasdRef.current.a || wasdRef.current.d;
+      const currentDir = wasdRef.current.a ? 'a' : wasdRef.current.d ? 'd' : null;
+      
       if (absDx > threshold) {
-        // Active movement - set direction and track for edge-hold
-        wasdRef.current.a = dx < -threshold;
-        wasdRef.current.d = dx > threshold;
-        edgeHoldDirectionRef.current = dx < -threshold ? 'a' : dx > threshold ? 'd' : null;
+        const newDir = dx < -threshold ? 'a' : 'd';
+        
+        // Set direction
+        wasdRef.current.a = newDir === 'a';
+        wasdRef.current.d = newDir === 'd';
+        edgeHoldDirectionRef.current = newDir;
         
         // Calculate proportional intensity with exponential curve
-        // Small drags are less sensitive, large drags are more sensitive
         const maxDrag = 40; // pixels for max intensity
         const normalized = Math.min((absDx - threshold) / (maxDrag - threshold), 1.0);
-        // Apply exponential curve: x^2 makes small values smaller, large values stay large
         const curved = normalized * normalized;
-        // Scale from 1.5 (minimum) to 4.5 (max) for better range
         turnIntensityRef.current = 1.5 + curved * 3.0;
+        
+        // Update last position
+        rightLastXRef.current = e.clientX;
+      } else if (currentlyTurning) {
+        // Already turning - use hysteresis: only stop if moving opposite direction
+        const oppositeThreshold = threshold * 2; // Require more movement to stop/reverse
+        const movingOpposite = (currentDir === 'a' && dx > oppositeThreshold) || 
+                               (currentDir === 'd' && dx < -oppositeThreshold);
+        
+        if (movingOpposite) {
+          // Finger moved opposite direction - stop turning
+          wasdRef.current.a = false;
+          wasdRef.current.d = false;
+          edgeHoldDirectionRef.current = null;
+          turnIntensityRef.current = 1.0;
+          rightLastXRef.current = e.clientX;
+        } else if ((atLeftEdge && currentDir === 'a') || (atRightEdge && currentDir === 'd')) {
+          // Edge-hold: maintain turn
+          // Keep current intensity, don't update lastX (so we don't drift)
+        } else {
+          // Small movement in same direction or stationary - maintain turn at reduced intensity
+          turnIntensityRef.current = Math.max(1.5, turnIntensityRef.current * 0.95);
+          // Don't update lastX to prevent drift accumulation
+        }
       } else if ((atLeftEdge && edgeHoldDirectionRef.current === 'a') || 
                  (atRightEdge && edgeHoldDirectionRef.current === 'd')) {
-        // Edge-hold: finger at edge with matching prior direction - maintain turn
+        // Edge-hold restart
         wasdRef.current.a = edgeHoldDirectionRef.current === 'a';
         wasdRef.current.d = edgeHoldDirectionRef.current === 'd';
-        // Keep current intensity (don't reset)
-      } else {
-        // No movement and not at edge - stop turning
-        wasdRef.current.a = false;
-        wasdRef.current.d = false;
-        edgeHoldDirectionRef.current = null;
-        turnIntensityRef.current = 1.0;
       }
-      
-      // Update last position for next frame comparison
-      rightLastXRef.current = e.clientX;
+      // If not turning and below threshold, stay stopped
     }
   }, [wasdRef, yawRateRef, turnIntensityRef]);
 
@@ -350,7 +366,7 @@ export const MobileControls = ({
       
       wasdRef.current.w = false;
       wasdRef.current.s = false;
-      isMovingRef.current = wasdRef.current.a || wasdRef.current.d;
+      isMovingRef.current = false; // Only W/S trigger movement animation
       
       if (rightPointerIdRef.current === null) {
         mobileTouchActiveRef.current = false;
@@ -400,8 +416,8 @@ export const MobileControls = ({
       yawRateRef.current = 0;
     }
     
-    // Update isMoving and mobileActive based on remaining touches
-    isMovingRef.current = wasdRef.current.w || wasdRef.current.s || wasdRef.current.a || wasdRef.current.d;
+    // Update isMoving based on forward/backward only (not turning)
+    isMovingRef.current = wasdRef.current.w || wasdRef.current.s;
     mobileTouchActiveRef.current = leftPointerIdRef.current !== null || rightPointerIdRef.current !== null;
   }, [mobileTouchActiveRef, isMovingRef, wasdRef, yawRateRef]);
 
