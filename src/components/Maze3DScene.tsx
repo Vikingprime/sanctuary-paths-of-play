@@ -1238,8 +1238,8 @@ const RefBasedPlayer = ({
           rotationIntensity: 1.5 * (mobileTurnIntensityRef?.current ?? 1.0), // Base 1.5x + proportional drag intensity
         };
         
-        // Update isMoving ref
-        isMovingRef.current = wasd.w || wasd.a || wasd.s || wasd.d;
+        // Update isMoving ref - only forward/backward triggers animation
+        isMovingRef.current = wasd.w || wasd.s;
         
         // Calculate movement (same as keyboard)
         const prev = playerStateRef.current;
