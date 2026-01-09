@@ -373,19 +373,6 @@ export const MobileControls = ({
         }}
       />
       
-      {/* Visual zone indicators */}
-      <div
-        style={{
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          width: '40%',
-          height: '100%',
-          borderRight: '2px dashed rgba(255,255,255,0.1)',
-          pointerEvents: 'none',
-          zIndex: 9,
-        }}
-      />
       
       {/* Right side hint */}
       <div
