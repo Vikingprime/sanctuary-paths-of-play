@@ -58,6 +58,7 @@ export const MobileControls = ({
   // Right swipe refs (turning - A/D nudges)
   const rightStartRef = useRef<{ x: number; y: number } | null>(null);
   const rightPointerIdRef = useRef<number | null>(null);
+  const rightLastXRef = useRef<number | null>(null); // Track last X for velocity-based turning
   
   const lastDebugLogRef = useRef<number>(0);
   const animationFrameRef = useRef<number | null>(null);
@@ -96,6 +97,7 @@ export const MobileControls = ({
     leftFingerRef.current = null;
     rightPointerIdRef.current = null;
     rightStartRef.current = null;
+    rightLastXRef.current = null;
     yawRateRef.current = 0;
     throttleRef.current = 0;
     isMovingRef.current = false;
@@ -266,6 +268,7 @@ export const MobileControls = ({
       
       rightPointerIdRef.current = e.pointerId;
       rightStartRef.current = { x: e.clientX, y: e.clientY };
+      rightLastXRef.current = e.clientX; // Initialize last X position
       mobileTouchActiveRef.current = true; // Enable mobile mode for swipes too
     }
     
@@ -283,17 +286,17 @@ export const MobileControls = ({
     if (leftPointerIdRef.current === e.pointerId && leftAnchorRef.current) {
       // Left joystick move
       leftFingerRef.current = { x: e.clientX, y: e.clientY };
-    } else if (rightPointerIdRef.current === e.pointerId && rightStartRef.current) {
-      // Right swipe move - set A/D based on cumulative swipe direction
-      const dx = e.clientX - rightStartRef.current.x;
+    } else if (rightPointerIdRef.current === e.pointerId && rightLastXRef.current !== null) {
+      // Right swipe move - set A/D based on movement velocity (not absolute position)
+      const dx = e.clientX - rightLastXRef.current;
       
-      // Set A/D based on swipe direction with threshold
+      // Set A/D based on movement direction with threshold
       const threshold = MOBILE_CONTROL_CONFIG.swipeThreshold;
       wasdRef.current.a = dx < -threshold;
       wasdRef.current.d = dx > threshold;
       
-      // DON'T reset start position - keep tracking total swipe distance
-      // This keeps A/D active as long as finger has moved past threshold
+      // Update last position for next frame comparison
+      rightLastXRef.current = e.clientX;
     }
   }, [wasdRef, yawRateRef]);
 
@@ -320,6 +323,7 @@ export const MobileControls = ({
       // Right swipe release
       rightPointerIdRef.current = null;
       rightStartRef.current = null;
+      rightLastXRef.current = null;
       
       wasdRef.current.a = false;
       wasdRef.current.d = false;
@@ -348,6 +352,7 @@ export const MobileControls = ({
     if (rightPointerIdRef.current === e.pointerId) {
       rightPointerIdRef.current = null;
       rightStartRef.current = null;
+      rightLastXRef.current = null;
       wasdRef.current.a = false;
       wasdRef.current.d = false;
       yawRateRef.current = 0;
