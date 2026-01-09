@@ -251,6 +251,7 @@ export const MobileControls = ({
       
       rightPointerIdRef.current = e.pointerId;
       rightStartRef.current = { x: e.clientX, y: e.clientY };
+      mobileTouchActiveRef.current = true; // Enable mobile mode for swipes too
     }
     
     try {
