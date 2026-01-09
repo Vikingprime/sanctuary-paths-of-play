@@ -56,9 +56,6 @@ interface GameHUDProps {
   onToggleOpacityFade?: () => void;
   cornEnabled?: boolean;
   onToggleCorn?: () => void;
-  // Camera mode toggle (mouse camera on desktop)
-  cameraModeEnabled?: boolean;
-  onToggleCameraMode?: () => void;
 }
 
 export const GameHUD = ({
@@ -98,8 +95,6 @@ export const GameHUD = ({
   onToggleOpacityFade,
   cornEnabled = true,
   onToggleCorn,
-  cameraModeEnabled = false,
-  onToggleCameraMode,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -256,18 +251,6 @@ export const GameHUD = ({
                   📝 Verbose {verboseLogging ? 'On' : 'Off'}
                 </button>
               )}
-              {onToggleCameraMode && (
-                <button
-                  onClick={onToggleCameraMode}
-                  className={cn(
-                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
-                    cameraModeEnabled ? 'text-purple-500' : 'text-muted-foreground'
-                  )}
-                  title="Mouse camera mode (WASD moves, mouse rotates camera)"
-                >
-                  🖱️ CamMode {cameraModeEnabled ? 'On' : 'Off'}
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -275,7 +258,7 @@ export const GameHUD = ({
 
       {/* Full Performance Profiler Panel - only in debug mode */}
       {debugMode && performanceInfo && (
-        <div className="block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[280px] max-h-[60vh] overflow-y-auto pointer-events-auto">
+        <div className="block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[280px] pointer-events-auto">
           <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">PERF PROFILER</div>
           
           {/* Player Position */}

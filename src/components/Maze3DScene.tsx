@@ -50,16 +50,12 @@ interface Maze3DSceneProps {
   isMovingRef: MutableRefObject<boolean>;
   collectedPowerUps?: Set<string>;
   keysPressed: MutableRefObject<Set<string>>;
-  // Mobile controls - camera-relative movement system
+  // Mobile controls - yaw rate system
   mobileTargetYawRef?: MutableRefObject<number>; // Legacy - not used in new system
-  mobileYawRateRef?: MutableRefObject<number>;   // Legacy - not used in camera-relative system
+  mobileYawRateRef?: MutableRefObject<number>;   // Yaw rate in radians/sec from steering
   mobileIsMovingRef?: MutableRefObject<boolean>;
-  mobileThrottleRef?: MutableRefObject<number>;  // 0 to 1 (speed)
+  mobileThrottleRef?: MutableRefObject<number>;  // -1 (reverse) to 1 (forward)
   mobileTouchActiveRef?: MutableRefObject<boolean>;
-  // New camera-relative movement refs
-  cameraYawRef?: MutableRefObject<number>;       // Camera yaw angle (controlled by swipe)
-  moveDirectionRef?: MutableRefObject<{ x: number; y: number }>; // Joystick direction relative to camera
-  cameraModeEnabled?: boolean;                   // Whether camera control is active
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -575,36 +571,28 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     return { clonedScenes: scenes, materialRefs: matRefs };
   }, [allGrassData, grass231, grass232]);
   
-  // Reusable Vector3 for camera direction - avoid GC pressure
-  const camDirRef = useRef(new Vector3());
-  const frameCountRef = useRef(0);
-  
   // Update visible grass based on player distance + camera direction with opacity fade
   // Uses camera position (not player) for back-culling to avoid flicker
   useFrame(() => {
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
     
-    // Get camera position and direction - reuse Vector3
+    // Get camera position and direction
     const camPos = camera.position;
-    camera.getWorldDirection(camDirRef.current);
-    camDirRef.current.y = 0;
-    camDirRef.current.normalize();
+    const camDir = new Vector3();
+    camera.getWorldDirection(camDir);
+    camDir.y = 0;
+    camDir.normalize();
     
-    // Throttle camera direction checks - only every 6 frames (~10 times/sec at 60fps)
-    frameCountRef.current++;
-    const checkCameraDir = frameCountRef.current % 6 === 0;
-    
-    // Throttle updates - check player movement always, camera direction only periodically
+    // Throttle updates - check both player and camera movement
     const dx = px - lastUpdateRef.current.x;
     const dz = pz - lastUpdateRef.current.z;
-    const camDx = camDirRef.current.x - lastUpdateRef.current.dirX;
-    const camDz = camDirRef.current.z - lastUpdateRef.current.dirZ;
-    // Increased camera direction threshold from 0.01 to 0.05 for less sensitive updates
-    const shouldUpdate = dx*dx + dz*dz >= 0.1 || (checkCameraDir && camDx*camDx + camDz*camDz >= 0.05) || lastUpdateRef.current.x === -999;
+    const camDx = camDir.x - lastUpdateRef.current.dirX;
+    const camDz = camDir.z - lastUpdateRef.current.dirZ;
+    const shouldUpdate = dx*dx + dz*dz >= 0.1 || camDx*camDx + camDz*camDz >= 0.01 || lastUpdateRef.current.x === -999;
     
     if (!shouldUpdate) return;
-    lastUpdateRef.current = { x: px, z: pz, dirX: camDirRef.current.x, dirZ: camDirRef.current.z };
+    lastUpdateRef.current = { x: px, z: pz, dirX: camDir.x, dirZ: camDir.z };
     
     const cullDistSq = GRASS_CULL_DISTANCE * GRASS_CULL_DISTANCE;
     const nearDistSq = GRASS_NEAR_DISTANCE * GRASS_NEAR_DISTANCE;
@@ -628,7 +616,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
         const toGrassZ = g.z - camPos.z;
         const len = Math.sqrt(toGrassX * toGrassX + toGrassZ * toGrassZ);
         if (len > 0.001) {
-          const dot = (toGrassX / len) * camDirRef.current.x + (toGrassZ / len) * camDirRef.current.z;
+          const dot = (toGrassX / len) * camDir.x + (toGrassZ / len) * camDir.z;
           // If grass is behind camera (dot < threshold), hide it
           if (dot < GRASS_BACK_CULL_DOT) {
             clonedScenes[i].visible = false;
@@ -1171,9 +1159,6 @@ const RefBasedPlayer = ({
   mobileIsMovingRef,
   mobileThrottleRef,
   mobileTouchActiveRef,
-  cameraYawRef,
-  moveDirectionRef,
-  cameraModeEnabled = true,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1191,9 +1176,6 @@ const RefBasedPlayer = ({
   mobileIsMovingRef?: MutableRefObject<boolean>;
   mobileThrottleRef?: MutableRefObject<number>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
-  cameraYawRef?: MutableRefObject<number>;
-  moveDirectionRef?: MutableRefObject<{ x: number; y: number }>;
-  cameraModeEnabled?: boolean;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1209,6 +1191,8 @@ const RefBasedPlayer = ({
   const positionInitialized = useRef(false);
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   const smoothBankAngle = useRef(0); // For banking/leaning during turns
+  
+  // Mobile steering no longer uses these (yaw rate system instead)
   
   // Helper: normalize angle to [-PI, PI]
   const normalizeAngle = (angle: number): number => {
@@ -1234,109 +1218,32 @@ const RefBasedPlayer = ({
       // Check if mobile touch is active (use boolean ref, not null check)
       const mobileActive = mobileTouchActiveRef?.current ?? false;
       
-      // Check if there's camera-relative movement input (from touch or WASD)
-      const hasCameraRelativeInput = cameraModeEnabled && moveDirectionRef && 
-        (Math.abs(moveDirectionRef.current.x) > 0.01 || Math.abs(moveDirectionRef.current.y) > 0.01);
-      
-      
       let input: MovementInput;
       
-      if (hasCameraRelativeInput && cameraModeEnabled && moveDirectionRef && cameraYawRef) {
-        // CAMERA-RELATIVE MODE: Movement direction is relative to camera (WASD or joystick)
-        const moveDir = moveDirectionRef.current;
-        const throttle = mobileThrottleRef?.current ?? 1.0; // Default to full speed for WASD
-        const cameraYaw = cameraYawRef.current;
-        
-        // Check if there's meaningful input (already verified by hasCameraRelativeInput)
-        if (Math.abs(moveDir.x) > 0.01 || Math.abs(moveDir.y) > 0.01) {
-          // Calculate world-space movement direction from camera-relative joystick input
-          // moveDir.x = right (+) / left (-) relative to camera
-          // moveDir.y = forward (+) / backward (-) relative to camera
-          // cameraYaw = the rotation angle the camera uses (same as player rotation in normal mode)
-          // Camera is positioned at (playerX - sin(yaw), playerZ + cos(yaw)) - behind player
-          // Camera forward direction is (sin(yaw), -cos(yaw)) in world (X, Z)
-          // Player rotation 0 = facing -Z, rotation π/2 = facing -X
-          
-          // Transform joystick input to world direction using camera's orientation
-          // Camera right = (cos(yaw), sin(yaw)), Camera forward = (sin(yaw), -cos(yaw))
-          const worldDirX = moveDir.x * Math.cos(cameraYaw) + moveDir.y * Math.sin(cameraYaw);
-          const worldDirZ = moveDir.x * Math.sin(cameraYaw) - moveDir.y * Math.cos(cameraYaw);
-          
-          // Calculate target rotation (character faces movement direction)
-          // Player movement uses sin(rotation) for X, -cos(rotation) for Z
-          // So rotation = atan2(worldDirX, -worldDirZ) gives correct facing
-          const targetRotation = Math.atan2(worldDirX, -worldDirZ);
-          
-          // Smoothly rotate character toward movement direction
-          const currentRotation = playerStateRef.current.rotation;
-          let rotDiff = normalizeAngle(targetRotation - currentRotation);
-          
-          // Rotation speed based on angle difference (faster for larger angles)
-          const rotSpeed = 8.0; // radians per second
-          const maxRotThisFrame = rotSpeed * clampedDelta;
-          
-          let newRotation: number;
-          if (Math.abs(rotDiff) < maxRotThisFrame) {
-            newRotation = targetRotation;
-          } else {
-            newRotation = normalizeAngle(currentRotation + Math.sign(rotDiff) * maxRotThisFrame);
-          }
-          
-          // Build movement input (always forward since we're rotating to face direction)
-          input = {
-            forward: true,
-            backward: false,
-            rotateLeft: false,
-            rotateRight: false,
-            rotationIntensity: 0,
-            speedMultiplier: throttle,
-          };
-          
-          isMovingRef.current = true;
-          
-          // Calculate movement - pass the target rotation so movement goes in camera direction
-          const prevWithCameraRotation = {
-            ...playerStateRef.current,
-            rotation: newRotation  // Use camera-relative rotation for movement calculation
-          };
-          const newState = calculateMovement(maze, prevWithCameraRotation, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-          
-          // Keep the camera-relative rotation (calculateMovement may have modified it)
-          playerStateRef.current = {
-            ...newState,
-            rotation: newRotation  // Preserve our camera-relative rotation
-          };
-        } else {
-          // Not moving
-          input = {
-            forward: false,
-            backward: false,
-            rotateLeft: false,
-            rotateRight: false,
-            rotationIntensity: 0,
-            speedMultiplier: 0,
-          };
-          isMovingRef.current = false;
-          
-          // No movement calculation needed when not moving
-        }
-      } else if (mobileActive) {
-        // LEGACY MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)
+      if (mobileActive) {
+        // MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)
         const yawRate = mobileYawRateRef?.current ?? 0;
         let newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
         
         // === ANGULAR SNAPPING (Cardinal Alignment Assist) ===
+        // If rotation is within ~5 degrees of a cardinal direction and not actively turning hard
         const cardinalSnapThreshold = 0.087; // ~5 degrees
         const cardinalSnapStrength = 0.03;
         const absYawRate = Math.abs(yawRate);
         
+        // Only snap when not turning hard (yaw rate < 0.5)
         if (absYawRate < 0.5) {
+          // Cardinal directions: 0, π/2, π, 3π/2 (N, E, S, W)
           const cardinals = [0, Math.PI / 2, Math.PI, Math.PI * 1.5, Math.PI * 2];
+          
           for (const cardinal of cardinals) {
             let diff = newRotation - cardinal;
+            // Normalize diff to -π to π
             if (diff > Math.PI) diff -= Math.PI * 2;
             if (diff < -Math.PI) diff += Math.PI * 2;
+            
             if (Math.abs(diff) < cardinalSnapThreshold) {
+              // Snap toward cardinal direction
               newRotation = normalizeAngle(newRotation - diff * cardinalSnapStrength);
               break;
             }
@@ -1348,11 +1255,14 @@ const RefBasedPlayer = ({
           rotation: newRotation
         };
         
+        // Get throttle value (-1 to 1, supports reverse)
         const throttle = mobileThrottleRef?.current ?? 0;
         const isMoving = mobileIsMovingRef?.current ?? false;
         const isForward = throttle > 0;
         const isBackward = throttle < 0;
         
+        // Build input with forward/backward from throttle
+        // (rotation already handled above)
         input = {
           forward: isMoving && isForward,
           backward: isMoving && isBackward,
@@ -1362,8 +1272,10 @@ const RefBasedPlayer = ({
           speedMultiplier: Math.abs(throttle),
         };
         
+        // Update isMoving ref
         isMovingRef.current = isMoving;
         
+        // Calculate movement (position only, rotation already set)
         const prev = playerStateRef.current;
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         playerStateRef.current = newState;
@@ -1505,10 +1417,7 @@ const OverShoulderCameraController = ({
   autopush = DEFAULT_AUTOPUSH,
   animalType,
   maze,
-  cameraYawRef,
-  cameraModeEnabled = false,
-  opacityFadeEnabled = true,
-}: {
+}: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
   topDownCamera?: boolean;
@@ -1517,9 +1426,6 @@ const OverShoulderCameraController = ({
   autopush?: AutopushConfig;
   animalType?: AnimalType;
   maze?: Maze;
-  cameraYawRef?: MutableRefObject<number>;
-  cameraModeEnabled?: boolean;
-  opacityFadeEnabled?: boolean;
 }) => {
   const { camera, scene } = useThree();
   
@@ -1548,17 +1454,11 @@ const OverShoulderCameraController = ({
   const tempVec = useRef(new Vector3());
   
   // Corn fading state - track cells that are currently faded
-  const fadedCellsRef = useRef<Map<string, { opacity: number; lastHitTime: number; prevOpacity?: number }>>(new Map());
+  const fadedCellsRef = useRef<Map<string, { opacity: number; lastHitTime: number }>>(new Map());
   
   // Cached camera blockers to avoid traversing every frame
   const cachedCameraBlockers = useRef<Object3D[]>([]);
   const lastFoliageChildCount = useRef<number>(0);
-  
-  // Reusable refs for per-frame allocations (avoid GC pressure)
-  const headPosRef = useRef(new Vector3());
-  const finalTargetPosRef = useRef(new Vector3());
-  const hitCellsRef = useRef(new Set<string>());
-  const centerRayHitCellsRef = useRef(new Set<string>());
   
   // Reset camera state when restartKey changes
   useEffect(() => {
@@ -1599,16 +1499,8 @@ const OverShoulderCameraController = ({
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
   const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
   
-  useFrame((_, delta) => {
+  useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
-    
-    // In camera mode, use cameraYawRef for camera rotation instead of player rotation
-    const cameraRotation = (cameraModeEnabled && cameraYawRef) ? cameraYawRef.current : playerRotation;
-    
-    // Debug logging (throttled)
-    if (cameraModeEnabled && cameraYawRef && Math.random() < 0.01) {
-      console.log('[CameraController] cameraModeEnabled:', cameraModeEnabled, 'yawRef:', cameraYawRef.current.toFixed(2), 'smoothRot:', smoothRotation.current.toFixed(2));
-    }
     
     // Store initial position on first frame (after initialization)
     if (initialized.current && initialPlayerPos.current === null) {
@@ -1654,7 +1546,7 @@ const OverShoulderCameraController = ({
     }
     
     // Smoothly interpolate rotation using shortest path
-    let rotDiff = cameraRotation - smoothRotation.current;
+    let rotDiff = playerRotation - smoothRotation.current;
     // Handle wrap-around (shortest path)
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
@@ -1673,18 +1565,18 @@ const OverShoulderCameraController = ({
     );
     
     // Calculate target head position (for raycasting origin) - use character-scaled height
-    headPosRef.current.set(playerX, targetHeight, playerZ);
+    const headPos = new Vector3(playerX, targetHeight, playerZ);
     
     // === AUTOPUSH LOGIC ===
-    finalTargetPosRef.current.copy(targetPos.current);
+    let finalTargetPos = targetPos.current.clone();
     
     // Check if autopush is enabled via debug toggle
     const autopushEnabled = getAutopushEnabled();
     
     if (autopush.enabled && autopushEnabled && foliageGroupRef?.current && !DEBUG_OVERHEAD_VIEW && !groundLevelCamera) {
       // Calculate direction from head to desired camera position
-      rayDir.current.copy(targetPos.current).sub(headPosRef.current).normalize();
-      const rayLength = headPosRef.current.distanceTo(targetPos.current);
+      rayDir.current.copy(targetPos.current).sub(headPos).normalize();
+      const rayLength = headPos.distanceTo(targetPos.current);
       
       // Cache camera blockers - only rebuild when foliage group changes
       const currentChildCount = foliageGroupRef.current.children.length;
@@ -1702,10 +1594,10 @@ const OverShoulderCameraController = ({
       // Perform raycasts (1 or 3 rays)
       let closestHitDist = rayLength;
       let hitObjectName = '';
-      hitCellsRef.current.clear(); // Reuse set instead of allocating new one
+      const hitCells = new Set<string>(); // Track which cells were hit for fading
       
       const performRaycast = (direction: Vector3) => {
-        rayOrigin.current.copy(headPosRef.current);
+        rayOrigin.current.copy(headPos);
         raycaster.current.set(rayOrigin.current, direction);
         raycaster.current.far = rayLength;
         
@@ -1723,7 +1615,7 @@ const OverShoulderCameraController = ({
             const cellX = hit.object.userData.cellX;
             const cellZ = hit.object.userData.cellZ;
             if (cellX !== undefined && cellZ !== undefined) {
-              hitCellsRef.current.add(`${cellX},${cellZ}`);
+              hitCells.add(`${cellX},${cellZ}`);
               
               // Also fade adjacent cells to catch visual corn leaves extending from neighbors
               if (maze) {
@@ -1737,7 +1629,7 @@ const OverShoulderCameraController = ({
                       az < maze.grid.length && 
                       ax < maze.grid[0].length && 
                       maze.grid[az][ax].isWall) {
-                    hitCellsRef.current.add(`${ax},${az}`);
+                    hitCells.add(`${ax},${az}`);
                   }
                 }
               }
@@ -1747,13 +1639,13 @@ const OverShoulderCameraController = ({
       };
       
       // Only use CENTER ray for corn fading - side rays hit corn that's not blocking view
-      // Store center ray hits before side rays (reuse ref)
-      centerRayHitCellsRef.current.clear();
+      // Store original hitCells before side rays
+      const centerRayHitCells = new Set<string>();
       
       // Center ray - collect hits for both autopush AND fading
       performRaycast(rayDir.current);
       frameMetrics.raycastCount++; // Track raycasts for debug
-      hitCellsRef.current.forEach(cell => centerRayHitCellsRef.current.add(cell));
+      hitCells.forEach(cell => centerRayHitCells.add(cell));
       
       // Side rays (if enabled) - only for autopush, NOT for fading
       if (autopush.rayCount === 3) {
@@ -1761,8 +1653,9 @@ const OverShoulderCameraController = ({
         const perpX = -rayDir.current.z;
         const perpZ = rayDir.current.x;
         
-        // Clear hitCells so side rays don't add to fade list
-        hitCellsRef.current.clear();
+        // Temporarily clear hitCells so side rays don't add to fade list
+        const savedHitCells = new Set(hitCells);
+        hitCells.clear();
         
         // Left ray
         tempVec.current.set(
@@ -1782,8 +1675,8 @@ const OverShoulderCameraController = ({
         performRaycast(tempVec.current);
         frameMetrics.raycastCount++;
         // Restore only center ray hits for fading
-        hitCellsRef.current.clear();
-        centerRayHitCellsRef.current.forEach(cell => hitCellsRef.current.add(cell));
+        hitCells.clear();
+        centerRayHitCells.forEach(cell => hitCells.add(cell));
       }
       
       // Get current time for hysteresis
@@ -1793,9 +1686,7 @@ const OverShoulderCameraController = ({
       // Constants for fading - will be applied AFTER we determine if autopush is triggered
       const FADE_TARGET = 0.55;       // Target opacity when faded (more visible)
       const FADE_IN_SPEED = 0.15;     // How fast corn fades out (per frame)
-      // Fade back in over ~0.5 seconds (30 frames at 60fps) -> 1/30 = 0.033
-      // Use slower speed for smoother transition
-      const FADE_OUT_SPEED = 0.033;   // How fast corn fades back in (per frame) - ~0.5s at 60fps
+      const FADE_OUT_SPEED = 0.03;    // How fast corn fades back in (per frame)
       const HOLD_TIME = 200;          // ms to hold fade before starting fade-out
       
       // We'll apply fading ONLY after determining if autopush is actually pushing
@@ -1838,7 +1729,7 @@ const OverShoulderCameraController = ({
             const hasExistingFadedCells = fadedCellsRef.current.size > 0;
             frameMetrics.activeFadedCells = fadedCellsRef.current.size; // Track for debug
             
-            for (const cellKey of hitCellsRef.current) {
+            for (const cellKey of hitCells) {
               const existing = fadedCellsRef.current.get(cellKey);
               if (existing) {
                 existing.lastHitTime = now;
@@ -1865,7 +1756,7 @@ const OverShoulderCameraController = ({
           Math.abs(currentAutopushDist.current - targetDist) < 0.15;
         
         for (const [cellKey, state] of fadedCellsRef.current) {
-          const isCurrentlyHit = hitCellsRef.current.has(cellKey) && isSignificantHit && lerpSettledForFade;
+          const isCurrentlyHit = hitCells.has(cellKey) && isSignificantHit && lerpSettledForFade;
           const timeSinceHit = now - state.lastHitTime;
           
           if (isCurrentlyHit) {
@@ -1876,24 +1767,13 @@ const OverShoulderCameraController = ({
             state.opacity = Math.min(1.0, state.opacity + FADE_OUT_SPEED);
           }
           
-          // Apply opacity to corn instances (only if opacity fade is enabled)
-          // Throttle: only update if opacity changed significantly
-          if (opacityFadeEnabled) {
-            const prevOpacity = state.prevOpacity ?? 1.0;
-            if (Math.abs(state.opacity - prevOpacity) > 0.01) {
-              const [cx, cz] = cellKey.split(',').map(Number);
-              setCellOpacity(cx, cz, state.opacity);
-              state.prevOpacity = state.opacity;
-              frameMetrics.opacityBufferUpdates++;
-            }
-          }
+          // Apply opacity to corn instances
+          const [cx, cz] = cellKey.split(',').map(Number);
+          setCellOpacity(cx, cz, state.opacity);
           
           // Remove fully opaque cells that haven't been hit recently
           if (state.opacity >= 0.99 && timeSinceHit > 1000) {
-            if (opacityFadeEnabled) {
-              const [cx, cz] = cellKey.split(',').map(Number);
-              setCellOpacity(cx, cz, 1.0); // Ensure fully reset
-            }
+            setCellOpacity(cx, cz, 1.0); // Ensure fully reset
             fadedCellsRef.current.delete(cellKey);
           }
         }
@@ -1918,24 +1798,13 @@ const OverShoulderCameraController = ({
             state.opacity = Math.min(1.0, state.opacity + FADE_OUT_SPEED);
           }
           
-          // Apply opacity to corn instances (only if opacity fade is enabled)
-          // Throttle: only update if opacity changed significantly
-          if (opacityFadeEnabled) {
-            const prevOpacity = state.prevOpacity ?? 1.0;
-            if (Math.abs(state.opacity - prevOpacity) > 0.01) {
-              const [cx, cz] = cellKey.split(',').map(Number);
-              setCellOpacity(cx, cz, state.opacity);
-              state.prevOpacity = state.opacity;
-              frameMetrics.opacityBufferUpdates++;
-            }
-          }
+          // Apply opacity to corn instances
+          const [cx, cz] = cellKey.split(',').map(Number);
+          setCellOpacity(cx, cz, state.opacity);
           
           // Remove fully opaque cells that haven't been hit recently
           if (state.opacity >= 0.99 && timeSinceHitCell > 1000) {
-            if (opacityFadeEnabled) {
-              const [cx, cz] = cellKey.split(',').map(Number);
-              setCellOpacity(cx, cz, 1.0); // Ensure fully reset
-            }
+            setCellOpacity(cx, cz, 1.0); // Ensure fully reset
             fadedCellsRef.current.delete(cellKey);
           }
         }
@@ -1980,12 +1849,12 @@ const OverShoulderCameraController = ({
       currentAutopushDist.current = Math.max(absoluteMinDist, Math.min(currentAutopushDist.current, desiredDistForAutopush));
       
       // Apply autopush: position camera at the smoothed distance
-      finalTargetPosRef.current.copy(headPosRef.current).add(
+      finalTargetPos.copy(headPos).add(
         rayDir.current.clone().multiplyScalar(currentAutopushDist.current)
       );
       
       // Preserve the Y height from the original target
-      finalTargetPosRef.current.y = currentHeight;
+      finalTargetPos.y = currentHeight;
     }
     
     // Calculate look target ahead of player (reuse vector to avoid GC)
@@ -1997,7 +1866,7 @@ const OverShoulderCameraController = ({
     );
     
     // Smooth position interpolation
-    currentPosition.current.lerp(finalTargetPosRef.current, POSITION_SMOOTHING);
+    currentPosition.current.lerp(finalTargetPos, POSITION_SMOOTHING);
     currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
     
     // Apply to camera
@@ -2117,7 +1986,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, cameraYawRef, moveDirectionRef, cameraModeEnabled = false, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2324,9 +2193,6 @@ return (
         mobileIsMovingRef={mobileIsMovingRef}
         mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
-        cameraYawRef={cameraYawRef}
-        moveDirectionRef={moveDirectionRef}
-        cameraModeEnabled={cameraModeEnabled}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}
@@ -2354,9 +2220,6 @@ return (
             foliageGroupRef={foliageGroupRef}
             animalType={animalType}
             maze={maze}
-            cameraYawRef={cameraYawRef}
-            cameraModeEnabled={cameraModeEnabled}
-            opacityFadeEnabled={opacityFadeEnabled}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
         </>
