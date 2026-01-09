@@ -501,10 +501,12 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     return transforms;
   }, [maze]);
   
-  // Simple grass geometry - flat planes are much faster than GLTF models
+  // Crossed planes geometry for natural-looking grass
   const geometry = useMemo(() => {
-    const geo = new PlaneGeometry(0.3, 0.4);
-    geo.translate(0, 0.2, 0); // Offset so base is at y=0
+    const geo = new PlaneGeometry(0.15, 0.25);
+    geo.translate(0, 0.125, 0); // Base at y=0
+    // Rotate slightly forward so it's not purely vertical
+    geo.rotateX(-0.2);
     return geo;
   }, []);
   
