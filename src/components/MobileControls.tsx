@@ -37,6 +37,7 @@ interface MobileControlsProps {
   throttleRef: MutableRefObject<number>;
   mobileTouchActiveRef: MutableRefObject<boolean>;
   wasdRef: MutableRefObject<{ w: boolean; a: boolean; s: boolean; d: boolean }>;
+  turnIntensityRef: MutableRefObject<number>;
   debugMode?: boolean;
 }
 
@@ -48,6 +49,7 @@ export const MobileControls = ({
   throttleRef,
   mobileTouchActiveRef,
   wasdRef,
+  turnIntensityRef,
   debugMode = false
 }: MobileControlsProps) => {
   // Left joystick refs (throttle - W/S only)
@@ -289,16 +291,27 @@ export const MobileControls = ({
     } else if (rightPointerIdRef.current === e.pointerId && rightLastXRef.current !== null) {
       // Right swipe move - set A/D based on movement velocity (not absolute position)
       const dx = e.clientX - rightLastXRef.current;
+      const absDx = Math.abs(dx);
       
       // Set A/D based on movement direction with threshold
       const threshold = MOBILE_CONTROL_CONFIG.swipeThreshold;
       wasdRef.current.a = dx < -threshold;
       wasdRef.current.d = dx > threshold;
       
+      // Calculate proportional intensity: larger drags = faster turns
+      // Scale from 1.0 (at threshold) to 3.0 (at 30px drag)
+      if (absDx > threshold) {
+        const maxDrag = 30; // pixels for max intensity
+        const normalized = Math.min((absDx - threshold) / (maxDrag - threshold), 1.0);
+        turnIntensityRef.current = 1.0 + normalized * 2.0; // 1.0 to 3.0
+      } else {
+        turnIntensityRef.current = 1.0;
+      }
+      
       // Update last position for next frame comparison
       rightLastXRef.current = e.clientX;
     }
-  }, [wasdRef, yawRateRef]);
+  }, [wasdRef, yawRateRef, turnIntensityRef]);
 
   const handlePointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -327,6 +340,7 @@ export const MobileControls = ({
       
       wasdRef.current.a = false;
       wasdRef.current.d = false;
+      turnIntensityRef.current = 1.0; // Reset intensity
       yawRateRef.current = 0;
       isMovingRef.current = wasdRef.current.w || wasdRef.current.s;
     }
@@ -355,6 +369,7 @@ export const MobileControls = ({
       rightLastXRef.current = null;
       wasdRef.current.a = false;
       wasdRef.current.d = false;
+      turnIntensityRef.current = 1.0; // Reset intensity
       yawRateRef.current = 0;
     }
     

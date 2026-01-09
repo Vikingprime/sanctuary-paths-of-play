@@ -113,6 +113,7 @@ export const MazeGame3D = ({
   const mobileThrottleRef = useRef(0); // Throttle: -1 (reverse) to 1 (forward)
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   const mobileWasdRef = useRef({ w: false, a: false, s: false, d: false }); // WASD joystick state
+  const mobileTurnIntensityRef = useRef(1.0); // Proportional turn intensity based on drag speed
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   
   // Dialogue state
@@ -739,6 +740,7 @@ export const MazeGame3D = ({
         mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
         mobileWasdRef={mobileWasdRef}
+        mobileTurnIntensityRef={mobileTurnIntensityRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
@@ -831,6 +833,7 @@ export const MazeGame3D = ({
           throttleRef={mobileThrottleRef}
           mobileTouchActiveRef={mobileTouchActiveRef}
           wasdRef={mobileWasdRef}
+          turnIntensityRef={mobileTurnIntensityRef}
           debugMode={debugMode}
         />
       )}
