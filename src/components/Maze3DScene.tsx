@@ -57,6 +57,7 @@ interface Maze3DSceneProps {
   mobileThrottleRef?: MutableRefObject<number>;  // Legacy - not used in new system
   mobileTouchActiveRef?: MutableRefObject<boolean>;
   mobileWasdRef?: MutableRefObject<{ w: boolean; a: boolean; s: boolean; d: boolean }>;
+  mobileTurnIntensityRef?: MutableRefObject<number>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1161,6 +1162,7 @@ const RefBasedPlayer = ({
   mobileThrottleRef,
   mobileTouchActiveRef,
   mobileWasdRef,
+  mobileTurnIntensityRef,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1179,6 +1181,7 @@ const RefBasedPlayer = ({
   mobileThrottleRef?: MutableRefObject<number>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
   mobileWasdRef?: MutableRefObject<{ w: boolean; a: boolean; s: boolean; d: boolean }>;
+  mobileTurnIntensityRef?: MutableRefObject<number>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1232,7 +1235,7 @@ const RefBasedPlayer = ({
           backward: wasd.s,
           rotateLeft: wasd.a,
           rotateRight: wasd.d,
-          rotationIntensity: 1.5, // Mobile gets 50% faster turns for continuous drag
+          rotationIntensity: 1.5 * (mobileTurnIntensityRef?.current ?? 1.0), // Base 1.5x + proportional drag intensity
         };
         
         // Update isMoving ref
@@ -1949,7 +1952,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2157,6 +2160,7 @@ return (
         mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
         mobileWasdRef={mobileWasdRef}
+        mobileTurnIntensityRef={mobileTurnIntensityRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}
