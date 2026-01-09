@@ -1232,7 +1232,7 @@ const RefBasedPlayer = ({
           backward: wasd.s,
           rotateLeft: wasd.a,
           rotateRight: wasd.d,
-          rotationIntensity: 1.15, // Mobile gets 15% faster turns
+          rotationIntensity: 1.5, // Mobile gets 50% faster turns for continuous drag
         };
         
         // Update isMoving ref
