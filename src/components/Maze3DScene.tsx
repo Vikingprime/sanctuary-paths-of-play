@@ -389,7 +389,9 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     initializedRef.current = true;
   }, [rockTransforms]);
   
-  // Distance culling with opacity fade via material (all instances share same opacity)
+  // Distance culling - only update when visible set changes
+  const lastVisibleCountRef = useRef(-1);
+  
   useFrame(() => {
     if (!meshRef.current || !playerStateRef || !initializedRef.current) return;
     
@@ -399,38 +401,30 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
     // Throttle updates - only update when player moves significantly
     const dx = px - lastUpdateRef.current.x;
     const dz = pz - lastUpdateRef.current.z;
-    const shouldUpdate = dx*dx + dz*dz >= 0.1 || lastUpdateRef.current.x === -999;
+    const shouldUpdate = dx*dx + dz*dz >= 0.25 || lastUpdateRef.current.x === -999;
     
     if (!shouldUpdate) return;
     lastUpdateRef.current = { x: px, z: pz, dirX: 0, dirZ: 0 };
     
     const cullDistSq = ROCK_CULL_DISTANCE * ROCK_CULL_DISTANCE;
     let visibleCount = 0;
-    let minFade = 1;
     
-    // Two-pass: first count visible and find min fade for material
     for (let i = 0; i < rockTransforms.length; i++) {
       const t = rockTransforms[i];
       const distSq = (px - t.x) ** 2 + (pz - t.z) ** 2;
       
       if (distSq < cullDistSq) {
-        const distance = Math.sqrt(distSq);
-        const fadeFactor = calculateFadeFactor(distance);
-        
-        if (fadeFactor > 0.01) {
-          meshRef.current.setMatrixAt(visibleCount, t.matrix);
-          visibleCount++;
-          // Track minimum fade factor for shared material opacity
-          // (This is a simplification - ideally each rock would have its own fade)
-        }
+        meshRef.current.setMatrixAt(visibleCount, t.matrix);
+        visibleCount++;
       }
     }
     
-    // Only update if count changed to avoid unnecessary GPU uploads
-    if (meshRef.current.count !== visibleCount) {
+    // Only update GPU if count actually changed
+    if (lastVisibleCountRef.current !== visibleCount) {
       meshRef.current.count = visibleCount;
+      meshRef.current.instanceMatrix.needsUpdate = true;
+      lastVisibleCountRef.current = visibleCount;
     }
-    meshRef.current.instanceMatrix.needsUpdate = true;
   });
   
   if (rocks.length === 0) return null;
@@ -573,8 +567,10 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     return { clonedScenes: scenes, materialRefs: matRefs };
   }, [allGrassData, grass231, grass232]);
   
-  // Update visible grass based on player distance + camera direction with opacity fade
-  // Uses camera position (not player) for back-culling to avoid flicker
+  // Cache visibility state to avoid redundant updates
+  const visibilityCache = useRef<boolean[]>([]);
+  
+  // Update visible grass based on player distance + camera direction
   useFrame(() => {
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
@@ -586,12 +582,12 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     camDir.y = 0;
     camDir.normalize();
     
-    // Throttle updates - check both player and camera movement
+    // Throttle updates - larger threshold for better performance
     const dx = px - lastUpdateRef.current.x;
     const dz = pz - lastUpdateRef.current.z;
     const camDx = camDir.x - lastUpdateRef.current.dirX;
     const camDz = camDir.z - lastUpdateRef.current.dirZ;
-    const shouldUpdate = dx*dx + dz*dz >= 0.1 || camDx*camDx + camDz*camDz >= 0.01 || lastUpdateRef.current.x === -999;
+    const shouldUpdate = dx*dx + dz*dz >= 0.5 || camDx*camDx + camDz*camDz >= 0.02 || lastUpdateRef.current.x === -999;
     
     if (!shouldUpdate) return;
     lastUpdateRef.current = { x: px, z: pz, dirX: camDir.x, dirZ: camDir.z };
@@ -599,44 +595,39 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     const cullDistSq = GRASS_CULL_DISTANCE * GRASS_CULL_DISTANCE;
     const nearDistSq = GRASS_NEAR_DISTANCE * GRASS_NEAR_DISTANCE;
     
+    // Initialize cache if needed
+    if (visibilityCache.current.length !== allGrassData.length) {
+      visibilityCache.current = new Array(allGrassData.length).fill(false);
+    }
+    
     for (let i = 0; i < allGrassData.length; i++) {
       const g = allGrassData[i];
-      // Use player distance for culling radius
       const distSq = (g.x - px) ** 2 + (g.z - pz) ** 2;
       
-      if (distSq >= cullDistSq) {
-        // Hide grass beyond cull distance
-        clonedScenes[i].visible = false;
-        continue;
-      }
+      let shouldBeVisible = false;
       
-      // Camera back-culling: check if grass is BEHIND the camera
-      // Use camera position, not player position, for consistency
-      if (distSq >= nearDistSq) {
-        // Vector from camera to grass
-        const toGrassX = g.x - camPos.x;
-        const toGrassZ = g.z - camPos.z;
-        const len = Math.sqrt(toGrassX * toGrassX + toGrassZ * toGrassZ);
-        if (len > 0.001) {
-          const dot = (toGrassX / len) * camDir.x + (toGrassZ / len) * camDir.z;
-          // If grass is behind camera (dot < threshold), hide it
-          if (dot < GRASS_BACK_CULL_DOT) {
-            clonedScenes[i].visible = false;
-            continue;
+      if (distSq < cullDistSq) {
+        // Check camera back-culling for distant grass
+        if (distSq >= nearDistSq) {
+          const toGrassX = g.x - camPos.x;
+          const toGrassZ = g.z - camPos.z;
+          const len = Math.sqrt(toGrassX * toGrassX + toGrassZ * toGrassZ);
+          if (len > 0.001) {
+            const dot = (toGrassX / len) * camDir.x + (toGrassZ / len) * camDir.z;
+            shouldBeVisible = dot >= GRASS_BACK_CULL_DOT;
+          } else {
+            shouldBeVisible = true;
           }
+        } else {
+          shouldBeVisible = true;
         }
       }
       
-      // Apply opacity fade based on distance from player
-      const distance = Math.sqrt(distSq);
-      const fadeFactor = calculateFadeFactor(distance);
-      
-      clonedScenes[i].visible = fadeFactor > 0.01;
-      
-      // Update material opacity
-      materialRefs[i].forEach(mat => {
-        (mat as any).opacity = fadeFactor;
-      });
+      // Only update if visibility changed
+      if (visibilityCache.current[i] !== shouldBeVisible) {
+        visibilityCache.current[i] = shouldBeVisible;
+        clonedScenes[i].visible = shouldBeVisible;
+      }
     }
   });
   
