@@ -433,13 +433,6 @@ export const GameHUD = ({
         </div>
       )}
 
-      {/* Controls hint */}
-      <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 pointer-events-none">
-        <div className="bg-card/80 backdrop-blur-sm rounded-full px-3 py-1.5 sm:px-4 sm:py-2 shadow-lg text-[10px] sm:text-xs text-muted-foreground">
-          <span className="hidden md:inline">Use Arrow Keys or WASD to move • Q/E to rotate</span>
-          <span className="md:hidden">Swipe left/right to turn</span>
-        </div>
-      </div>
     </div>
 
     {/* Restart Confirmation Dialog */}
