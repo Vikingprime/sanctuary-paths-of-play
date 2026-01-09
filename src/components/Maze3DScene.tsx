@@ -439,20 +439,17 @@ const ScatteredRocks = ({ rocks, playerStateRef }: { rocks: RockPosition[]; play
   );
 };
 
-// 3D Grass tufts - InstancedMesh for performance (no per-frame updates)
+// 3D Grass tufts - STATIC rendering, no per-frame updates
 const GRASS_CULL_DISTANCE = 12;
 
 const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: MutableRefObject<PlayerState> }) => {
-  const meshRef = useRef<InstancedMesh>(null);
-  const initializedRef = useRef(false);
-  const lastUpdateRef = useRef({ x: -999, z: -999 });
-  const lastVisibleCountRef = useRef(-1);
+  const grass231 = useGLTF('/models/Grass_231.glb');
+  const grass232 = useGLTF('/models/Grass_232.glb');
+  const groupRef = useRef<Group>(null);
   
   // Pre-calculate all grass positions once
-  const grassTransforms = useMemo(() => {
-    const transforms: { matrix: Matrix4; x: number; z: number }[] = [];
-    const tempObject = new Object3D();
-    
+  const allGrassData = useMemo(() => {
+    const positions: { x: number; z: number; scale: number; rotation: number; type: 1 | 2 }[] = [];
     const seededRandom = (seed: number) => {
       const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
       return x - Math.floor(x);
@@ -473,105 +470,96 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
         const pathDown = y < mazeHeight - 1 && !maze.grid[y+1][x].isWall;
         const pathUp = y > 0 && !maze.grid[y-1][x].isWall;
         
-        const addGrass = (gx: number, gz: number, seedOffset: number) => {
-          const scale = 0.8 + seededRandom(seedOffset + 2) * 0.4; // 0.8-1.2 scale
-          const rotation = seededRandom(seedOffset + 3) * Math.PI * 2;
-          tempObject.position.set(gx, 0, gz);
-          tempObject.rotation.set(0, rotation, 0);
-          tempObject.scale.set(scale, scale, scale);
-          tempObject.updateMatrix();
-          transforms.push({ matrix: tempObject.matrix.clone(), x: gx, z: gz });
-        };
-        
         if (pathRight && seededRandom(seed + 500) < 0.16) {
-          addGrass(x + 0.55 + seededRandom(seed) * 0.2, y + 0.3 + seededRandom(seed + 1) * 0.4, seed);
+          positions.push({
+            x: x + 0.55 + seededRandom(seed) * 0.2,
+            z: y + 0.3 + seededRandom(seed + 1) * 0.4,
+            scale: 0.10 + seededRandom(seed + 2) * 0.05,
+            rotation: seededRandom(seed + 3) * Math.PI * 2,
+            type: seededRandom(seed + 4) > 0.5 ? 1 : 2,
+          });
         }
         if (pathLeft && seededRandom(seed + 600) < 0.16) {
-          addGrass(x + 0.25 + seededRandom(seed + 100) * 0.2, y + 0.3 + seededRandom(seed + 101) * 0.4, seed + 100);
+          positions.push({
+            x: x + 0.25 + seededRandom(seed + 100) * 0.2,
+            z: y + 0.3 + seededRandom(seed + 101) * 0.4,
+            scale: 0.10 + seededRandom(seed + 102) * 0.05,
+            rotation: seededRandom(seed + 103) * Math.PI * 2,
+            type: seededRandom(seed + 104) > 0.5 ? 1 : 2,
+          });
         }
         if (pathDown && seededRandom(seed + 700) < 0.16) {
-          addGrass(x + 0.3 + seededRandom(seed + 200) * 0.4, y + 0.55 + seededRandom(seed + 201) * 0.2, seed + 200);
+          positions.push({
+            x: x + 0.3 + seededRandom(seed + 200) * 0.4,
+            z: y + 0.55 + seededRandom(seed + 201) * 0.2,
+            scale: 0.10 + seededRandom(seed + 202) * 0.05,
+            rotation: seededRandom(seed + 203) * Math.PI * 2,
+            type: seededRandom(seed + 204) > 0.5 ? 1 : 2,
+          });
         }
         if (pathUp && seededRandom(seed + 800) < 0.16) {
-          addGrass(x + 0.3 + seededRandom(seed + 300) * 0.4, y + 0.25 + seededRandom(seed + 301) * 0.2, seed + 300);
+          positions.push({
+            x: x + 0.3 + seededRandom(seed + 300) * 0.4,
+            z: y + 0.25 + seededRandom(seed + 301) * 0.2,
+            scale: 0.10 + seededRandom(seed + 302) * 0.05,
+            rotation: seededRandom(seed + 303) * Math.PI * 2,
+            type: seededRandom(seed + 304) > 0.5 ? 1 : 2,
+          });
         }
       }
     }
     
-    return transforms;
+    return positions;
   }, [maze]);
   
-  // Crossed planes geometry for natural-looking grass
-  const geometry = useMemo(() => {
-    const geo = new PlaneGeometry(0.15, 0.25);
-    geo.translate(0, 0.125, 0); // Base at y=0
-    // Rotate slightly forward so it's not purely vertical
-    geo.rotateX(-0.2);
-    return geo;
-  }, []);
-  
-  const material = useMemo(() => {
-    return new MeshBasicMaterial({
-      color: "#4a7c3f",
-      side: DoubleSide,
-      transparent: false,
-    });
-  }, []);
-  
-  // Initialize all grass on mount
-  useEffect(() => {
-    if (!meshRef.current || grassTransforms.length === 0) return;
-    
-    grassTransforms.forEach((t, i) => {
-      meshRef.current!.setMatrixAt(i, t.matrix);
-    });
-    meshRef.current.count = grassTransforms.length;
-    meshRef.current.instanceMatrix.needsUpdate = true;
-    initializedRef.current = true;
-  }, [grassTransforms]);
-  
-  // Distance culling - only update when visible set changes
-  useFrame(() => {
-    if (!meshRef.current || !initializedRef.current) return;
-    
+  // Pre-clone and position all scenes ONCE - filter by initial player distance
+  const clonedScenes = useMemo(() => {
     const px = playerStateRef.current.x;
     const pz = playerStateRef.current.y;
-    
-    // Throttle updates
-    const dx = px - lastUpdateRef.current.x;
-    const dz = pz - lastUpdateRef.current.z;
-    if (dx*dx + dz*dz < 0.25 && lastUpdateRef.current.x !== -999) return;
-    lastUpdateRef.current = { x: px, z: pz };
-    
     const cullDistSq = GRASS_CULL_DISTANCE * GRASS_CULL_DISTANCE;
-    let visibleCount = 0;
     
-    for (let i = 0; i < grassTransforms.length; i++) {
-      const t = grassTransforms[i];
-      const distSq = (px - t.x) ** 2 + (pz - t.z) ** 2;
-      
-      if (distSq < cullDistSq) {
-        meshRef.current.setMatrixAt(visibleCount, t.matrix);
-        visibleCount++;
-      }
-    }
-    
-    // Only update GPU if count changed
-    if (lastVisibleCountRef.current !== visibleCount) {
-      meshRef.current.count = visibleCount;
-      meshRef.current.instanceMatrix.needsUpdate = true;
-      lastVisibleCountRef.current = visibleCount;
-    }
-  });
+    return allGrassData
+      .filter(tuft => {
+        const distSq = (tuft.x - px) ** 2 + (tuft.z - pz) ** 2;
+        return distSq < cullDistSq;
+      })
+      .map((tuft) => {
+        const scene = (tuft.type === 1 ? grass231 : grass232).scene.clone();
+        scene.position.set(tuft.x, 0, tuft.z);
+        scene.rotation.set(0, tuft.rotation, 0);
+        const s = tuft.scale * 0.04;
+        scene.scale.set(s, s, s);
+        
+        // Replace PBR materials with MeshBasicMaterial for consistent lighting
+        scene.traverse((child: Object3D) => {
+          if ((child as any).isMesh) {
+            const mesh = child as Mesh;
+            const oldMats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            
+            const newMats = oldMats.map(oldMat => {
+              const color = (oldMat as any).color?.clone() || new Color(0x4a7c3f);
+              return new MeshBasicMaterial({
+                color,
+                side: DoubleSide,
+              });
+            });
+            
+            mesh.material = newMats.length === 1 ? newMats[0] : newMats;
+          }
+        });
+        
+        return scene;
+      });
+  }, [allGrassData, grass231, grass232, playerStateRef]);
   
-  if (grassTransforms.length === 0) return null;
+  // NO useFrame - completely static rendering
   
   return (
-    <instancedMesh 
-      ref={meshRef} 
-      args={[geometry, material, grassTransforms.length]}
-      frustumCulled={false}
-    />
+    <group ref={groupRef}>
+      {clonedScenes.map((scene, i) => (
+        <primitive key={i} object={scene} />
+      ))}
+    </group>
   );
 };
 
@@ -1149,9 +1137,15 @@ const RefBasedPlayer = ({
       // Check if mobile touch is active (use boolean ref, not null check)
       const mobileActive = mobileTouchActiveRef?.current ?? false;
       
+      // Check if any keyboard keys are pressed - keyboard always takes priority
+      const keyboardActive = keysPressed.current.has('w') || keysPressed.current.has('s') || 
+                            keysPressed.current.has('a') || keysPressed.current.has('d') ||
+                            keysPressed.current.has('arrowup') || keysPressed.current.has('arrowdown') ||
+                            keysPressed.current.has('arrowleft') || keysPressed.current.has('arrowright');
+      
       let input: MovementInput;
       
-      if (mobileActive && mobileWasdRef) {
+      if (mobileActive && mobileWasdRef && !keyboardActive) {
         // MOBILE WASD MODE: Use joystick WASD flags directly like keyboard
         const wasd = mobileWasdRef.current;
         
