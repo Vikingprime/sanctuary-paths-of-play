@@ -50,12 +50,13 @@ interface Maze3DSceneProps {
   isMovingRef: MutableRefObject<boolean>;
   collectedPowerUps?: Set<string>;
   keysPressed: MutableRefObject<Set<string>>;
-  // Mobile controls - yaw rate system
+  // Mobile controls - WASD joystick system
   mobileTargetYawRef?: MutableRefObject<number>; // Legacy - not used in new system
-  mobileYawRateRef?: MutableRefObject<number>;   // Yaw rate in radians/sec from steering
+  mobileYawRateRef?: MutableRefObject<number>;   // Legacy - not used in new system  
   mobileIsMovingRef?: MutableRefObject<boolean>;
-  mobileThrottleRef?: MutableRefObject<number>;  // -1 (reverse) to 1 (forward)
+  mobileThrottleRef?: MutableRefObject<number>;  // Legacy - not used in new system
   mobileTouchActiveRef?: MutableRefObject<boolean>;
+  mobileWasdRef?: MutableRefObject<{ w: boolean; a: boolean; s: boolean; d: boolean }>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1159,6 +1160,7 @@ const RefBasedPlayer = ({
   mobileIsMovingRef,
   mobileThrottleRef,
   mobileTouchActiveRef,
+  mobileWasdRef,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1176,6 +1178,7 @@ const RefBasedPlayer = ({
   mobileIsMovingRef?: MutableRefObject<boolean>;
   mobileThrottleRef?: MutableRefObject<number>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
+  mobileWasdRef?: MutableRefObject<{ w: boolean; a: boolean; s: boolean; d: boolean }>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1220,62 +1223,22 @@ const RefBasedPlayer = ({
       
       let input: MovementInput;
       
-      if (mobileActive) {
-        // MOBILE MODE: Yaw rate steering (dx controls turn rate, buttons control movement)
-        const yawRate = mobileYawRateRef?.current ?? 0;
-        let newRotation = normalizeAngle(playerStateRef.current.rotation + yawRate * clampedDelta);
+      if (mobileActive && mobileWasdRef) {
+        // MOBILE WASD MODE: Use joystick WASD flags directly like keyboard
+        const wasd = mobileWasdRef.current;
         
-        // === ANGULAR SNAPPING (Cardinal Alignment Assist) ===
-        // If rotation is within ~5 degrees of a cardinal direction and not actively turning hard
-        const cardinalSnapThreshold = 0.087; // ~5 degrees
-        const cardinalSnapStrength = 0.03;
-        const absYawRate = Math.abs(yawRate);
-        
-        // Only snap when not turning hard (yaw rate < 0.5)
-        if (absYawRate < 0.5) {
-          // Cardinal directions: 0, π/2, π, 3π/2 (N, E, S, W)
-          const cardinals = [0, Math.PI / 2, Math.PI, Math.PI * 1.5, Math.PI * 2];
-          
-          for (const cardinal of cardinals) {
-            let diff = newRotation - cardinal;
-            // Normalize diff to -π to π
-            if (diff > Math.PI) diff -= Math.PI * 2;
-            if (diff < -Math.PI) diff += Math.PI * 2;
-            
-            if (Math.abs(diff) < cardinalSnapThreshold) {
-              // Snap toward cardinal direction
-              newRotation = normalizeAngle(newRotation - diff * cardinalSnapStrength);
-              break;
-            }
-          }
-        }
-        
-        playerStateRef.current = {
-          ...playerStateRef.current,
-          rotation: newRotation
-        };
-        
-        // Get throttle value (-1 to 1, supports reverse)
-        const throttle = mobileThrottleRef?.current ?? 0;
-        const isMoving = mobileIsMovingRef?.current ?? false;
-        const isForward = throttle > 0;
-        const isBackward = throttle < 0;
-        
-        // Build input with forward/backward from throttle
-        // (rotation already handled above)
         input = {
-          forward: isMoving && isForward,
-          backward: isMoving && isBackward,
-          rotateLeft: false,
-          rotateRight: false,
-          rotationIntensity: 0,
-          speedMultiplier: Math.abs(throttle),
+          forward: wasd.w,
+          backward: wasd.s,
+          rotateLeft: wasd.a,
+          rotateRight: wasd.d,
+          rotationIntensity: 1.0,
         };
         
         // Update isMoving ref
-        isMovingRef.current = isMoving;
+        isMovingRef.current = wasd.w || wasd.a || wasd.s || wasd.d;
         
-        // Calculate movement (position only, rotation already set)
+        // Calculate movement (same as keyboard)
         const prev = playerStateRef.current;
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         playerStateRef.current = newState;
@@ -1986,7 +1949,7 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2193,6 +2156,7 @@ return (
         mobileIsMovingRef={mobileIsMovingRef}
         mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
+        mobileWasdRef={mobileWasdRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}

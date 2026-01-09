@@ -1,34 +1,29 @@
 import { useRef, useCallback, MutableRefObject, useEffect, useState } from 'react';
 import { PlayerState } from '@/game/GameLogic';
 
-// Tuning knobs - simplified controls
+// WASD region detection config
 export const MOBILE_CONTROL_CONFIG = {
-  // Dead zone - tiny! Only stop if truly centered
-  deadZonePercent: 0.02,
+  // Dead zone - percentage of screen height
+  deadZonePercent: 0.03,
   
   // Maximum joystick radius as percentage of screen height
-  maxRadiusPercent: 0.15,
+  maxRadiusPercent: 0.12,
   
-  // Drift lerp speed
-  driftSpeed: 0.08,
-  
-  // Speeds
-  forwardSpeed: 1.0,
-  reverseSpeed: 0.5,
-  
-  // Turn rate
-  turnRate: 3.0,
-  maxTurnRate: 3.0,
-  
-  // Counter-Steer Dampening
-  dampeningDuration: 0.2,     // Seconds to dampen turn rate after direction flip
-  dampeningRecovery: 0.1,     // Seconds to lerp back to full turn rate
-  dampeningFactor: 0.3,       // Reduce to 30% turn rate during dampening (70% reduction)
+  // Direction change debounce (ms) - prevents W -> WA -> D, makes it W -> D
+  directionDebounceMs: 80,
   
   // Visual sizes
-  baseRadiusPercent: 0.06,
-  knobRadiusPercent: 0.03,
+  baseRadiusPercent: 0.08,
+  knobRadiusPercent: 0.035,
 };
+
+// WASD direction flags
+interface WASDState {
+  w: boolean;
+  a: boolean;
+  s: boolean;
+  d: boolean;
+}
 
 interface MobileControlsProps {
   playerStateRef: MutableRefObject<PlayerState>;
@@ -37,6 +32,7 @@ interface MobileControlsProps {
   isMovingRef: MutableRefObject<boolean>;
   throttleRef: MutableRefObject<number>;
   mobileTouchActiveRef: MutableRefObject<boolean>;
+  wasdRef: MutableRefObject<{ w: boolean; a: boolean; s: boolean; d: boolean }>;
   debugMode?: boolean;
 }
 
@@ -47,6 +43,7 @@ export const MobileControls = ({
   isMovingRef,
   throttleRef,
   mobileTouchActiveRef,
+  wasdRef,
   debugMode = false
 }: MobileControlsProps) => {
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -59,14 +56,10 @@ export const MobileControls = ({
   // Track screen dimensions for normalization
   const screenDimensionsRef = useRef({ width: window.innerWidth, height: window.innerHeight });
   
-  // Smoothed input values for lerp
-  const smoothedThrottleRef = useRef<number>(0);
-  const smoothedYawRateRef = useRef<number>(0);
-  
-  // Counter-Steer Dampening state
-  const lastXSignRef = useRef<number>(0); // -1, 0, or 1
-  const dampeningStartTimeRef = useRef<number | null>(null);
-  const lastFrameTimeRef = useRef<number>(performance.now());
+  // Direction change debouncing
+  const lastDirectionChangeRef = useRef<number>(0);
+  const pendingWASDRef = useRef<WASDState>({ w: false, a: false, s: false, d: false });
+  const committedWASDRef = useRef<WASDState>({ w: false, a: false, s: false, d: false });
   
   // Visual state for joystick
   const [joystickState, setJoystickState] = useState<{
@@ -75,7 +68,8 @@ export const MobileControls = ({
     baseY: number;
     knobX: number;
     knobY: number;
-  }>({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
+    wasd: WASDState;
+  }>({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0, wasd: { w: false, a: false, s: false, d: false } });
 
   // Calculate pixel values from percentage-based config
   const getPixelValues = useCallback(() => {
@@ -88,38 +82,93 @@ export const MobileControls = ({
     };
   }, []);
 
-  // Reset all control state - used on orientation change
+  // Determine WASD state from joystick position
+  const getWASDFromPosition = useCallback((dx: number, dy: number, deadZone: number): WASDState => {
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance < deadZone) {
+      return { w: false, a: false, s: false, d: false };
+    }
+    
+    // Calculate angle in radians (-PI to PI, 0 = right, PI/2 = down in screen coords)
+    const angle = Math.atan2(dy, dx);
+    
+    // Convert to degrees for easier reasoning (0 = right, 90 = down, -90 = up, 180/-180 = left)
+    const degrees = angle * (180 / Math.PI);
+    
+    // Define regions with some overlap for diagonal movement
+    // Each direction covers a 90-degree arc, with 45-degree overlaps for diagonals
+    const wasd: WASDState = { w: false, a: false, s: false, d: false };
+    
+    // W (up): -135 to -45 degrees
+    if (degrees >= -135 && degrees <= -45) {
+      wasd.w = true;
+    }
+    
+    // S (down): 45 to 135 degrees
+    if (degrees >= 45 && degrees <= 135) {
+      wasd.s = true;
+    }
+    
+    // A (left): 135 to 180 or -180 to -135 degrees
+    if (degrees >= 135 || degrees <= -135) {
+      wasd.a = true;
+    }
+    
+    // D (right): -45 to 45 degrees
+    if (degrees >= -45 && degrees <= 45) {
+      wasd.d = true;
+    }
+    
+    return wasd;
+  }, []);
+
+  // Check if WASD states are different
+  const wasdDifferent = (a: WASDState, b: WASDState): boolean => {
+    return a.w !== b.w || a.a !== b.a || a.s !== b.s || a.d !== b.d;
+  };
+
+  // Check if this is a quick direction change (skip intermediate states)
+  const isQuickDirectionChange = useCallback((current: WASDState, pending: WASDState): boolean => {
+    // If going from a single direction to another single direction
+    const currentCount = (current.w ? 1 : 0) + (current.a ? 1 : 0) + (current.s ? 1 : 0) + (current.d ? 1 : 0);
+    const pendingCount = (pending.w ? 1 : 0) + (pending.a ? 1 : 0) + (pending.s ? 1 : 0) + (pending.d ? 1 : 0);
+    
+    // If pending has 2 keys (diagonal) and we're switching between opposite singles, skip the diagonal
+    if (pendingCount === 2 && currentCount === 1) {
+      return true;
+    }
+    
+    return false;
+  }, []);
+
+  // Reset all control state
   const resetControls = useCallback(() => {
     activePointerIdRef.current = null;
     anchorRef.current = null;
     fingerRef.current = null;
-    smoothedThrottleRef.current = 0;
-    smoothedYawRateRef.current = 0;
     yawRateRef.current = 0;
     throttleRef.current = 0;
     isMovingRef.current = false;
     mobileTouchActiveRef.current = false;
-    setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
+    wasdRef.current = { w: false, a: false, s: false, d: false };
+    committedWASDRef.current = { w: false, a: false, s: false, d: false };
+    pendingWASDRef.current = { w: false, a: false, s: false, d: false };
+    setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0, wasd: { w: false, a: false, s: false, d: false } });
     
-    // Update screen dimensions
     screenDimensionsRef.current = { width: window.innerWidth, height: window.innerHeight };
-  }, [yawRateRef, throttleRef, isMovingRef, mobileTouchActiveRef]);
+  }, [yawRateRef, throttleRef, isMovingRef, mobileTouchActiveRef, wasdRef]);
 
-  // Track last known orientation to detect actual orientation changes
+  // Track orientation
   const lastOrientationRef = useRef<'portrait' | 'landscape'>(
     window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
   );
 
-  // Add game-active class to html when mounted, remove on unmount
-  // Also handle orientation changes and prevent all browser gestures
+  // Setup effects
   useEffect(() => {
     document.documentElement.classList.add('game-active');
-    
-    // Prevent pull-to-refresh and other overscroll behaviors
     document.body.style.overscrollBehavior = 'none';
     document.documentElement.style.overscrollBehavior = 'none';
-    
-    // Initialize screen dimensions
     screenDimensionsRef.current = { width: window.innerWidth, height: window.innerHeight };
     
     const preventGestures = (e: TouchEvent) => {
@@ -130,14 +179,10 @@ export const MobileControls = ({
       }
     };
     
-    // Handle resize/orientation changes
     const handleResize = () => {
       const currentOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
-      
-      // Update screen dimensions regardless
       screenDimensionsRef.current = { width: window.innerWidth, height: window.innerHeight };
       
-      // Only reset controls on actual orientation change
       if (currentOrientation !== lastOrientationRef.current) {
         lastOrientationRef.current = currentOrientation;
         resetControls();
@@ -146,7 +191,6 @@ export const MobileControls = ({
     
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
-    
     document.addEventListener('touchstart', preventGestures, { passive: false, capture: true });
     document.addEventListener('touchmove', preventGestures, { passive: false, capture: true });
     document.addEventListener('touchend', preventGestures, { passive: false, capture: true });
@@ -166,148 +210,81 @@ export const MobileControls = ({
     };
   }, [resetControls]);
 
-  // Animation loop for drift anchor and controls update
+  // Main update loop
   useEffect(() => {
     const updateLoop = () => {
-      const { driftSpeed, forwardSpeed, reverseSpeed, turnRate, maxTurnRate, 
-              dampeningDuration, dampeningRecovery, dampeningFactor } = MOBILE_CONTROL_CONFIG;
-      
-      // Calculate delta time for dampening timers
-      const now = performance.now();
-      const deltaTime = (now - lastFrameTimeRef.current) / 1000;
-      lastFrameTimeRef.current = now;
-      
-      // Get current pixel values based on screen height
       const { deadZone, maxRadius } = getPixelValues();
+      const now = performance.now();
       
       if (anchorRef.current && fingerRef.current) {
-        // Calculate offset from anchor to finger
         let dx = fingerRef.current.x - anchorRef.current.x;
         let dy = fingerRef.current.y - anchorRef.current.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // Drift anchor if beyond max radius
+        // Clamp knob to max radius
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        let clampedKnobX = fingerRef.current.x;
+        let clampedKnobY = fingerRef.current.y;
+        
         if (distance > maxRadius) {
-          const excess = distance - maxRadius;
-          const normalizedDx = dx / distance;
-          const normalizedDy = dy / distance;
-          
-          anchorRef.current.x += normalizedDx * excess * driftSpeed;
-          anchorRef.current.y += normalizedDy * excess * driftSpeed;
-          
-          // Recalculate offset after drift
-          dx = fingerRef.current.x - anchorRef.current.x;
-          dy = fingerRef.current.y - anchorRef.current.y;
+          const scale = maxRadius / distance;
+          clampedKnobX = anchorRef.current.x + dx * scale;
+          clampedKnobY = anchorRef.current.y + dy * scale;
+          dx = clampedKnobX - anchorRef.current.x;
+          dy = clampedKnobY - anchorRef.current.y;
         }
         
-        const currentDistance = Math.sqrt(dx * dx + dy * dy);
+        // Get raw WASD state from position
+        const rawWASD = getWASDFromPosition(dx, dy, deadZone);
+        
+        // Handle direction change debouncing
+        if (wasdDifferent(rawWASD, pendingWASDRef.current)) {
+          pendingWASDRef.current = rawWASD;
+          lastDirectionChangeRef.current = now;
+        }
+        
+        // Check if we should commit the pending state
+        const timeSinceChange = now - lastDirectionChangeRef.current;
+        
+        if (timeSinceChange >= MOBILE_CONTROL_CONFIG.directionDebounceMs) {
+          // Debounce period passed, commit the pending state
+          if (wasdDifferent(pendingWASDRef.current, committedWASDRef.current)) {
+            committedWASDRef.current = { ...pendingWASDRef.current };
+          }
+        } else if (isQuickDirectionChange(committedWASDRef.current, pendingWASDRef.current)) {
+          // Don't commit diagonal intermediates during quick changes
+          // Keep the current committed state until debounce passes
+        }
+        
+        // Apply committed WASD to the ref
+        wasdRef.current = { ...committedWASDRef.current };
+        isMovingRef.current = committedWASDRef.current.w || committedWASDRef.current.a || 
+                              committedWASDRef.current.s || committedWASDRef.current.d;
         
         // Update visuals
         setJoystickState({
           visible: true,
           baseX: anchorRef.current.x,
           baseY: anchorRef.current.y,
-          knobX: fingerRef.current.x,
-          knobY: fingerRef.current.y,
+          knobX: clampedKnobX,
+          knobY: clampedKnobY,
+          wasd: committedWASDRef.current,
         });
         
-        // Target values
-        let targetThrottle = 0;
-        let targetYawRate = 0;
-        
-        // Dead zone check - outside deadzone = movement
-        if (currentDistance >= deadZone) {
-          // === SIMPLE DIRECTION LOGIC ===
-          // Dragging down (positive dy in screen coords) = reverse
-          // Dragging up/left/right = forward
-          // Use a simple threshold: if dy > 60% of distance, it's reverse
-          const isReverse = dy > 0 && dy > currentDistance * 0.6;
-          
-          // Fixed speed: 100% forward or reverse based on direction
-          if (isReverse) {
-            targetThrottle = -reverseSpeed;
-          } else {
-            targetThrottle = forwardSpeed;
-          }
-          
-          // === STEERING ===
-          // Use X component directly for steering
-          const normalizedX = dx / maxRadius;
-          // Clamp to -1 to 1
-          const clampedX = Math.max(-1, Math.min(1, normalizedX));
-          
-          // Simple squared curve for smooth control
-          const curvedX = clampedX * Math.abs(clampedX);
-          
-          // === COUNTER-STEER DAMPENING ===
-          // Detect direction flip (sign change in X input)
-          const currentXSign = clampedX > 0.1 ? 1 : clampedX < -0.1 ? -1 : 0;
-          
-          // Check for direction flip (sign changed and both are non-zero)
-          if (currentXSign !== 0 && lastXSignRef.current !== 0 && currentXSign !== lastXSignRef.current) {
-            // Trigger dampening window
-            dampeningStartTimeRef.current = now;
-          }
-          
-          // Update last X sign (only if significant input)
-          if (currentXSign !== 0) {
-            lastXSignRef.current = currentXSign;
-          }
-          
-          // Calculate turn rate multiplier based on dampening state
-          let turnRateMultiplier = 1.0;
-          
-          if (dampeningStartTimeRef.current !== null) {
-            const elapsed = (now - dampeningStartTimeRef.current) / 1000;
-            
-            if (elapsed < dampeningDuration) {
-              // In dampening window - reduce turn rate
-              turnRateMultiplier = dampeningFactor;
-            } else if (elapsed < dampeningDuration + dampeningRecovery) {
-              // In recovery phase - lerp back to 100%
-              const recoveryProgress = (elapsed - dampeningDuration) / dampeningRecovery;
-              turnRateMultiplier = dampeningFactor + (1.0 - dampeningFactor) * recoveryProgress;
-            } else {
-              // Dampening complete
-              dampeningStartTimeRef.current = null;
-              turnRateMultiplier = 1.0;
-            }
-          }
-          
-          // Calculate turn rate with dampening applied
-          let rawTurnRate = curvedX * turnRate * turnRateMultiplier;
-          
-          // Invert steering when reversing
-          if (isReverse) {
-            rawTurnRate = -rawTurnRate;
-          }
-          
-          // Cap turn rate
-          targetYawRate = Math.max(-maxTurnRate, Math.min(maxTurnRate, rawTurnRate));
-        } else {
-          // In dead zone - reset X sign tracking
-          lastXSignRef.current = 0;
-        }
-        
-        // Apply values directly
-        throttleRef.current = targetThrottle;
-        yawRateRef.current = targetYawRate;
-        
-        isMovingRef.current = Math.abs(throttleRef.current) > 0.05;
-        
-        // Debug logging (throttled)
         if (debugMode && Date.now() - lastDebugLogRef.current > 200) {
           lastDebugLogRef.current = Date.now();
-          console.log('[Mobile] throttle:', throttleRef.current.toFixed(2),
-                      'yawRate:', yawRateRef.current.toFixed(2));
+          const { w, a, s, d } = committedWASDRef.current;
+          console.log('[Mobile WASD]', 
+            w ? 'W' : '-', 
+            a ? 'A' : '-', 
+            s ? 'S' : '-', 
+            d ? 'D' : '-');
         }
       } else {
-        // No touch active - stop immediately and reset dampening
-        throttleRef.current = 0;
-        yawRateRef.current = 0;
+        // No touch - reset everything
+        wasdRef.current = { w: false, a: false, s: false, d: false };
+        committedWASDRef.current = { w: false, a: false, s: false, d: false };
+        pendingWASDRef.current = { w: false, a: false, s: false, d: false };
         isMovingRef.current = false;
-        lastXSignRef.current = 0;
-        dampeningStartTimeRef.current = null;
       }
       
       animationFrameRef.current = requestAnimationFrame(updateLoop);
@@ -320,7 +297,7 @@ export const MobileControls = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [debugMode, isMovingRef, throttleRef, yawRateRef, getPixelValues]);
+  }, [debugMode, isMovingRef, wasdRef, getPixelValues, getWASDFromPosition, isQuickDirectionChange]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (activePointerIdRef.current !== null) return;
@@ -333,9 +310,7 @@ export const MobileControls = ({
     fingerRef.current = { x: e.clientX, y: e.clientY };
     
     mobileTouchActiveRef.current = true;
-    yawRateRef.current = 0;
-    throttleRef.current = 0;
-    isMovingRef.current = false;
+    lastDirectionChangeRef.current = performance.now();
     
     setJoystickState({
       visible: true,
@@ -343,6 +318,7 @@ export const MobileControls = ({
       baseY: e.clientY,
       knobX: e.clientX,
       knobY: e.clientY,
+      wasd: { w: false, a: false, s: false, d: false },
     });
     
     try {
@@ -350,11 +326,7 @@ export const MobileControls = ({
     } catch (err) {
       // Ignore
     }
-    
-    if (debugMode) {
-      console.log('[Mobile] pointerdown at', e.clientX.toFixed(0), e.clientY.toFixed(0));
-    }
-  }, [mobileTouchActiveRef, yawRateRef, throttleRef, isMovingRef, debugMode]);
+  }, [mobileTouchActiveRef]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (activePointerIdRef.current !== e.pointerId) return;
@@ -376,48 +348,39 @@ export const MobileControls = ({
     anchorRef.current = null;
     fingerRef.current = null;
     
-    yawRateRef.current = 0;
-    throttleRef.current = 0;
+    wasdRef.current = { w: false, a: false, s: false, d: false };
+    committedWASDRef.current = { w: false, a: false, s: false, d: false };
+    pendingWASDRef.current = { w: false, a: false, s: false, d: false };
     isMovingRef.current = false;
     mobileTouchActiveRef.current = false;
     
-    setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
+    setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0, wasd: { w: false, a: false, s: false, d: false } });
     
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch (err) {
       // Ignore
     }
-    
-    if (debugMode) {
-      console.log('[Mobile] pointerup - stopped');
-    }
-  }, [mobileTouchActiveRef, yawRateRef, throttleRef, isMovingRef, debugMode]);
+  }, [mobileTouchActiveRef, isMovingRef, wasdRef]);
 
-  // Handle pointer leaving the window - clears stuck drag state
   const handlePointerLeave = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Only reset if we have an active pointer that matches
     if (activePointerIdRef.current === null) return;
     
-    // Clear everything to prevent stuck state
     activePointerIdRef.current = null;
     anchorRef.current = null;
     fingerRef.current = null;
     
-    yawRateRef.current = 0;
-    throttleRef.current = 0;
+    wasdRef.current = { w: false, a: false, s: false, d: false };
+    committedWASDRef.current = { w: false, a: false, s: false, d: false };
+    pendingWASDRef.current = { w: false, a: false, s: false, d: false };
     isMovingRef.current = false;
     mobileTouchActiveRef.current = false;
     
-    setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 });
-    
-    if (debugMode) {
-      console.log('[Mobile] pointerleave - cleared stuck state');
-    }
-  }, [mobileTouchActiveRef, yawRateRef, throttleRef, isMovingRef, debugMode]);
+    setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0, wasd: { w: false, a: false, s: false, d: false } });
+  }, [mobileTouchActiveRef, isMovingRef, wasdRef]);
 
-  // Get current pixel values for rendering
   const { baseRadius, knobRadius } = getPixelValues();
+  const { w, a, s, d } = joystickState.wasd;
 
   return (
     <>
@@ -444,9 +407,10 @@ export const MobileControls = ({
         }}
       />
       
-      {/* Joystick Base */}
+      {/* WASD Joystick Visual */}
       {joystickState.visible && (
         <>
+          {/* Base with direction indicators */}
           <div
             style={{
               position: 'fixed',
@@ -455,13 +419,67 @@ export const MobileControls = ({
               width: baseRadius * 2,
               height: baseRadius * 2,
               borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.15)',
+              background: 'rgba(0, 0, 0, 0.3)',
               border: '2px solid rgba(255, 255, 255, 0.3)',
               pointerEvents: 'none',
               zIndex: 11,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-          />
-          {/* Joystick Knob */}
+          >
+            {/* Direction indicators */}
+            {/* W - Up */}
+            <div style={{
+              position: 'absolute',
+              top: '8%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: baseRadius * 0.35,
+              fontWeight: 'bold',
+              color: w ? '#4ade80' : 'rgba(255,255,255,0.4)',
+              textShadow: w ? '0 0 8px #4ade80' : 'none',
+              transition: 'color 0.1s, text-shadow 0.1s',
+            }}>W</div>
+            {/* S - Down */}
+            <div style={{
+              position: 'absolute',
+              bottom: '8%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: baseRadius * 0.35,
+              fontWeight: 'bold',
+              color: s ? '#4ade80' : 'rgba(255,255,255,0.4)',
+              textShadow: s ? '0 0 8px #4ade80' : 'none',
+              transition: 'color 0.1s, text-shadow 0.1s',
+            }}>S</div>
+            {/* A - Left */}
+            <div style={{
+              position: 'absolute',
+              left: '8%',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: baseRadius * 0.35,
+              fontWeight: 'bold',
+              color: a ? '#4ade80' : 'rgba(255,255,255,0.4)',
+              textShadow: a ? '0 0 8px #4ade80' : 'none',
+              transition: 'color 0.1s, text-shadow 0.1s',
+            }}>A</div>
+            {/* D - Right */}
+            <div style={{
+              position: 'absolute',
+              right: '8%',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: baseRadius * 0.35,
+              fontWeight: 'bold',
+              color: d ? '#4ade80' : 'rgba(255,255,255,0.4)',
+              textShadow: d ? '0 0 8px #4ade80' : 'none',
+              transition: 'color 0.1s, text-shadow 0.1s',
+            }}>D</div>
+          </div>
+          
+          {/* Knob */}
           <div
             style={{
               position: 'fixed',
@@ -470,8 +488,8 @@ export const MobileControls = ({
               width: knobRadius * 2,
               height: knobRadius * 2,
               borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.5)',
-              border: '2px solid rgba(255, 255, 255, 0.7)',
+              background: 'rgba(255, 255, 255, 0.6)',
+              border: '2px solid rgba(255, 255, 255, 0.8)',
               pointerEvents: 'none',
               zIndex: 12,
             }}
