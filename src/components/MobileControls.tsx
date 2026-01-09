@@ -13,11 +13,8 @@ export const MOBILE_CONTROL_CONFIG = {
   baseRadiusPercent: 0.06,
   knobRadiusPercent: 0.025,
   
-  // Swipe sensitivity for turn nudges
-  swipeSensitivity: 0.008,
-  
-  // Turn nudge strength (radians per swipe unit)
-  nudgeStrength: 0.02,
+  // Swipe threshold in pixels before turn activates
+  swipeThreshold: 5,
 };
 
 // WASD direction flags
@@ -271,22 +268,16 @@ export const MobileControls = ({
       // Left joystick move
       leftFingerRef.current = { x: e.clientX, y: e.clientY };
     } else if (rightPointerIdRef.current === e.pointerId && rightStartRef.current) {
-      // Right swipe move - apply turn nudges
+      // Right swipe move - set A/D based on cumulative swipe direction
       const dx = e.clientX - rightStartRef.current.x;
       
-      // Apply nudge based on horizontal swipe
-      const nudge = dx * MOBILE_CONTROL_CONFIG.swipeSensitivity;
-      
       // Set A/D based on swipe direction with threshold
-      const threshold = 10; // pixels
+      const threshold = MOBILE_CONTROL_CONFIG.swipeThreshold;
       wasdRef.current.a = dx < -threshold;
       wasdRef.current.d = dx > threshold;
       
-      // Also apply direct yaw rate for smooth turning
-      yawRateRef.current = nudge * MOBILE_CONTROL_CONFIG.nudgeStrength;
-      
-      // Update start position for continuous swiping
-      rightStartRef.current = { x: e.clientX, y: e.clientY };
+      // DON'T reset start position - keep tracking total swipe distance
+      // This keeps A/D active as long as finger has moved past threshold
     }
   }, [wasdRef, yawRateRef]);
 
