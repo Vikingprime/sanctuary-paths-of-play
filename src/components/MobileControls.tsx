@@ -14,7 +14,7 @@ export const MOBILE_CONTROL_CONFIG = {
   knobRadiusPercent: 0.03,
   
   // Swipe threshold in pixels before turn activates
-  swipeThreshold: 5,
+  swipeThreshold: 3,
   
   // Fixed joystick position (percentage from edge)
   joystickLeftPercent: 0.12,
@@ -162,7 +162,8 @@ export const MobileControls = ({
     const updateLoop = () => {
       const { deadZone, maxRadius } = getPixelValues();
       
-      if (leftAnchorRef.current && leftFingerRef.current) {
+      // Only process left joystick if we have an active left pointer
+      if (leftPointerIdRef.current !== null && leftAnchorRef.current && leftFingerRef.current) {
         // Only use vertical (Y) movement for throttle
         let dy = leftFingerRef.current.y - leftAnchorRef.current.y;
         
@@ -177,7 +178,6 @@ export const MobileControls = ({
           // In dead zone
           wasdRef.current.w = false;
           wasdRef.current.s = false;
-          isMovingRef.current = wasdRef.current.a || wasdRef.current.d;
           setJoystickState(prev => ({
             ...prev,
             knobY: leftAnchorRef.current!.y,
@@ -189,7 +189,6 @@ export const MobileControls = ({
           
           wasdRef.current.w = throttle > 0;
           wasdRef.current.s = throttle < 0;
-          isMovingRef.current = true;
           
           setJoystickState(prev => ({
             ...prev,
@@ -207,12 +206,14 @@ export const MobileControls = ({
             s ? 'S' : '-', 
             d ? 'D' : '-');
         }
-      } else {
-        // No left touch - reset throttle
+      } else if (leftPointerIdRef.current === null) {
+        // Only reset W/S if left pointer is truly released
         wasdRef.current.w = false;
         wasdRef.current.s = false;
-        isMovingRef.current = wasdRef.current.a || wasdRef.current.d;
       }
+      
+      // Update isMoving based on current WASD state
+      isMovingRef.current = wasdRef.current.w || wasdRef.current.s || wasdRef.current.a || wasdRef.current.d;
       
       animationFrameRef.current = requestAnimationFrame(updateLoop);
     };
