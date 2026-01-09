@@ -4,17 +4,21 @@ import { PlayerState } from '@/game/GameLogic';
 // Control configuration
 export const MOBILE_CONTROL_CONFIG = {
   // Dead zone - percentage of screen height for throttle joystick
-  deadZonePercent: 0.03,
+  deadZonePercent: 0.02,
   
   // Maximum joystick radius as percentage of screen height
-  maxRadiusPercent: 0.10,
+  maxRadiusPercent: 0.12,
   
   // Visual sizes
-  baseRadiusPercent: 0.06,
-  knobRadiusPercent: 0.025,
+  baseRadiusPercent: 0.07,
+  knobRadiusPercent: 0.03,
   
   // Swipe threshold in pixels before turn activates
   swipeThreshold: 5,
+  
+  // Fixed joystick position (percentage from edge)
+  joystickLeftPercent: 0.12,
+  joystickBottomPercent: 0.18,
 };
 
 // WASD direction flags
@@ -73,11 +77,15 @@ export const MobileControls = ({
   // Calculate pixel values from percentage-based config
   const getPixelValues = useCallback(() => {
     const screenHeight = screenDimensionsRef.current.height;
+    const screenWidth = screenDimensionsRef.current.width;
     return {
       deadZone: screenHeight * MOBILE_CONTROL_CONFIG.deadZonePercent,
       maxRadius: screenHeight * MOBILE_CONTROL_CONFIG.maxRadiusPercent,
       baseRadius: screenHeight * MOBILE_CONTROL_CONFIG.baseRadiusPercent,
       knobRadius: screenHeight * MOBILE_CONTROL_CONFIG.knobRadiusPercent,
+      // Fixed joystick center position
+      fixedAnchorX: screenWidth * MOBILE_CONTROL_CONFIG.joystickLeftPercent,
+      fixedAnchorY: screenHeight * (1 - MOBILE_CONTROL_CONFIG.joystickBottomPercent),
     };
   }, []);
 
@@ -230,18 +238,21 @@ export const MobileControls = ({
     const isLeft = isLeftSide(e.clientX);
     
     if (isLeft) {
-      // Left side - throttle joystick
+      // Left side - throttle joystick with FIXED anchor position
       if (leftPointerIdRef.current !== null) return;
       
+      const { fixedAnchorX, fixedAnchorY } = getPixelValues();
+      
       leftPointerIdRef.current = e.pointerId;
-      leftAnchorRef.current = { x: e.clientX, y: e.clientY };
+      // Anchor is ALWAYS at fixed position, finger starts where touched
+      leftAnchorRef.current = { x: fixedAnchorX, y: fixedAnchorY };
       leftFingerRef.current = { x: e.clientX, y: e.clientY };
       mobileTouchActiveRef.current = true;
       
       setJoystickState({
         visible: true,
-        baseX: e.clientX,
-        baseY: e.clientY,
+        baseX: fixedAnchorX,
+        baseY: fixedAnchorY,
         knobY: e.clientY,
         throttle: 0,
       });
