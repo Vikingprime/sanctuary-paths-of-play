@@ -1,5 +1,6 @@
 import { useRef, useCallback, MutableRefObject, useEffect, useState } from 'react';
 import { PlayerState } from '@/game/GameLogic';
+import { SensitivityConfig, DEFAULT_SENSITIVITY } from './GameHUD';
 
 // Control configuration
 export const MOBILE_CONTROL_CONFIG = {
@@ -39,6 +40,7 @@ interface MobileControlsProps {
   wasdRef: MutableRefObject<{ w: boolean; a: boolean; s: boolean; d: boolean }>;
   turnIntensityRef: MutableRefObject<number>;
   debugMode?: boolean;
+  sensitivityConfig?: SensitivityConfig;
 }
 
 export const MobileControls = ({ 
@@ -50,7 +52,8 @@ export const MobileControls = ({
   mobileTouchActiveRef,
   wasdRef,
   turnIntensityRef,
-  debugMode = false
+  debugMode = false,
+  sensitivityConfig = DEFAULT_SENSITIVITY,
 }: MobileControlsProps) => {
   // Left joystick refs (throttle - W/S only)
   const leftAnchorRef = useRef<{ x: number; y: number } | null>(null);
@@ -315,11 +318,15 @@ export const MobileControls = ({
         wasdRef.current.d = newDir === 'd';
         edgeHoldDirectionRef.current = newDir;
         
-        // Calculate proportional intensity with exponential curve
-        const maxDrag = 40; // pixels for max intensity
+        // Calculate proportional intensity using sensitivityConfig:
+        // Small movements = MORE sensitive (higher multiplier)
+        // Large movements = LESS sensitive (lower multiplier) 
+        const maxDrag = sensitivityConfig.maxDragPixels;
         const normalized = Math.min((absDx - threshold) / (maxDrag - threshold), 1.0);
-        const curved = normalized * normalized;
-        turnIntensityRef.current = 1.5 + curved * 3.0;
+        // Inverted curve: starts at smallMoveSensitivity, decreases toward largeMoveSensitivity as drag increases
+        const curved = 1.0 - (normalized * normalized);
+        const range = sensitivityConfig.smallMoveSensitivity - sensitivityConfig.largeMoveSensitivity;
+        turnIntensityRef.current = sensitivityConfig.largeMoveSensitivity + curved * range;
         
         // Update last position
         rightLastXRef.current = e.clientX;

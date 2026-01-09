@@ -3,7 +3,7 @@ import { Maze, AnimalType, MedalType, DialogueTrigger } from '@/types/game';
 import { Maze3DCanvas, PerformanceInfo } from './Maze3DScene';
 import { MazePreview } from './MazePreview';
 import { MiniMap } from './MiniMap';
-import { GameHUD } from './GameHUD';
+import { GameHUD, SensitivityConfig, DEFAULT_SENSITIVITY } from './GameHUD';
 import { MobileControls } from './MobileControls';
 import { MazeIntroSequence } from './MazeIntroSequence';
 import { Button } from '@/components/ui/button';
@@ -104,6 +104,7 @@ export const MazeGame3D = ({
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
   const [opacityFadeEnabled, setOpacityFadeEnabled] = useState(true);
   const [cornEnabled, setCornEnabled] = useState(true);
+  const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
   // Mobile controls - yaw rate system (steering)
@@ -820,6 +821,8 @@ export const MazeGame3D = ({
           onToggleOpacityFade={() => setOpacityFadeEnabled(prev => !prev)}
           cornEnabled={cornEnabled}
           onToggleCorn={() => setCornEnabled(prev => !prev)}
+          sensitivityConfig={sensitivityConfig}
+          onSensitivityChange={setSensitivityConfig}
         />
       )}
 
@@ -835,6 +838,7 @@ export const MazeGame3D = ({
           wasdRef={mobileWasdRef}
           turnIntensityRef={mobileTurnIntensityRef}
           debugMode={debugMode}
+          sensitivityConfig={sensitivityConfig}
         />
       )}
 
