@@ -3,7 +3,7 @@ import { AnimalType } from '@/types/game';
 import { animals } from '@/data/animals';
 import { cn } from '@/lib/utils';
 import { PerformanceInfo } from './Maze3DScene';
-import { Volume2, VolumeX, RotateCcw } from 'lucide-react';
+import { Volume2, VolumeX, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,6 +14,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+// Sensitivity tuning config - exported for use in MobileControls
+export interface SensitivityConfig {
+  smallMoveSensitivity: number; // 1.0 - 5.0, higher = more sensitive for small moves
+  largeMoveSensitivity: number; // 1.0 - 3.0, higher = more sensitive for large moves
+  maxDragPixels: number;        // 30 - 80, pixels before max drag reached
+}
+
+export const DEFAULT_SENSITIVITY: SensitivityConfig = {
+  smallMoveSensitivity: 3.0,
+  largeMoveSensitivity: 1.5,
+  maxDragPixels: 50,
+};
 
 interface GameHUDProps {
   animalType: AnimalType;
@@ -56,6 +69,9 @@ interface GameHUDProps {
   onToggleOpacityFade?: () => void;
   cornEnabled?: boolean;
   onToggleCorn?: () => void;
+  // Sensitivity tuning
+  sensitivityConfig?: SensitivityConfig;
+  onSensitivityChange?: (config: SensitivityConfig) => void;
 }
 
 export const GameHUD = ({
@@ -95,10 +111,14 @@ export const GameHUD = ({
   onToggleOpacityFade,
   cornEnabled = true,
   onToggleCorn,
+  sensitivityConfig = DEFAULT_SENSITIVITY,
+  onSensitivityChange,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
   const [showQuitDialog, setShowQuitDialog] = useState(false);
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
 
   return (
     <>
@@ -258,7 +278,22 @@ export const GameHUD = ({
 
       {/* Full Performance Profiler Panel - only in debug mode */}
       {debugMode && performanceInfo && (
-        <div className="block absolute top-20 left-4 bg-black/80 rounded-lg px-3 py-2 text-xs font-mono text-white max-w-[280px] pointer-events-auto">
+        <div className={cn(
+          "block absolute top-20 left-4 bg-black/80 rounded-lg text-xs font-mono text-white pointer-events-auto transition-all",
+          leftPanelCollapsed ? "px-1 py-1" : "px-3 py-2 max-w-[280px]"
+        )}>
+          {/* Collapse toggle */}
+          <button 
+            onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
+            className="absolute -right-2 top-1/2 -translate-y-1/2 bg-black/80 rounded-r p-0.5 hover:bg-black"
+          >
+            {leftPanelCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+          </button>
+          
+          {leftPanelCollapsed ? (
+            <div className="text-yellow-400 font-bold text-[10px] writing-mode-vertical" style={{ writingMode: 'vertical-rl' }}>PERF</div>
+          ) : (
+          <>
           <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">PERF PROFILER</div>
           
           {/* Player Position */}
@@ -430,6 +465,93 @@ export const GameHUD = ({
               )}
             </div>
           </div>
+          
+          {/* Sensitivity Tuning */}
+          {onSensitivityChange && (
+            <div className="mt-2 pt-2 border-t border-gray-600">
+              <div className="text-[10px] text-gray-400 mb-1">--- Turn Sensitivity ---</div>
+              <div className="space-y-2">
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Small move sens:</span>
+                    <span className="text-cyan-400">{sensitivityConfig.smallMoveSensitivity.toFixed(1)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1.0"
+                    max="5.0"
+                    step="0.1"
+                    value={sensitivityConfig.smallMoveSensitivity}
+                    onChange={(e) => onSensitivityChange({
+                      ...sensitivityConfig,
+                      smallMoveSensitivity: parseFloat(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Large move sens:</span>
+                    <span className="text-cyan-400">{sensitivityConfig.largeMoveSensitivity.toFixed(1)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1.0"
+                    max="3.0"
+                    step="0.1"
+                    value={sensitivityConfig.largeMoveSensitivity}
+                    onChange={(e) => onSensitivityChange({
+                      ...sensitivityConfig,
+                      largeMoveSensitivity: parseFloat(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Max drag (px):</span>
+                    <span className="text-cyan-400">{sensitivityConfig.maxDragPixels}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="30"
+                    max="80"
+                    step="5"
+                    value={sensitivityConfig.maxDragPixels}
+                    onChange={(e) => onSensitivityChange({
+                      ...sensitivityConfig,
+                      maxDragPixels: parseInt(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          </>
+          )}
+        </div>
+      )}
+      
+      {/* Right Debug Panel (controls) - collapsible */}
+      {debugMode && (
+        <div className={cn(
+          "block absolute top-20 right-4 bg-black/80 rounded-lg text-xs font-mono text-white pointer-events-auto transition-all",
+          rightPanelCollapsed ? "px-1 py-1" : "px-3 py-2"
+        )}>
+          {/* Collapse toggle */}
+          <button 
+            onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+            className="absolute -left-2 top-1/2 -translate-y-1/2 bg-black/80 rounded-l p-0.5 hover:bg-black"
+          >
+            {rightPanelCollapsed ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+          </button>
+          
+          {rightPanelCollapsed ? (
+            <div className="text-yellow-400 font-bold text-[10px]" style={{ writingMode: 'vertical-rl' }}>DBG</div>
+          ) : (
+            <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">DEBUG CONTROLS</div>
+          )}
         </div>
       )}
 
