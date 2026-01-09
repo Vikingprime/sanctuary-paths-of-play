@@ -331,23 +331,27 @@ export const MobileControls = ({
   }, [mobileTouchActiveRef, isMovingRef, wasdRef, yawRateRef]);
 
   const handlePointerLeave = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Reset both controls on leave
-    if (leftPointerIdRef.current !== null) {
+    // Only reset the control that matches this pointer
+    if (leftPointerIdRef.current === e.pointerId) {
       leftPointerIdRef.current = null;
       leftAnchorRef.current = null;
       leftFingerRef.current = null;
+      wasdRef.current.w = false;
+      wasdRef.current.s = false;
       setJoystickState({ visible: false, baseX: 0, baseY: 0, knobY: 0, throttle: 0 });
     }
     
-    if (rightPointerIdRef.current !== null) {
+    if (rightPointerIdRef.current === e.pointerId) {
       rightPointerIdRef.current = null;
       rightStartRef.current = null;
+      wasdRef.current.a = false;
+      wasdRef.current.d = false;
       yawRateRef.current = 0;
     }
     
-    wasdRef.current = { w: false, a: false, s: false, d: false };
-    isMovingRef.current = false;
-    mobileTouchActiveRef.current = false;
+    // Update isMoving and mobileActive based on remaining touches
+    isMovingRef.current = wasdRef.current.w || wasdRef.current.s || wasdRef.current.a || wasdRef.current.d;
+    mobileTouchActiveRef.current = leftPointerIdRef.current !== null || rightPointerIdRef.current !== null;
   }, [mobileTouchActiveRef, isMovingRef, wasdRef, yawRateRef]);
 
   const { baseRadius, knobRadius, maxRadius } = getPixelValues();
