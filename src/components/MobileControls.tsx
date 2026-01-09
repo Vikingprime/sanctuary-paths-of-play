@@ -220,8 +220,8 @@ export const MobileControls = ({
         wasdRef.current.s = false;
       }
       
-      // Update isMoving based on current WASD state
-      isMovingRef.current = wasdRef.current.w || wasdRef.current.s || wasdRef.current.a || wasdRef.current.d;
+      // Update isMoving based on forward/backward movement only (not turning)
+      isMovingRef.current = wasdRef.current.w || wasdRef.current.s;
       
       animationFrameRef.current = requestAnimationFrame(updateLoop);
     };
@@ -298,9 +298,11 @@ export const MobileControls = ({
       const threshold = MOBILE_CONTROL_CONFIG.swipeThreshold;
       
       // Check for edge-hold: finger at screen edge with recent movement in that direction
+      // For leftward turns, "edge" is the middle of screen (since right side is for turning)
+      // For rightward turns, edge is the right edge of screen
       const edgeMargin = 20; // pixels from edge
       const screenWidth = screenDimensionsRef.current.width;
-      const atLeftEdge = e.clientX <= edgeMargin;
+      const atLeftEdge = e.clientX <= screenWidth * 0.5; // Middle of screen is "edge" for left turns
       const atRightEdge = e.clientX >= screenWidth - edgeMargin;
       
       if (absDx > threshold) {
