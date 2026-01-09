@@ -111,8 +111,11 @@ export const MobileControls = ({
     window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
   );
 
-  // Setup effects
+  // Setup effects - reset controls on mount to prevent stale state
   useEffect(() => {
+    // Immediately reset all control state on mount
+    resetControls();
+    
     document.documentElement.classList.add('game-active');
     document.body.style.overscrollBehavior = 'none';
     document.documentElement.style.overscrollBehavior = 'none';
