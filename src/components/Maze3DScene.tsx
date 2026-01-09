@@ -474,7 +474,7 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
         const pathUp = y > 0 && !maze.grid[y-1][x].isWall;
         
         const addGrass = (gx: number, gz: number, seedOffset: number) => {
-          const scale = (0.10 + seededRandom(seedOffset + 2) * 0.05) * 0.04;
+          const scale = 0.8 + seededRandom(seedOffset + 2) * 0.4; // 0.8-1.2 scale
           const rotation = seededRandom(seedOffset + 3) * Math.PI * 2;
           tempObject.position.set(gx, 0, gz);
           tempObject.rotation.set(0, rotation, 0);
