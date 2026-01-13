@@ -327,7 +327,8 @@ const mat = new ShaderMaterial({
           // Use fog color directly (no desaturation) for consistent atmosphere matching
           finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
           
-          gl_FragColor = vec4(finalColor, 1.0);
+          // Use linearToOutputTexel to match sky shader color space
+          gl_FragColor = linearToOutputTexel(vec4(finalColor, 1.0));
         }
       `,
     });
