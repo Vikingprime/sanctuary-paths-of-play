@@ -1884,16 +1884,24 @@ const SkyBackground = () => {
   
   useEffect(() => {
     const loader = new TextureLoader();
-    loader.load('/textures/sky.jpg', (texture) => {
-      texture.colorSpace = SRGBColorSpace;
-      scene.background = texture;
-    }, undefined, () => {
-      // On error, fallback to solid fog color
-      scene.background = new Color('#B8B0A0');
-    });
+    const skyUrl = `/textures/sky.jpg?t=${Date.now()}`; // Cache-busting
+    console.log('🌤️ Loading sky texture from:', skyUrl);
+    
+    loader.load(
+      skyUrl,
+      (texture) => {
+        texture.colorSpace = SRGBColorSpace;
+        scene.background = texture;
+        console.log('✅ Sky texture loaded:', texture.image?.width, 'x', texture.image?.height);
+      },
+      undefined,
+      (err) => {
+        console.error('❌ Sky texture failed to load:', err);
+        scene.background = new Color('#00FFFF'); // NEON CYAN for debugging
+      }
+    );
     
     return () => {
-      // Cleanup on unmount
       scene.background = null;
     };
   }, [scene]);
