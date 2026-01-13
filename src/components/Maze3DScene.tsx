@@ -1891,9 +1891,11 @@ const SkyBackground = () => {
     const ctx = canvas.getContext('2d')!;
     
     // Create vertical gradient (top to bottom on canvas)
+    // Blue only at very top, beige dominates most of the visible sky
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, '#2A5F9E');   // Sky blue (top of scene)
-    gradient.addColorStop(1, '#B8B0A0');   // Fog color (horizon)
+    gradient.addColorStop(0, '#2A5F9E');    // Sky blue at very top
+    gradient.addColorStop(0.25, '#B8B0A0'); // Transition to beige by 25% from top
+    gradient.addColorStop(1, '#B8B0A0');    // Beige the rest of the way
     
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
