@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
-import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, extend, useLoader } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
@@ -1903,12 +1903,22 @@ const SkyBackground = () => {
     }
   });
 
-  // ShaderMaterial for sky with sun disc, silhouettes, and gradient
-  // Uses raw hex colors and linearToOutputTexel to match scene.background lightness
+  // Load the farm horizon texture
+  const texture = useLoader(TextureLoader, '/textures/farm-horizon.png');
+  
+  // Configure texture for seamless wrapping
+  useMemo(() => {
+    texture.wrapS = RepeatWrapping;
+    texture.wrapT = ClampToEdgeWrapping;
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+  }, [texture]);
+  
+  // ShaderMaterial for sky using texture mapped to a cylinder-like projection
   const skyMaterial = useMemo(() => {
     const mat = new ShaderMaterial({
       uniforms: {
-        sunDirection: { value: new Vector3(0.0, 0.08, 1.0).normalize() },
+        skyTexture: { value: texture },
         gradientStart: { value: 0.48 },
       },
       vertexShader: `
@@ -1919,58 +1929,38 @@ const SkyBackground = () => {
         }
       `,
       fragmentShader: `
-        uniform vec3 sunDirection;
+        uniform sampler2D skyTexture;
         uniform float gradientStart;
         varying vec3 vLocalPosition;
         
-        // True linear RGB values - linearToOutputTexel will convert to sRGB #B8B0A0
-        const vec3 bottomColor = vec3(0.482, 0.437, 0.352); // #B8B0A0 in TRUE linear space
-        const vec3 blueColor = vec3(0.380, 0.569, 0.710);   // #6191B5
-        const vec3 sunColor = vec3(1.0, 0.867, 0.533);      // #FFDD88
-        
-        // Simple noise for tree variation
-        float hash(float n) { return fract(sin(n) * 43758.5453); }
-        
-        // Barn silhouette - mostly below horizon, only roof tip visible
-        float barnShape(vec2 uv) {
-          vec2 barnPos = vec2(-0.25, -0.06);
-          vec2 p = uv - barnPos;
-          float body = step(abs(p.x), 0.08) * step(0.0, p.y) * step(p.y, 0.06);
-          float roofY = 0.06;
-          float roof = step(roofY, p.y) * step(p.y, roofY + 0.05 - abs(p.x) * 0.5);
-          return max(body, roof);
-        }
+        const vec3 bottomColor = vec3(0.482, 0.437, 0.352); // #B8B0A0 fog color
         
         void main() {
           vec3 viewDir = normalize(vLocalPosition);
           float height = viewDir.y;
           float normalizedHeight = height * 0.5 + 0.5;
           
-          // CRITICAL: Below horizon = return bottomColor immediately, no math
+          // Calculate horizontal angle for texture U coordinate (wrap around)
+          float angle = atan(viewDir.x, viewDir.z);
+          float u = angle / (2.0 * 3.14159265) + 0.5;
+          
+          // Map height to texture V coordinate - image bottom at horizon
+          float v = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
+          v = clamp(v, 0.0, 1.0);
+          // Flip V since texture coordinates are bottom-up
+          v = 1.0 - v;
+          
+          // Below horizon = return bottomColor
           if (normalizedHeight <= gradientStart) {
             gl_FragColor = linearToOutputTexel(vec4(bottomColor, 1.0));
             return;
           }
           
-          // Sun disc and glow
-          float sunDot = max(dot(viewDir, sunDirection), 0.0);
-          float sunDisc = smoothstep(0.997, 0.999, sunDot);
-          float sunGlow = pow(sunDot, 64.0) * 0.4;
-          float sunHalo = pow(sunDot, 8.0) * 0.08;
+          vec4 texColor = texture2D(skyTexture, vec2(u, v));
           
-          // Fade sun effects in above horizon to prevent seam
-          float horizonFade = smoothstep(gradientStart, gradientStart + 0.05, normalizedHeight);
-          
-          // Gradient from beige to blue
-          float gradientFactor = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
-          gradientFactor = min(gradientFactor * 6.0, 1.0);
-          vec3 finalColor = mix(bottomColor, blueColor, gradientFactor);
-          
-          // Add sun effects - multiplied by horizonFade so they fade in smoothly
-          vec3 glowColor = vec3(1.0, 0.92, 0.75);
-          finalColor = mix(finalColor, glowColor, sunHalo * horizonFade);
-          finalColor = mix(finalColor, glowColor, sunGlow * horizonFade);
-          finalColor = mix(finalColor, vec3(1.0, 0.98, 0.9), sunDisc * horizonFade);
+          // Blend with fog color near horizon for smooth transition
+          float fogBlend = smoothstep(gradientStart, gradientStart + 0.08, normalizedHeight);
+          vec3 finalColor = mix(bottomColor, texColor.rgb, fogBlend);
           
           gl_FragColor = linearToOutputTexel(vec4(finalColor, 1.0));
         }
@@ -1981,7 +1971,7 @@ const SkyBackground = () => {
       toneMapped: false,
     });
     return mat;
-  }, []);
+  }, [texture]);
   
   return (
     <mesh ref={skyRef} renderOrder={-1000} material={skyMaterial}>
