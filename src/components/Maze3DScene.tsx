@@ -1886,19 +1886,18 @@ const SkyBackground = () => {
   const skyMaterial = useMemo(() => {
     return new ShaderMaterial({
       vertexShader: `
-        varying vec3 vWorldPosition;
+        varying vec3 vPosition;
         void main() {
-          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-          vWorldPosition = worldPosition.xyz;
+          vPosition = position; // Use local position, not world
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
         uniform vec3 topColor;
         uniform vec3 bottomColor;
-        varying vec3 vWorldPosition;
+        varying vec3 vPosition;
         void main() {
-          float h = normalize(vWorldPosition).y;
+          float h = normalize(vPosition).y;
           // Transition mostly beige - blue only when looking straight up at zenith
           float transition = smoothstep(-0.2, 0.8, h);
           gl_FragColor = vec4(mix(bottomColor, topColor, transition), 1.0);
