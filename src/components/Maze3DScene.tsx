@@ -1932,7 +1932,7 @@ const SkyBackground = () => {
           float normalizedHeight = height * 0.5 + 0.5; // Map -1..1 to 0..1
           
           // Draw THICK bright red debug line at redLinePos
-          if (normalizedHeight > redLinePos - 0.005 && normalizedHeight < redLinePos + 0.005) {
+          if (normalizedHeight > redLinePos - 0.015 && normalizedHeight < redLinePos + 0.015) {
             gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
             return;
           }
