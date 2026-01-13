@@ -1903,37 +1903,23 @@ const SkyBackground = () => {
     }
   });
 
-  // ShaderMaterial for gradient: solid beige until 30%, then transitions to blue
+  // ShaderMaterial for sky - temporarily solid beige for testing
   // Uses raw hex colors and linearToOutputTexel to match scene.background lightness
   const skyMaterial = useMemo(() => {
     const mat = new ShaderMaterial({
       uniforms: {
-        bottomColor: { value: new Color(0xB8B0A0) }, // Raw hex, no conversion
-        topColor: { value: new Color(0x6191B5) },    // Raw hex, no conversion
-        gradientStart: { value: 0.40 }, // Solid beige until 40%, then gradient starts
+        skyColor: { value: new Color(0xB8B0A0) }, // Raw hex, no conversion
       },
       vertexShader: `
-        varying vec3 vWorldPosition;
         void main() {
-          vec4 worldPos = modelMatrix * vec4(position, 1.0);
-          vWorldPosition = worldPos.xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
-        uniform vec3 bottomColor;
-        uniform vec3 topColor;
-        uniform float gradientStart;
-        varying vec3 vWorldPosition;
+        uniform vec3 skyColor;
         void main() {
-          // Normalize Y from -1 to 1 based on sphere, then map to 0-1
-          float h = normalize(vWorldPosition).y;
-          float t = h * 0.5 + 0.5; // 0 at bottom, 1 at top
-          // Solid beige below gradientStart, then linear blend to blue above
-          float blend = clamp((t - gradientStart) / (1.0 - gradientStart), 0.0, 1.0);
-          vec3 finalColor = mix(bottomColor, topColor, blend);
-          // Match renderer's output colorspace
-          gl_FragColor = linearToOutputTexel(vec4(finalColor, 1.0));
+          // Solid color everywhere
+          gl_FragColor = linearToOutputTexel(vec4(skyColor, 1.0));
         }
       `,
       side: BackSide,
