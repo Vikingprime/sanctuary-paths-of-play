@@ -1993,16 +1993,19 @@ const SkyBackground = () => {
           float sunGlow = pow(sunDot, 64.0) * 0.4;
           float sunHalo = pow(sunDot, 8.0) * 0.08;
           
+          // Fade sun effects in above horizon to prevent seam
+          float horizonFade = smoothstep(gradientStart, gradientStart + 0.05, normalizedHeight);
+          
           // Gradient from beige to blue
           float gradientFactor = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
           gradientFactor = min(gradientFactor * 6.0, 1.0);
           vec3 finalColor = mix(bottomColor, blueColor, gradientFactor);
           
-          // Add sun effects
+          // Add sun effects - multiplied by horizonFade so they fade in smoothly
           vec3 glowColor = vec3(1.0, 0.92, 0.75);
-          finalColor = mix(finalColor, glowColor, sunHalo);
-          finalColor = mix(finalColor, glowColor, sunGlow);
-          finalColor = mix(finalColor, vec3(1.0, 0.98, 0.9), sunDisc);
+          finalColor = mix(finalColor, glowColor, sunHalo * horizonFade);
+          finalColor = mix(finalColor, glowColor, sunGlow * horizonFade);
+          finalColor = mix(finalColor, vec3(1.0, 0.98, 0.9), sunDisc * horizonFade);
           
           // Silhouettes - only near horizon
           float silhouetteMask = 0.0;
