@@ -1887,6 +1887,18 @@ const SKY_TOP_COLOR = '#6191B5';          // Sky blue at zenith
 const SKY_BOTTOM_COLOR = ATMOSPHERE_COLOR; // Match fog color exactly
 
 // Sky dome component - 3D sphere with gradient shader for fixed-in-world sky
+// Simple component to set scene.background color
+const SceneBackground = ({ color }: { color: string }) => {
+  const { scene } = useThree();
+  
+  useEffect(() => {
+    scene.background = new Color(color);
+    return () => { scene.background = null; };
+  }, [scene, color]);
+  
+  return null;
+};
+
 const SkyBackground = () => {
   const skyRef = useRef<Mesh>(null);
   const { camera, scene } = useThree();
@@ -2072,7 +2084,7 @@ return (
       
       {/* Sky orb temporarily disabled - testing scene.background instead */}
       {/* <SkyBackground /> */}
-      <color attach="background" args={[ATMOSPHERE_COLOR]} />
+      <SceneBackground color={ATMOSPHERE_COLOR} />
       
       {/* Exponential fog - uses unified atmosphere color
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
