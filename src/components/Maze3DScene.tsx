@@ -1911,7 +1911,7 @@ const SkyBackground = () => {
         skyColor: { value: new Color(0xB8B0A0) },
         blueColor: { value: new Color(0x6191B5) },
         sunColor: { value: new Color(0xFFAA44) },
-        sunDirection: { value: new Vector3(15, 35, 15).normalize() },
+        sunDirection: { value: new Vector3(1.0, 0.3, 0.5).normalize() }, // Low on horizon
         gradientStart: { value: 0.50 },
       },
       vertexShader: `
@@ -1935,8 +1935,8 @@ const SkyBackground = () => {
           
           // Sun glow - dot product with sun direction
           float sunDot = max(dot(viewDir, sunDirection), 0.0);
-          float sunGlow = pow(sunDot, 32.0); // Tight sun core
-          float sunHalo = pow(sunDot, 4.0) * 0.4; // Wider soft halo
+          float sunGlow = pow(sunDot, 16.0); // Larger sun core
+          float sunHalo = pow(sunDot, 3.0) * 0.5; // Wider soft halo
           
           vec3 finalColor;
           
@@ -1944,9 +1944,9 @@ const SkyBackground = () => {
           if (normalizedHeight <= gradientStart) {
             finalColor = skyColor;
           } else {
-            // Above gradientStart: VERY FAST gradient from beige to blue
+            // Above gradientStart: FAST gradient from beige to blue
             float gradientFactor = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
-            gradientFactor = min(gradientFactor * 8.0, 1.0); // 8x faster transition
+            gradientFactor = min(gradientFactor * 6.0, 1.0); // 6x faster transition
             finalColor = mix(skyColor, blueColor, gradientFactor);
           }
           
