@@ -1935,8 +1935,8 @@ const SkyBackground = () => {
           
           // Sun glow - dot product with sun direction
           float sunDot = max(dot(viewDir, sunDirection), 0.0);
-          float sunGlow = pow(sunDot, 16.0) * 0.5; // Larger sun core, 50% weaker
-          float sunHalo = pow(sunDot, 3.0) * 0.25; // Wider soft halo, 50% weaker
+          float sunGlow = pow(sunDot, 16.0) * 0.25; // Sun core, 25% intensity
+          float sunHalo = pow(sunDot, 3.0) * 0.125; // Soft halo, 25% intensity
           
           vec3 finalColor;
           
