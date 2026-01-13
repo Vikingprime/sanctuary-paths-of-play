@@ -1887,6 +1887,7 @@ const SKY_TOP_COLOR = '#6191B5';          // Sky blue at zenith
 const SKY_BOTTOM_COLOR = ATMOSPHERE_COLOR; // Match fog color exactly
 
 // Sky dome component - 3D sphere that renders the sky without scene.background
+// Gradient starts at 99% up (mostly beige, tiny blue cap at zenith)
 const SkyBackground = () => {
   const skyRef = useRef<Mesh>(null);
   const { camera } = useThree();
@@ -1898,13 +1899,37 @@ const SkyBackground = () => {
     }
   });
 
-  // Create MeshBasicMaterial with proper color management settings
-  // toneMapped = false prevents darkening from cinematic lighting filters
-  // We use the raw hex color - MeshBasicMaterial with toneMapped=false 
-  // will output the color directly without any color space conversions
+  // ShaderMaterial for gradient: beige everywhere, blue only at very top (99%+)
   const skyMaterial = useMemo(() => {
-    const mat = new MeshBasicMaterial({
-      color: 0xB8B0A0,
+    const mat = new ShaderMaterial({
+      uniforms: {
+        bottomColor: { value: new Color(0xB8B0A0).convertSRGBToLinear() },
+        topColor: { value: new Color(0x6191B5).convertSRGBToLinear() },
+        gradientStart: { value: 0.99 }, // Start gradient at 99% up
+      },
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        void main() {
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPos.xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 bottomColor;
+        uniform vec3 topColor;
+        uniform float gradientStart;
+        varying vec3 vWorldPosition;
+        void main() {
+          // Normalize Y from -1 to 1 based on sphere, then map to 0-1
+          float h = normalize(vWorldPosition).y;
+          float t = h * 0.5 + 0.5; // 0 at bottom, 1 at top
+          // Only blend in the top 1% (from gradientStart to 1.0)
+          float blend = smoothstep(gradientStart, 1.0, t);
+          vec3 color = mix(bottomColor, topColor, blend);
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `,
       side: BackSide,
       fog: false,
       depthWrite: false,
@@ -1915,7 +1940,7 @@ const SkyBackground = () => {
   
   return (
     <mesh ref={skyRef} renderOrder={-1000} material={skyMaterial}>
-      <sphereGeometry args={[95, 32, 15]} />
+      <sphereGeometry args={[95, 32, 32]} />
     </mesh>
   );
 };
