@@ -1903,23 +1903,48 @@ const SkyBackground = () => {
     }
   });
 
-  // ShaderMaterial for sky - temporarily solid beige for testing
+  // ShaderMaterial for sky - debug mode with red line to show gradient start
   // Uses raw hex colors and linearToOutputTexel to match scene.background lightness
   const skyMaterial = useMemo(() => {
     const mat = new ShaderMaterial({
       uniforms: {
-        skyColor: { value: new Color(0xB8B0A0) }, // Raw hex, no conversion
+        skyColor: { value: new Color(0xB8B0A0) },
+        blueColor: { value: new Color(0x87CEEB) },
+        gradientStart: { value: 0.55 }, // Start gradient at 55% up (above corn height)
       },
       vertexShader: `
+        varying vec3 vLocalPosition;
         void main() {
+          vLocalPosition = position;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
         uniform vec3 skyColor;
+        uniform vec3 blueColor;
+        uniform float gradientStart;
+        varying vec3 vLocalPosition;
         void main() {
-          // Solid color everywhere
-          gl_FragColor = linearToOutputTexel(vec4(skyColor, 1.0));
+          // Use local Y position normalized to sphere radius
+          float height = normalize(vLocalPosition).y;
+          float normalizedHeight = height * 0.5 + 0.5; // Map -1..1 to 0..1
+          
+          // Draw bright red debug line at gradient start
+          if (normalizedHeight > gradientStart - 0.005 && normalizedHeight < gradientStart + 0.005) {
+            gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+            return;
+          }
+          
+          // Below the line: solid beige
+          if (normalizedHeight <= gradientStart) {
+            gl_FragColor = linearToOutputTexel(vec4(skyColor, 1.0));
+            return;
+          }
+          
+          // Above the line: gradient from beige to blue
+          float gradientFactor = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
+          vec3 finalColor = mix(skyColor, blueColor, gradientFactor);
+          gl_FragColor = linearToOutputTexel(vec4(finalColor, 1.0));
         }
       `,
       side: BackSide,
