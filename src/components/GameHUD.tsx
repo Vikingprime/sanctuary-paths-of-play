@@ -72,6 +72,9 @@ interface GameHUDProps {
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
+  // Mobile controls toggle (WASD only mode)
+  mobileControlsEnabled?: boolean;
+  onToggleMobileControls?: () => void;
 }
 
 export const GameHUD = ({
@@ -113,6 +116,8 @@ export const GameHUD = ({
   onToggleCorn,
   sensitivityConfig = DEFAULT_SENSITIVITY,
   onSensitivityChange,
+  mobileControlsEnabled = true,
+  onToggleMobileControls,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -461,6 +466,18 @@ export const GameHUD = ({
                   )}
                 >
                   Corn
+                </button>
+              )}
+              {onToggleMobileControls && (
+                <button
+                  onClick={onToggleMobileControls}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    mobileControlsEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                  title="Disable mobile controls to use WASD only"
+                >
+                  Mobile
                 </button>
               )}
             </div>
