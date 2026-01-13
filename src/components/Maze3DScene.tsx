@@ -1914,9 +1914,9 @@ const SkyBackground = () => {
     });
   }, []);
   
-  // Set fallback background color
+  // Remove any scene.background so the sky mesh is visible
   useEffect(() => {
-    scene.background = new Color('#B8B0A0');
+    scene.background = null;
     return () => { scene.background = null; };
   }, [scene]);
   
@@ -1928,7 +1928,7 @@ const SkyBackground = () => {
   });
   
   return (
-    <mesh ref={skyRef} material={skyMaterial}>
+    <mesh ref={skyRef} material={skyMaterial} renderOrder={-1000}>
       <sphereGeometry args={[4000, 32, 15]} />
     </mesh>
   );
