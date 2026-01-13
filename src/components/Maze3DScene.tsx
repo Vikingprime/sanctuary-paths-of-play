@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, TextureLoader, SRGBColorSpace } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, CanvasTexture, SRGBColorSpace } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
@@ -1883,25 +1883,29 @@ const SkyBackground = () => {
   const { scene } = useThree();
   
   useEffect(() => {
-    const loader = new TextureLoader();
-    const skyUrl = `/textures/sky.jpg?t=${Date.now()}`; // Cache-busting
-    console.log('🌤️ Loading sky texture from:', skyUrl);
+    // Create a canvas-based gradient texture
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;      // Only need 2 pixels wide
+    canvas.height = 512;   // Vertical resolution for smooth gradient
     
-    loader.load(
-      skyUrl,
-      (texture) => {
-        texture.colorSpace = SRGBColorSpace;
-        scene.background = texture;
-        console.log('✅ Sky texture loaded:', texture.image?.width, 'x', texture.image?.height);
-      },
-      undefined,
-      (err) => {
-        console.error('❌ Sky texture failed to load:', err);
-        scene.background = new Color('#00FFFF'); // NEON CYAN for debugging
-      }
-    );
+    const ctx = canvas.getContext('2d')!;
+    
+    // Create vertical gradient (top to bottom on canvas)
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, '#2A5F9E');   // Sky blue (top of scene)
+    gradient.addColorStop(1, '#B8B0A0');   // Fog color (horizon)
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Create texture from canvas
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    
+    scene.background = texture;
     
     return () => {
+      texture.dispose();
       scene.background = null;
     };
   }, [scene]);
