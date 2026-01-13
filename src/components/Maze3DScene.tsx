@@ -1911,7 +1911,7 @@ const SkyBackground = () => {
         skyColor: { value: new Color(0xB8B0A0) },
         blueColor: { value: new Color(0x87CEEB) },
         gradientStart: { value: 0.40 }, // Start gradient at 40%
-        redLinePos: { value: 0.52 }, // Red line at 52%
+        redLinePos: { value: 0.45 }, // Red line at 45%
       },
       vertexShader: `
         varying vec3 vLocalPosition;
