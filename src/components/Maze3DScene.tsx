@@ -1943,8 +1943,9 @@ const SkyBackground = () => {
             return;
           }
           
-          // Above gradientStart: gradient from beige to blue
+          // Above gradientStart: FAST gradient from beige to blue
           float gradientFactor = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
+          gradientFactor = min(gradientFactor * 4.0, 1.0); // 4x faster transition
           vec3 finalColor = mix(skyColor, blueColor, gradientFactor);
           gl_FragColor = linearToOutputTexel(vec4(finalColor, 1.0));
         }
