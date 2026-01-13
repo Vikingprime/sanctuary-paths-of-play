@@ -378,6 +378,11 @@ export const MobileControls = ({
       turnIntensityRef.current = 1.0; // Reset intensity
       yawRateRef.current = 0;
       isMovingRef.current = wasdRef.current.w || wasdRef.current.s;
+      
+      // Reset mobileTouchActive if left is also released
+      if (leftPointerIdRef.current === null) {
+        mobileTouchActiveRef.current = false;
+      }
     }
     
     try {
