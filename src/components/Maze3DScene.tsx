@@ -1932,26 +1932,26 @@ const SkyBackground = () => {
         // Simple noise for tree variation
         float hash(float n) { return fract(sin(n) * 43758.5453); }
         
-        // Barn silhouette - positioned left of sun
+        // Barn silhouette - mostly below horizon, only roof tip visible
         float barnShape(vec2 uv) {
-          // Barn body
-          vec2 barnPos = vec2(-0.25, 0.0);
+          // Barn body - positioned below horizon
+          vec2 barnPos = vec2(-0.25, -0.06);
           vec2 p = uv - barnPos;
           float body = step(abs(p.x), 0.08) * step(0.0, p.y) * step(p.y, 0.06);
-          // Barn roof (triangle)
+          // Barn roof (triangle) - this pokes above horizon
           float roofY = 0.06;
           float roof = step(roofY, p.y) * step(p.y, roofY + 0.05 - abs(p.x) * 0.5);
           return max(body, roof);
         }
         
-        // Windmill silhouette - positioned right of barn
+        // Windmill silhouette - tower mostly hidden, only top blades visible
         float windmillShape(vec2 uv) {
-          vec2 wmPos = vec2(-0.05, 0.0);
+          vec2 wmPos = vec2(-0.05, -0.10);
           vec2 p = uv - wmPos;
-          // Tower (tapered)
+          // Tower (tapered) - mostly below horizon
           float towerWidth = 0.015 + p.y * 0.01;
           float tower = step(abs(p.x), towerWidth) * step(0.0, p.y) * step(p.y, 0.12);
-          // Blades hub
+          // Blades hub - at top of tower, just above horizon
           float hubY = 0.12;
           vec2 hubP = p - vec2(0.0, hubY);
           float hub = step(length(hubP), 0.012);
@@ -1968,12 +1968,12 @@ const SkyBackground = () => {
           return max(max(tower, hub), blades);
         }
         
-        // Tree silhouette function
+        // Tree silhouette function - positioned below horizon so only tops peek above
         float treeShape(vec2 uv, vec2 pos, float size, float variation) {
           vec2 p = uv - pos;
-          // Trunk
+          // Trunk - below horizon
           float trunk = step(abs(p.x), 0.008 * size) * step(0.0, p.y) * step(p.y, 0.03 * size);
-          // Foliage (rounded blob with variation)
+          // Foliage (rounded blob with variation) - top portion visible above horizon
           vec2 foliageCenter = vec2(0.0, 0.05 * size);
           float foliageRadius = 0.035 * size * (1.0 + variation * 0.3);
           float foliage = step(length(p - foliageCenter), foliageRadius);
@@ -2013,23 +2013,23 @@ const SkyBackground = () => {
           finalColor = mix(finalColor, glowColor, sunGlow);
           finalColor = mix(finalColor, vec3(1.0, 0.95, 0.8), sunDisc); // Bright sun disc
           
-          // Silhouettes - only draw near horizon
+          // Silhouettes - positioned so only tips appear above horizon (height ~0)
           float silhouetteMask = 0.0;
-          if (height > -0.02 && height < 0.08) {
-            // Barn
+          if (height > -0.15 && height < 0.06) {
+            // Barn - mostly below horizon
             silhouetteMask = max(silhouetteMask, barnShape(skyUV));
-            // Windmill
+            // Windmill - mostly below horizon
             silhouetteMask = max(silhouetteMask, windmillShape(skyUV));
             
-            // Trees scattered across horizon
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.6, 0.0), 1.2, 0.1));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.45, 0.0), 0.9, 0.3));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.38, 0.0), 1.0, 0.2));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.15, 0.0), 1.1, 0.15));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.25, 0.0), 0.85, 0.4));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.35, 0.0), 1.3, 0.05));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.5, 0.0), 1.0, 0.25));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.65, 0.0), 0.95, 0.35));
+            // Trees scattered across horizon - positioned below so tops peek above
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.6, -0.04), 1.2, 0.1));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.45, -0.035), 0.9, 0.3));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.38, -0.045), 1.0, 0.2));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.15, -0.03), 1.1, 0.15));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.25, -0.04), 0.85, 0.4));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.35, -0.035), 1.3, 0.05));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.5, -0.045), 1.0, 0.25));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.65, -0.038), 0.95, 0.35));
           }
           
           // Apply silhouettes as dark shapes
@@ -2160,10 +2160,9 @@ return (
       <ambientLight intensity={0.9} color="#FFF8F0" />
       
       {/* Main sun light - follows player for consistent shadows */}
-      {/* Main sun light - lower position to match horizon sun */}
       <directionalLight
         ref={lightRef}
-        position={[0, 8, 40]}
+        position={[15, 35, 15]}
         intensity={3.5}
         color="#FFFDF5"
         castShadow={shadowsEnabled}
