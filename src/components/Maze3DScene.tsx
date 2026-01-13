@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend, useLoader } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
@@ -1906,13 +1906,17 @@ const SkyBackground = () => {
   // Load the farm horizon texture
   const texture = useLoader(TextureLoader, '/textures/farm-horizon.png');
   
-  // Configure texture for seamless wrapping
+  // Configure texture for seamless wrapping with better quality filtering
+  const { gl } = useThree();
   useMemo(() => {
     texture.wrapS = RepeatWrapping;
     texture.wrapT = ClampToEdgeWrapping;
-    texture.minFilter = LinearFilter;
+    texture.minFilter = LinearMipmapLinearFilter;
     texture.magFilter = LinearFilter;
-  }, [texture]);
+    texture.generateMipmaps = true;
+    texture.anisotropy = gl.capabilities.getMaxAnisotropy();
+    texture.needsUpdate = true;
+  }, [texture, gl]);
   
   // ShaderMaterial for sky using cylindrical projection (no vertical stretching)
   const skyMaterial = useMemo(() => {
@@ -1920,7 +1924,7 @@ const SkyBackground = () => {
       uniforms: {
         skyTexture: { value: texture },
         horizonHeight: { value: 0.05 },   // Where horizon sits in view space (-1 to 1)
-        imageHeight: { value: 0.6 },      // Taller band to preserve aspect ratio
+        imageHeight: { value: 0.8 },      // Taller band to preserve aspect ratio
         bottomColor: { value: new Color(ATMOSPHERE_COLOR) },
         topColor: { value: new Color(SKY_TOP_COLOR) },
       },
