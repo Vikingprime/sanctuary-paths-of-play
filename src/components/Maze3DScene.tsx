@@ -1878,6 +1878,10 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
+// Sky colors - single source of truth
+const SKY_TOP_COLOR = '#6191B5';    // Sky blue at zenith
+const SKY_BOTTOM_COLOR = '#aeaa98'; // Match fog color
+
 // Sky dome component - 3D sphere with gradient shader for fixed-in-world sky
 const SkyBackground = () => {
   const skyRef = useRef<Mesh>(null);
@@ -1888,7 +1892,7 @@ const SkyBackground = () => {
       vertexShader: `
         varying vec3 vPosition;
         void main() {
-          vPosition = position; // Use local position, not world
+          vPosition = position;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
@@ -1898,18 +1902,17 @@ const SkyBackground = () => {
         varying vec3 vPosition;
         void main() {
           float h = normalize(vPosition).y;
-          // 95% beige - blue only at very top (zenith)
           float transition = smoothstep(0.7, 1.0, h);
           gl_FragColor = vec4(mix(bottomColor, topColor, transition), 1.0);
         }
       `,
       uniforms: {
-        topColor: { value: new Color('#6191B5') },    // Sky blue at zenith
-        bottomColor: { value: new Color('#aeaa98') }, // Match desaturated fog color
+        topColor: { value: new Color(SKY_TOP_COLOR) },
+        bottomColor: { value: new Color(SKY_BOTTOM_COLOR) },
       },
       side: BackSide,
-      fog: false,        // Prevents fog from obscuring the sky
-      depthWrite: false, // Sky is always behind everything
+      fog: false,
+      depthWrite: false,
     });
   }, []);
   
