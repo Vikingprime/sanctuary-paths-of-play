@@ -13,6 +13,11 @@ import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics, checkGcSpike } from '@/lib/debug';
 import { MOBILE_CONTROL_CONFIG } from './MobileControls';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
+
+// ============= UNIFIED FOG/ATMOSPHERE COLOR =============
+// Single source of truth for fog, sky horizon, and ground shader fog
+// All atmospheric elements should use this beige tone
+const ATMOSPHERE_COLOR = '#B8B0A0';  // Warm beige fog/atmosphere
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
@@ -124,8 +129,8 @@ const mat = new ShaderMaterial({
         rockLight: { value: new Color('#C4B090') },
         rockMid: { value: new Color('#A08060') },
         rockDark: { value: new Color('#705540') },
-        // Fog uniforms - warm neutral atmospheric tone matching horizon
-        fogColor: { value: new Color('#B8B0A0') },
+        // Fog uniforms - uses unified atmosphere color
+        fogColor: { value: new Color(ATMOSPHERE_COLOR) },
         fogDensity: { value: 0.14 },  // Matches scene fog density
         fogHeightMax: { value: 2.5 },  // Height above which fog fades out
       },
@@ -319,9 +324,8 @@ const mat = new ShaderMaterial({
           float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
           fogFactor *= heightAttenuation;
           
-          // Desaturate fog slightly for more atmospheric look
-          vec3 desatFogColor = mix(fogColor, vec3(dot(fogColor, vec3(0.299, 0.587, 0.114))), 0.2);
-          finalColor = mix(finalColor, desatFogColor, clamp(fogFactor, 0.0, 1.0));
+          // Use fog color directly (no desaturation) for consistent atmosphere matching
+          finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
@@ -1878,9 +1882,9 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-// Sky colors - single source of truth
-const SKY_TOP_COLOR = '#6191B5';    // Sky blue at zenith
-const SKY_BOTTOM_COLOR = '#ffffff'; // WHITE for testing
+// Sky colors - uses unified atmosphere color for horizon
+const SKY_TOP_COLOR = '#6191B5';          // Sky blue at zenith
+const SKY_BOTTOM_COLOR = ATMOSPHERE_COLOR; // Match fog color exactly
 
 // Sky dome component - 3D sphere with gradient shader for fixed-in-world sky
 const SkyBackground = () => {
@@ -2075,10 +2079,9 @@ return (
       {/* Sky texture background - fog won't affect this */}
       <SkyBackground />
       
-      {/* Exponential fog - warm neutral tone for atmosphere
+      {/* Exponential fog - uses unified atmosphere color
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
-      <fogExp2 attach="fog" args={['#B8B0A0', 0.14]} />
-      
+      <fogExp2 attach="fog" args={[ATMOSPHERE_COLOR, 0.14]} />
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} />
       
