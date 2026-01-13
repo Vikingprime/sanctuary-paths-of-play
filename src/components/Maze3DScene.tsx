@@ -1908,11 +1908,12 @@ const SkyBackground = () => {
   const skyMaterial = useMemo(() => {
     const mat = new ShaderMaterial({
       uniforms: {
-        skyColor: { value: new Color(0xB8B0A0) },
-        blueColor: { value: new Color(0x6191B5) },
-        sunColor: { value: new Color(0xFFDD88) }, // Warm yellow sun
-        sunDirection: { value: new Vector3(0.0, 0.08, 1.0).normalize() }, // Very low on horizon, straight ahead
-        gradientStart: { value: 0.50 },
+        // Colors in linear space - will be converted by linearToOutputTexel
+        skyColor: { value: new Color(0xB8B0A0).convertSRGBToLinear() },
+        blueColor: { value: new Color(0x6191B5).convertSRGBToLinear() },
+        sunColor: { value: new Color(0xFFDD88).convertSRGBToLinear() },
+        sunDirection: { value: new Vector3(0.0, 0.08, 1.0).normalize() },
+        gradientStart: { value: 0.50 }, // normalizedHeight 0.5 = height 0.0 (horizon)
       },
       vertexShader: `
         varying vec3 vLocalPosition;
