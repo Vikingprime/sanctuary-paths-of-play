@@ -1914,23 +1914,17 @@ const SkyBackground = () => {
     <mesh ref={skyRef} renderOrder={-1000}>
       <sphereGeometry args={[95, 32, 15]} />
       <shaderMaterial
-        key="sky-material-white"
+        key="sky-material-solid"
         attach="material"
         vertexShader={`
-          varying vec3 vPosition;
           void main() {
-            vPosition = position;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
           }
         `}
         fragmentShader={`
-          uniform vec3 topColor;
           uniform vec3 bottomColor;
-          varying vec3 vPosition;
           void main() {
-            float h = normalize(vPosition).y;
-            float transition = smoothstep(0.7, 1.0, h);
-            gl_FragColor = vec4(mix(bottomColor, topColor, transition), 1.0);
+            gl_FragColor = vec4(bottomColor, 1.0);
           }
         `}
         uniforms={uniforms.current}
