@@ -115,6 +115,9 @@ export const MazeGame3D = ({
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   const mobileWasdRef = useRef({ w: false, a: false, s: false, d: false }); // WASD joystick state
   const mobileTurnIntensityRef = useRef(1.0); // Proportional turn intensity based on drag speed
+  
+  // Debug toggle to completely disable mobile controls (WASD only mode)
+  const [mobileControlsEnabled, setMobileControlsEnabled] = useState(true);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   
   // Dialogue state
@@ -823,12 +826,14 @@ export const MazeGame3D = ({
           onToggleCorn={() => setCornEnabled(prev => !prev)}
           sensitivityConfig={sensitivityConfig}
           onSensitivityChange={setSensitivityConfig}
+          mobileControlsEnabled={mobileControlsEnabled}
+          onToggleMobileControls={() => setMobileControlsEnabled(prev => !prev)}
         />
       )}
 
-      {/* Mobile Controls - only render after preview ends to not block preview buttons */}
-      {!isPreviewing && (
-        <MobileControls 
+      {/* Mobile Controls - only render after preview ends AND if enabled */}
+      {!isPreviewing && mobileControlsEnabled && (
+        <MobileControls
           playerStateRef={playerStateRef}
           targetYawRef={mobileTargetYawRef}
           yawRateRef={mobileYawRateRef}
