@@ -1939,8 +1939,9 @@ const SkyBackground = () => {
           // Normalize height from -1 to 1, then remap to 0-1
           float h = normalize(vWorldPosition).y;
           float t = h * 0.5 + 0.5;
-          // Smooth gradient from bottom to top
-          vec3 color = mix(bottomColor, topColor, t);
+          // Only start gradient at 95% height - remap t from 0.95-1.0 to 0-1
+          float gradientT = smoothstep(0.95, 1.0, t);
+          vec3 color = mix(bottomColor, topColor, gradientT);
           gl_FragColor = vec4(color, 1.0);
         }
       `,
