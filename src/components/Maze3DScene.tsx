@@ -1914,12 +1914,15 @@ const SkyBackground = () => {
     texture.magFilter = LinearFilter;
   }, [texture]);
   
-  // ShaderMaterial for sky using texture mapped to a cylinder-like projection
+  // ShaderMaterial for sky using cylindrical projection (no vertical stretching)
   const skyMaterial = useMemo(() => {
     const mat = new ShaderMaterial({
       uniforms: {
         skyTexture: { value: texture },
-        gradientStart: { value: 0.48 },
+        horizonHeight: { value: 0.0 },    // Where horizon sits in view space (-1 to 1)
+        imageHeight: { value: 0.35 },     // How tall the image band is in view space
+        bottomColor: { value: new Color(ATMOSPHERE_COLOR) },
+        topColor: { value: new Color(SKY_TOP_COLOR) },
       },
       vertexShader: `
         varying vec3 vLocalPosition;
@@ -1930,24 +1933,39 @@ const SkyBackground = () => {
       `,
       fragmentShader: `
         uniform sampler2D skyTexture;
-        uniform float gradientStart;
+        uniform float horizonHeight;
+        uniform float imageHeight;
+        uniform vec3 bottomColor;
+        uniform vec3 topColor;
         varying vec3 vLocalPosition;
         
         void main() {
           vec3 viewDir = normalize(vLocalPosition);
-          float height = viewDir.y;
-          float normalizedHeight = height * 0.5 + 0.5;
+          float height = viewDir.y; // -1 (down) to 1 (up)
+          
+          // Image band boundaries
+          float imageBottom = horizonHeight - imageHeight * 0.5;
+          float imageTop = horizonHeight + imageHeight * 0.5;
           
           // Calculate horizontal angle for texture U coordinate (wrap around)
           float angle = atan(viewDir.x, viewDir.z);
           float u = angle / (2.0 * 3.14159265) + 0.5;
           
-          // Map full sphere to texture - show the image everywhere
-          float v = normalizedHeight - 0.15; // Shift image up so barn appears above corn
-          
-          vec4 texColor = texture2D(skyTexture, vec2(u, v));
-          
-          gl_FragColor = vec4(texColor.rgb, 1.0);
+          // Check if we're in the image band
+          if (height >= imageBottom && height <= imageTop) {
+            // Map height within band to V coordinate (0 to 1)
+            float v = 1.0 - (height - imageBottom) / imageHeight;
+            vec4 texColor = texture2D(skyTexture, vec2(u, v));
+            gl_FragColor = vec4(texColor.rgb, 1.0);
+          } else if (height < imageBottom) {
+            // Below image: solid fog color
+            gl_FragColor = vec4(bottomColor, 1.0);
+          } else {
+            // Above image: gradient to sky blue
+            float t = clamp((height - imageTop) / (1.0 - imageTop), 0.0, 1.0);
+            vec3 gradColor = mix(topColor, topColor * 0.8, t);
+            gl_FragColor = vec4(gradColor, 1.0);
+          }
         }
       `,
       side: BackSide,
