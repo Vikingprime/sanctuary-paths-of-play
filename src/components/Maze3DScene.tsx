@@ -1906,7 +1906,7 @@ const SkyBackground = () => {
       uniforms: {
         bottomColor: { value: new Color(0xB8B0A0) }, // Raw hex, no conversion
         topColor: { value: new Color(0x6191B5) },    // Raw hex, no conversion
-        gradientStart: { value: 0.30 }, // Start gradient at 30% up
+        gradientStart: { value: 0.50 }, // Start gradient at 50% up
       },
       vertexShader: `
         varying vec3 vWorldPosition;
