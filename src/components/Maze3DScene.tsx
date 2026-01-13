@@ -1989,11 +1989,11 @@ const SkyBackground = () => {
           float angle = atan(viewDir.x, viewDir.z);
           vec2 skyUV = vec2(angle / 3.14159, height);
           
-          // Sun disc and glow - very low on horizon
+          // Sun disc and glow - subtle, doesn't overpower the beige
           float sunDot = max(dot(viewDir, sunDirection), 0.0);
           float sunDisc = smoothstep(0.997, 0.999, sunDot); // Sharp sun disc
-          float sunGlow = pow(sunDot, 32.0) * 0.6; // Bright inner glow
-          float sunHalo = pow(sunDot, 4.0) * 0.3; // Wide soft halo
+          float sunGlow = pow(sunDot, 64.0) * 0.4; // Tight inner glow
+          float sunHalo = pow(sunDot, 8.0) * 0.08; // Very subtle wide halo
           
           vec3 finalColor;
           
@@ -2007,11 +2007,11 @@ const SkyBackground = () => {
             finalColor = mix(skyColor, blueColor, gradientFactor);
           }
           
-          // Add sun glow and halo (warm orange tint)
-          vec3 glowColor = vec3(1.0, 0.85, 0.5);
+          // Add sun glow and halo - subtle warm tint near sun only
+          vec3 glowColor = vec3(1.0, 0.92, 0.75);
           finalColor = mix(finalColor, glowColor, sunHalo);
           finalColor = mix(finalColor, glowColor, sunGlow);
-          finalColor = mix(finalColor, vec3(1.0, 0.95, 0.8), sunDisc); // Bright sun disc
+          finalColor = mix(finalColor, vec3(1.0, 0.98, 0.9), sunDisc); // Bright sun disc
           
           // Silhouettes - positioned so only tips appear above horizon (height ~0)
           float silhouetteMask = 0.0;
