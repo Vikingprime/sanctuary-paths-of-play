@@ -1908,10 +1908,7 @@ const SkyBackground = () => {
   const skyMaterial = useMemo(() => {
     const mat = new ShaderMaterial({
       uniforms: {
-        skyColor: { value: new Color(0xB8B0A0) },
-        blueColor: { value: new Color(0x6191B5) },
-        sunColor: { value: new Color(0xFFDD88) }, // Warm yellow sun
-        sunDirection: { value: new Vector3(0.0, 0.08, 1.0).normalize() }, // Very low on horizon, straight ahead
+        sunDirection: { value: new Vector3(0.0, 0.08, 1.0).normalize() },
         gradientStart: { value: 0.50 },
       },
       vertexShader: `
@@ -1922,23 +1919,23 @@ const SkyBackground = () => {
         }
       `,
       fragmentShader: `
-        uniform vec3 skyColor;
-        uniform vec3 blueColor;
-        uniform vec3 sunColor;
         uniform vec3 sunDirection;
         uniform float gradientStart;
         varying vec3 vLocalPosition;
+        
+        // Raw hex colors - NO uniform conversion, use directly
+        const vec3 bottomColor = vec3(0.722, 0.690, 0.627); // #B8B0A0 in linear-ish
+        const vec3 blueColor = vec3(0.380, 0.569, 0.710);   // #6191B5
+        const vec3 sunColor = vec3(1.0, 0.867, 0.533);      // #FFDD88
         
         // Simple noise for tree variation
         float hash(float n) { return fract(sin(n) * 43758.5453); }
         
         // Barn silhouette - mostly below horizon, only roof tip visible
         float barnShape(vec2 uv) {
-          // Barn body - positioned below horizon
           vec2 barnPos = vec2(-0.25, -0.06);
           vec2 p = uv - barnPos;
           float body = step(abs(p.x), 0.08) * step(0.0, p.y) * step(p.y, 0.06);
-          // Barn roof (triangle) - this pokes above horizon
           float roofY = 0.06;
           float roof = step(roofY, p.y) * step(p.y, roofY + 0.05 - abs(p.x) * 0.5);
           return max(body, roof);
@@ -1948,17 +1945,14 @@ const SkyBackground = () => {
         float windmillShape(vec2 uv) {
           vec2 wmPos = vec2(-0.05, -0.10);
           vec2 p = uv - wmPos;
-          // Tower (tapered) - mostly below horizon
           float towerWidth = 0.015 + p.y * 0.01;
           float tower = step(abs(p.x), towerWidth) * step(0.0, p.y) * step(p.y, 0.12);
-          // Blades hub - at top of tower, just above horizon
           float hubY = 0.12;
           vec2 hubP = p - vec2(0.0, hubY);
           float hub = step(length(hubP), 0.012);
-          // Blades (4 blades, simple rectangles)
           float blades = 0.0;
           for (int i = 0; i < 4; i++) {
-            float angle = float(i) * 1.5708 + 0.4; // 90 degrees apart, slightly rotated
+            float angle = float(i) * 1.5708 + 0.4;
             vec2 dir = vec2(cos(angle), sin(angle));
             vec2 perp = vec2(-dir.y, dir.x);
             float along = dot(hubP, dir);
@@ -1971,9 +1965,7 @@ const SkyBackground = () => {
         // Tree silhouette function - positioned below horizon so only tops peek above
         float treeShape(vec2 uv, vec2 pos, float size, float variation) {
           vec2 p = uv - pos;
-          // Trunk - below horizon
           float trunk = step(abs(p.x), 0.008 * size) * step(0.0, p.y) * step(p.y, 0.03 * size);
-          // Foliage (rounded blob with variation) - top portion visible above horizon
           vec2 foliageCenter = vec2(0.0, 0.05 * size);
           float foliageRadius = 0.035 * size * (1.0 + variation * 0.3);
           float foliage = step(length(p - foliageCenter), foliageRadius);
@@ -1985,43 +1977,38 @@ const SkyBackground = () => {
           float height = viewDir.y;
           float normalizedHeight = height * 0.5 + 0.5;
           
-          // Horizontal angle for silhouette placement
+          // CRITICAL: Below horizon = return bottomColor immediately, no math
+          if (normalizedHeight <= gradientStart) {
+            gl_FragColor = linearToOutputTexel(vec4(bottomColor, 1.0));
+            return;
+          }
+          
+          // Above horizon: gradient, sun, and silhouettes
           float angle = atan(viewDir.x, viewDir.z);
           vec2 skyUV = vec2(angle / 3.14159, height);
           
-          // Sun disc and glow - subtle, doesn't overpower the beige
+          // Sun disc and glow
           float sunDot = max(dot(viewDir, sunDirection), 0.0);
-          float sunDisc = smoothstep(0.997, 0.999, sunDot); // Sharp sun disc
-          float sunGlow = pow(sunDot, 64.0) * 0.4; // Tight inner glow
-          float sunHalo = pow(sunDot, 8.0) * 0.08; // Very subtle wide halo
+          float sunDisc = smoothstep(0.997, 0.999, sunDot);
+          float sunGlow = pow(sunDot, 64.0) * 0.4;
+          float sunHalo = pow(sunDot, 8.0) * 0.08;
           
-          vec3 finalColor;
+          // Gradient from beige to blue
+          float gradientFactor = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
+          gradientFactor = min(gradientFactor * 6.0, 1.0);
+          vec3 finalColor = mix(bottomColor, blueColor, gradientFactor);
           
-          // Below gradientStart: solid beige
-          if (normalizedHeight <= gradientStart) {
-            finalColor = skyColor;
-          } else {
-            // Above gradientStart: FAST gradient from beige to blue
-            float gradientFactor = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
-            gradientFactor = min(gradientFactor * 6.0, 1.0);
-            finalColor = mix(skyColor, blueColor, gradientFactor);
-          }
-          
-          // Add sun glow and halo - subtle warm tint near sun only
+          // Add sun effects
           vec3 glowColor = vec3(1.0, 0.92, 0.75);
           finalColor = mix(finalColor, glowColor, sunHalo);
           finalColor = mix(finalColor, glowColor, sunGlow);
-          finalColor = mix(finalColor, vec3(1.0, 0.98, 0.9), sunDisc); // Bright sun disc
+          finalColor = mix(finalColor, vec3(1.0, 0.98, 0.9), sunDisc);
           
-          // Silhouettes - positioned so only tips appear above horizon (height ~0)
+          // Silhouettes - only near horizon
           float silhouetteMask = 0.0;
           if (height > -0.15 && height < 0.06) {
-            // Barn - mostly below horizon
             silhouetteMask = max(silhouetteMask, barnShape(skyUV));
-            // Windmill - mostly below horizon
             silhouetteMask = max(silhouetteMask, windmillShape(skyUV));
-            
-            // Trees scattered across horizon - positioned below so tops peek above
             silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.6, -0.04), 1.2, 0.1));
             silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.45, -0.035), 0.9, 0.3));
             silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.38, -0.045), 1.0, 0.2));
@@ -2032,8 +2019,7 @@ const SkyBackground = () => {
             silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.65, -0.038), 0.95, 0.35));
           }
           
-          // Apply silhouettes as dark shapes
-          vec3 silhouetteColor = vec3(0.15, 0.12, 0.1); // Dark brown-black
+          vec3 silhouetteColor = vec3(0.15, 0.12, 0.1);
           finalColor = mix(finalColor, silhouetteColor, silhouetteMask * 0.85);
           
           gl_FragColor = linearToOutputTexel(vec4(finalColor, 1.0));
