@@ -1943,6 +1943,7 @@ const SkyBackground = () => {
         side={BackSide}
         fog={false}
         depthWrite={false}
+        toneMapped={false}
       />
     </mesh>
   );
@@ -2082,9 +2083,8 @@ return (
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
-      {/* Sky orb temporarily disabled - testing scene.background instead */}
-      {/* <SkyBackground /> */}
-      <SceneBackground color={ATMOSPHERE_COLOR} />
+      {/* Sky orb - flat material, no fog/tonemapping */}
+      <SkyBackground />
       
       {/* Exponential fog - uses unified atmosphere color
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
