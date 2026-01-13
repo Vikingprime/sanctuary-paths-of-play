@@ -1923,8 +1923,8 @@ const SkyBackground = () => {
         uniform float gradientStart;
         varying vec3 vLocalPosition;
         
-        // Raw hex colors - NO uniform conversion, use directly
-        const vec3 bottomColor = vec3(0.722, 0.690, 0.627); // #B8B0A0 in linear-ish
+        // True linear RGB values - linearToOutputTexel will convert to sRGB #B8B0A0
+        const vec3 bottomColor = vec3(0.482, 0.437, 0.352); // #B8B0A0 in TRUE linear space
         const vec3 blueColor = vec3(0.380, 0.569, 0.710);   // #6191B5
         const vec3 sunColor = vec3(1.0, 0.867, 0.533);      // #FFDD88
         
