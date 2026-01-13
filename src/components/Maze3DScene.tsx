@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, TextureLoader, SRGBColorSpace } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
@@ -1878,6 +1878,29 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
+// Sky background component - loads texture and sets scene background
+const SkyBackground = () => {
+  const { scene } = useThree();
+  
+  useEffect(() => {
+    const loader = new TextureLoader();
+    loader.load('/textures/sky.jpg', (texture) => {
+      texture.colorSpace = SRGBColorSpace;
+      scene.background = texture;
+    }, undefined, () => {
+      // On error, fallback to solid fog color
+      scene.background = new Color('#B8B0A0');
+    });
+    
+    return () => {
+      // Cleanup on unmount
+      scene.background = null;
+    };
+  }, [scene]);
+  
+  return null;
+};
+
 const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
@@ -2012,11 +2035,10 @@ return (
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
-      {/* Background color MUST match fog color exactly for seamless horizon blending
-          This is the key fix: distant corn fades into this color, not into a mismatched sky */}
-      <color attach="background" args={['#B8B0A0']} />
+      {/* Sky texture background - fog won't affect this */}
+      <SkyBackground />
       
-      {/* Exponential fog - warm neutral tone matching background
+      {/* Exponential fog - warm neutral tone for atmosphere
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
       <fogExp2 attach="fog" args={['#B8B0A0', 0.14]} />
       
