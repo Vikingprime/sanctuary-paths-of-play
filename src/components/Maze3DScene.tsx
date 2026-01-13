@@ -1941,37 +1941,6 @@ const SkyBackground = () => {
           return max(body, roof);
         }
         
-        // Windmill silhouette - tower mostly hidden, only top blades visible
-        float windmillShape(vec2 uv) {
-          vec2 wmPos = vec2(-0.05, -0.10);
-          vec2 p = uv - wmPos;
-          float towerWidth = 0.015 + p.y * 0.01;
-          float tower = step(abs(p.x), towerWidth) * step(0.0, p.y) * step(p.y, 0.12);
-          float hubY = 0.12;
-          vec2 hubP = p - vec2(0.0, hubY);
-          float hub = step(length(hubP), 0.012);
-          float blades = 0.0;
-          for (int i = 0; i < 4; i++) {
-            float angle = float(i) * 1.5708 + 0.4;
-            vec2 dir = vec2(cos(angle), sin(angle));
-            vec2 perp = vec2(-dir.y, dir.x);
-            float along = dot(hubP, dir);
-            float across = abs(dot(hubP, perp));
-            blades += step(0.0, along) * step(along, 0.06) * step(across, 0.006);
-          }
-          return max(max(tower, hub), blades);
-        }
-        
-        // Tree silhouette function - positioned below horizon so only tops peek above
-        float treeShape(vec2 uv, vec2 pos, float size, float variation) {
-          vec2 p = uv - pos;
-          float trunk = step(abs(p.x), 0.008 * size) * step(0.0, p.y) * step(p.y, 0.03 * size);
-          vec2 foliageCenter = vec2(0.0, 0.05 * size);
-          float foliageRadius = 0.035 * size * (1.0 + variation * 0.3);
-          float foliage = step(length(p - foliageCenter), foliageRadius);
-          return max(trunk, foliage);
-        }
-        
         void main() {
           vec3 viewDir = normalize(vLocalPosition);
           float height = viewDir.y;
@@ -1982,10 +1951,6 @@ const SkyBackground = () => {
             gl_FragColor = linearToOutputTexel(vec4(bottomColor, 1.0));
             return;
           }
-          
-          // Above horizon: gradient, sun, and silhouettes
-          float angle = atan(viewDir.x, viewDir.z);
-          vec2 skyUV = vec2(angle / 3.14159, height);
           
           // Sun disc and glow
           float sunDot = max(dot(viewDir, sunDirection), 0.0);
@@ -2006,24 +1971,6 @@ const SkyBackground = () => {
           finalColor = mix(finalColor, glowColor, sunHalo * horizonFade);
           finalColor = mix(finalColor, glowColor, sunGlow * horizonFade);
           finalColor = mix(finalColor, vec3(1.0, 0.98, 0.9), sunDisc * horizonFade);
-          
-          // Silhouettes - only near horizon
-          float silhouetteMask = 0.0;
-          if (height > -0.15 && height < 0.06) {
-            silhouetteMask = max(silhouetteMask, barnShape(skyUV));
-            silhouetteMask = max(silhouetteMask, windmillShape(skyUV));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.6, -0.04), 1.2, 0.1));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.45, -0.035), 0.9, 0.3));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.38, -0.045), 1.0, 0.2));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.15, -0.03), 1.1, 0.15));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.25, -0.04), 0.85, 0.4));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.35, -0.035), 1.3, 0.05));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.5, -0.045), 1.0, 0.25));
-            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.65, -0.038), 0.95, 0.35));
-          }
-          
-          vec3 silhouetteColor = vec3(0.15, 0.12, 0.1);
-          finalColor = mix(finalColor, silhouetteColor, silhouetteMask * 0.85);
           
           gl_FragColor = linearToOutputTexel(vec4(finalColor, 1.0));
         }
