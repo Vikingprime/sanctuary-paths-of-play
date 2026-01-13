@@ -1886,28 +1886,10 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
 const SKY_TOP_COLOR = '#6191B5';          // Sky blue at zenith
 const SKY_BOTTOM_COLOR = ATMOSPHERE_COLOR; // Match fog color exactly
 
-// Sky dome component - 3D sphere with gradient shader for fixed-in-world sky
-// Simple component to set scene.background color
-const SceneBackground = ({ color }: { color: string }) => {
-  const { scene } = useThree();
-  
-  useEffect(() => {
-    scene.background = new Color(color);
-    return () => { scene.background = null; };
-  }, [scene, color]);
-  
-  return null;
-};
-
+// Sky dome component - 3D sphere that renders the sky without scene.background
 const SkyBackground = () => {
   const skyRef = useRef<Mesh>(null);
-  const { camera, scene } = useThree();
-  
-  // Remove any scene.background so the sky mesh is visible
-  useEffect(() => {
-    scene.background = null;
-    return () => { scene.background = null; };
-  }, [scene]);
+  const { camera } = useThree();
   
   // Keep sky centered on camera (infinite sky effect)
   useFrame(() => {
