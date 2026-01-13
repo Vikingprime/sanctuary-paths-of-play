@@ -1954,7 +1954,7 @@ const SkyBackground = () => {
           // Check if we're in the image band
           if (height >= imageBottom && height <= imageTop) {
             // Map height within band to V coordinate (0 to 1)
-            float v = 1.0 - (height - imageBottom) / imageHeight;
+            float v = (height - imageBottom) / imageHeight;
             vec4 texColor = texture2D(skyTexture, vec2(u, v));
             gl_FragColor = vec4(texColor.rgb, 1.0);
           } else if (height < imageBottom) {
