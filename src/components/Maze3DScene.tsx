@@ -1898,14 +1898,14 @@ const SkyBackground = () => {
         varying vec3 vPosition;
         void main() {
           float h = normalize(vPosition).y;
-          // Transition mostly beige - blue only when looking straight up at zenith
-          float transition = smoothstep(-0.2, 0.8, h);
+          // 95% beige - blue only at very top (zenith)
+          float transition = smoothstep(0.7, 1.0, h);
           gl_FragColor = vec4(mix(bottomColor, topColor, transition), 1.0);
         }
       `,
       uniforms: {
-        topColor: { value: new Color('#FF00FF') },    // TEST: Bright magenta
-        bottomColor: { value: new Color('#FF6600') }, // TEST: Bright orange
+        topColor: { value: new Color('#6191B5') },    // Sky blue at zenith
+        bottomColor: { value: new Color('#B8B0A0') }, // Beige for 95% of sky
       },
       side: BackSide,
       fog: false,        // Prevents fog from obscuring the sky
