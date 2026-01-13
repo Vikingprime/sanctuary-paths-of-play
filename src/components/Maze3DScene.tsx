@@ -1903,15 +1903,15 @@ const SkyBackground = () => {
     }
   });
 
-  // ShaderMaterial for sky - debug mode with red line to show gradient start
+  // ShaderMaterial for sky with sun disc, silhouettes, and gradient
   // Uses raw hex colors and linearToOutputTexel to match scene.background lightness
   const skyMaterial = useMemo(() => {
     const mat = new ShaderMaterial({
       uniforms: {
         skyColor: { value: new Color(0xB8B0A0) },
         blueColor: { value: new Color(0x6191B5) },
-        sunColor: { value: new Color(0xFFAA44) },
-        sunDirection: { value: new Vector3(1.0, 0.3, 0.5).normalize() }, // Low on horizon
+        sunColor: { value: new Color(0xFFDD88) }, // Warm yellow sun
+        sunDirection: { value: new Vector3(0.0, 0.08, 1.0).normalize() }, // Very low on horizon, straight ahead
         gradientStart: { value: 0.50 },
       },
       vertexShader: `
@@ -1928,15 +1928,72 @@ const SkyBackground = () => {
         uniform vec3 sunDirection;
         uniform float gradientStart;
         varying vec3 vLocalPosition;
+        
+        // Simple noise for tree variation
+        float hash(float n) { return fract(sin(n) * 43758.5453); }
+        
+        // Barn silhouette - positioned left of sun
+        float barnShape(vec2 uv) {
+          // Barn body
+          vec2 barnPos = vec2(-0.25, 0.0);
+          vec2 p = uv - barnPos;
+          float body = step(abs(p.x), 0.08) * step(0.0, p.y) * step(p.y, 0.06);
+          // Barn roof (triangle)
+          float roofY = 0.06;
+          float roof = step(roofY, p.y) * step(p.y, roofY + 0.05 - abs(p.x) * 0.5);
+          return max(body, roof);
+        }
+        
+        // Windmill silhouette - positioned right of barn
+        float windmillShape(vec2 uv) {
+          vec2 wmPos = vec2(-0.05, 0.0);
+          vec2 p = uv - wmPos;
+          // Tower (tapered)
+          float towerWidth = 0.015 + p.y * 0.01;
+          float tower = step(abs(p.x), towerWidth) * step(0.0, p.y) * step(p.y, 0.12);
+          // Blades hub
+          float hubY = 0.12;
+          vec2 hubP = p - vec2(0.0, hubY);
+          float hub = step(length(hubP), 0.012);
+          // Blades (4 blades, simple rectangles)
+          float blades = 0.0;
+          for (int i = 0; i < 4; i++) {
+            float angle = float(i) * 1.5708 + 0.4; // 90 degrees apart, slightly rotated
+            vec2 dir = vec2(cos(angle), sin(angle));
+            vec2 perp = vec2(-dir.y, dir.x);
+            float along = dot(hubP, dir);
+            float across = abs(dot(hubP, perp));
+            blades += step(0.0, along) * step(along, 0.06) * step(across, 0.006);
+          }
+          return max(max(tower, hub), blades);
+        }
+        
+        // Tree silhouette function
+        float treeShape(vec2 uv, vec2 pos, float size, float variation) {
+          vec2 p = uv - pos;
+          // Trunk
+          float trunk = step(abs(p.x), 0.008 * size) * step(0.0, p.y) * step(p.y, 0.03 * size);
+          // Foliage (rounded blob with variation)
+          vec2 foliageCenter = vec2(0.0, 0.05 * size);
+          float foliageRadius = 0.035 * size * (1.0 + variation * 0.3);
+          float foliage = step(length(p - foliageCenter), foliageRadius);
+          return max(trunk, foliage);
+        }
+        
         void main() {
           vec3 viewDir = normalize(vLocalPosition);
           float height = viewDir.y;
           float normalizedHeight = height * 0.5 + 0.5;
           
-          // Sun glow - dot product with sun direction
+          // Horizontal angle for silhouette placement
+          float angle = atan(viewDir.x, viewDir.z);
+          vec2 skyUV = vec2(angle / 3.14159, height);
+          
+          // Sun disc and glow - very low on horizon
           float sunDot = max(dot(viewDir, sunDirection), 0.0);
-          float sunGlow = pow(sunDot, 16.0) * 0.25; // Sun core, 25% intensity
-          float sunHalo = pow(sunDot, 3.0) * 0.125; // Soft halo, 25% intensity
+          float sunDisc = smoothstep(0.997, 0.999, sunDot); // Sharp sun disc
+          float sunGlow = pow(sunDot, 32.0) * 0.6; // Bright inner glow
+          float sunHalo = pow(sunDot, 4.0) * 0.3; // Wide soft halo
           
           vec3 finalColor;
           
@@ -1946,12 +2003,38 @@ const SkyBackground = () => {
           } else {
             // Above gradientStart: FAST gradient from beige to blue
             float gradientFactor = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
-            gradientFactor = min(gradientFactor * 6.0, 1.0); // 6x faster transition
+            gradientFactor = min(gradientFactor * 6.0, 1.0);
             finalColor = mix(skyColor, blueColor, gradientFactor);
           }
           
-          // Add sun glow
-          finalColor = mix(finalColor, sunColor, sunGlow + sunHalo);
+          // Add sun glow and halo (warm orange tint)
+          vec3 glowColor = vec3(1.0, 0.85, 0.5);
+          finalColor = mix(finalColor, glowColor, sunHalo);
+          finalColor = mix(finalColor, glowColor, sunGlow);
+          finalColor = mix(finalColor, vec3(1.0, 0.95, 0.8), sunDisc); // Bright sun disc
+          
+          // Silhouettes - only draw near horizon
+          float silhouetteMask = 0.0;
+          if (height > -0.02 && height < 0.08) {
+            // Barn
+            silhouetteMask = max(silhouetteMask, barnShape(skyUV));
+            // Windmill
+            silhouetteMask = max(silhouetteMask, windmillShape(skyUV));
+            
+            // Trees scattered across horizon
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.6, 0.0), 1.2, 0.1));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.45, 0.0), 0.9, 0.3));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(-0.38, 0.0), 1.0, 0.2));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.15, 0.0), 1.1, 0.15));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.25, 0.0), 0.85, 0.4));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.35, 0.0), 1.3, 0.05));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.5, 0.0), 1.0, 0.25));
+            silhouetteMask = max(silhouetteMask, treeShape(skyUV, vec2(0.65, 0.0), 0.95, 0.35));
+          }
+          
+          // Apply silhouettes as dark shapes
+          vec3 silhouetteColor = vec3(0.15, 0.12, 0.1); // Dark brown-black
+          finalColor = mix(finalColor, silhouetteColor, silhouetteMask * 0.85);
           
           gl_FragColor = linearToOutputTexel(vec4(finalColor, 1.0));
         }
@@ -2077,9 +2160,10 @@ return (
       <ambientLight intensity={0.9} color="#FFF8F0" />
       
       {/* Main sun light - follows player for consistent shadows */}
+      {/* Main sun light - lower position to match horizon sun */}
       <directionalLight
         ref={lightRef}
-        position={[15, 35, 15]}
+        position={[0, 8, 40]}
         intensity={3.5}
         color="#FFFDF5"
         castShadow={shadowsEnabled}
