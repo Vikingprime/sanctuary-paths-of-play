@@ -1138,10 +1138,12 @@ const RefBasedPlayer = ({
       // Clamp delta to prevent large jumps on frame drops
       const clampedDelta = Math.min(delta, 0.05);
       
-      // Check if mobile touch is active (use boolean ref, not null check)
-      const mobileActive = mobileTouchActiveRef?.current ?? false;
+      // Check if mobile touch is active AND has actual input
+      const mobileWasd = mobileWasdRef?.current ?? { w: false, a: false, s: false, d: false };
+      const mobileHasInput = mobileWasd.w || mobileWasd.a || mobileWasd.s || mobileWasd.d;
+      const mobileActive = (mobileTouchActiveRef?.current ?? false) && mobileHasInput;
       
-      // Check if any keyboard keys are pressed - keyboard always takes priority
+      // Check if any keyboard keys are pressed
       const keyboardActive = keysPressed.current.has('w') || keysPressed.current.has('s') || 
                             keysPressed.current.has('a') || keysPressed.current.has('d') ||
                             keysPressed.current.has('arrowup') || keysPressed.current.has('arrowdown') ||
@@ -1149,26 +1151,8 @@ const RefBasedPlayer = ({
       
       let input: MovementInput;
       
-      if (mobileActive && mobileWasdRef && !keyboardActive) {
-        // MOBILE WASD MODE: Use joystick WASD flags directly like keyboard
-        const wasd = mobileWasdRef.current;
-        
-        input = {
-          forward: wasd.w,
-          backward: wasd.s,
-          rotateLeft: wasd.a,
-          rotateRight: wasd.d,
-          rotationIntensity: 1.5 * (mobileTurnIntensityRef?.current ?? 1.0), // Base 1.5x + proportional drag intensity
-        };
-        
-        // Update isMoving ref - only forward/backward triggers animation
-        isMovingRef.current = wasd.w || wasd.s;
-        
-        // Calculate movement (same as keyboard)
-        const prev = playerStateRef.current;
-        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-        playerStateRef.current = newState;
-      } else {
+      // Keyboard ALWAYS takes priority, then mobile if it has actual input
+      if (keyboardActive) {
         // KEYBOARD MODE: Original per-frame rotation accumulation
         const isKeyboardRotation = keysPressed.current.has('arrowleft') || keysPressed.current.has('a') || 
                                    keysPressed.current.has('arrowright') || keysPressed.current.has('d');
@@ -1187,6 +1171,26 @@ const RefBasedPlayer = ({
         const prev = playerStateRef.current;
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         playerStateRef.current = newState;
+      } else if (mobileActive) {
+        // MOBILE WASD MODE: Use joystick WASD flags directly like keyboard
+        input = {
+          forward: mobileWasd.w,
+          backward: mobileWasd.s,
+          rotateLeft: mobileWasd.a,
+          rotateRight: mobileWasd.d,
+          rotationIntensity: 1.5 * (mobileTurnIntensityRef?.current ?? 1.0), // Base 1.5x + proportional drag intensity
+        };
+        
+        // Update isMoving ref - only forward/backward triggers animation
+        isMovingRef.current = mobileWasd.w || mobileWasd.s;
+        
+        // Calculate movement (same as keyboard)
+        const prev = playerStateRef.current;
+        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+        playerStateRef.current = newState;
+      } else {
+        // No input - no movement
+        isMovingRef.current = false;
       }
       
       // Only check interactions when entering a new cell
