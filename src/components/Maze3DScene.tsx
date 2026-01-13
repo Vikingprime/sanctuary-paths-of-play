@@ -1880,41 +1880,12 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
 
 // Sky colors - single source of truth
 const SKY_TOP_COLOR = '#6191B5';    // Sky blue at zenith
-const SKY_BOTTOM_COLOR = '#aeaa98'; // Match fog color
+const SKY_BOTTOM_COLOR = '#ffffff'; // WHITE for testing
 
 // Sky dome component - 3D sphere with gradient shader for fixed-in-world sky
 const SkyBackground = () => {
   const skyRef = useRef<Mesh>(null);
   const { camera, scene } = useThree();
-  
-  const skyMaterial = useMemo(() => {
-    return new ShaderMaterial({
-      vertexShader: `
-        varying vec3 vPosition;
-        void main() {
-          vPosition = position;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 topColor;
-        uniform vec3 bottomColor;
-        varying vec3 vPosition;
-        void main() {
-          float h = normalize(vPosition).y;
-          float transition = smoothstep(0.7, 1.0, h);
-          gl_FragColor = vec4(mix(bottomColor, topColor, transition), 1.0);
-        }
-      `,
-      uniforms: {
-        topColor: { value: new Color(SKY_TOP_COLOR) },
-        bottomColor: { value: new Color(SKY_BOTTOM_COLOR) },
-      },
-      side: BackSide,
-      fog: false,
-      depthWrite: false,
-    });
-  }, []);
   
   // Remove any scene.background so the sky mesh is visible
   useEffect(() => {
@@ -1928,10 +1899,41 @@ const SkyBackground = () => {
       skyRef.current.position.copy(camera.position);
     }
   });
+
+  // Create material inline to avoid caching issues
+  const uniforms = useRef({
+    topColor: { value: new Color(SKY_TOP_COLOR) },
+    bottomColor: { value: new Color(SKY_BOTTOM_COLOR) },
+  });
   
   return (
-    <mesh ref={skyRef} material={skyMaterial} renderOrder={-1000}>
+    <mesh ref={skyRef} renderOrder={-1000}>
       <sphereGeometry args={[95, 32, 15]} />
+      <shaderMaterial
+        key="sky-material-white"
+        attach="material"
+        vertexShader={`
+          varying vec3 vPosition;
+          void main() {
+            vPosition = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `}
+        fragmentShader={`
+          uniform vec3 topColor;
+          uniform vec3 bottomColor;
+          varying vec3 vPosition;
+          void main() {
+            float h = normalize(vPosition).y;
+            float transition = smoothstep(0.7, 1.0, h);
+            gl_FragColor = vec4(mix(bottomColor, topColor, transition), 1.0);
+          }
+        `}
+        uniforms={uniforms.current}
+        side={BackSide}
+        fog={false}
+        depthWrite={false}
+      />
     </mesh>
   );
 };
