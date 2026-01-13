@@ -1943,7 +1943,7 @@ const SkyBackground = () => {
           float u = angle / (2.0 * 3.14159265) + 0.5;
           
           // Map full sphere to texture - show the image everywhere
-          float v = normalizedHeight - 0.3; // Shift image up so barn appears above corn
+          float v = normalizedHeight - 0.15; // Shift image up so barn appears above corn
           
           vec4 texColor = texture2D(skyTexture, vec2(u, v));
           
