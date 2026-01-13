@@ -1943,7 +1943,7 @@ const SkyBackground = () => {
           float u = angle / (2.0 * 3.14159265) + 0.5;
           
           // Map full sphere to texture - show the image everywhere
-          float v = 1.0 - normalizedHeight;
+          float v = normalizedHeight;
           
           vec4 texColor = texture2D(skyTexture, vec2(u, v));
           
