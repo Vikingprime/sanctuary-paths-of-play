@@ -1905,7 +1905,7 @@ const SkyBackground = () => {
       `,
       uniforms: {
         topColor: { value: new Color('#6191B5') },    // Sky blue at zenith
-        bottomColor: { value: new Color('#B8B0A0') }, // Beige for 95% of sky
+        bottomColor: { value: new Color('#5a6b55') }, // Match fog color
       },
       side: BackSide,
       fog: false,        // Prevents fog from obscuring the sky
