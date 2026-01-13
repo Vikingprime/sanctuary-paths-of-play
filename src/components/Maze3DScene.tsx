@@ -1933,8 +1933,6 @@ const SkyBackground = () => {
         uniform float gradientStart;
         varying vec3 vLocalPosition;
         
-        const vec3 bottomColor = vec3(0.482, 0.437, 0.352); // #B8B0A0 fog color
-        
         void main() {
           vec3 viewDir = normalize(vLocalPosition);
           float height = viewDir.y;
@@ -1944,27 +1942,12 @@ const SkyBackground = () => {
           float angle = atan(viewDir.x, viewDir.z);
           float u = angle / (2.0 * 3.14159265) + 0.5;
           
-          // Below horizon = return bottomColor
-          if (normalizedHeight <= gradientStart) {
-            gl_FragColor = linearToOutputTexel(vec4(bottomColor, 1.0));
-            return;
-          }
-          
-          // Map the sky portion (gradientStart to 1.0) to the texture's V coordinate
-          // The image has sky at top (v=0) and ground/barn at bottom (v=1)
-          // We want ground at horizon (normalizedHeight = gradientStart) 
-          // and sky at top (normalizedHeight = 1.0)
-          float skyProgress = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
-          // Map so that horizon shows bottom of image (v=1.0) and zenith shows top (v=0.0)
-          float v = 1.0 - skyProgress;
+          // Map full sphere to texture - show the image everywhere
+          float v = 1.0 - normalizedHeight;
           
           vec4 texColor = texture2D(skyTexture, vec2(u, v));
           
-          // Blend with fog color near horizon for smooth transition
-          float fogBlend = smoothstep(gradientStart, gradientStart + 0.06, normalizedHeight);
-          vec3 finalColor = mix(bottomColor, texColor.rgb, fogBlend);
-          
-          gl_FragColor = linearToOutputTexel(vec4(finalColor, 1.0));
+          gl_FragColor = vec4(texColor.rgb, 1.0);
         }
       `,
       side: BackSide,
