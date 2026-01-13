@@ -1909,7 +1909,7 @@ const SkyBackground = () => {
     const mat = new ShaderMaterial({
       uniforms: {
         sunDirection: { value: new Vector3(0.0, 0.08, 1.0).normalize() },
-        gradientStart: { value: 0.50 },
+        gradientStart: { value: 0.48 },
       },
       vertexShader: `
         varying vec3 vLocalPosition;
