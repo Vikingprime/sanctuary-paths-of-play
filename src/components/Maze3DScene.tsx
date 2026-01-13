@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
@@ -1916,36 +1916,24 @@ const SkyBackground = () => {
     }
   });
 
-  // Create material inline to avoid caching issues
-  // Convert to linear color space to match what scene.background does internally
-  const uniforms = useRef({
-    topColor: { value: new Color(SKY_TOP_COLOR).convertSRGBToLinear() },
-    bottomColor: { value: new Color(SKY_BOTTOM_COLOR).convertSRGBToLinear() },
-  });
+  // Create MeshBasicMaterial with proper color management settings
+  // toneMapped = false prevents darkening from cinematic lighting filters
+  // We use the raw hex color - MeshBasicMaterial with toneMapped=false 
+  // will output the color directly without any color space conversions
+  const skyMaterial = useMemo(() => {
+    const mat = new MeshBasicMaterial({
+      color: 0xB8B0A0,
+      side: BackSide,
+      fog: false,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    return mat;
+  }, []);
   
   return (
-    <mesh ref={skyRef} renderOrder={-1000}>
+    <mesh ref={skyRef} renderOrder={-1000} material={skyMaterial}>
       <sphereGeometry args={[95, 32, 15]} />
-      <shaderMaterial
-        key="sky-material-solid"
-        attach="material"
-        vertexShader={`
-          void main() {
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `}
-        fragmentShader={`
-          uniform vec3 bottomColor;
-          void main() {
-            gl_FragColor = vec4(bottomColor, 1.0);
-          }
-        `}
-        uniforms={uniforms.current}
-        side={BackSide}
-        fog={false}
-        depthWrite={false}
-        toneMapped={false}
-      />
     </mesh>
   );
 };
