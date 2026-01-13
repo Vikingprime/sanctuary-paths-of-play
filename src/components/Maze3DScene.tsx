@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, CanvasTexture, SRGBColorSpace } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
@@ -1878,41 +1878,60 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
   return null;
 };
 
-// Sky background component - loads texture and sets scene background
+// Sky dome component - 3D sphere with gradient shader for fixed-in-world sky
 const SkyBackground = () => {
-  const { scene } = useThree();
+  const skyRef = useRef<Mesh>(null);
+  const { camera, scene } = useThree();
   
+  const skyMaterial = useMemo(() => {
+    return new ShaderMaterial({
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 topColor;
+        uniform vec3 bottomColor;
+        varying vec3 vWorldPosition;
+        void main() {
+          float h = normalize(vWorldPosition).y;
+          // Transition mostly beige - blue only when looking straight up at zenith
+          float transition = smoothstep(-0.2, 0.8, h);
+          gl_FragColor = vec4(mix(bottomColor, topColor, transition), 1.0);
+        }
+      `,
+      uniforms: {
+        topColor: { value: new Color('#6191B5') },    // Sky blue at top
+        bottomColor: { value: new Color('#B8B0A0') }, // Fog/horizon beige
+      },
+      side: BackSide,
+      fog: false,        // Prevents fog from obscuring the sky
+      depthWrite: false, // Sky is always behind everything
+    });
+  }, []);
+  
+  // Set fallback background color
   useEffect(() => {
-    // Create a canvas-based gradient texture
-    const canvas = document.createElement('canvas');
-    canvas.width = 2;      // Only need 2 pixels wide
-    canvas.height = 512;   // Vertical resolution for smooth gradient
-    
-    const ctx = canvas.getContext('2d')!;
-    
-    // Create vertical gradient (top to bottom on canvas)
-    // Blue only at the very top edge, beige dominates almost all visible sky
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, '#2A5F9E');    // Sky blue at very top edge
-    gradient.addColorStop(0.05, '#B8B0A0'); // Quick transition to beige
-    gradient.addColorStop(1, '#B8B0A0');    // Beige the rest of the way
-    
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Create texture from canvas
-    const texture = new CanvasTexture(canvas);
-    texture.colorSpace = SRGBColorSpace;
-    
-    scene.background = texture;
-    
-    return () => {
-      texture.dispose();
-      scene.background = null;
-    };
+    scene.background = new Color('#B8B0A0');
+    return () => { scene.background = null; };
   }, [scene]);
   
-  return null;
+  // Keep sky centered on camera (infinite sky effect)
+  useFrame(() => {
+    if (skyRef.current) {
+      skyRef.current.position.copy(camera.position);
+    }
+  });
+  
+  return (
+    <mesh ref={skyRef} material={skyMaterial}>
+      <sphereGeometry args={[4000, 32, 15]} />
+    </mesh>
+  );
 };
 
 const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
