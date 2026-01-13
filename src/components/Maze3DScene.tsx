@@ -1917,9 +1917,10 @@ const SkyBackground = () => {
   });
 
   // Create material inline to avoid caching issues
+  // Convert to linear color space to match what scene.background does internally
   const uniforms = useRef({
-    topColor: { value: new Color(SKY_TOP_COLOR) },
-    bottomColor: { value: new Color(SKY_BOTTOM_COLOR) },
+    topColor: { value: new Color(SKY_TOP_COLOR).convertSRGBToLinear() },
+    bottomColor: { value: new Color(SKY_BOTTOM_COLOR).convertSRGBToLinear() },
   });
   
   return (
