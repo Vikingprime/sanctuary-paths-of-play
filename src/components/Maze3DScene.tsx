@@ -1910,7 +1910,7 @@ const SkyBackground = () => {
       uniforms: {
         skyColor: { value: new Color(0xB8B0A0) },
         blueColor: { value: new Color(0x87CEEB) },
-        gradientStart: { value: 0.40 }, // Start gradient at 40%
+        gradientStart: { value: 0.50 }, // Start gradient at 50% (matching red line)
         redLinePos: { value: 0.50 }, // Red line at 50%
       },
       vertexShader: `
