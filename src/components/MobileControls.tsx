@@ -147,8 +147,14 @@ export const MobileControls = ({
       }
     };
     
+    // Reset mobile controls when window loses focus (user clicks outside)
+    const handleBlur = () => {
+      resetControls();
+    };
+    
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
+    window.addEventListener('blur', handleBlur);
     document.addEventListener('touchstart', preventGestures, { passive: false, capture: true });
     document.addEventListener('touchmove', preventGestures, { passive: false, capture: true });
     document.addEventListener('touchend', preventGestures, { passive: false, capture: true });
@@ -159,6 +165,7 @@ export const MobileControls = ({
       document.documentElement.style.overscrollBehavior = '';
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
+      window.removeEventListener('blur', handleBlur);
       document.removeEventListener('touchstart', preventGestures, { capture: true });
       document.removeEventListener('touchmove', preventGestures, { capture: true });
       document.removeEventListener('touchend', preventGestures, { capture: true });
