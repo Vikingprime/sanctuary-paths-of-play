@@ -2070,8 +2070,9 @@ return (
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
-      {/* Sky texture background - fog won't affect this */}
-      <SkyBackground />
+      {/* Sky orb temporarily disabled - testing scene.background instead */}
+      {/* <SkyBackground /> */}
+      <color attach="background" args={[ATMOSPHERE_COLOR]} />
       
       {/* Exponential fog - uses unified atmosphere color
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
