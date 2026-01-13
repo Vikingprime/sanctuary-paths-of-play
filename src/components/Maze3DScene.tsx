@@ -1919,8 +1919,8 @@ const SkyBackground = () => {
     const mat = new ShaderMaterial({
       uniforms: {
         skyTexture: { value: texture },
-        horizonHeight: { value: 0.0 },    // Where horizon sits in view space (-1 to 1)
-        imageHeight: { value: 0.35 },     // How tall the image band is in view space
+        horizonHeight: { value: 0.05 },   // Where horizon sits in view space (-1 to 1)
+        imageHeight: { value: 0.6 },      // Taller band to preserve aspect ratio
         bottomColor: { value: new Color(ATMOSPHERE_COLOR) },
         topColor: { value: new Color(SKY_TOP_COLOR) },
       },
