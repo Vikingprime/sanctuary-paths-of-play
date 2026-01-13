@@ -1916,34 +1916,13 @@ const SkyBackground = () => {
     }
   });
 
-  // Create gradient shader material with proper settings to bypass tone mapping
+  // Create MeshBasicMaterial with proper color management settings
+  // toneMapped = false prevents darkening from cinematic lighting filters
+  // We use the raw hex color - MeshBasicMaterial with toneMapped=false 
+  // will output the color directly without any color space conversions
   const skyMaterial = useMemo(() => {
-    const mat = new ShaderMaterial({
-      uniforms: {
-        topColor: { value: new Color(SKY_TOP_COLOR) },
-        bottomColor: { value: new Color(SKY_BOTTOM_COLOR) },
-      },
-      vertexShader: `
-        varying vec3 vWorldPosition;
-        void main() {
-          vec4 worldPos = modelMatrix * vec4(position, 1.0);
-          vWorldPosition = worldPos.xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 topColor;
-        uniform vec3 bottomColor;
-        varying vec3 vWorldPosition;
-        void main() {
-          // Normalize height from -1 to 1, then remap to 0-1
-          float h = normalize(vWorldPosition).y;
-          float t = h * 0.5 + 0.5;
-          // Smooth gradient from bottom to top
-          vec3 color = mix(bottomColor, topColor, t);
-          gl_FragColor = vec4(color, 1.0);
-        }
-      `,
+    const mat = new MeshBasicMaterial({
+      color: 0xB8B0A0,
       side: BackSide,
       fog: false,
       depthWrite: false,
