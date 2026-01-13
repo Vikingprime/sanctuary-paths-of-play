@@ -1910,7 +1910,7 @@ const SkyBackground = () => {
       uniforms: {
         skyColor: { value: new Color(0xB8B0A0) },
         blueColor: { value: new Color(0x87CEEB) },
-        gradientStart: { value: 0.55 }, // Start gradient at 55% up (above corn height)
+        gradientStart: { value: 0.30 }, // Start gradient at 30% up for visibility
       },
       vertexShader: `
         varying vec3 vLocalPosition;
