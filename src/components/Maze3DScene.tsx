@@ -1909,9 +1909,10 @@ const SkyBackground = () => {
     const mat = new ShaderMaterial({
       uniforms: {
         skyColor: { value: new Color(0xB8B0A0) },
-        blueColor: { value: new Color(0x87CEEB) },
-        gradientStart: { value: 0.50 }, // Start gradient at 50% (matching red line)
-        redLinePos: { value: 0.50 }, // Red line at 50%
+        blueColor: { value: new Color(0x6191B5) },
+        sunColor: { value: new Color(0xFFAA44) },
+        sunDirection: { value: new Vector3(15, 35, 15).normalize() },
+        gradientStart: { value: 0.50 },
       },
       vertexShader: `
         varying vec3 vLocalPosition;
@@ -1923,30 +1924,35 @@ const SkyBackground = () => {
       fragmentShader: `
         uniform vec3 skyColor;
         uniform vec3 blueColor;
+        uniform vec3 sunColor;
+        uniform vec3 sunDirection;
         uniform float gradientStart;
-        uniform float redLinePos;
         varying vec3 vLocalPosition;
         void main() {
-          // Use local Y position normalized to sphere radius
-          float height = normalize(vLocalPosition).y;
-          float normalizedHeight = height * 0.5 + 0.5; // Map -1..1 to 0..1
+          vec3 viewDir = normalize(vLocalPosition);
+          float height = viewDir.y;
+          float normalizedHeight = height * 0.5 + 0.5;
           
-          // Draw THICK bright red debug line at redLinePos
-          if (normalizedHeight > redLinePos - 0.005 && normalizedHeight < redLinePos + 0.005) {
-            gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-            return;
-          }
+          // Sun glow - dot product with sun direction
+          float sunDot = max(dot(viewDir, sunDirection), 0.0);
+          float sunGlow = pow(sunDot, 32.0); // Tight sun core
+          float sunHalo = pow(sunDot, 4.0) * 0.4; // Wider soft halo
+          
+          vec3 finalColor;
           
           // Below gradientStart: solid beige
           if (normalizedHeight <= gradientStart) {
-            gl_FragColor = linearToOutputTexel(vec4(skyColor, 1.0));
-            return;
+            finalColor = skyColor;
+          } else {
+            // Above gradientStart: VERY FAST gradient from beige to blue
+            float gradientFactor = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
+            gradientFactor = min(gradientFactor * 8.0, 1.0); // 8x faster transition
+            finalColor = mix(skyColor, blueColor, gradientFactor);
           }
           
-          // Above gradientStart: FAST gradient from beige to blue
-          float gradientFactor = (normalizedHeight - gradientStart) / (1.0 - gradientStart);
-          gradientFactor = min(gradientFactor * 4.0, 1.0); // 4x faster transition
-          vec3 finalColor = mix(skyColor, blueColor, gradientFactor);
+          // Add sun glow
+          finalColor = mix(finalColor, sunColor, sunGlow + sunHalo);
+          
           gl_FragColor = linearToOutputTexel(vec4(finalColor, 1.0));
         }
       `,
