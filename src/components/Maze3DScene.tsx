@@ -1911,7 +1911,7 @@ const SkyBackground = () => {
         skyColor: { value: new Color(0xB8B0A0) },
         blueColor: { value: new Color(0x87CEEB) },
         gradientStart: { value: 0.40 }, // Start gradient at 40%
-        redLinePos: { value: 0.50 }, // Red line at horizon (50%)
+        redLinePos: { value: 0.55 }, // Red line higher (55%)
       },
       vertexShader: `
         varying vec3 vLocalPosition;
@@ -1932,7 +1932,7 @@ const SkyBackground = () => {
           float normalizedHeight = height * 0.5 + 0.5; // Map -1..1 to 0..1
           
           // Draw THICK bright red debug line at redLinePos
-          if (normalizedHeight > redLinePos - 0.02 && normalizedHeight < redLinePos + 0.02) {
+          if (normalizedHeight > redLinePos - 0.005 && normalizedHeight < redLinePos + 0.005) {
             gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
             return;
           }
