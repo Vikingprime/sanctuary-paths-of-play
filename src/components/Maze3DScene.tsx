@@ -1905,8 +1905,8 @@ const SkyBackground = () => {
         }
       `,
       uniforms: {
-        topColor: { value: new Color('#6191B5') },    // Sky blue at top
-        bottomColor: { value: new Color('#B8B0A0') }, // Fog/horizon beige
+        topColor: { value: new Color('#FF00FF') },    // TEST: Bright magenta
+        bottomColor: { value: new Color('#FF6600') }, // TEST: Bright orange
       },
       side: BackSide,
       fog: false,        // Prevents fog from obscuring the sky
