@@ -1928,7 +1928,7 @@ const SkyBackground = () => {
   
   return (
     <mesh ref={skyRef} material={skyMaterial} renderOrder={-1000}>
-      <sphereGeometry args={[4000, 32, 15]} />
+      <sphereGeometry args={[95, 32, 15]} />
     </mesh>
   );
 };
