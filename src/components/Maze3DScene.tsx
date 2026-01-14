@@ -16,8 +16,8 @@ import { MOBILE_CONTROL_CONFIG } from './MobileControls';
 
 // ============= UNIFIED FOG/ATMOSPHERE COLOR =============
 // Single source of truth for fog, sky horizon, and ground shader fog
-// All atmospheric elements should use this beige tone
-const ATMOSPHERE_COLOR = '#B8B0A0';  // Warm beige fog/atmosphere
+// Warm peachy-orange to match the horizon image
+const ATMOSPHERE_COLOR = '#D4A574';  // Warm peachy fog/atmosphere matching horizon
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
@@ -1926,6 +1926,8 @@ const SkyBackground = () => {
         imageHeight: { value: 0.8 },      // Taller band to preserve aspect ratio
         bottomColor: { value: new Color(ATMOSPHERE_COLOR) },
         topColor: { value: new Color(SKY_TOP_COLOR) },
+        orangeOverlay: { value: new Color('#E8985A') }, // Warm orange overlay
+        orangeHeight: { value: Math.sin(48 * Math.PI / 180) }, // 48 degrees = ~0.743
       },
       vertexShader: `
         varying vec3 vLocalPosition;
@@ -1940,6 +1942,8 @@ const SkyBackground = () => {
         uniform float imageHeight;
         uniform vec3 bottomColor;
         uniform vec3 topColor;
+        uniform vec3 orangeOverlay;
+        uniform float orangeHeight;
         varying vec3 vLocalPosition;
         
         void main() {
@@ -1950,27 +1954,35 @@ const SkyBackground = () => {
           float imageBottom = horizonHeight - imageHeight * 0.5;
           float imageTop = horizonHeight + imageHeight * 0.5;
           
-        // Calculate horizontal angle for texture U coordinate (wrap around)
+          // Calculate horizontal angle for texture U coordinate (wrap around)
           // Tile the texture 3x horizontally to reduce stretching
           // Don't use fract() - let RepeatWrapping handle it to avoid mipmap seams
           float angle = atan(viewDir.x, viewDir.z);
           float u = (angle / (2.0 * 3.14159265) + 0.5) * 3.0;
           
+          vec3 finalColor;
+          
           // Check if we're in the image band
           if (height >= imageBottom && height <= imageTop) {
             // Map height within band to V coordinate (0 to 1)
             float v = (height - imageBottom) / imageHeight;
-            vec4 texColor = texture2D(skyTexture, vec2(u, v));
-            gl_FragColor = vec4(texColor.rgb, 1.0);
+            finalColor = texture2D(skyTexture, vec2(u, v)).rgb;
           } else if (height < imageBottom) {
             // Below image: solid fog color
-            gl_FragColor = vec4(bottomColor, 1.0);
+            finalColor = bottomColor;
           } else {
             // Above image: gradient to sky blue
             float t = clamp((height - imageTop) / (1.0 - imageTop), 0.0, 1.0);
-            vec3 gradColor = mix(topColor, topColor * 0.8, t);
-            gl_FragColor = vec4(gradColor, 1.0);
+            finalColor = mix(topColor, topColor * 0.8, t);
           }
+          
+          // Apply orange overlay blend from bottom up to 48 degrees
+          // Stronger at bottom, fading out towards orangeHeight
+          float orangeBlend = 1.0 - smoothstep(0.0, orangeHeight, max(height, 0.0));
+          orangeBlend *= 0.5; // 50% max intensity
+          finalColor = mix(finalColor, orangeOverlay, orangeBlend);
+          
+          gl_FragColor = vec4(finalColor, 1.0);
         }
       `,
       side: BackSide,
