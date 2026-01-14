@@ -1951,9 +1951,10 @@ const SkyBackground = () => {
           float imageBottom = horizonHeight - imageHeight * 0.5;
           float imageTop = horizonHeight + imageHeight * 0.5;
           
-          // Calculate horizontal angle for texture U coordinate (wrap around)
+        // Calculate horizontal angle for texture U coordinate (wrap around)
+          // Tile the texture 3x horizontally to reduce stretching
           float angle = atan(viewDir.x, viewDir.z);
-          float u = angle / (2.0 * 3.14159265) + 0.5;
+          float u = (angle / (2.0 * 3.14159265) + 0.5) * 3.0;
           
           // Check if we're in the image band
           if (height >= imageBottom && height <= imageTop) {
