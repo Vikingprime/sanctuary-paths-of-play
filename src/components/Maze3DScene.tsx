@@ -1959,12 +1959,21 @@ const SkyBackground = () => {
           float imageTop = horizonHeight + imageHeight * 0.5;
           
           // Fog band: solid fog up to fogSolidHeight, then transition to image up to fogTopHeight
-          float fogSolidHeight = imageBottom + imageHeight * fogSolidHeightPct;  // Solid fog zone
-          float fogTopHeight = imageBottom + imageHeight * fogTransitionTopPct;   // Top of transition
-          
-          // Calculate horizontal angle for texture U coordinate (wrap around)
+          // Add smooth wave variation - uses u_raw (calculated below) so we compute angle first
           float angle = atan(viewDir.x, viewDir.z);
           float u_raw = (angle / (2.0 * 3.14159265) + 0.5); // 0-1 around full circle
+          
+          // Smooth curved variation using overlapping sine waves (always adds, never subtracts)
+          float wave1 = sin(u_raw * 6.28318 * 2.0) * 0.5 + 0.5; // 2 waves around circle
+          float wave2 = sin(u_raw * 6.28318 * 3.0 + 1.0) * 0.5 + 0.5; // 3 waves, offset
+          float wave3 = sin(u_raw * 6.28318 * 5.0 + 2.5) * 0.5 + 0.5; // 5 waves, offset
+          float waveVariation = (wave1 * 0.5 + wave2 * 0.3 + wave3 * 0.2); // Blend waves
+          float fogHeightBoost = waveVariation * 0.08; // Max 8% additional height
+          
+          float fogSolidHeight = imageBottom + imageHeight * (fogSolidHeightPct + fogHeightBoost);
+          float fogTopHeight = imageBottom + imageHeight * (fogTransitionTopPct + fogHeightBoost);
+          
+          // Repeat 3x and determine which panel we're in (angle/u_raw already computed above)
           
           // Repeat 3x and determine which panel we're in
           float u_scaled = u_raw * 3.0;
