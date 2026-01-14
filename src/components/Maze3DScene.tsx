@@ -1962,34 +1962,36 @@ const SkyBackground = () => {
           
           vec3 finalColor;
           
+          // Gamma correct the fog color (linear -> sRGB) since we have toneMapped: false
+          vec3 fogColorCorrected = pow(bottomColor, vec3(1.0 / 2.2));
+          vec3 skyColorCorrected = pow(topColor, vec3(1.0 / 2.2));
+          
           // Check if we're in the image band
           if (height >= imageBottom && height <= imageTop) {
             // Map height within band to V coordinate (0 to 1)
             float v = (height - imageBottom) / imageHeight;
+            // Texture is already in sRGB, no correction needed
             vec3 imageColor = texture2D(skyTexture, vec2(u, v)).rgb;
             
             if (height < fogSolidHeight) {
               // Below solid threshold: 100% fog color
-              finalColor = bottomColor;
+              finalColor = fogColorCorrected;
             } else if (height < fogTopHeight) {
               // Transition zone: blend from fog to image
               float fogBlend = smoothstep(fogTopHeight, fogSolidHeight, height);
-              finalColor = mix(imageColor, bottomColor, fogBlend);
+              finalColor = mix(imageColor, fogColorCorrected, fogBlend);
             } else {
-              // Above fog: pure image
+              // Above fog: pure image (already sRGB)
               finalColor = imageColor;
             }
           } else if (height < imageBottom) {
             // Below image: solid fog color
-            finalColor = bottomColor;
+            finalColor = fogColorCorrected;
           } else {
             // Above image: gradient to sky blue
             float t = clamp((height - imageTop) / (1.0 - imageTop), 0.0, 1.0);
-            finalColor = mix(topColor, topColor * 0.8, t);
+            finalColor = mix(skyColorCorrected, skyColorCorrected * 0.8, t);
           }
-          
-          // Convert linear to sRGB for correct color output
-          finalColor = pow(finalColor, vec3(1.0 / 2.2));
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
