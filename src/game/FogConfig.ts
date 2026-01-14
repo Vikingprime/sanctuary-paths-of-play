@@ -24,6 +24,24 @@ export const FogConfig = {
   // Higher = denser fog, objects disappear sooner
   DENSITY: 0.14,
   
+  // ============= HORIZON IMAGE =============
+  // Path to the horizon/skyline image displayed behind the fog
+  // 
+  // IMAGE REQUIREMENTS:
+  // - Seamlessly tileable horizontally (wraps around 360°)
+  // - Recommended aspect ratio: 3:1 or wider (image is repeated 3x around the sky)
+  // - PNG with transparency supported
+  // - Seam artifacts are automatically prevented via LinearFilter (no mipmaps)
+  // 
+  // To replace: just swap this path to another image meeting the requirements
+  HORIZON_IMAGE_PATH: '/textures/farm-horizon.png',
+  
+  // Where the horizon image center sits in view space (-1 to 1, where 0 is eye level)
+  HORIZON_HEIGHT: 0.12,
+  
+  // Height of the image band in view space (0.0 to 1.0)
+  HORIZON_IMAGE_HEIGHT: 0.8,
+  
   // ============= SKY FOG BAND =============
   // Controls where solid fog appears in the horizon image
   // Values are percentages of the horizon image height (0.0 to 1.0)
