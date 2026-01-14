@@ -1954,13 +1954,21 @@ const SkyBackground = () => {
         // Calculate horizontal angle for texture U coordinate (wrap around)
           // Tile the texture 3x horizontally to reduce stretching
           float angle = atan(viewDir.x, viewDir.z);
-          float u = (angle / (2.0 * 3.14159265) + 0.5) * 3.0;
+          float rawU = (angle / (2.0 * 3.14159265) + 0.5) * 3.0;
+          float u = fract(rawU); // Ensure proper wrapping
+          
+          // Blend at seam edges to hide non-tileable image boundaries
+          float seamBlend = smoothstep(0.0, 0.03, u) * smoothstep(1.0, 0.97, u);
           
           // Check if we're in the image band
           if (height >= imageBottom && height <= imageTop) {
             // Map height within band to V coordinate (0 to 1)
             float v = (height - imageBottom) / imageHeight;
+            
+            // Sample texture at current position and offset for blending
             vec4 texColor = texture2D(skyTexture, vec2(u, v));
+            vec4 texColorOffset = texture2D(skyTexture, vec2(u + 0.5, v));
+            texColor = mix(texColorOffset, texColor, seamBlend);
             gl_FragColor = vec4(texColor.rgb, 1.0);
           } else if (height < imageBottom) {
             // Below image: solid fog color
