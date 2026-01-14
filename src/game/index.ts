@@ -11,6 +11,7 @@
 
 // Configuration
 export { GameConfig } from './GameConfig';
+export { FogConfig, FOG_COLOR, getFogColorGLSL } from './FogConfig';
 
 // Maze utilities
 export {

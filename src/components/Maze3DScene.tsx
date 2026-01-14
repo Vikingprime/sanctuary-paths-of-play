@@ -12,12 +12,11 @@ import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics, checkGcSpike } from '@/lib/debug';
 import { MOBILE_CONTROL_CONFIG } from './MobileControls';
+import { FogConfig, FOG_COLOR } from '@/game/FogConfig';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 
-// ============= UNIFIED FOG/ATMOSPHERE COLOR =============
-// Single source of truth for fog, sky horizon, ground shader, and corn materials
-// This is THE ONLY place to change the fog color - everything references this
-export const ATMOSPHERE_COLOR = '#B0A898';  // Warm gray-beige fog
+// Re-export for backward compatibility
+export const ATMOSPHERE_COLOR = FogConfig.COLOR_HEX;
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
@@ -1888,7 +1887,6 @@ const FPSTracker = ({ onFpsUpdate }: { onFpsUpdate: (fps: number) => void }) => 
 
 // Sky colors - uses unified atmosphere color for horizon
 const SKY_TOP_COLOR = '#6191B5';          // Sky blue at zenith
-const SKY_BOTTOM_COLOR = ATMOSPHERE_COLOR; // Match fog color exactly
 
 // Sky dome component - 3D sphere that renders the sky without scene.background
 // Gradient starts at 99% up (mostly beige, tiny blue cap at zenith)
@@ -1924,8 +1922,10 @@ const SkyBackground = () => {
         skyTexture: { value: texture },
         horizonHeight: { value: 0.05 },   // Where horizon sits in view space (-1 to 1)
         imageHeight: { value: 0.8 },      // Taller band to preserve aspect ratio
-        bottomColor: { value: new Color(ATMOSPHERE_COLOR) },
+        bottomColor: { value: FOG_COLOR.clone() },
         topColor: { value: new Color(SKY_TOP_COLOR) },
+        fogSolidHeight: { value: FogConfig.SKY_BAND_SOLID_HEIGHT },
+        fogTransitionTop: { value: FogConfig.SKY_BAND_TRANSITION_TOP },
       },
       vertexShader: `
         varying vec3 vLocalPosition;
@@ -1940,6 +1940,8 @@ const SkyBackground = () => {
         uniform float imageHeight;
         uniform vec3 bottomColor;
         uniform vec3 topColor;
+        uniform float fogSolidHeightPct;
+        uniform float fogTransitionTopPct;
         varying vec3 vLocalPosition;
         
         void main() {
@@ -1951,8 +1953,8 @@ const SkyBackground = () => {
           float imageTop = horizonHeight + imageHeight * 0.5;
           
           // Fog band: solid fog up to fogSolidHeight, then transition to image up to fogTopHeight
-          float fogSolidHeight = imageBottom + imageHeight * 0.40;  // Solid fog zone
-          float fogTopHeight = imageBottom + imageHeight * 0.51;    // Top of transition
+          float fogSolidHeight = imageBottom + imageHeight * fogSolidHeightPct;  // Solid fog zone
+          float fogTopHeight = imageBottom + imageHeight * fogTransitionTopPct;   // Top of transition
           
           // Calculate horizontal angle for texture U coordinate (wrap around)
           float angle = atan(viewDir.x, viewDir.z);
@@ -2146,7 +2148,7 @@ return (
       
       {/* Exponential fog - uses unified atmosphere color
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
-      <fogExp2 attach="fog" args={[ATMOSPHERE_COLOR, 0.14]} />
+      <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />
       {/* Ground */}
       <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} />
       
