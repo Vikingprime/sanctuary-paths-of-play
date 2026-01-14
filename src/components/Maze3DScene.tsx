@@ -15,9 +15,9 @@ import { MOBILE_CONTROL_CONFIG } from './MobileControls';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 
 // ============= UNIFIED FOG/ATMOSPHERE COLOR =============
-// Single source of truth for fog, sky horizon, and ground shader fog
-// Gray-fog color that sits below the treeline in the sky image
-const ATMOSPHERE_COLOR = '#A8A090';  // Gray-beige fog matching distant haze
+// Single source of truth for fog, sky horizon, ground shader, and corn materials
+// This is THE ONLY place to change the fog color - everything references this
+export const ATMOSPHERE_COLOR = '#B0A898';  // Warm gray-beige fog
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;

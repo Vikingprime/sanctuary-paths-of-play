@@ -800,6 +800,7 @@ export const InstancedWalls = ({
       depthWrite: true,
       depthTest: true,
       side: FrontSide,
+      fog: true,  // Ensure fog blending with scene
     });
     
     // Add instance opacity support to cheap material
@@ -874,6 +875,7 @@ export const InstancedWalls = ({
       color: new Color(0.2, 0.45, 0.15),
       side: DoubleSide,
       depthWrite: true,
+      fog: true,  // Ensure fog blending with scene
     });
     
     return { 
