@@ -1959,7 +1959,7 @@ const SkyBackground = () => {
           
           // Calculate horizontal angle for texture U coordinate (wrap around)
           float angle = atan(viewDir.x, viewDir.z);
-          float u = (angle / (2.0 * 3.14159265) + 0.5) * 3.0;
+          float u = (angle / (2.0 * 3.14159265) + 0.5);
           
           vec3 finalColor;
           

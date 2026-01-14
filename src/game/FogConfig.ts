@@ -34,7 +34,7 @@ export const FogConfig = {
   // - Seam artifacts are automatically prevented via LinearFilter (no mipmaps)
   // 
   // To replace: just swap this path to another image meeting the requirements
-  HORIZON_IMAGE_PATH: '/textures/farm-horizon.png',
+  HORIZON_IMAGE_PATH: '/textures/farm-horizon-combined.png',
   
   // Where the horizon image center sits in view space (-1 to 1, where 0 is eye level)
   HORIZON_HEIGHT: 0.12,
