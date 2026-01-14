@@ -1906,17 +1906,16 @@ const SkyBackground = () => {
   // Load the farm horizon texture
   const texture = useLoader(TextureLoader, '/textures/farm-horizon.png');
   
-  // Configure texture for seamless wrapping with better quality filtering
-  const { gl } = useThree();
+  // Configure texture for seamless wrapping
+  // Disable mipmaps to prevent seam artifacts from atan() derivative discontinuity
   useMemo(() => {
     texture.wrapS = RepeatWrapping;
     texture.wrapT = ClampToEdgeWrapping;
-    texture.minFilter = LinearMipmapLinearFilter;
+    texture.minFilter = LinearFilter; // No mipmaps - prevents dotted seam line
     texture.magFilter = LinearFilter;
-    texture.generateMipmaps = true;
-    texture.anisotropy = gl.capabilities.getMaxAnisotropy();
+    texture.generateMipmaps = false;
     texture.needsUpdate = true;
-  }, [texture, gl]);
+  }, [texture]);
   
   // ShaderMaterial for sky using cylindrical projection (no vertical stretching)
   const skyMaterial = useMemo(() => {
