@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Confetti } from '@/components/Confetti';
 import { animals } from '@/data/animals';
 import { formatTime } from '@/lib/utils';
-import { setAutopushEnabled, setLOSFaderEnabled, setVerboseLogging } from '@/lib/debug';
+import { setAutopushEnabled as setDebugAutopush, setLOSFaderEnabled as setDebugLOSFader, setVerboseLogging as setDebugVerbose } from '@/lib/debug';
 import { useBackButton } from '@/hooks/useBackButton';
 
 // Import pure game logic (Unity-portable)
@@ -204,15 +204,15 @@ export const MazeGame3D = ({
 
   // Sync debug toggles to debug module
   useEffect(() => {
-    setAutopushEnabled(autopushEnabled);
+    setDebugAutopush(autopushEnabled);
   }, [autopushEnabled]);
   
   useEffect(() => {
-    setLOSFaderEnabled(losFaderEnabled);
+    setDebugLOSFader(losFaderEnabled);
   }, [losFaderEnabled]);
-  
+
   useEffect(() => {
-    setVerboseLogging(verboseLogging);
+    setDebugVerbose(verboseLogging);
   }, [verboseLogging]);
   const keysPressed = useRef<Set<string>>(new Set());
   const animationFrameRef = useRef<number>();
