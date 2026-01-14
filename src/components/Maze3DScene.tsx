@@ -16,8 +16,8 @@ import { MOBILE_CONTROL_CONFIG } from './MobileControls';
 
 // ============= UNIFIED FOG/ATMOSPHERE COLOR =============
 // Single source of truth for fog, sky horizon, and ground shader fog
-// This color is used for fog AND the sky's bottom portion up to corn height
-const ATMOSPHERE_COLOR = '#E8985A';  // Warm orange fog/atmosphere
+// Gray-fog color that sits below the treeline in the sky image
+const ATMOSPHERE_COLOR = '#A8A090';  // Gray-beige fog matching distant haze
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
@@ -1950,6 +1950,9 @@ const SkyBackground = () => {
           float imageBottom = horizonHeight - imageHeight * 0.5;
           float imageTop = horizonHeight + imageHeight * 0.5;
           
+          // Fog transition zone - gray fog fades into bottom of image (below trees)
+          float fogTopHeight = imageBottom + 0.15;
+          
           // Calculate horizontal angle for texture U coordinate (wrap around)
           float angle = atan(viewDir.x, viewDir.z);
           float u = (angle / (2.0 * 3.14159265) + 0.5) * 3.0;
@@ -1960,7 +1963,15 @@ const SkyBackground = () => {
           if (height >= imageBottom && height <= imageTop) {
             // Map height within band to V coordinate (0 to 1)
             float v = (height - imageBottom) / imageHeight;
-            finalColor = texture2D(skyTexture, vec2(u, v)).rgb;
+            vec3 imageColor = texture2D(skyTexture, vec2(u, v)).rgb;
+            
+            // Blend fog into the bottom portion of the image (below trees)
+            if (height < fogTopHeight) {
+              float fogBlend = smoothstep(fogTopHeight, imageBottom, height);
+              finalColor = mix(imageColor, bottomColor, fogBlend);
+            } else {
+              finalColor = imageColor;
+            }
           } else if (height < imageBottom) {
             // Below image: solid fog color
             finalColor = bottomColor;
