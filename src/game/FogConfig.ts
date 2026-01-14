@@ -29,10 +29,10 @@ export const FogConfig = {
   // Values are percentages of the horizon image height (0.0 to 1.0)
   
   // Height where fog becomes 100% solid (from bottom of image)
-  SKY_BAND_SOLID_HEIGHT: 0.40,
+  SKY_BAND_SOLID_HEIGHT: 0.37,
   
   // Height where fog transition ends (image becomes fully visible above this)
-  SKY_BAND_TRANSITION_TOP: 0.51,
+  SKY_BAND_TRANSITION_TOP: 0.40,
 } as const;
 
 // Pre-computed Color object for Three.js usage
