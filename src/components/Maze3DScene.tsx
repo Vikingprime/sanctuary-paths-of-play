@@ -1901,11 +1901,12 @@ const SkyBackground = () => {
     }
   });
 
-  // Load the farm horizon texture
-  const texture = useLoader(TextureLoader, '/textures/farm-horizon.png');
+  // Load the horizon texture from config
+  const texture = useLoader(TextureLoader, FogConfig.HORIZON_IMAGE_PATH);
   
   // Configure texture for seamless wrapping
   // Disable mipmaps to prevent seam artifacts from atan() derivative discontinuity
+  // This setting is applied automatically to any replacement image
   useMemo(() => {
     texture.wrapS = RepeatWrapping;
     texture.wrapT = ClampToEdgeWrapping;
@@ -1920,8 +1921,8 @@ const SkyBackground = () => {
     const mat = new ShaderMaterial({
       uniforms: {
         skyTexture: { value: texture },
-        horizonHeight: { value: 0.12 },   // Where horizon sits in view space (-1 to 1)
-        imageHeight: { value: 0.8 },      // Taller band to preserve aspect ratio
+        horizonHeight: { value: FogConfig.HORIZON_HEIGHT },
+        imageHeight: { value: FogConfig.HORIZON_IMAGE_HEIGHT },
         bottomColor: { value: FOG_COLOR.clone() },
         topColor: { value: new Color(SKY_TOP_COLOR) },
         fogSolidHeightPct: { value: FogConfig.SKY_BAND_SOLID_HEIGHT },
