@@ -1951,8 +1951,8 @@ const SkyBackground = () => {
           float imageTop = horizonHeight + imageHeight * 0.5;
           
           // Fog band: solid fog up to fogSolidHeight, then transition to image up to fogTopHeight
-          float fogSolidHeight = imageBottom + imageHeight * 0.35;  // Solid fog zone
-          float fogTopHeight = imageBottom + imageHeight * 0.50;    // Top of transition
+          float fogSolidHeight = imageBottom + imageHeight * 0.48;  // Solid fog zone
+          float fogTopHeight = imageBottom + imageHeight * 0.51;    // Top of transition
           
           // Calculate horizontal angle for texture U coordinate (wrap around)
           float angle = atan(viewDir.x, viewDir.z);
