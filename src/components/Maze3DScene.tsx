@@ -1950,8 +1950,8 @@ const SkyBackground = () => {
           float imageBottom = horizonHeight - imageHeight * 0.5;
           float imageTop = horizonHeight + imageHeight * 0.5;
           
-          // Fog band extends up to ~40% of image height (below tree line)
-          float fogTopHeight = imageBottom + imageHeight * 0.4;
+          // Fog band extends up to ~50% of image height (below tree line)
+          float fogTopHeight = imageBottom + imageHeight * 0.5;
           
           // Calculate horizontal angle for texture U coordinate (wrap around)
           float angle = atan(viewDir.x, viewDir.z);
