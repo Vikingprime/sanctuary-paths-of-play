@@ -1924,9 +1924,8 @@ const SkyBackground = () => {
         skyTexture: { value: texture },
         horizonHeight: { value: 0.05 },   // Where horizon sits in view space (-1 to 1)
         imageHeight: { value: 0.8 },      // Taller band to preserve aspect ratio
-        fogColor: { value: new Color(ATMOSPHERE_COLOR) },
+        bottomColor: { value: new Color(ATMOSPHERE_COLOR) },
         topColor: { value: new Color(SKY_TOP_COLOR) },
-        fogTopHeight: { value: 0.4 },     // Fog color extends up to 40% (corn height)
       },
       vertexShader: `
         varying vec3 vLocalPosition;
@@ -1939,9 +1938,8 @@ const SkyBackground = () => {
         uniform sampler2D skyTexture;
         uniform float horizonHeight;
         uniform float imageHeight;
-        uniform vec3 fogColor;
+        uniform vec3 bottomColor;
         uniform vec3 topColor;
-        uniform float fogTopHeight;
         varying vec3 vLocalPosition;
         
         void main() {
@@ -1958,20 +1956,18 @@ const SkyBackground = () => {
           
           vec3 finalColor;
           
-          // Below fog top height: solid fog color (matches scene fog exactly)
-          if (height < fogTopHeight) {
-            finalColor = fogColor;
-          } else if (height >= imageBottom && height <= imageTop) {
-            // In image band above fog: show texture
+          // Check if we're in the image band
+          if (height >= imageBottom && height <= imageTop) {
+            // Map height within band to V coordinate (0 to 1)
             float v = (height - imageBottom) / imageHeight;
             finalColor = texture2D(skyTexture, vec2(u, v)).rgb;
-          } else if (height > imageTop) {
+          } else if (height < imageBottom) {
+            // Below image: solid fog color
+            finalColor = bottomColor;
+          } else {
             // Above image: gradient to sky blue
             float t = clamp((height - imageTop) / (1.0 - imageTop), 0.0, 1.0);
             finalColor = mix(topColor, topColor * 0.8, t);
-          } else {
-            // Fallback
-            finalColor = fogColor;
           }
           
           gl_FragColor = vec4(finalColor, 1.0);
