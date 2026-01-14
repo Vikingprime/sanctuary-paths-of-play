@@ -1986,6 +1986,9 @@ const SkyBackground = () => {
             finalColor = mix(topColor, topColor * 0.8, t);
           }
           
+          // Convert linear to sRGB for correct color output
+          finalColor = pow(finalColor, vec3(1.0 / 2.2));
+          
           gl_FragColor = vec4(finalColor, 1.0);
         }
       `,
