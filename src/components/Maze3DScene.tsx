@@ -1901,26 +1901,30 @@ const SkyBackground = () => {
     }
   });
 
-  // Load the horizon texture from config
-  const texture = useLoader(TextureLoader, FogConfig.HORIZON_IMAGE_PATH);
+  // Load both horizon textures: barn (panel 1) and trees (panels 0, 2)
+  const barnTexture = useLoader(TextureLoader, '/textures/farm-horizon.png');
+  const treesTexture = useLoader(TextureLoader, '/textures/horizon-trees.png');
   
-  // Configure texture for seamless wrapping
+  // Configure textures for seamless wrapping
   // Disable mipmaps to prevent seam artifacts from atan() derivative discontinuity
-  // This setting is applied automatically to any replacement image
   useMemo(() => {
-    texture.wrapS = RepeatWrapping;
-    texture.wrapT = ClampToEdgeWrapping;
-    texture.minFilter = LinearFilter; // No mipmaps - prevents dotted seam line
-    texture.magFilter = LinearFilter;
-    texture.generateMipmaps = false;
-    texture.needsUpdate = true;
-  }, [texture]);
+    [barnTexture, treesTexture].forEach(tex => {
+      tex.wrapS = RepeatWrapping;
+      tex.wrapT = ClampToEdgeWrapping;
+      tex.minFilter = LinearFilter; // No mipmaps - prevents dotted seam line
+      tex.magFilter = LinearFilter;
+      tex.generateMipmaps = false;
+      tex.needsUpdate = true;
+    });
+  }, [barnTexture, treesTexture]);
   
-  // ShaderMaterial for sky using cylindrical projection (no vertical stretching)
+  // ShaderMaterial for sky using cylindrical projection with dual textures
+  // Panel layout: trees (0) | barn (1) | trees (2)
   const skyMaterial = useMemo(() => {
     const mat = new ShaderMaterial({
       uniforms: {
-        skyTexture: { value: texture },
+        barnTexture: { value: barnTexture },
+        treesTexture: { value: treesTexture },
         horizonHeight: { value: FogConfig.HORIZON_HEIGHT },
         imageHeight: { value: FogConfig.HORIZON_IMAGE_HEIGHT },
         bottomColor: { value: FOG_COLOR.clone() },
@@ -1936,7 +1940,8 @@ const SkyBackground = () => {
         }
       `,
       fragmentShader: `
-        uniform sampler2D skyTexture;
+        uniform sampler2D barnTexture;
+        uniform sampler2D treesTexture;
         uniform float horizonHeight;
         uniform float imageHeight;
         uniform vec3 bottomColor;
@@ -1959,7 +1964,12 @@ const SkyBackground = () => {
           
           // Calculate horizontal angle for texture U coordinate (wrap around)
           float angle = atan(viewDir.x, viewDir.z);
-          float u = (angle / (2.0 * 3.14159265) + 0.5);
+          float u_raw = (angle / (2.0 * 3.14159265) + 0.5); // 0-1 around full circle
+          
+          // Repeat 3x and determine which panel we're in
+          float u_scaled = u_raw * 3.0;
+          int panel = int(floor(u_scaled));
+          float u = fract(u_scaled); // 0-1 within each panel
           
           vec3 finalColor;
           
@@ -1971,8 +1981,14 @@ const SkyBackground = () => {
           if (height >= imageBottom && height <= imageTop) {
             // Map height within band to V coordinate (0 to 1)
             float v = (height - imageBottom) / imageHeight;
-            // Texture is already in sRGB, no correction needed
-            vec3 imageColor = texture2D(skyTexture, vec2(u, v)).rgb;
+            
+            // Sample from barn for panel 1, trees for panels 0 and 2
+            vec3 imageColor;
+            if (panel == 1) {
+              imageColor = texture2D(barnTexture, vec2(u, v)).rgb;
+            } else {
+              imageColor = texture2D(treesTexture, vec2(u, v)).rgb;
+            }
             
             if (height < fogSolidHeight) {
               // Below solid threshold: 100% fog color
@@ -2003,7 +2019,7 @@ const SkyBackground = () => {
       toneMapped: false,
     });
     return mat;
-  }, [texture]);
+  }, [barnTexture, treesTexture]);
   
   return (
     <mesh ref={skyRef} renderOrder={-1000} material={skyMaterial}>
