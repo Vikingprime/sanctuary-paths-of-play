@@ -1924,8 +1924,8 @@ const SkyBackground = () => {
         imageHeight: { value: 0.8 },      // Taller band to preserve aspect ratio
         bottomColor: { value: FOG_COLOR.clone() },
         topColor: { value: new Color(SKY_TOP_COLOR) },
-        fogSolidHeight: { value: FogConfig.SKY_BAND_SOLID_HEIGHT },
-        fogTransitionTop: { value: FogConfig.SKY_BAND_TRANSITION_TOP },
+        fogSolidHeightPct: { value: FogConfig.SKY_BAND_SOLID_HEIGHT },
+        fogTransitionTopPct: { value: FogConfig.SKY_BAND_TRANSITION_TOP },
       },
       vertexShader: `
         varying vec3 vLocalPosition;
