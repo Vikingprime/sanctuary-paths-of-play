@@ -1950,8 +1950,9 @@ const SkyBackground = () => {
           float imageBottom = horizonHeight - imageHeight * 0.5;
           float imageTop = horizonHeight + imageHeight * 0.5;
           
-          // Fog band extends up to ~80% of image height (debugging - should be very visible)
-          float fogTopHeight = imageBottom + imageHeight * 0.8;
+          // Fog band: solid fog up to fogSolidHeight, then transition to image up to fogTopHeight
+          float fogSolidHeight = imageBottom + imageHeight * 0.35;  // Solid fog zone
+          float fogTopHeight = imageBottom + imageHeight * 0.50;    // Top of transition
           
           // Calculate horizontal angle for texture U coordinate (wrap around)
           float angle = atan(viewDir.x, viewDir.z);
@@ -1965,11 +1966,15 @@ const SkyBackground = () => {
             float v = (height - imageBottom) / imageHeight;
             vec3 imageColor = texture2D(skyTexture, vec2(u, v)).rgb;
             
-            // Blend fog into the bottom portion of the image (below trees)
-            if (height < fogTopHeight) {
-              float fogBlend = smoothstep(fogTopHeight, imageBottom, height);
+            if (height < fogSolidHeight) {
+              // Below solid threshold: 100% fog color
+              finalColor = bottomColor;
+            } else if (height < fogTopHeight) {
+              // Transition zone: blend from fog to image
+              float fogBlend = smoothstep(fogTopHeight, fogSolidHeight, height);
               finalColor = mix(imageColor, bottomColor, fogBlend);
             } else {
+              // Above fog: pure image
               finalColor = imageColor;
             }
           } else if (height < imageBottom) {
