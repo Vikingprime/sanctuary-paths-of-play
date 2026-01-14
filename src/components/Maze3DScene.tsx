@@ -16,8 +16,8 @@ import { MOBILE_CONTROL_CONFIG } from './MobileControls';
 
 // ============= UNIFIED FOG/ATMOSPHERE COLOR =============
 // Single source of truth for fog, sky horizon, and ground shader fog
-// Light cream/beige that matches the natural fog blend color
-const ATMOSPHERE_COLOR = '#E8DDD0';  // Light warm beige fog/atmosphere
+// This color is used for fog AND the sky's bottom portion up to corn height
+const ATMOSPHERE_COLOR = '#E8985A';  // Warm orange fog/atmosphere
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
