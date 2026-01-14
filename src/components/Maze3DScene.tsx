@@ -16,8 +16,9 @@ import { MOBILE_CONTROL_CONFIG } from './MobileControls';
 
 // ============= UNIFIED FOG/ATMOSPHERE COLOR =============
 // Single source of truth for fog, sky horizon, and ground shader fog
-// Warm peachy-orange to match the horizon image
-const ATMOSPHERE_COLOR = '#D4A574';  // Warm peachy fog/atmosphere matching horizon
+// This MUST match the sky shader's final blended horizon color exactly
+// Sky bottom (#D4A574) + 50% orange overlay (#E8985A) = this blended result
+const ATMOSPHERE_COLOR = '#E09767';  // Exact blend of sky bottom with orange overlay
 // Extended performance info type
 export interface PerformanceInfo {
   drawCalls: number;
