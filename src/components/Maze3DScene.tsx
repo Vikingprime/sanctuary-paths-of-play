@@ -1999,6 +1999,12 @@ const SkyBackground = () => {
               imageColor = texture2D(treesTexture, vec2(u, v)).rgb;
             }
             
+            // Boost saturation and contrast for crisper colors
+            vec3 gray = vec3(dot(imageColor, vec3(0.299, 0.587, 0.114)));
+            imageColor = mix(gray, imageColor, 1.3); // Saturation boost (1.0 = normal)
+            imageColor = (imageColor - 0.5) * 1.15 + 0.5; // Contrast boost
+            imageColor = clamp(imageColor, 0.0, 1.0);
+            
             if (height < fogSolidHeight) {
               // Below solid threshold: 100% fog color
               finalColor = fogColorCorrected;
