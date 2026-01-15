@@ -38,6 +38,7 @@ export interface PerformanceInfo {
   shadowMoves?: number;
   animationUpdates?: number;
   gcSpikes?: number;
+  shadowCasters?: number;
 }
 
 // === PERFORMANCE TOGGLES (for testing) ===
@@ -2237,10 +2238,10 @@ return (
         shadow-mapSize={lowShadowRes ? [512, 512] : [2048, 2048]}
         shadow-camera-near={0.5}
         shadow-camera-far={50}
-        shadow-camera-left={-15}
-        shadow-camera-right={15}
-        shadow-camera-top={15}
-        shadow-camera-bottom={-15}
+        shadow-camera-left={-7}
+        shadow-camera-right={7}
+        shadow-camera-top={7}
+        shadow-camera-bottom={-7}
         shadow-bias={-0.0001}
       >
         <object3D attach="target" />
@@ -2429,6 +2430,12 @@ const RendererInfoTracker = ({
         const perFrameOpacityUpdates = frameCount > 0 ? Math.round(frameMetrics.opacityBufferUpdates / frameCount) : 0;
         const perFrameAnimations = frameCount > 0 ? Math.round(frameMetrics.animationMixerUpdates / frameCount) : 0;
         
+        // Count shadow-casting objects
+        let shadowCasterCount = 0;
+        scene.traverse((obj) => {
+          if ((obj as Mesh).castShadow) shadowCasterCount++;
+        });
+        
         onRendererInfo({
           drawCalls: gl.info.render.calls,
           triangles: gl.info.render.triangles,
@@ -2446,6 +2453,7 @@ const RendererInfoTracker = ({
           shadowMoves: frameMetrics.shadowLightMoves,
           animationUpdates: perFrameAnimations,
           gcSpikes: frameMetrics.gcSpikes,
+          shadowCasters: shadowCasterCount,
         });
         
         // Reset metrics for next interval

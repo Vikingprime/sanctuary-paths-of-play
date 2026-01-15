@@ -409,6 +409,12 @@ export const GameHUD = ({
             Geometries: {performanceInfo.geometries}
           </div>
           <div>Shaders: {performanceInfo.programs}</div>
+          <div className={cn(
+            (performanceInfo.shadowCasters ?? 0) > 500 ? 'text-red-400' : 
+            (performanceInfo.shadowCasters ?? 0) > 200 ? 'text-yellow-400' : 'text-green-400'
+          )}>
+            Shadow casters: {performanceInfo.shadowCasters ?? 0}
+          </div>
           
           {/* Bottleneck indicator */}
           <div className="mt-1 pt-1 border-t border-gray-600">
