@@ -69,9 +69,7 @@ interface GameHUDProps {
   onToggleOpacityFade?: () => void;
   cornEnabled?: boolean;
   onToggleCorn?: () => void;
-  // New visual toggles
-  rimLightEnabled?: boolean;
-  onToggleRimLight?: () => void;
+  // Visual toggles
   vignetteEnabled?: boolean;
   onToggleVignette?: () => void;
   shadowIntensity?: number;
@@ -121,8 +119,6 @@ export const GameHUD = ({
   onToggleOpacityFade,
   cornEnabled = true,
   onToggleCorn,
-  rimLightEnabled = true,
-  onToggleRimLight,
   vignetteEnabled = true,
   onToggleVignette,
   shadowIntensity = 1.0,
@@ -491,18 +487,6 @@ export const GameHUD = ({
                   title="Disable mobile controls to use WASD only"
                 >
                   Mobile
-                </button>
-              )}
-              {onToggleRimLight && (
-                <button
-                  onClick={onToggleRimLight}
-                  className={cn(
-                    'px-2 py-0.5 rounded text-[10px] font-bold',
-                    rimLightEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-                  )}
-                  title="Warm rim/back light"
-                >
-                  Rim
                 </button>
               )}
               {onToggleVignette && (
