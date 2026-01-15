@@ -87,6 +87,7 @@ interface Maze3DSceneProps {
   cornEnabled?: boolean;
   simpleGroundEnabled?: boolean;
   cornCullingEnabled?: boolean;
+  skyEnabled?: boolean;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -2103,7 +2104,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2253,7 +2254,7 @@ return (
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
       {/* Sky orb - flat material, no fog/tonemapping */}
-      <SkyBackground />
+      {skyEnabled && <SkyBackground />}
       
       {/* Exponential fog - uses unified atmosphere color
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
