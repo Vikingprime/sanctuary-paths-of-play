@@ -85,10 +85,13 @@ interface Maze3DSceneProps {
   animationsEnabled?: boolean;
   opacityFadeEnabled?: boolean;
   cornEnabled?: boolean;
+  simpleGroundEnabled?: boolean;
+  cornCullingEnabled?: boolean;
 }
 
 // Ground shader with wall texture for grass/path differentiation
-const GroundMaterial = ({ maze }: { maze: Maze }) => {
+// Supports simple mode (flat colors) vs complex mode (noise-based texturing)
+const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean }) => {
   const { material, wallTexture } = useMemo(() => {
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
@@ -147,7 +150,45 @@ const mat = new ShaderMaterial({
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
-      fragmentShader: `
+      // Simple mode: flat colors based on wall mask only (minimal GPU cost)
+      // Complex mode: full FBM noise, rock patterns, organic edges
+      fragmentShader: simple ? `
+        uniform sampler2D wallMap;
+        uniform float mazeWidth;
+        uniform float mazeHeight;
+        uniform vec3 pathBase;
+        uniform vec3 grassDark;
+        uniform vec3 fogColor;
+        uniform float fogDensity;
+        uniform float fogHeightMax;
+        varying vec2 vUv;
+        varying float vFogDepth;
+        varying vec3 vWorldPos;
+        
+        void main() {
+          vec2 worldUV = vWorldPos.xz;
+          vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
+          float isWall = texture2D(wallMap, mazeUV).r;
+          
+          // Simple hard edge between path and grass (no noise)
+          float wallMask = smoothstep(0.4, 0.6, isWall);
+          
+          float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
+                          step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
+          wallMask = mix(1.0, wallMask, inBounds);
+          
+          // Flat colors
+          vec3 finalColor = mix(pathBase, grassDark * 0.7, wallMask);
+          
+          // Apply fog
+          float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
+          float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+          fogFactor *= heightAttenuation;
+          finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
+          
+          gl_FragColor = vec4(finalColor, 1.0);
+        }
+      ` : `
         uniform sampler2D wallMap;
         uniform float mazeWidth;
         uniform float mazeHeight;
@@ -339,7 +380,7 @@ const mat = new ShaderMaterial({
     });
     
     return { material: mat, wallTexture: texture };
-  }, [maze]);
+  }, [maze, simple]);
   
   return <primitive object={material} attach="material" />;
 };
@@ -574,12 +615,13 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
 };
 
 // Ground with grass/path differentiation based on wall data
-const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled = true }: { 
+const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled = true, simpleGroundEnabled = false }: { 
   maze: Maze; 
   rocks: RockPosition[]; 
   playerStateRef: MutableRefObject<PlayerState>;
   rocksEnabled?: boolean;
   grassEnabled?: boolean;
+  simpleGroundEnabled?: boolean;
 }) => {
   const width = maze.grid[0].length;
   const height = maze.grid.length;
@@ -596,7 +638,7 @@ const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled
         position={[centerX, 0, centerZ]}
       >
         <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
-        <GroundMaterial maze={maze} />
+        <GroundMaterial maze={maze} simple={simpleGroundEnabled} />
       </mesh>
       
       {/* Shadow receiving plane slightly above to avoid z-fighting */}
@@ -2061,7 +2103,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2217,7 +2259,7 @@ return (
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
       <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />
       {/* Ground */}
-      <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} />
+      <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />
       
       {/* Maze Walls (corn) with optimizations */}
       {cornEnabled && (
@@ -2225,7 +2267,7 @@ return (
           ref={foliageGroupRef}
           maze={maze} 
           playerStateRef={playerStateRef}
-          optimizationSettings={cornOptimizationSettings}
+          optimizationSettings={{ ...cornOptimizationSettings, enableDistanceCulling: cornCullingEnabled && (cornOptimizationSettings?.enableDistanceCulling ?? true) }}
           onCullStats={onCullStats}
         />
       )}
