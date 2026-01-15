@@ -243,6 +243,10 @@ const mat = new ShaderMaterial({
           float centerBrightness = pow(1.0 - wallMask, 2.0);  // Stronger effect in center
           pathColor = mix(pathColor, pathColor * 1.25, centerBrightness * 0.5);
           
+          // Darken edges where corn meets path (shadow from corn)
+          float edgeDarkness = smoothstep(0.0, 0.35, wallMask) * (1.0 - smoothstep(0.35, 0.7, wallMask));
+          pathColor = mix(pathColor, pathColor * 0.7, edgeDarkness * 0.6);
+          
           // PATH ROCKS - use elliptical shapes with rotation for organic look
           float rockAngle1 = hash2(floor(worldUV * 1.8)) * 6.28;
           vec2 rockCenter1 = fract(worldUV * 1.8) - 0.5;
@@ -2201,6 +2205,13 @@ return (
         color="#D8E8FF"
       />
       
+      {/* Warm rim/back light - creates dusty afternoon silhouette glow on animals and corn */}
+      <directionalLight
+        position={[-8, 20, -15]}
+        intensity={0.8}
+        color="#FFD4A0"
+      />
+      
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
       
@@ -2437,7 +2448,15 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
   const pixelRatio = props.lowPixelRatio ? 0.5 : basePixelRatio;
   
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full relative">
+      {/* Subtle vignette overlay - cinematic feel, hides edge clutter */}
+      <div 
+        className="absolute inset-0 pointer-events-none z-10"
+        style={{
+          background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.08) 100%)',
+        }}
+      />
+      
       {/* FPS Display - only in debug mode */}
       {props.debugMode && <FPSDisplay fps={fps} />}
       
