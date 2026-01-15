@@ -209,6 +209,7 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       shader.uniforms.playerPos = playerPosRef;
       shader.uniforms.fadeStart = { value: FADE_START };
       shader.uniforms.fadeEnd = { value: FADE_END };
+      shader.uniforms.shaderFadeEnabled = { value: 1.0 }; // 1.0 = enabled, 0.0 = disabled
     }
     
     // Store shader reference
@@ -241,7 +242,8 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
     const distanceUniforms = playerPosRef ? `
       uniform vec3 playerPos;
       uniform float fadeStart;
-      uniform float fadeEnd;` : '';
+      uniform float fadeEnd;
+      uniform float shaderFadeEnabled;` : '';
     
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
@@ -252,9 +254,10 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
     );
     
     // Apply per-instance opacity + color tint + optional distance fade at end of fragment shader
+    // Distance fade is controlled by shaderFadeEnabled uniform (1.0 = apply fade, 0.0 = skip fade)
     const distanceFadeCode = playerPosRef ? `
       float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
-      float distFade = 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer);
+      float distFade = mix(1.0, 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer), shaderFadeEnabled);
       gl_FragColor.a *= distFade;` : '';
     
     shader.fragmentShader = shader.fragmentShader.replace(
@@ -292,6 +295,7 @@ interface InstancedWallsProps {
   playerPositionRef?: React.MutableRefObject<{ x: number; y: number }>;
   optimizationSettings?: CornOptimizationSettings;
   onCullStats?: (stats: CullStats) => void;
+  shaderFadeEnabled?: boolean;
 }
 
 // Density settings - staggered rows to close gaps
@@ -526,6 +530,7 @@ export const InstancedWalls = ({
   playerPositionRef,
   optimizationSettings = DEFAULT_CORN_SETTINGS,
   onCullStats,
+  shaderFadeEnabled = true,
 }: InstancedWallsProps) => {
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
@@ -588,7 +593,7 @@ export const InstancedWalls = ({
     const px = playerPositionRef?.current?.x ?? 0;
     const pz = playerPositionRef?.current?.y ?? 0;
     
-    // Update shader uniforms for all materials
+    // Update shader uniforms for all materials (playerPos + shaderFadeEnabled)
     const updateShaderUniforms = (materials: Material | Material[]) => {
       const mats = Array.isArray(materials) ? materials : [materials];
       for (const mat of mats) {
@@ -596,6 +601,9 @@ export const InstancedWalls = ({
         if (shader) {
           if (shader.uniforms.playerPos) {
             shader.uniforms.playerPos.value.copy(playerPosUniform.value);
+          }
+          if (shader.uniforms.shaderFadeEnabled) {
+            shader.uniforms.shaderFadeEnabled.value = shaderFadeEnabled ? 1.0 : 0.0;
           }
         }
       }

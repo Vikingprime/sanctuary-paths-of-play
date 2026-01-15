@@ -75,6 +75,8 @@ interface GameHUDProps {
   onToggleCornCulling?: () => void;
   skyEnabled?: boolean;
   onToggleSky?: () => void;
+  shaderFadeEnabled?: boolean;
+  onToggleShaderFade?: () => void;
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
@@ -126,6 +128,8 @@ export const GameHUD = ({
   onToggleCornCulling,
   skyEnabled = true,
   onToggleSky,
+  shaderFadeEnabled = true,
+  onToggleShaderFade,
   sensitivityConfig = DEFAULT_SENSITIVITY,
   onSensitivityChange,
   mobileControlsEnabled = true,
@@ -457,6 +461,17 @@ export const GameHUD = ({
                 >
                   Anims
                 </button>
+                )}
+              {onToggleAutopush && (
+                <button
+                  onClick={onToggleAutopush}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    autopushEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Push
+                </button>
               )}
               {onToggleOpacityFade && (
                 <button
@@ -467,6 +482,17 @@ export const GameHUD = ({
                   )}
                 >
                   Opacity
+                </button>
+              )}
+              {onToggleShaderFade && (
+                <button
+                  onClick={onToggleShaderFade}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    shaderFadeEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Shader
                 </button>
               )}
               {onToggleCorn && (
