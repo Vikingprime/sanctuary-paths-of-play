@@ -322,42 +322,7 @@ const mat = new ShaderMaterial({
           vec3 spilloverGrass = mix(grassDark, grassMoss, noise(worldUV * 5.0 + 800.0) * 0.4);
           finalColor = mix(finalColor, spilloverGrass, spilloverMask * (1.0 - wallMask));  // Only on path areas
           
-          // Fake terrain bumps using noise-based lighting
-          // Use higher frequency, less coherent noise for gravel/dirt look instead of liquid swirls
-          float eps = 0.015;
-          
-          // Higher frequencies for granular appearance (not smooth swirls)
-          float bumpScale1 = 18.0;  // Medium bumps
-          float bumpScale2 = 45.0;  // Fine grain
-          float bumpScale3 = 90.0;  // Very fine detail
-          
-          // Use simple additive noise instead of fbm (which creates swirls)
-          float heightCenter = noise(worldUV * bumpScale1 + 900.0) * 0.5
-                             + noise(worldUV * bumpScale2 + 950.0) * 0.35
-                             + noise(worldUV * bumpScale3 + 980.0) * 0.15;
-          float heightX = noise((worldUV + vec2(eps, 0.0)) * bumpScale1 + 900.0) * 0.5
-                        + noise((worldUV + vec2(eps, 0.0)) * bumpScale2 + 950.0) * 0.35
-                        + noise((worldUV + vec2(eps, 0.0)) * bumpScale3 + 980.0) * 0.15;
-          float heightZ = noise((worldUV + vec2(0.0, eps)) * bumpScale1 + 900.0) * 0.5
-                        + noise((worldUV + vec2(0.0, eps)) * bumpScale2 + 950.0) * 0.35
-                        + noise((worldUV + vec2(0.0, eps)) * bumpScale3 + 980.0) * 0.15;
-          
-          // Compute fake normal from height differences
-          vec3 bumpNormal = normalize(vec3(
-            (heightCenter - heightX) / eps,
-            1.0,
-            (heightCenter - heightZ) / eps
-          ));
-          
-          // Simple directional light from top-left-front (morning sun direction)
-          vec3 lightDir = normalize(vec3(0.5, 0.8, 0.3));
-          float bumpLighting = dot(bumpNormal, lightDir) * 0.5 + 0.5;  // 0-1 range
-          
-          // Reduced bump strength for subtler effect
-          float bumpStrength = 0.18;
-          
-          // Apply subtle bump shading - darken valleys, brighten peaks
-          finalColor *= 0.94 + bumpLighting * bumpStrength;
+          // Ground bumps removed for performance (was 9 noise samples per fragment)
           
           // Apply height-attenuated exponential fog
           // Ground is at Y=0, fog strongest there, fading out above corn height
