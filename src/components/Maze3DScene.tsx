@@ -2175,7 +2175,7 @@ return (
       {/* Lighting - 8am morning sunlight */}
       <ambientLight intensity={0.9} color="#FFF8F0" />
       
-      {/* Main sun light - follows player for consistent shadows */}
+      {/* Near shadows - high resolution, tight frustum */}
       <directionalLight
         ref={lightRef}
         position={[15, 35, 15]}
@@ -2184,15 +2184,30 @@ return (
         castShadow={shadowsEnabled}
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={0.5}
+        shadow-camera-far={50}
+        shadow-camera-left={-15}
+        shadow-camera-right={15}
+        shadow-camera-top={15}
+        shadow-camera-bottom={-15}
+        shadow-bias={-0.0001}
+      >
+        <object3D attach="target" />
+      </directionalLight>
+      
+      {/* Far shadows - lower resolution, wider frustum */}
+      <directionalLight
+        position={[15, 35, 15]}
+        intensity={0}
+        castShadow={shadowsEnabled}
+        shadow-mapSize={[1024, 1024]}
+        shadow-camera-near={0.5}
         shadow-camera-far={100}
         shadow-camera-left={-30}
         shadow-camera-right={30}
         shadow-camera-top={30}
         shadow-camera-bottom={-30}
-        shadow-bias={-0.0001}
-      >
-        <object3D attach="target" />
-      </directionalLight>
+        shadow-bias={-0.0003}
+      />
       
       {/* Fill light from opposite side */}
       <directionalLight
