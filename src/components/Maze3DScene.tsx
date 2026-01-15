@@ -323,25 +323,23 @@ const mat = new ShaderMaterial({
           finalColor = mix(finalColor, spilloverGrass, spilloverMask * (1.0 - wallMask));  // Only on path areas
           
           // Fake terrain bumps using noise-based lighting
-          // Multi-frequency bumps for non-uniform appearance
-          float eps = 0.02;
+          // Use higher frequency, less coherent noise for gravel/dirt look instead of liquid swirls
+          float eps = 0.015;
           
-          // Vary bump scale across terrain for non-uniformity
-          float scaleVar = 0.7 + fbm(worldUV * 0.5 + 1000.0) * 0.6;  // 0.7 to 1.3
-          float bumpScale1 = 6.0 * scaleVar;
-          float bumpScale2 = 15.0 * scaleVar;
-          float bumpScale3 = 25.0;  // Fine detail layer
+          // Higher frequencies for granular appearance (not smooth swirls)
+          float bumpScale1 = 18.0;  // Medium bumps
+          float bumpScale2 = 45.0;  // Fine grain
+          float bumpScale3 = 90.0;  // Very fine detail
           
-          // Multi-octave height sampling with varied weights
-          float weight2 = 0.3 + noise(worldUV * 0.8 + 1100.0) * 0.3;  // Vary second octave
-          float heightCenter = noise(worldUV * bumpScale1 + 900.0) 
-                             + noise(worldUV * bumpScale2 + 950.0) * weight2
+          // Use simple additive noise instead of fbm (which creates swirls)
+          float heightCenter = noise(worldUV * bumpScale1 + 900.0) * 0.5
+                             + noise(worldUV * bumpScale2 + 950.0) * 0.35
                              + noise(worldUV * bumpScale3 + 980.0) * 0.15;
-          float heightX = noise((worldUV + vec2(eps, 0.0)) * bumpScale1 + 900.0) 
-                        + noise((worldUV + vec2(eps, 0.0)) * bumpScale2 + 950.0) * weight2
+          float heightX = noise((worldUV + vec2(eps, 0.0)) * bumpScale1 + 900.0) * 0.5
+                        + noise((worldUV + vec2(eps, 0.0)) * bumpScale2 + 950.0) * 0.35
                         + noise((worldUV + vec2(eps, 0.0)) * bumpScale3 + 980.0) * 0.15;
-          float heightZ = noise((worldUV + vec2(0.0, eps)) * bumpScale1 + 900.0) 
-                        + noise((worldUV + vec2(0.0, eps)) * bumpScale2 + 950.0) * weight2
+          float heightZ = noise((worldUV + vec2(0.0, eps)) * bumpScale1 + 900.0) * 0.5
+                        + noise((worldUV + vec2(0.0, eps)) * bumpScale2 + 950.0) * 0.35
                         + noise((worldUV + vec2(0.0, eps)) * bumpScale3 + 980.0) * 0.15;
           
           // Compute fake normal from height differences
@@ -355,11 +353,11 @@ const mat = new ShaderMaterial({
           vec3 lightDir = normalize(vec3(0.5, 0.8, 0.3));
           float bumpLighting = dot(bumpNormal, lightDir) * 0.5 + 0.5;  // 0-1 range
           
-          // Vary bump strength across terrain for natural look
-          float bumpStrength = 0.2 + noise(worldUV * 0.3 + 1200.0) * 0.15;  // 0.2 to 0.35
+          // Reduced bump strength for subtler effect
+          float bumpStrength = 0.18;
           
           // Apply subtle bump shading - darken valleys, brighten peaks
-          finalColor *= 0.92 + bumpLighting * bumpStrength;
+          finalColor *= 0.94 + bumpLighting * bumpStrength;
           
           // Apply height-attenuated exponential fog
           // Ground is at Y=0, fog strongest there, fading out above corn height
@@ -838,8 +836,13 @@ const MapStation = ({ position, showCollisionDebug = true }: { position: [number
         <cylinderGeometry args={[0.15, 0.2, 1, 8]} />
         <meshStandardMaterial color="#8B4513" />
       </mesh>
-      {/* Tower sign with maze image */}
+      {/* Tower sign with maze image - front */}
       <mesh position={[0, 1.1, 0.03]}>
+        <planeGeometry args={[0.4, 0.3]} />
+        <meshStandardMaterial map={signTexture} />
+      </mesh>
+      {/* Tower sign with maze image - back */}
+      <mesh position={[0, 1.1, -0.03]} rotation={[0, Math.PI, 0]}>
         <planeGeometry args={[0.4, 0.3]} />
         <meshStandardMaterial map={signTexture} />
       </mesh>
