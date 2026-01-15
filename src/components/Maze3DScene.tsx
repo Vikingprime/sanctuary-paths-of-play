@@ -2369,7 +2369,7 @@ return (
         <directionalLight
           position={[-8, 20, -15]}
           intensity={0.8}
-          color="#FF00FF"
+          color="#FFD4A0"
         />
       )}
       
@@ -2619,7 +2619,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
         <div 
           className="absolute inset-0 pointer-events-none z-10"
           style={{
-            background: 'radial-gradient(ellipse at center, transparent 55%, rgba(255,0,255,0.15) 100%)',
+            background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.08) 100%)',
           }}
         />
       )}
