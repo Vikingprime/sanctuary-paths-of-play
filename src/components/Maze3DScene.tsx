@@ -90,6 +90,7 @@ interface Maze3DSceneProps {
   skyEnabled?: boolean;
   shaderFadeEnabled?: boolean;
   dualLightsEnabled?: boolean;
+  lowShadowRes?: boolean;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -2119,7 +2120,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, dualLightsEnabled = false }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; dualLightsEnabled?: boolean }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, dualLightsEnabled = false, lowShadowRes = false }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; dualLightsEnabled?: boolean; lowShadowRes?: boolean }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2224,14 +2225,14 @@ return (
       {/* Lighting - 8am morning sunlight */}
       <ambientLight intensity={0.9} color="#FFF8F0" />
       
-      {/* Near shadows - high resolution, tight frustum */}
+      {/* Near shadows - resolution controlled by lowShadowRes toggle */}
       <directionalLight
         ref={lightRef}
         position={[15, 35, 15]}
         intensity={3.5}
         color="#FFFDF5"
         castShadow={shadowsEnabled}
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={lowShadowRes ? [512, 512] : [2048, 2048]}
         shadow-camera-near={0.5}
         shadow-camera-far={50}
         shadow-camera-left={-15}
