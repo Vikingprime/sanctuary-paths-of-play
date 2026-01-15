@@ -100,14 +100,14 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
   const pathTexture = useTexture('/textures/ground-path-v2.jpg');
   const grassTexture = useTexture('/textures/ground-grass.jpg');
   const leavesTexture = useTexture('/textures/ground-leaves.jpg');
-  const rocksTexture = useTexture('/textures/ground-rocks.jpg');
+  const dirtTexture = useTexture('/textures/dirt_floor.jpg');
   
   const { material } = useMemo(() => {
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
     
     // Configure textures for tiling
-    [pathTexture, grassTexture, leavesTexture, rocksTexture].forEach(tex => {
+    [pathTexture, grassTexture, leavesTexture, dirtTexture].forEach(tex => {
       tex.wrapS = RepeatWrapping;
       tex.wrapT = RepeatWrapping;
       tex.minFilter = LinearMipmapLinearFilter;
@@ -137,13 +137,13 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
         pathTex: { value: pathTexture },
         grassTex: { value: grassTexture },
         leavesTex: { value: leavesTexture },
-        rocksTex: { value: rocksTexture },
+        dirtTex: { value: dirtTexture },
         wallMap: { value: wallMapTex },
         mazeWidth: { value: mazeWidth },
         mazeHeight: { value: mazeHeight },
         tileScale: { value: 2.0 },
         pathBrightness: { value: 1.15 },
-        grassDarkness: { value: 0.6 },
+        grassDarkness: { value: 0.45 },
         fogColor: { value: new Color(ATMOSPHERE_COLOR) },
         fogDensity: { value: 0.14 },
         fogHeightMax: { value: 2.5 },
@@ -179,7 +179,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           wallMask = mix(1.0, wallMask, inBounds);
           
           vec3 pathColor = vec3(0.55, 0.35, 0.26);
-          vec3 grassColor = vec3(0.18, 0.27, 0.13);
+          vec3 grassColor = vec3(0.14, 0.22, 0.1);
           vec3 finalColor = mix(pathColor, grassColor, wallMask);
           
           float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
@@ -193,7 +193,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
         uniform sampler2D pathTex;
         uniform sampler2D grassTex;
         uniform sampler2D leavesTex;
-        uniform sampler2D rocksTex;
+        uniform sampler2D dirtTex;
         uniform sampler2D wallMap;
         uniform float mazeWidth;
         uniform float mazeHeight;
@@ -247,8 +247,8 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           vec2 texUV = worldUV * tileScale;
           vec3 pathColor = texture2D(pathTex, texUV).rgb * pathBrightness;
           vec3 grassColor = texture2D(grassTex, texUV).rgb * grassDarkness;
-          vec3 leavesColor = texture2D(leavesTex, texUV * 0.8).rgb * 0.85;
-          vec3 rocksColor = texture2D(rocksTex, texUV * 1.2).rgb * 0.9;
+          vec3 leavesColor = texture2D(leavesTex, texUV * 0.8).rgb * 0.7;
+          vec3 dirtColor = texture2D(dirtTex, texUV * 1.5).rgb * 1.0;
           
           // Random patches for variety
           float patchNoise1 = noise(worldUV * 0.8 + 300.0);
@@ -258,8 +258,8 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           // Leaves patches - scattered on both path and grass
           float leavesPatch = smoothstep(0.55, 0.75, patchNoise1) * 0.7;
           
-          // Rock patches - sparse, mostly on paths
-          float rocksPatch = smoothstep(0.7, 0.85, patchNoise2) * (1.0 - wallMask * 0.5) * 0.6;
+          // Dirt patches - scattered on path areas
+          float dirtPatch = smoothstep(0.6, 0.8, patchNoise2) * (1.0 - wallMask * 0.7) * 0.5;
           
           // Extra grass patches on path edges
           float extraGrass = smoothstep(0.5, 0.7, patchNoise3) * edgeProximity * 0.5;
@@ -274,7 +274,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           // Apply random patches
           vec3 finalColor = baseColor;
           finalColor = mix(finalColor, leavesColor, leavesPatch);
-          finalColor = mix(finalColor, rocksColor, rocksPatch);
+          finalColor = mix(finalColor, dirtColor, dirtPatch);
           finalColor = mix(finalColor, grassColor, extraGrass);
           
           // Apply fog
@@ -289,7 +289,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
     });
     
     return { material: mat };
-  }, [maze, simple, pathTexture, grassTexture, leavesTexture, rocksTexture]);
+  }, [maze, simple, pathTexture, grassTexture, leavesTexture, dirtTexture]);
   
   return <primitive object={material} attach="material" />;
 };
