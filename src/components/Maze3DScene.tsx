@@ -84,9 +84,6 @@ interface Maze3DSceneProps {
   animationsEnabled?: boolean;
   opacityFadeEnabled?: boolean;
   cornEnabled?: boolean;
-  // New visual toggles
-  vignetteEnabled?: boolean;
-  shadowIntensity?: number;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -246,10 +243,6 @@ const mat = new ShaderMaterial({
           float centerBrightness = pow(1.0 - wallMask, 2.0);  // Stronger effect in center
           pathColor = mix(pathColor, pathColor * 1.25, centerBrightness * 0.5);
           
-          // Darken edges where corn meets path (shadow from corn)
-          float edgeDarkness = smoothstep(0.0, 0.35, wallMask) * (1.0 - smoothstep(0.35, 0.7, wallMask));
-          pathColor = mix(pathColor, pathColor * 0.7, edgeDarkness * 0.6);
-          
           // PATH ROCKS - use elliptical shapes with rotation for organic look
           float rockAngle1 = hash2(floor(worldUV * 1.8)) * 6.28;
           vec2 rockCenter1 = fract(worldUV * 1.8) - 0.5;
@@ -328,28 +321,14 @@ const mat = new ShaderMaterial({
           vec3 spilloverGrass = mix(grassDark, grassMoss, noise(worldUV * 5.0 + 800.0) * 0.4);
           finalColor = mix(finalColor, spilloverGrass, spilloverMask * (1.0 - wallMask));  // Only on path areas
           
-          // Fake terrain bumps using multi-octave noise for variety
-          // Layer multiple noise frequencies with different seeds for organic feel
-          float bumpScale = 8.0;
-          float bumpStrength = 0.25;
-          float eps = 0.02;
-          
-          // Multi-octave height: large slow bumps + medium bumps + fine detail
-          // Each layer has different seed offsets and weights for non-uniformity
-          float largeNoise = fbm(worldUV * 2.5 + 900.0) * 0.5;
-          float medNoise = noise(worldUV * bumpScale + 950.0) * 0.35;
-          float fineNoise = noise(worldUV * bumpScale * 3.0 + 1000.0) * 0.15;
-          float heightCenter = largeNoise + medNoise + fineNoise;
-          
-          float largeNoiseX = fbm((worldUV + vec2(eps, 0.0)) * 2.5 + 900.0) * 0.5;
-          float medNoiseX = noise((worldUV + vec2(eps, 0.0)) * bumpScale + 950.0) * 0.35;
-          float fineNoiseX = noise((worldUV + vec2(eps, 0.0)) * bumpScale * 3.0 + 1000.0) * 0.15;
-          float heightX = largeNoiseX + medNoiseX + fineNoiseX;
-          
-          float largeNoiseZ = fbm((worldUV + vec2(0.0, eps)) * 2.5 + 900.0) * 0.5;
-          float medNoiseZ = noise((worldUV + vec2(0.0, eps)) * bumpScale + 950.0) * 0.35;
-          float fineNoiseZ = noise((worldUV + vec2(0.0, eps)) * bumpScale * 3.0 + 1000.0) * 0.15;
-          float heightZ = largeNoiseZ + medNoiseZ + fineNoiseZ;
+          // Fake terrain bumps using noise-based lighting
+          // Sample noise at slightly offset positions to get fake normal
+          float bumpScale = 8.0;  // Frequency of bumps (lower = larger bumps)
+          float bumpStrength = 0.25;  // Bump intensity (increased for visibility)
+          float eps = 0.02;  // Sample offset for gradient
+          float heightCenter = noise(worldUV * bumpScale + 900.0) + noise(worldUV * bumpScale * 2.5 + 950.0) * 0.4;
+          float heightX = noise((worldUV + vec2(eps, 0.0)) * bumpScale + 900.0) + noise((worldUV + vec2(eps, 0.0)) * bumpScale * 2.5 + 950.0) * 0.4;
+          float heightZ = noise((worldUV + vec2(0.0, eps)) * bumpScale + 900.0) + noise((worldUV + vec2(0.0, eps)) * bumpScale * 2.5 + 950.0) * 0.4;
           
           // Compute fake normal from height differences
           vec3 bumpNormal = normalize(vec3(
@@ -360,7 +339,7 @@ const mat = new ShaderMaterial({
           
           // Simple directional light from top-left-front (morning sun direction)
           vec3 lightDir = normalize(vec3(0.5, 0.8, 0.3));
-          float bumpLighting = dot(bumpNormal, lightDir) * 0.5 + 0.5;
+          float bumpLighting = dot(bumpNormal, lightDir) * 0.5 + 0.5;  // 0-1 range
           
           // Apply subtle bump shading - darken valleys, brighten peaks
           finalColor *= 0.92 + bumpLighting * bumpStrength;
@@ -615,13 +594,12 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
 };
 
 // Ground with grass/path differentiation based on wall data
-const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled = true, shadowIntensity = 1.0 }: { 
+const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled = true }: { 
   maze: Maze; 
   rocks: RockPosition[]; 
   playerStateRef: MutableRefObject<PlayerState>;
   rocksEnabled?: boolean;
   grassEnabled?: boolean;
-  shadowIntensity?: number;
 }) => {
   const width = maze.grid[0].length;
   const height = maze.grid.length;
@@ -648,7 +626,7 @@ const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled
         receiveShadow
       >
         <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
-        <shadowMaterial transparent opacity={0.4 * shadowIntensity} />
+        <shadowMaterial transparent opacity={0.4} />
       </mesh>
       
       {/* 3D Props for visual depth (toggleable for performance testing) */}
@@ -813,146 +791,6 @@ const MazeWalls = forwardRef<Group, {
     </group>
   );
 });
-
-// Corridor mist - vertical billboard planes at different distances
-// Creates depth fog effect like in the reference: thick mist building down the path
-const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<PlayerState> }) => {
-  const groupRef = useRef<Group>(null);
-  const { camera } = useThree();
-  
-  // NEON DEBUG COLOR - bright magenta so we can see it
-  const mistColor = new Color('#FF00FF');
-  
-  // Create billboard mist material - vertical planes that face camera
-  const mistMaterial = useMemo(() => {
-    return new ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: DoubleSide,
-      fog: false,
-      uniforms: {
-        uTime: { value: 0 },
-        uMistColor: { value: mistColor },
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        varying float vWorldY;
-        
-        void main() {
-          vUv = uv;
-          vec4 worldPos = modelMatrix * vec4(position, 1.0);
-          vWorldY = worldPos.y;
-          gl_Position = projectionMatrix * viewMatrix * worldPos;
-        }
-      `,
-      fragmentShader: `
-        uniform float uTime;
-        uniform vec3 uMistColor;
-        
-        varying vec2 vUv;
-        varying float vWorldY;
-        
-        float hash(vec2 p) {
-          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-        }
-        
-        float noise(vec2 p) {
-          vec2 i = floor(p);
-          vec2 f = fract(p);
-          f = f * f * (3.0 - 2.0 * f);
-          float a = hash(i);
-          float b = hash(i + vec2(1.0, 0.0));
-          float c = hash(i + vec2(0.0, 1.0));
-          float d = hash(i + vec2(1.0, 1.0));
-          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-        }
-        
-        void main() {
-          // Noise for organic look
-          vec2 noiseCoord = vUv * 4.0 + vec2(uTime * 0.03, uTime * 0.02);
-          float n = noise(noiseCoord) * 0.5 + noise(noiseCoord * 2.0) * 0.3 + 0.2;
-          
-          // Fade at horizontal edges
-          float edgeFadeX = 1.0 - pow(abs(vUv.x - 0.5) * 2.0, 2.0);
-          
-          // Thick at bottom, fade toward top (ground fog effect)
-          float heightFade = 1.0 - smoothstep(0.0, 1.5, vWorldY);
-          heightFade = pow(heightFade, 0.7); // More gradual falloff
-          
-          // Combine
-          float alpha = n * edgeFadeX * heightFade * 0.6;
-          
-          gl_FragColor = vec4(uMistColor, alpha);
-        }
-      `,
-    });
-  }, []);
-  
-  // Refs for each mist plane to billboard them
-  const plane1Ref = useRef<Mesh>(null);
-  const plane2Ref = useRef<Mesh>(null);
-  const plane3Ref = useRef<Mesh>(null);
-  const plane4Ref = useRef<Mesh>(null);
-  const plane5Ref = useRef<Mesh>(null);
-  
-  // Billboard the planes to face camera and position along view direction
-  useFrame((state) => {
-    if (!groupRef.current || !playerStateRef.current) return;
-    
-    const px = playerStateRef.current.x;
-    const pz = playerStateRef.current.y;
-    const yaw = playerStateRef.current.rotation;
-    
-    // Position group at player
-    groupRef.current.position.set(px, 0, pz);
-    
-    // Get forward direction from player yaw
-    const forwardX = Math.sin(yaw);
-    const forwardZ = Math.cos(yaw);
-    
-    // Position each plane at increasing distances in front of player
-    const distances = [3, 5, 7, 10, 14];
-    const planes = [plane1Ref, plane2Ref, plane3Ref, plane4Ref, plane5Ref];
-    
-    planes.forEach((planeRef, i) => {
-      if (planeRef.current) {
-        const dist = distances[i];
-        // Position in front of player
-        planeRef.current.position.set(
-          forwardX * dist,
-          0.8, // Centered vertically 
-          forwardZ * dist
-        );
-        // Face the camera (billboard)
-        planeRef.current.rotation.y = yaw + Math.PI;
-      }
-    });
-    
-    // Update time
-    mistMaterial.uniforms.uTime.value = state.clock.elapsedTime;
-  });
-  
-  return (
-    <group ref={groupRef}>
-      {/* Multiple vertical fog planes at increasing distances */}
-      <mesh ref={plane1Ref} material={mistMaterial}>
-        <planeGeometry args={[4, 2.5]} />
-      </mesh>
-      <mesh ref={plane2Ref} material={mistMaterial}>
-        <planeGeometry args={[5, 2.5]} />
-      </mesh>
-      <mesh ref={plane3Ref} material={mistMaterial}>
-        <planeGeometry args={[6, 2.5]} />
-      </mesh>
-      <mesh ref={plane4Ref} material={mistMaterial}>
-        <planeGeometry args={[7, 2.5]} />
-      </mesh>
-      <mesh ref={plane5Ref} material={mistMaterial}>
-        <planeGeometry args={[8, 2.5]} />
-      </mesh>
-    </group>
-  );
-};
 
 const PowerUp = ({ position }: { position: [number, number, number] }) => {
   const meshRef = useRef<any>(null);
@@ -2232,7 +2070,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, vignetteEnabled = true, shadowIntensity = 1.0 }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2335,7 +2173,7 @@ return (
     <>
       
       {/* Lighting - 8am morning sunlight */}
-      <ambientLight intensity={0.75} color="#FFF8F0" />
+      <ambientLight intensity={0.9} color="#FFF8F0" />
       
       {/* Main sun light - follows player for consistent shadows */}
       <directionalLight
@@ -2344,7 +2182,7 @@ return (
         intensity={3.5}
         color="#FFFDF5"
         castShadow={shadowsEnabled}
-        shadow-mapSize={[1024, 1024]}
+        shadow-mapSize={[2048, 2048]}
         shadow-camera-near={0.5}
         shadow-camera-far={100}
         shadow-camera-left={-30}
@@ -2356,13 +2194,12 @@ return (
         <object3D attach="target" />
       </directionalLight>
       
-      {/* Fill light from opposite side - cooler shadows */}
+      {/* Fill light from opposite side */}
       <directionalLight
         position={[-15, 15, -10]}
-        intensity={0.55}
-        color="#C8D8F0"
+        intensity={0.45}
+        color="#D8E8FF"
       />
-      
       
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
@@ -2373,12 +2210,8 @@ return (
       {/* Exponential fog - uses unified atmosphere color
           Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
       <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />
-      
-      {/* Ground mist sheets - low fog that follows camera for depth */}
-      <GroundMist playerStateRef={playerStateRef} />
-      
       {/* Ground */}
-      <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} shadowIntensity={shadowIntensity} />
+      <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} />
       
       {/* Maze Walls (corn) with optimizations */}
       {cornEnabled && (
@@ -2604,17 +2437,7 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
   const pixelRatio = props.lowPixelRatio ? 0.5 : basePixelRatio;
   
   return (
-    <div className="w-full h-full relative">
-      {/* Subtle vignette overlay - cinematic feel, hides edge clutter */}
-      {props.vignetteEnabled !== false && (
-        <div 
-          className="absolute inset-0 pointer-events-none z-10"
-          style={{
-            background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.08) 100%)',
-          }}
-        />
-      )}
-      
+    <div className="w-full h-full">
       {/* FPS Display - only in debug mode */}
       {props.debugMode && <FPSDisplay fps={fps} />}
       

@@ -17,7 +17,7 @@ export const FogConfig = {
   // ============= FOG COLOR =============
   // The unified atmosphere/fog color used everywhere
   // This is THE ONLY place to change the fog color
-  COLOR_HEX: '#B8A090',  // Slightly cooler, less orange fog
+  COLOR_HEX: '#C4A080',  // Warm orangish-gray fog
   
   // ============= FOG DENSITY =============
   // Controls how quickly objects fade into fog with distance

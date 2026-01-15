@@ -104,9 +104,6 @@ export const MazeGame3D = ({
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
   const [opacityFadeEnabled, setOpacityFadeEnabled] = useState(true);
   const [cornEnabled, setCornEnabled] = useState(true);
-  // Visual toggles
-  const [vignetteEnabled, setVignetteEnabled] = useState(true);
-  const [shadowIntensity, setShadowIntensity] = useState(1.0); // 0.0 - 1.0
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
@@ -772,8 +769,6 @@ export const MazeGame3D = ({
         animationsEnabled={animationsEnabled}
         opacityFadeEnabled={opacityFadeEnabled}
         cornEnabled={cornEnabled}
-        vignetteEnabled={vignetteEnabled}
-        shadowIntensity={shadowIntensity}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -829,10 +824,6 @@ export const MazeGame3D = ({
           onToggleOpacityFade={() => setOpacityFadeEnabled(prev => !prev)}
           cornEnabled={cornEnabled}
           onToggleCorn={() => setCornEnabled(prev => !prev)}
-          vignetteEnabled={vignetteEnabled}
-          onToggleVignette={() => setVignetteEnabled(prev => !prev)}
-          shadowIntensity={shadowIntensity}
-          onShadowIntensityChange={setShadowIntensity}
           sensitivityConfig={sensitivityConfig}
           onSensitivityChange={setSensitivityConfig}
           mobileControlsEnabled={mobileControlsEnabled}
