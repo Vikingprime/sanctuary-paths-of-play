@@ -286,11 +286,11 @@ const mat = new ShaderMaterial({
           pathColor = mix(pathColor, rockColor, rockMask * 0.85);
           
           // GRASS TEXTURE with dirt patches and variation (under corn areas)
-          // Start with darker green base
-          vec3 grassAreaColor = grassDark;
+          // Start with even darker green base - multiply to darken
+          vec3 grassAreaColor = grassDark * 0.7;
           // Add grass color variation - mostly dark with some lighter patches
-          grassAreaColor = mix(grassAreaColor, grassBase, fbm(worldUV * 2.5) * 0.35);
-          grassAreaColor = mix(grassAreaColor, grassMoss, noise(worldUV * 3.0 + 300.0) * 0.25);
+          grassAreaColor = mix(grassAreaColor, grassBase * 0.75, fbm(worldUV * 2.5) * 0.3);
+          grassAreaColor = mix(grassAreaColor, grassMoss * 0.8, noise(worldUV * 3.0 + 300.0) * 0.2);
           
           // Add prominent dirt patches showing through grass
           float dirtPatches = fbm(worldUV * 1.0 + 400.0);
