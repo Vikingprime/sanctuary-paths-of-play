@@ -993,7 +993,7 @@ export const InstancedWalls = ({
       
       cheapMesh.instanceMatrix.needsUpdate = true;
       cheapMesh.castShadow = false;
-      cheapMesh.receiveShadow = true;
+      cheapMesh.receiveShadow = false;
       cheapMesh.frustumCulled = false;
       
       cheapMeshRef.current = cheapMesh;
