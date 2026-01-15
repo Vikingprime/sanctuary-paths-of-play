@@ -77,9 +77,6 @@ interface GameHUDProps {
   onToggleSky?: () => void;
   shaderFadeEnabled?: boolean;
   onToggleShaderFade?: () => void;
-  // Dual lights toggle (for testing shadow performance)
-  dualLightsEnabled?: boolean;
-  onToggleDualLights?: () => void;
   // Shadow resolution toggle
   lowShadowRes?: boolean;
   onToggleLowShadowRes?: () => void;
@@ -136,8 +133,6 @@ export const GameHUD = ({
   onToggleSky,
   shaderFadeEnabled = true,
   onToggleShaderFade,
-  dualLightsEnabled = false,
-  onToggleDualLights,
   lowShadowRes = false,
   onToggleLowShadowRes,
   sensitivityConfig = DEFAULT_SENSITIVITY,
@@ -553,18 +548,6 @@ export const GameHUD = ({
                   )}
                 >
                   Sky
-                </button>
-              )}
-              {onToggleDualLights && (
-                <button
-                  onClick={onToggleDualLights}
-                  className={cn(
-                    'px-2 py-0.5 rounded text-[10px] font-bold',
-                    dualLightsEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-                  )}
-                  title="Toggle dual shadow lights (may hurt performance)"
-                >
-                  DualLight
                 </button>
               )}
               {onToggleLowShadowRes && (

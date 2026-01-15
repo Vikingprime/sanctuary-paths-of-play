@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend, useLoader } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html, useTexture } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping, CanvasTexture } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
@@ -90,57 +90,265 @@ interface Maze3DSceneProps {
   cornCullingEnabled?: boolean;
   skyEnabled?: boolean;
   shaderFadeEnabled?: boolean;
-  dualLightsEnabled?: boolean;
   lowShadowRes?: boolean;
 }
 
-// Ground shader with wall texture for grass/path differentiation
-// Supports simple mode (flat colors) vs complex mode (noise-based texturing)
+// ===== Pre-baked Ground Texture Generator =====
+// Runs ONCE at maze load - eliminates per-frame noise calculations
+
+// JavaScript implementations of GLSL noise functions
+function hash(x: number, y: number): number {
+  return (Math.sin(x * 127.1 + y * 311.7) * 43758.5453) % 1;
+}
+
+function hash2(x: number, y: number): number {
+  return (Math.sin(x * 269.5 + y * 183.3) * 43758.5453) % 1;
+}
+
+function hash3(x: number, y: number): number {
+  return (Math.sin(x * 419.2 + y * 371.9) * 43758.5453) % 1;
+}
+
+function noise(px: number, py: number): number {
+  const ix = Math.floor(px);
+  const iy = Math.floor(py);
+  let fx = px - ix;
+  let fy = py - iy;
+  // Smoothstep
+  fx = fx * fx * (3 - 2 * fx);
+  fy = fy * fy * (3 - 2 * fy);
+  const a = hash(ix, iy);
+  const b = hash(ix + 1, iy);
+  const c = hash(ix, iy + 1);
+  const d = hash(ix + 1, iy + 1);
+  return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
+}
+
+function fbm(px: number, py: number): number {
+  let value = 0;
+  let amplitude = 0.5;
+  let x = px, y = py;
+  for (let i = 0; i < 5; i++) {
+    value += amplitude * noise(x, y);
+    x *= 2;
+    y *= 2;
+    amplitude *= 0.5;
+  }
+  return value;
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function mix(a: number, b: number, t: number): number {
+  return a * (1 - t) + b * t;
+}
+
+function mixColor(a: [number, number, number], b: [number, number, number], t: number): [number, number, number] {
+  return [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
+}
+
+// Parse hex color to RGB 0-1
+function hexToRgb(hex: string): [number, number, number] {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return [0, 0, 0];
+  return [
+    parseInt(result[1], 16) / 255,
+    parseInt(result[2], 16) / 255,
+    parseInt(result[3], 16) / 255
+  ];
+}
+
+// Generate baked ground texture - runs once at maze load
+function generateBakedGroundTexture(maze: Maze): CanvasTexture {
+  const mazeWidth = maze.grid[0].length;
+  const mazeHeight = maze.grid.length;
+  
+  // Resolution: 8 pixels per maze cell for good detail
+  const PIXELS_PER_CELL = 8;
+  const texWidth = mazeWidth * PIXELS_PER_CELL;
+  const texHeight = mazeHeight * PIXELS_PER_CELL;
+  
+  const canvas = document.createElement('canvas');
+  canvas.width = texWidth;
+  canvas.height = texHeight;
+  const ctx = canvas.getContext('2d')!;
+  const imageData = ctx.createImageData(texWidth, texHeight);
+  const data = imageData.data;
+  
+  // Color definitions (matching GLSL uniforms)
+  const pathWorn = hexToRgb('#C49A7A');
+  const pathBase = hexToRgb('#8B5A42');
+  const pathDark = hexToRgb('#5C3D2E');
+  const pathRich = hexToRgb('#7A4A3A');
+  const grassBase = hexToRgb('#4A6B3A');
+  const grassDark = hexToRgb('#2E4420');
+  const grassMoss = hexToRgb('#3D5830');
+  const rockLight = hexToRgb('#C4B090');
+  const rockMid = hexToRgb('#A08060');
+  const rockDark = hexToRgb('#705540');
+  
+  for (let py = 0; py < texHeight; py++) {
+    for (let px = 0; px < texWidth; px++) {
+      // World position (matches GLSL vWorldPos.xz)
+      const worldX = px / PIXELS_PER_CELL;
+      const worldY = py / PIXELS_PER_CELL;
+      
+      // Sample wall map
+      const mazeX = Math.floor(worldX);
+      const mazeY = Math.floor(worldY);
+      const inBounds = mazeX >= 0 && mazeX < mazeWidth && mazeY >= 0 && mazeY < mazeHeight;
+      const isWall = inBounds && maze.grid[mazeY]?.[mazeX]?.isWall ? 1.0 : 0.0;
+      
+      // Organic edge distortion
+      const edgeWarp = fbm(worldX * 1.2 + 10, worldY * 1.2 + 10) * 0.55;
+      const edgeDetail = noise(worldX * 4, worldY * 4) * 0.12;
+      let wallMask = smoothstep(0.10, 0.90, isWall + edgeWarp - edgeDetail);
+      wallMask = smoothstep(0.0, 1.0, wallMask);
+      
+      // Path edge spillover
+      const edgeDistance = isWall + edgeWarp * 0.6;
+      const spilloverNoise = fbm(worldX * 3 + 700, worldY * 3 + 700);
+      const spilloverZone = smoothstep(0.15, 0.35, edgeDistance) * smoothstep(0.65, 0.45, edgeDistance);
+      const spilloverMask = spilloverZone * smoothstep(0.4, 0.7, spilloverNoise) * 0.7;
+      
+      if (!inBounds) wallMask = 1.0;
+      
+      // PATH TEXTURE
+      const largeVar = fbm(worldX * 0.6, worldY * 0.6);
+      const medVar = fbm(worldX * 1.8 + 50, worldY * 1.8 + 50);
+      const fineVar = fbm(worldX * 4 + 100, worldY * 4 + 100);
+      const wornPattern = fbm(worldX * 0.9 + 150, worldY * 0.9 + 150);
+      const wornCenter = Math.pow(1.0 - wallMask, 0.4) * wornPattern;
+      
+      let pathColor: [number, number, number] = [...pathBase];
+      pathColor = mixColor(pathColor, pathRich, largeVar * 0.5);
+      pathColor = mixColor(pathColor, pathWorn, wornCenter * 0.6 + medVar * 0.25);
+      
+      const shadows = Math.pow(fbm(worldX * 2 + 200, worldY * 2 + 200), 1.3);
+      pathColor = mixColor(pathColor, pathDark, shadows * 0.4);
+      pathColor = mixColor(pathColor, [pathDark[0] * 0.85, pathDark[1] * 0.85, pathDark[2] * 0.85], (1.0 - fineVar) * 0.12);
+      
+      // Lighten center
+      const centerBrightness = Math.pow(1.0 - wallMask, 2.0);
+      pathColor = mixColor(pathColor, [pathColor[0] * 1.25, pathColor[1] * 1.25, pathColor[2] * 1.25], centerBrightness * 0.5);
+      
+      // PATH ROCKS
+      const rockAngle1 = hash2(Math.floor(worldX * 1.8), Math.floor(worldY * 1.8)) * 6.28;
+      let rockCenter1x = (worldX * 1.8) % 1 - 0.5;
+      let rockCenter1y = (worldY * 1.8) % 1 - 0.5;
+      const rotated1x = rockCenter1x * Math.cos(rockAngle1) - rockCenter1y * Math.sin(rockAngle1);
+      const rotated1y = rockCenter1x * Math.sin(rockAngle1) + rockCenter1y * Math.cos(rockAngle1);
+      const largeRockNoise = hash(Math.floor(worldX * 1.8), Math.floor(worldY * 1.8));
+      const largeRockShape = Math.sqrt(rotated1x * rotated1x + rotated1y * rotated1y * (0.6 + hash2(Math.floor(worldX * 1.8), Math.floor(worldY * 1.8)) * 0.4) ** 2);
+      const largeRocks = smoothstep(0.18, 0.12, largeRockShape) * (largeRockNoise >= 0.92 ? 1 : 0);
+      
+      const medRockNoise = hash(Math.floor(worldX * 3.5 + 20), Math.floor(worldY * 3.5 + 20));
+      const medRockShape = Math.sqrt(((worldX * 3.5 + 20) % 1 - 0.5) ** 2 + (((worldY * 3.5 + 20) % 1 - 0.5) * 0.7) ** 2);
+      const medRocks = smoothstep(0.15, 0.08, medRockShape) * (medRockNoise >= 0.88 ? 1 : 0);
+      
+      const smallNoise = hash(Math.floor(worldX * 8 + 40), Math.floor(worldY * 8 + 40));
+      const smallShape = Math.sqrt(((worldX * 8 + 40) % 1 - 0.5) ** 2 + (((worldY * 8 + 40) % 1 - 0.5) * 0.7) ** 2);
+      const smallRocks = smoothstep(0.12, 0.06, smallShape) * (smallNoise >= 0.82 ? 1 : 0);
+      
+      const tinyNoise = hash(Math.floor(worldX * 15 + 60), Math.floor(worldY * 15 + 60));
+      const tinyShape = Math.sqrt(((worldX * 15 + 60) % 1 - 0.5) ** 2 + ((worldY * 15 + 60) % 1 - 0.5) ** 2);
+      const tinyRocks = smoothstep(0.08, 0.03, tinyShape) * (tinyNoise >= 0.92 ? 1 : 0) * 0.5;
+      const rockMask = Math.max(Math.max(largeRocks, medRocks * 0.9), Math.max(smallRocks * 0.7, tinyRocks));
+      
+      const rockShade = noise(worldX * 12, worldY * 12);
+      let rockColor = mixColor(rockDark, rockMid, rockShade * 0.5 + largeVar * 0.3);
+      rockColor = mixColor(rockColor, rockLight, noise(worldX * 25, worldY * 25) * 0.4);
+      pathColor = mixColor(pathColor, rockColor, rockMask * 0.85);
+      
+      // GRASS TEXTURE
+      let grassAreaColor: [number, number, number] = [grassDark[0] * 0.7, grassDark[1] * 0.7, grassDark[2] * 0.7];
+      grassAreaColor = mixColor(grassAreaColor, [grassBase[0] * 0.75, grassBase[1] * 0.75, grassBase[2] * 0.75], fbm(worldX * 2.5, worldY * 2.5) * 0.3);
+      grassAreaColor = mixColor(grassAreaColor, [grassMoss[0] * 0.8, grassMoss[1] * 0.8, grassMoss[2] * 0.8], noise(worldX * 3 + 300, worldY * 3 + 300) * 0.2);
+      
+      // Dirt patches
+      const dirtPatches = fbm(worldX * 1 + 400, worldY * 1 + 400);
+      const dirtPatchMask = smoothstep(0.35, 0.55, dirtPatches);
+      const dirtColor = mixColor(pathDark, pathBase, noise(worldX * 2 + 500, worldY * 2 + 500) * 0.6);
+      grassAreaColor = mixColor(grassAreaColor, dirtColor, dirtPatchMask * 0.65);
+      
+      // Grass rocks
+      const grassRockNoise = hash(Math.floor(worldX * 3.5 + 80), Math.floor(worldY * 3.5 + 80));
+      const grassRockShape = Math.sqrt(((worldX * 3.5 + 80) % 1 - 0.5) ** 2 + (((worldY * 3.5 + 80) % 1 - 0.5) * 0.65) ** 2);
+      const grassRocks = smoothstep(0.16, 0.08, grassRockShape) * (grassRockNoise >= 0.78 ? 1 : 0);
+      const pebbleNoise = hash(Math.floor(worldX * 7 + 120), Math.floor(worldY * 7 + 120));
+      const pebbleShape = Math.sqrt(((worldX * 7 + 120) % 1 - 0.5) ** 2 + ((worldY * 7 + 120) % 1 - 0.5) ** 2);
+      const pebbles = smoothstep(0.12, 0.06, pebbleShape) * (pebbleNoise >= 0.82 ? 1 : 0);
+      const allRocks = Math.max(grassRocks, pebbles * 0.8);
+      grassAreaColor = mixColor(grassAreaColor, rockColor, allRocks * 0.85);
+      
+      // Final mix
+      let finalColor = mixColor(pathColor, grassAreaColor, wallMask);
+      const spilloverGrass = mixColor(grassDark, grassMoss, noise(worldX * 5 + 800, worldY * 5 + 800) * 0.4);
+      finalColor = mixColor(finalColor, spilloverGrass, spilloverMask * (1.0 - wallMask));
+      
+      // Write to image data (no fog - fog is applied in shader)
+      const idx = (py * texWidth + px) * 4;
+      data[idx] = Math.min(255, Math.max(0, Math.round(finalColor[0] * 255)));
+      data[idx + 1] = Math.min(255, Math.max(0, Math.round(finalColor[1] * 255)));
+      data[idx + 2] = Math.min(255, Math.max(0, Math.round(finalColor[2] * 255)));
+      data[idx + 3] = 255;
+    }
+  }
+  
+  ctx.putImageData(imageData, 0, 0);
+  
+  const texture = new CanvasTexture(canvas);
+  texture.minFilter = LinearFilter;
+  texture.magFilter = LinearFilter;
+  texture.wrapS = texture.wrapT = 1000; // ClampToEdgeWrapping
+  texture.needsUpdate = true;
+  
+  return texture;
+}
+
+// Ground shader with pre-baked texture
+// Simple mode: flat colors | Complex mode: sample pre-baked texture
 const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean }) => {
-  const { material, wallTexture } = useMemo(() => {
+  const { material } = useMemo(() => {
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
     
-    // Create wall map texture - white = wall, black = path
+    // Create wall map texture for simple mode
     const data = new Uint8Array(mazeWidth * mazeHeight * 4);
     for (let y = 0; y < mazeHeight; y++) {
       for (let x = 0; x < mazeWidth; x++) {
         const idx = (y * mazeWidth + x) * 4;
         const isWall = maze.grid[y][x].isWall ? 255 : 0;
-        data[idx] = isWall;     // R
-        data[idx + 1] = isWall; // G
-        data[idx + 2] = isWall; // B
-        data[idx + 3] = 255;    // A
+        data[idx] = isWall;
+        data[idx + 1] = isWall;
+        data[idx + 2] = isWall;
+        data[idx + 3] = 255;
       }
     }
+    const wallTexture = new DataTexture(data, mazeWidth, mazeHeight);
+    wallTexture.needsUpdate = true;
+    wallTexture.magFilter = LinearFilter;
+    wallTexture.minFilter = LinearFilter;
     
-const texture = new DataTexture(data, mazeWidth, mazeHeight);
-    texture.needsUpdate = true;
-    texture.magFilter = LinearFilter;
-    texture.minFilter = LinearFilter;
+    // Pre-bake the ground texture (only for complex mode)
+    const bakedTexture = simple ? null : generateBakedGroundTexture(maze);
     
-const mat = new ShaderMaterial({
+    const mat = new ShaderMaterial({
       uniforms: {
-        wallMap: { value: texture },
+        wallMap: { value: wallTexture },
+        bakedGround: { value: bakedTexture },
         mazeWidth: { value: mazeWidth },
         mazeHeight: { value: mazeHeight },
-        // Dirt path colors - warm terracotta tones
-        pathWorn: { value: new Color('#C49A7A') },
+        // Colors for simple mode
         pathBase: { value: new Color('#8B5A42') },
-        pathDark: { value: new Color('#5C3D2E') },
-        pathRich: { value: new Color('#7A4A3A') },
-        // Grass colors - rich greens
-        grassBase: { value: new Color('#4A6B3A') },
         grassDark: { value: new Color('#2E4420') },
-        grassMoss: { value: new Color('#3D5830') },
-        // Rock/stone colors
-        rockLight: { value: new Color('#C4B090') },
-        rockMid: { value: new Color('#A08060') },
-        rockDark: { value: new Color('#705540') },
-        // Fog uniforms - uses unified atmosphere color
+        // Fog uniforms
         fogColor: { value: new Color(ATMOSPHERE_COLOR) },
-        fogDensity: { value: 0.14 },  // Matches scene fog density
-        fogHeightMax: { value: 2.5 },  // Height above which fog fades out
+        fogDensity: { value: 0.14 },
+        fogHeightMax: { value: 2.5 },
       },
       fog: true,
       vertexShader: `
@@ -155,8 +363,6 @@ const mat = new ShaderMaterial({
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
-      // Simple mode: flat colors based on wall mask only (minimal GPU cost)
-      // Complex mode: full FBM noise, rock patterns, organic edges
       fragmentShader: simple ? `
         uniform sampler2D wallMap;
         uniform float mazeWidth;
@@ -175,15 +381,34 @@ const mat = new ShaderMaterial({
           vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
           float isWall = texture2D(wallMap, mazeUV).r;
           
-          // Simple hard edge between path and grass (no noise)
           float wallMask = smoothstep(0.4, 0.6, isWall);
-          
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
           wallMask = mix(1.0, wallMask, inBounds);
           
-          // Flat colors
           vec3 finalColor = mix(pathBase, grassDark * 0.7, wallMask);
+          
+          float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
+          float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+          fogFactor *= heightAttenuation;
+          finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
+          
+          gl_FragColor = vec4(finalColor, 1.0);
+        }
+      ` : `
+        uniform sampler2D bakedGround;
+        uniform float mazeWidth;
+        uniform float mazeHeight;
+        uniform vec3 fogColor;
+        uniform float fogDensity;
+        uniform float fogHeightMax;
+        varying vec3 vWorldPos;
+        varying float vFogDepth;
+        
+        void main() {
+          // Sample pre-baked ground texture
+          vec2 uv = vWorldPos.xz / vec2(mazeWidth, mazeHeight);
+          vec3 finalColor = texture2D(bakedGround, uv).rgb;
           
           // Apply fog
           float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
@@ -193,198 +418,10 @@ const mat = new ShaderMaterial({
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
-      ` : `
-        uniform sampler2D wallMap;
-        uniform float mazeWidth;
-        uniform float mazeHeight;
-        uniform vec3 pathWorn;
-        uniform vec3 pathBase;
-        uniform vec3 pathDark;
-        uniform vec3 pathRich;
-        uniform vec3 grassBase;
-        uniform vec3 grassDark;
-        uniform vec3 grassMoss;
-        uniform vec3 rockLight;
-        uniform vec3 rockMid;
-        uniform vec3 rockDark;
-        uniform vec3 fogColor;
-        uniform float fogDensity;
-        uniform float fogHeightMax;
-        varying vec2 vUv;
-        varying float vFogDepth;
-        varying vec3 vWorldPos;
-        
-        float hash(vec2 p) {
-          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-        }
-        
-        float hash2(vec2 p) {
-          return fract(sin(dot(p, vec2(269.5, 183.3))) * 43758.5453);
-        }
-        
-        float hash3(vec2 p) {
-          return fract(sin(dot(p, vec2(419.2, 371.9))) * 43758.5453);
-        }
-        
-        float noise(vec2 p) {
-          vec2 i = floor(p);
-          vec2 f = fract(p);
-          f = f * f * (3.0 - 2.0 * f);
-          float a = hash(i);
-          float b = hash(i + vec2(1.0, 0.0));
-          float c = hash(i + vec2(0.0, 1.0));
-          float d = hash(i + vec2(1.0, 1.0));
-          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-        }
-        
-        float fbm(vec2 p) {
-          float value = 0.0;
-          float amplitude = 0.5;
-          for (int i = 0; i < 5; i++) {
-            value += amplitude * noise(p);
-            p *= 2.0;
-            amplitude *= 0.5;
-          }
-          return value;
-        }
-        
-        void main() {
-          vec2 worldUV = vWorldPos.xz;
-          vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
-          float isWall = texture2D(wallMap, mazeUV).r;
-          
-          // Organic edge distortion for natural grass patches - expanded for larger grass areas
-          float edgeWarp = fbm(worldUV * 1.2 + 10.0) * 0.55;  // Increased from 0.35 to 0.55 for larger grass areas
-          float edgeDetail = noise(worldUV * 4.0) * 0.12;
-          float wallMask = smoothstep(0.10, 0.90, isWall + edgeWarp - edgeDetail);  // Expanded range
-          wallMask = smoothstep(0.0, 1.0, wallMask);
-          
-          // Create path edge spillover - grass creeps into path sides but not center
-          // Only apply where we're close to a wall (transition zone)
-          float edgeDistance = isWall + edgeWarp * 0.6;  // How close to wall edge
-          float spilloverNoise = fbm(worldUV * 3.0 + 700.0);
-          // Spillover strongest near edges (edgeDistance 0.3-0.6), fades toward center
-          float spilloverZone = smoothstep(0.15, 0.35, edgeDistance) * smoothstep(0.65, 0.45, edgeDistance);
-          float spilloverMask = spilloverZone * smoothstep(0.4, 0.7, spilloverNoise) * 0.7;
-          
-          float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
-                          step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
-          wallMask = mix(1.0, wallMask, inBounds);
-          
-          // PATH TEXTURE
-          float largeVar = fbm(worldUV * 0.6);
-          float medVar = fbm(worldUV * 1.8 + 50.0);
-          float fineVar = fbm(worldUV * 4.0 + 100.0);
-          float wornPattern = fbm(worldUV * 0.9 + 150.0);
-          float wornCenter = pow(1.0 - wallMask, 0.4) * wornPattern;
-          
-          vec3 pathColor = pathBase;
-          pathColor = mix(pathColor, pathRich, largeVar * 0.5);
-          pathColor = mix(pathColor, pathWorn, wornCenter * 0.6 + medVar * 0.25);
-          
-          float shadows = pow(fbm(worldUV * 2.0 + 200.0), 1.3);
-          pathColor = mix(pathColor, pathDark, shadows * 0.4);
-          pathColor = mix(pathColor, pathDark * 0.85, (1.0 - fineVar) * 0.12);
-          
-          // Lighten the trodden center of the path (away from walls/corn)
-          float centerBrightness = pow(1.0 - wallMask, 2.0);  // Stronger effect in center
-          pathColor = mix(pathColor, pathColor * 1.25, centerBrightness * 0.5);
-          
-          // PATH ROCKS - use elliptical shapes with rotation for organic look
-          float rockAngle1 = hash2(floor(worldUV * 1.8)) * 6.28;
-          vec2 rockCenter1 = fract(worldUV * 1.8) - 0.5;
-          vec2 rotated1 = vec2(
-            rockCenter1.x * cos(rockAngle1) - rockCenter1.y * sin(rockAngle1),
-            rockCenter1.x * sin(rockAngle1) + rockCenter1.y * cos(rockAngle1)
-          );
-          float largeRockNoise = hash(floor(worldUV * 1.8));
-          float largeRockShape = length(rotated1 * vec2(1.0, 0.6 + hash2(floor(worldUV * 1.8)) * 0.4));
-          float largeRocks = smoothstep(0.18, 0.12, largeRockShape) * step(0.92, largeRockNoise);
-          
-          float rockAngle2 = hash3(floor(worldUV * 3.5 + 20.0)) * 6.28;
-          vec2 rockCenter2 = fract(worldUV * 3.5 + 20.0) - 0.5;
-          vec2 rotated2 = vec2(
-            rockCenter2.x * cos(rockAngle2) - rockCenter2.y * sin(rockAngle2),
-            rockCenter2.x * sin(rockAngle2) + rockCenter2.y * cos(rockAngle2)
-          );
-          float medRockNoise = hash(floor(worldUV * 3.5 + 20.0));
-          float medRockShape = length(rotated2 * vec2(1.0, 0.7 + hash2(floor(worldUV * 3.5 + 20.0)) * 0.3));
-          float medRocks = smoothstep(0.15, 0.08, medRockShape) * step(0.88, medRockNoise);
-          
-          // Small rocks - also rotated for organic look
-          float rockAngle3 = hash(floor(worldUV * 8.0 + 40.0)) * 6.28;
-          vec2 rockCenter3 = fract(worldUV * 8.0 + 40.0) - 0.5;
-          vec2 rotated3 = vec2(
-            rockCenter3.x * cos(rockAngle3) - rockCenter3.y * sin(rockAngle3),
-            rockCenter3.x * sin(rockAngle3) + rockCenter3.y * cos(rockAngle3)
-          );
-          float smallNoise = hash(floor(worldUV * 8.0 + 40.0));
-          float smallShape = length(rotated3 * vec2(1.0, 0.7));
-          float smallRocks = smoothstep(0.12, 0.06, smallShape) * step(0.82, smallNoise);
-          
-          // Tiny pebbles - use circular shapes with softer edges
-          float tinyNoise = hash(floor(worldUV * 15.0 + 60.0));
-          float tinyShape = length(fract(worldUV * 15.0 + 60.0) - 0.5);
-          float tinyRocks = smoothstep(0.08, 0.03, tinyShape) * step(0.92, tinyNoise) * 0.5;
-          float rockMask = max(max(largeRocks, medRocks * 0.9), max(smallRocks * 0.7, tinyRocks));
-          float rockShade = noise(worldUV * 12.0);
-          vec3 rockColor = mix(rockDark, rockMid, rockShade * 0.5 + largeVar * 0.3);
-          rockColor = mix(rockColor, rockLight, noise(worldUV * 25.0) * 0.4);
-          pathColor = mix(pathColor, rockColor, rockMask * 0.85);
-          
-          // GRASS TEXTURE with dirt patches and variation (under corn areas)
-          // Start with even darker green base - multiply to darken
-          vec3 grassAreaColor = grassDark * 0.7;
-          // Add grass color variation - mostly dark with some lighter patches
-          grassAreaColor = mix(grassAreaColor, grassBase * 0.75, fbm(worldUV * 2.5) * 0.3);
-          grassAreaColor = mix(grassAreaColor, grassMoss * 0.8, noise(worldUV * 3.0 + 300.0) * 0.2);
-          
-          // Add prominent dirt patches showing through grass
-          float dirtPatches = fbm(worldUV * 1.0 + 400.0);
-          float dirtPatchMask = smoothstep(0.35, 0.55, dirtPatches); // Lower threshold = more dirt
-          vec3 dirtColor = mix(pathDark, pathBase, noise(worldUV * 2.0 + 500.0) * 0.6);
-          grassAreaColor = mix(grassAreaColor, dirtColor, dirtPatchMask * 0.65); // Stronger dirt mix
-          
-          // Add more visible rocks/pebbles in grass areas - with rotation for organic shapes
-          float grassRockAngle = hash3(floor(worldUV * 3.5 + 80.0)) * 6.28;
-          vec2 grassRockCenter = fract(worldUV * 3.5 + 80.0) - 0.5;
-          vec2 grassRotated = vec2(
-            grassRockCenter.x * cos(grassRockAngle) - grassRockCenter.y * sin(grassRockAngle),
-            grassRockCenter.x * sin(grassRockAngle) + grassRockCenter.y * cos(grassRockAngle)
-          );
-          float grassRockNoise = hash(floor(worldUV * 3.5 + 80.0));
-          float grassRockShape = length(grassRotated * vec2(1.0, 0.65));
-          float grassRocks = smoothstep(0.16, 0.08, grassRockShape) * step(0.78, grassRockNoise);
-          // Smaller pebbles - circular is fine
-          float pebbleNoise = hash(floor(worldUV * 7.0 + 120.0));
-          float pebbleShape = length(fract(worldUV * 7.0 + 120.0) - 0.5);
-          float pebbles = smoothstep(0.12, 0.06, pebbleShape) * step(0.82, pebbleNoise);
-          float allRocks = max(grassRocks, pebbles * 0.8);
-          grassAreaColor = mix(grassAreaColor, rockColor, allRocks * 0.85);
-          
-          // Mix path and grass, then add spillover grass patches on path edges
-          vec3 finalColor = mix(pathColor, grassAreaColor, wallMask);
-          // Add grass spillover to path edges - sparse grass patches creeping into the path sides
-          vec3 spilloverGrass = mix(grassDark, grassMoss, noise(worldUV * 5.0 + 800.0) * 0.4);
-          finalColor = mix(finalColor, spilloverGrass, spilloverMask * (1.0 - wallMask));  // Only on path areas
-          
-          // Ground bumps removed for performance (was 9 noise samples per fragment)
-          
-          // Apply height-attenuated exponential fog
-          // Ground is at Y=0, fog strongest there, fading out above corn height
-          float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
-          float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
-          fogFactor *= heightAttenuation;
-          
-          // Use fog color directly (no desaturation) for consistent atmosphere matching
-          finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
-          
-          gl_FragColor = vec4(finalColor, 1.0);
-        }
       `,
     });
     
-    return { material: mat, wallTexture: texture };
+    return { material: mat };
   }, [maze, simple]);
   
   return <primitive object={material} attach="material" />;
@@ -2121,7 +2158,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, dualLightsEnabled = false, lowShadowRes = false }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; dualLightsEnabled?: boolean; lowShadowRes?: boolean }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2247,22 +2284,6 @@ return (
         <object3D attach="target" />
       </directionalLight>
       
-      {/* Far shadows - lower resolution, wider frustum (optional - can hurt performance) */}
-      {dualLightsEnabled && shadowsEnabled && (
-        <directionalLight
-          position={[15, 35, 15]}
-          intensity={0}
-          castShadow
-          shadow-mapSize={[1024, 1024]}
-          shadow-camera-near={0.5}
-          shadow-camera-far={100}
-          shadow-camera-left={-30}
-          shadow-camera-right={30}
-          shadow-camera-top={30}
-          shadow-camera-bottom={-30}
-          shadow-bias={-0.0003}
-        />
-      )}
       
       {/* Fill light from opposite side */}
       <directionalLight

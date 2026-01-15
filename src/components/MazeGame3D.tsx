@@ -108,7 +108,7 @@ export const MazeGame3D = ({
   const [cornCullingEnabled, setCornCullingEnabled] = useState(true);
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [shaderFadeEnabled, setShaderFadeEnabled] = useState(true);
-  const [dualLightsEnabled, setDualLightsEnabled] = useState(false); // Default OFF to test single-light performance
+  
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
@@ -779,7 +779,6 @@ export const MazeGame3D = ({
         cornCullingEnabled={cornCullingEnabled}
         skyEnabled={skyEnabled}
         shaderFadeEnabled={shaderFadeEnabled}
-        dualLightsEnabled={dualLightsEnabled}
         lowShadowRes={lowShadowRes}
       />
 
@@ -844,8 +843,6 @@ export const MazeGame3D = ({
           onToggleSky={() => setSkyEnabled(prev => !prev)}
           shaderFadeEnabled={shaderFadeEnabled}
           onToggleShaderFade={() => setShaderFadeEnabled(prev => !prev)}
-          dualLightsEnabled={dualLightsEnabled}
-          onToggleDualLights={() => setDualLightsEnabled(prev => !prev)}
           lowShadowRes={lowShadowRes}
           onToggleLowShadowRes={() => setLowShadowRes(prev => !prev)}
           sensitivityConfig={sensitivityConfig}
