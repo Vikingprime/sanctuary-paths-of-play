@@ -73,6 +73,8 @@ interface GameHUDProps {
   onToggleSimpleGround?: () => void;
   cornCullingEnabled?: boolean;
   onToggleCornCulling?: () => void;
+  skyEnabled?: boolean;
+  onToggleSky?: () => void;
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
@@ -122,6 +124,8 @@ export const GameHUD = ({
   onToggleSimpleGround,
   cornCullingEnabled = true,
   onToggleCornCulling,
+  skyEnabled = true,
+  onToggleSky,
   sensitivityConfig = DEFAULT_SENSITIVITY,
   onSensitivityChange,
   mobileControlsEnabled = true,
@@ -496,6 +500,17 @@ export const GameHUD = ({
                   )}
                 >
                   Cull
+                </button>
+              )}
+              {onToggleSky && (
+                <button
+                  onClick={onToggleSky}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    skyEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Sky
                 </button>
               )}
               {onToggleMobileControls && (
