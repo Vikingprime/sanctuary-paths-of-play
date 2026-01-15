@@ -2430,10 +2430,18 @@ const RendererInfoTracker = ({
         const perFrameOpacityUpdates = frameCount > 0 ? Math.round(frameMetrics.opacityBufferUpdates / frameCount) : 0;
         const perFrameAnimations = frameCount > 0 ? Math.round(frameMetrics.animationMixerUpdates / frameCount) : 0;
         
-        // Count shadow-casting objects
+        // Count shadow-casting instances (for InstancedMesh, count instances not just mesh)
         let shadowCasterCount = 0;
         scene.traverse((obj) => {
-          if ((obj as Mesh).castShadow) shadowCasterCount++;
+          if ((obj as Mesh).castShadow) {
+            const mesh = obj as Mesh;
+            // Check if it's an InstancedMesh
+            if ((mesh as InstancedMesh).isInstancedMesh) {
+              shadowCasterCount += (mesh as InstancedMesh).count;
+            } else {
+              shadowCasterCount++;
+            }
+          }
         });
         
         onRendererInfo({
