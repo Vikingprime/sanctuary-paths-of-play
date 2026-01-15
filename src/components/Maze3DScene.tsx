@@ -229,14 +229,17 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           float isWall = texture2D(wallMap, mazeUV).r;
           
           // Organic edge distortion - grass bleeds into path edges
-          float edgeNoise = noise(worldUV * 1.5) * 0.4;
-          float detailNoise = noise(worldUV * 4.0) * 0.15;
-          float wallMask = smoothstep(0.15, 0.85, isWall + edgeNoise - detailNoise - 0.1);
+          float edgeNoise = noise(worldUV * 1.2) * 0.5;
+          float detailNoise = noise(worldUV * 3.0) * 0.2;
+          float wallMask = smoothstep(0.1, 0.9, isWall + edgeNoise - detailNoise - 0.05);
           
-          // Spillover: grass patches leak onto path near edges
-          float spilloverNoise = noise(worldUV * 2.5 + 100.0);
-          float edgeProximity = smoothstep(0.2, 0.45, isWall) * smoothstep(0.7, 0.45, isWall);
-          float spillover = edgeProximity * smoothstep(0.45, 0.65, spilloverNoise) * 0.6;
+          // Spillover: grass patches leak onto path near edges (much stronger)
+          float spilloverNoise = noise(worldUV * 2.0 + 100.0);
+          float spilloverDetail = noise(worldUV * 5.0 + 200.0) * 0.3;
+          // Wider edge zone: affects 40% of path width from each side
+          float edgeProximity = smoothstep(0.0, 0.5, isWall) * smoothstep(0.85, 0.35, isWall);
+          // Lower threshold = more patches, higher multiplier = stronger blend
+          float spillover = edgeProximity * smoothstep(0.3, 0.55, spilloverNoise + spilloverDetail) * 0.85;
           
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
