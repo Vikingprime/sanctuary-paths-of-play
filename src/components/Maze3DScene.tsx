@@ -2226,7 +2226,9 @@ return (
       <ambientLight intensity={0.9} color="#FFF8F0" />
       
       {/* Near shadows - resolution controlled by lowShadowRes toggle */}
+      {/* Key forces remount when resolution changes - Three.js caches shadow maps */}
       <directionalLight
+        key={`shadow-light-${lowShadowRes ? 'lo' : 'hi'}`}
         ref={lightRef}
         position={[15, 35, 15]}
         intensity={3.5}
