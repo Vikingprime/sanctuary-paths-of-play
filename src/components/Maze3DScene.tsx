@@ -96,25 +96,29 @@ interface Maze3DSceneProps {
 // ===== Pre-baked Ground Texture Generator =====
 // Runs ONCE at maze load - eliminates per-frame noise calculations
 
-// JavaScript implementations of GLSL noise functions
+// JavaScript implementations of GLSL noise functions (deterministic)
+function fract(x: number): number {
+  return x - Math.floor(x);
+}
+
 function hash(x: number, y: number): number {
-  return (Math.sin(x * 127.1 + y * 311.7) * 43758.5453) % 1;
+  return fract(Math.sin(x * 127.1 + y * 311.7) * 43758.5453);
 }
 
 function hash2(x: number, y: number): number {
-  return (Math.sin(x * 269.5 + y * 183.3) * 43758.5453) % 1;
+  return fract(Math.sin(x * 269.5 + y * 183.3) * 43758.5453);
 }
 
 function hash3(x: number, y: number): number {
-  return (Math.sin(x * 419.2 + y * 371.9) * 43758.5453) % 1;
+  return fract(Math.sin(x * 419.2 + y * 371.9) * 43758.5453);
 }
 
 function noise(px: number, py: number): number {
   const ix = Math.floor(px);
   const iy = Math.floor(py);
-  let fx = px - ix;
-  let fy = py - iy;
-  // Smoothstep
+  let fx = fract(px);
+  let fy = fract(py);
+  // Smoothstep interpolation
   fx = fx * fx * (3 - 2 * fx);
   fy = fy * fy * (3 - 2 * fy);
   const a = hash(ix, iy);
@@ -166,8 +170,8 @@ function generateBakedGroundTexture(maze: Maze): CanvasTexture {
   const mazeWidth = maze.grid[0].length;
   const mazeHeight = maze.grid.length;
   
-  // Resolution: 8 pixels per maze cell for good detail
-  const PIXELS_PER_CELL = 8;
+  // Higher resolution: 32 pixels per maze cell for smooth detail
+  const PIXELS_PER_CELL = 32;
   const texWidth = mazeWidth * PIXELS_PER_CELL;
   const texHeight = mazeHeight * PIXELS_PER_CELL;
   
