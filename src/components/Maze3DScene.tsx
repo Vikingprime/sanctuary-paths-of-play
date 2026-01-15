@@ -97,7 +97,7 @@ interface Maze3DSceneProps {
 // Blends organically at edges with spillover effect
 const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean }) => {
   // Load both ground textures
-  const pathTexture = useTexture('/textures/ground-path.jpg');
+  const pathTexture = useTexture('/textures/ground-path-v2.jpg');
   const grassTexture = useTexture('/textures/ground-grass.jpg');
   
   const { material } = useMemo(() => {
