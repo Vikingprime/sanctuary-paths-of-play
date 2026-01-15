@@ -824,8 +824,13 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
     return new ShaderMaterial({
       transparent: true,
       depthWrite: false,
+      depthTest: true,
       side: DoubleSide,
-      fog: false, // Don't let scene fog affect this
+      fog: false,
+      // Polygon offset to prevent z-fighting with ground
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
       uniforms: {
         uTime: { value: 0 },
         uMistColor: { value: mistColor },
@@ -912,8 +917,12 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
     return new ShaderMaterial({
       transparent: true,
       depthWrite: false,
+      depthTest: true,
       side: DoubleSide,
       fog: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
       uniforms: {
         uTime: { value: 0 },
         uMistColor: { value: mistColor },
@@ -1004,13 +1013,13 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
   
   return (
     <group ref={groupRef}>
-      {/* Lower mist sheet - close to ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]} material={mistMaterial}>
+      {/* Lower mist sheet - raised above ground to avoid z-fighting */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.25, 0]} material={mistMaterial}>
         <planeGeometry args={[30, 30, 1, 1]} />
       </mesh>
       
       {/* Higher mist sheet - knee height, larger spread */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.3, 0]} material={mistMaterial2}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.5, 0]} material={mistMaterial2}>
         <planeGeometry args={[35, 35, 1, 1]} />
       </mesh>
     </group>
