@@ -84,6 +84,10 @@ interface Maze3DSceneProps {
   animationsEnabled?: boolean;
   opacityFadeEnabled?: boolean;
   cornEnabled?: boolean;
+  // New visual toggles
+  rimLightEnabled?: boolean;
+  vignetteEnabled?: boolean;
+  shadowIntensity?: number;
 }
 
 // Ground shader with wall texture for grass/path differentiation
@@ -612,12 +616,13 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
 };
 
 // Ground with grass/path differentiation based on wall data
-const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled = true }: { 
+const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled = true, shadowIntensity = 1.0 }: { 
   maze: Maze; 
   rocks: RockPosition[]; 
   playerStateRef: MutableRefObject<PlayerState>;
   rocksEnabled?: boolean;
   grassEnabled?: boolean;
+  shadowIntensity?: number;
 }) => {
   const width = maze.grid[0].length;
   const height = maze.grid.length;
@@ -644,7 +649,7 @@ const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled
         receiveShadow
       >
         <planeGeometry args={[planeWidth, planeHeight, 1, 1]} />
-        <shadowMaterial transparent opacity={0.4} />
+        <shadowMaterial transparent opacity={0.4 * shadowIntensity} />
       </mesh>
       
       {/* 3D Props for visual depth (toggleable for performance testing) */}
@@ -2228,7 +2233,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, rimLightEnabled = true, vignetteEnabled = true, shadowIntensity = 1.0 }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2360,11 +2365,13 @@ return (
       />
       
       {/* Warm rim/back light - creates dusty afternoon silhouette glow on animals and corn */}
-      <directionalLight
-        position={[-8, 20, -15]}
-        intensity={0.8}
-        color="#FFD4A0"
-      />
+      {rimLightEnabled && (
+        <directionalLight
+          position={[-8, 20, -15]}
+          intensity={0.8}
+          color="#FF00FF"
+        />
+      )}
       
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
@@ -2380,7 +2387,7 @@ return (
       <GroundMist playerStateRef={playerStateRef} />
       
       {/* Ground */}
-      <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} />
+      <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} shadowIntensity={shadowIntensity} />
       
       {/* Maze Walls (corn) with optimizations */}
       {cornEnabled && (
@@ -2608,12 +2615,14 @@ export const Maze3DCanvas = (props: Maze3DSceneProps) => {
   return (
     <div className="w-full h-full relative">
       {/* Subtle vignette overlay - cinematic feel, hides edge clutter */}
-      <div 
-        className="absolute inset-0 pointer-events-none z-10"
-        style={{
-          background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.08) 100%)',
-        }}
-      />
+      {props.vignetteEnabled !== false && (
+        <div 
+          className="absolute inset-0 pointer-events-none z-10"
+          style={{
+            background: 'radial-gradient(ellipse at center, transparent 55%, rgba(255,0,255,0.15) 100%)',
+          }}
+        />
+      )}
       
       {/* FPS Display - only in debug mode */}
       {props.debugMode && <FPSDisplay fps={fps} />}
