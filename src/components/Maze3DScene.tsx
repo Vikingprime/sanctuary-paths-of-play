@@ -2238,10 +2238,10 @@ return (
         shadow-mapSize={lowShadowRes ? [512, 512] : [2048, 2048]}
         shadow-camera-near={0.5}
         shadow-camera-far={50}
-        shadow-camera-left={-7}
-        shadow-camera-right={7}
-        shadow-camera-top={7}
-        shadow-camera-bottom={-7}
+          shadow-camera-left={-10}
+          shadow-camera-right={10}
+          shadow-camera-top={10}
+          shadow-camera-bottom={-10}
         shadow-bias={-0.0001}
       >
         <object3D attach="target" />
