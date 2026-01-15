@@ -104,8 +104,7 @@ export const MazeGame3D = ({
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
   const [opacityFadeEnabled, setOpacityFadeEnabled] = useState(true);
   const [cornEnabled, setCornEnabled] = useState(true);
-  // New visual toggles
-  const [rimLightEnabled, setRimLightEnabled] = useState(true);
+  // Visual toggles
   const [vignetteEnabled, setVignetteEnabled] = useState(true);
   const [shadowIntensity, setShadowIntensity] = useState(1.0); // 0.0 - 1.0
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
@@ -773,7 +772,6 @@ export const MazeGame3D = ({
         animationsEnabled={animationsEnabled}
         opacityFadeEnabled={opacityFadeEnabled}
         cornEnabled={cornEnabled}
-        rimLightEnabled={rimLightEnabled}
         vignetteEnabled={vignetteEnabled}
         shadowIntensity={shadowIntensity}
       />
@@ -831,8 +829,6 @@ export const MazeGame3D = ({
           onToggleOpacityFade={() => setOpacityFadeEnabled(prev => !prev)}
           cornEnabled={cornEnabled}
           onToggleCorn={() => setCornEnabled(prev => !prev)}
-          rimLightEnabled={rimLightEnabled}
-          onToggleRimLight={() => setRimLightEnabled(prev => !prev)}
           vignetteEnabled={vignetteEnabled}
           onToggleVignette={() => setVignetteEnabled(prev => !prev)}
           shadowIntensity={shadowIntensity}

@@ -85,7 +85,6 @@ interface Maze3DSceneProps {
   opacityFadeEnabled?: boolean;
   cornEnabled?: boolean;
   // New visual toggles
-  rimLightEnabled?: boolean;
   vignetteEnabled?: boolean;
   shadowIntensity?: number;
 }
@@ -2233,7 +2232,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, rimLightEnabled = true, vignetteEnabled = true, shadowIntensity = 1.0 }: Maze3DSceneProps) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, vignetteEnabled = true, shadowIntensity = 1.0 }: Maze3DSceneProps) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2345,7 +2344,7 @@ return (
         intensity={3.5}
         color="#FFFDF5"
         castShadow={shadowsEnabled}
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[1024, 1024]}
         shadow-camera-near={0.5}
         shadow-camera-far={100}
         shadow-camera-left={-30}
@@ -2364,14 +2363,6 @@ return (
         color="#C8D8F0"
       />
       
-      {/* Warm rim/back light - creates dusty afternoon silhouette glow on animals and corn */}
-      {rimLightEnabled && (
-        <directionalLight
-          position={[-8, 20, -15]}
-          intensity={0.8}
-          color="#FFD4A0"
-        />
-      )}
       
       {/* Hemisphere light for natural sky/ground color */}
       <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
