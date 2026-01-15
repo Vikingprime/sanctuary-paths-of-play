@@ -93,21 +93,24 @@ interface Maze3DSceneProps {
   lowShadowRes?: boolean;
 }
 
-// Ground shader using photo texture for realistic detail
-// Much faster than procedural noise - just texture samples + fog
+// Ground shader using two photo textures: dry mud for paths, leafy for corn areas
+// Blends organically at edges with spillover effect
 const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean }) => {
-  // Load ground texture
-  const groundTexture = useTexture('/textures/ground-mud-leaves.jpg');
+  // Load both ground textures
+  const pathTexture = useTexture('/textures/ground-path.jpg');
+  const grassTexture = useTexture('/textures/ground-grass.jpg');
   
   const { material } = useMemo(() => {
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
     
-    // Configure texture for tiling
-    groundTexture.wrapS = RepeatWrapping;
-    groundTexture.wrapT = RepeatWrapping;
-    groundTexture.minFilter = LinearMipmapLinearFilter;
-    groundTexture.magFilter = LinearFilter;
+    // Configure textures for tiling
+    [pathTexture, grassTexture].forEach(tex => {
+      tex.wrapS = RepeatWrapping;
+      tex.wrapT = RepeatWrapping;
+      tex.minFilter = LinearMipmapLinearFilter;
+      tex.magFilter = LinearFilter;
+    });
     
     // Create wall map texture - white = wall, black = path
     const data = new Uint8Array(mazeWidth * mazeHeight * 4);
@@ -129,15 +132,16 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
     
     const mat = new ShaderMaterial({
       uniforms: {
-        groundTex: { value: groundTexture },
+        pathTex: { value: pathTexture },
+        grassTex: { value: grassTexture },
         wallMap: { value: wallMapTex },
         mazeWidth: { value: mazeWidth },
         mazeHeight: { value: mazeHeight },
         // Tiling: how many times texture repeats per maze unit
         tileScale: { value: 2.0 },
         // Color adjustments
-        pathBrightness: { value: 1.15 },  // Paths slightly brighter (worn)
-        grassDarkness: { value: 0.7 },    // Grass areas darker (shadowed by corn)
+        pathBrightness: { value: 1.1 },   // Paths slightly brighter (worn)
+        grassDarkness: { value: 0.65 },   // Grass areas darker (shadowed by corn)
         // Fog uniforms
         fogColor: { value: new Color(ATMOSPHERE_COLOR) },
         fogDensity: { value: 0.14 },
@@ -189,7 +193,8 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           gl_FragColor = vec4(finalColor, 1.0);
         }
       ` : `
-        uniform sampler2D groundTex;
+        uniform sampler2D pathTex;
+        uniform sampler2D grassTex;
         uniform sampler2D wallMap;
         uniform float mazeWidth;
         uniform float mazeHeight;
@@ -202,9 +207,20 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
         varying vec3 vWorldPos;
         varying float vFogDepth;
         
-        // Simple hash for edge variation
+        // Hash functions for organic edge variation
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+        
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
         }
         
         void main() {
@@ -212,23 +228,29 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
           float isWall = texture2D(wallMap, mazeUV).r;
           
-          // Organic edge using simple hash (no expensive FBM)
-          float edgeNoise = hash(floor(worldUV * 2.0)) * 0.3;
-          float wallMask = smoothstep(0.2, 0.8, isWall + edgeNoise - 0.15);
+          // Organic edge distortion - grass bleeds into path edges
+          float edgeNoise = noise(worldUV * 1.5) * 0.4;
+          float detailNoise = noise(worldUV * 4.0) * 0.15;
+          float wallMask = smoothstep(0.15, 0.85, isWall + edgeNoise - detailNoise - 0.1);
+          
+          // Spillover: grass patches leak onto path near edges
+          float spilloverNoise = noise(worldUV * 2.5 + 100.0);
+          float edgeProximity = smoothstep(0.2, 0.45, isWall) * smoothstep(0.7, 0.45, isWall);
+          float spillover = edgeProximity * smoothstep(0.45, 0.65, spilloverNoise) * 0.6;
           
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
           wallMask = mix(1.0, wallMask, inBounds);
+          spillover = spillover * inBounds;
           
-          // Sample ground texture with tiling
+          // Sample both textures with tiling
           vec2 texUV = worldUV * tileScale;
-          vec3 texColor = texture2D(groundTex, texUV).rgb;
+          vec3 pathColor = texture2D(pathTex, texUV).rgb * pathBrightness;
+          vec3 grassColor = texture2D(grassTex, texUV).rgb * grassDarkness;
           
-          // Adjust brightness based on path vs grass area
-          // Paths: brighter (worn, more sunlight)
-          // Grass areas: darker (shadowed by corn)
-          float brightness = mix(pathBrightness, grassDarkness, wallMask);
-          vec3 finalColor = texColor * brightness;
+          // Blend: path in corridors, grass under corn, spillover at edges
+          vec3 finalColor = mix(pathColor, grassColor, wallMask);
+          finalColor = mix(finalColor, grassColor, spillover);
           
           // Apply fog
           float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
@@ -242,7 +264,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
     });
     
     return { material: mat };
-  }, [maze, simple, groundTexture]);
+  }, [maze, simple, pathTexture, grassTexture]);
   
   return <primitive object={material} attach="material" />;
 };
