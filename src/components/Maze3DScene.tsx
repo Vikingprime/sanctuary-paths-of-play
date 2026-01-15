@@ -322,13 +322,26 @@ const mat = new ShaderMaterial({
           finalColor = mix(finalColor, spilloverGrass, spilloverMask * (1.0 - wallMask));  // Only on path areas
           
           // Fake terrain bumps using noise-based lighting
-          // Sample noise at slightly offset positions to get fake normal
-          float bumpScale = 8.0;  // Frequency of bumps (lower = larger bumps)
-          float bumpStrength = 0.25;  // Bump intensity (increased for visibility)
-          float eps = 0.02;  // Sample offset for gradient
-          float heightCenter = noise(worldUV * bumpScale + 900.0) + noise(worldUV * bumpScale * 2.5 + 950.0) * 0.4;
-          float heightX = noise((worldUV + vec2(eps, 0.0)) * bumpScale + 900.0) + noise((worldUV + vec2(eps, 0.0)) * bumpScale * 2.5 + 950.0) * 0.4;
-          float heightZ = noise((worldUV + vec2(0.0, eps)) * bumpScale + 900.0) + noise((worldUV + vec2(0.0, eps)) * bumpScale * 2.5 + 950.0) * 0.4;
+          // Multi-frequency bumps for non-uniform appearance
+          float eps = 0.02;
+          
+          // Vary bump scale across terrain for non-uniformity
+          float scaleVar = 0.7 + fbm(worldUV * 0.5 + 1000.0) * 0.6;  // 0.7 to 1.3
+          float bumpScale1 = 6.0 * scaleVar;
+          float bumpScale2 = 15.0 * scaleVar;
+          float bumpScale3 = 25.0;  // Fine detail layer
+          
+          // Multi-octave height sampling with varied weights
+          float weight2 = 0.3 + noise(worldUV * 0.8 + 1100.0) * 0.3;  // Vary second octave
+          float heightCenter = noise(worldUV * bumpScale1 + 900.0) 
+                             + noise(worldUV * bumpScale2 + 950.0) * weight2
+                             + noise(worldUV * bumpScale3 + 980.0) * 0.15;
+          float heightX = noise((worldUV + vec2(eps, 0.0)) * bumpScale1 + 900.0) 
+                        + noise((worldUV + vec2(eps, 0.0)) * bumpScale2 + 950.0) * weight2
+                        + noise((worldUV + vec2(eps, 0.0)) * bumpScale3 + 980.0) * 0.15;
+          float heightZ = noise((worldUV + vec2(0.0, eps)) * bumpScale1 + 900.0) 
+                        + noise((worldUV + vec2(0.0, eps)) * bumpScale2 + 950.0) * weight2
+                        + noise((worldUV + vec2(0.0, eps)) * bumpScale3 + 980.0) * 0.15;
           
           // Compute fake normal from height differences
           vec3 bumpNormal = normalize(vec3(
@@ -340,6 +353,9 @@ const mat = new ShaderMaterial({
           // Simple directional light from top-left-front (morning sun direction)
           vec3 lightDir = normalize(vec3(0.5, 0.8, 0.3));
           float bumpLighting = dot(bumpNormal, lightDir) * 0.5 + 0.5;  // 0-1 range
+          
+          // Vary bump strength across terrain for natural look
+          float bumpStrength = 0.2 + noise(worldUV * 0.3 + 1200.0) * 0.15;  // 0.2 to 0.35
           
           // Apply subtle bump shading - darken valleys, brighten peaks
           finalColor *= 0.92 + bumpLighting * bumpStrength;
