@@ -824,7 +824,7 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
       uniforms: {
         uTime: { value: 0 },
         uFogColor: { value: new Color(FogConfig.COLOR_HEX) },
-        uOpacity: { value: 0.18 }, // Subtle base opacity
+        uOpacity: { value: 0.35 }, // More visible base opacity
       },
       vertexShader: `
         varying vec2 vUv;
@@ -879,12 +879,12 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
           vec2 noiseCoord = vUv * 3.0 + vec2(uTime * 0.02, uTime * 0.015);
           float n = fbm(noiseCoord);
           
-          // Fade at edges of plane (circular falloff)
+          // Fade at edges of plane (circular falloff) - softer edge
           vec2 centered = vUv * 2.0 - 1.0;
-          float edgeFade = 1.0 - smoothstep(0.3, 0.95, length(centered));
+          float edgeFade = 1.0 - smoothstep(0.5, 1.0, length(centered));
           
-          // Fade with distance from camera (thinner close, builds up far)
-          float distFade = smoothstep(1.0, 8.0, vDistance);
+          // Distance builds density but starts visible (0.3 base + distance boost)
+          float distFade = 0.3 + 0.7 * smoothstep(2.0, 10.0, vDistance);
           
           // Combine for final opacity
           float alpha = uOpacity * n * edgeFade * distFade;
@@ -904,7 +904,7 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
       uniforms: {
         uTime: { value: 0 },
         uFogColor: { value: new Color(FogConfig.COLOR_HEX) },
-        uOpacity: { value: 0.12 }, // Even more subtle
+        uOpacity: { value: 0.25 }, // More visible
       },
       vertexShader: `
         varying vec2 vUv;
@@ -959,10 +959,10 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
           float n = fbm(noiseCoord);
           
           vec2 centered = vUv * 2.0 - 1.0;
-          float edgeFade = 1.0 - smoothstep(0.3, 0.9, length(centered));
+          float edgeFade = 1.0 - smoothstep(0.4, 0.95, length(centered));
           
-          // Different distance curve - builds faster
-          float distFade = smoothstep(2.0, 6.0, vDistance);
+          // Visible near but builds with distance
+          float distFade = 0.4 + 0.6 * smoothstep(1.0, 7.0, vDistance);
           
           float alpha = uOpacity * n * edgeFade * distFade;
           
