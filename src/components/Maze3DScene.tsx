@@ -93,19 +93,21 @@ interface Maze3DSceneProps {
   lowShadowRes?: boolean;
 }
 
-// Ground shader using two photo textures: dry mud for paths, leafy for corn areas
-// Blends organically at edges with spillover effect
+// Ground shader using multiple photo textures with random patches
+// Path mud, grass/leaves, rocks - blended organically
 const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean }) => {
-  // Load both ground textures
+  // Load all ground textures
   const pathTexture = useTexture('/textures/ground-path-v2.jpg');
   const grassTexture = useTexture('/textures/ground-grass.jpg');
+  const leavesTexture = useTexture('/textures/ground-leaves.jpg');
+  const rocksTexture = useTexture('/textures/ground-rocks.jpg');
   
   const { material } = useMemo(() => {
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
     
     // Configure textures for tiling
-    [pathTexture, grassTexture].forEach(tex => {
+    [pathTexture, grassTexture, leavesTexture, rocksTexture].forEach(tex => {
       tex.wrapS = RepeatWrapping;
       tex.wrapT = RepeatWrapping;
       tex.minFilter = LinearMipmapLinearFilter;
@@ -134,26 +136,23 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
       uniforms: {
         pathTex: { value: pathTexture },
         grassTex: { value: grassTexture },
+        leavesTex: { value: leavesTexture },
+        rocksTex: { value: rocksTexture },
         wallMap: { value: wallMapTex },
         mazeWidth: { value: mazeWidth },
         mazeHeight: { value: mazeHeight },
-        // Tiling: how many times texture repeats per maze unit
         tileScale: { value: 2.0 },
-        // Color adjustments
-        pathBrightness: { value: 1.1 },   // Paths slightly brighter (worn)
-        grassDarkness: { value: 0.65 },   // Grass areas darker (shadowed by corn)
-        // Fog uniforms
+        pathBrightness: { value: 1.15 },
+        grassDarkness: { value: 0.6 },
         fogColor: { value: new Color(ATMOSPHERE_COLOR) },
         fogDensity: { value: 0.14 },
         fogHeightMax: { value: 2.5 },
       },
       fog: true,
       vertexShader: `
-        varying vec2 vUv;
         varying vec3 vWorldPos;
         varying float vFogDepth;
         void main() {
-          vUv = uv;
           vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           vFogDepth = -mvPosition.z;
@@ -179,12 +178,10 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
           wallMask = mix(1.0, wallMask, inBounds);
           
-          // Simple flat colors
           vec3 pathColor = vec3(0.55, 0.35, 0.26);
           vec3 grassColor = vec3(0.18, 0.27, 0.13);
           vec3 finalColor = mix(pathColor, grassColor, wallMask);
           
-          // Apply fog
           float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
           float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
           fogFactor *= heightAttenuation;
@@ -195,6 +192,8 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
       ` : `
         uniform sampler2D pathTex;
         uniform sampler2D grassTex;
+        uniform sampler2D leavesTex;
+        uniform sampler2D rocksTex;
         uniform sampler2D wallMap;
         uniform float mazeWidth;
         uniform float mazeHeight;
@@ -207,7 +206,6 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
         varying vec3 vWorldPos;
         varying float vFogDepth;
         
-        // Hash functions for organic edge variation
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
         }
@@ -228,32 +226,56 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
           float isWall = texture2D(wallMap, mazeUV).r;
           
-          // Organic edge distortion - grass bleeds into path edges
-          float edgeNoise = noise(worldUV * 1.2) * 0.5;
-          float detailNoise = noise(worldUV * 3.0) * 0.2;
-          float wallMask = smoothstep(0.1, 0.9, isWall + edgeNoise - detailNoise - 0.05);
+          // Organic edge distortion - stronger blend from corn areas
+          float edgeNoise = noise(worldUV * 1.0) * 0.6;
+          float detailNoise = noise(worldUV * 2.5) * 0.25;
+          float wallMask = smoothstep(0.0, 1.0, isWall + edgeNoise - detailNoise);
           
-          // Spillover: grass patches leak onto path near edges (much stronger)
-          float spilloverNoise = noise(worldUV * 2.0 + 100.0);
-          float spilloverDetail = noise(worldUV * 5.0 + 200.0) * 0.3;
-          // Wider edge zone: affects 40% of path width from each side
-          float edgeProximity = smoothstep(0.0, 0.5, isWall) * smoothstep(0.85, 0.35, isWall);
-          // Lower threshold = more patches, higher multiplier = stronger blend
-          float spillover = edgeProximity * smoothstep(0.3, 0.55, spilloverNoise + spilloverDetail) * 0.85;
+          // Strong spillover from corn edges onto path
+          float spilloverNoise = noise(worldUV * 1.5 + 100.0);
+          float spilloverDetail = noise(worldUV * 4.0 + 200.0) * 0.35;
+          // Very wide edge zone - affects most of the path
+          float edgeProximity = smoothstep(-0.1, 0.6, isWall) * smoothstep(1.0, 0.3, isWall);
+          float spillover = edgeProximity * smoothstep(0.25, 0.5, spilloverNoise + spilloverDetail);
           
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
           wallMask = mix(1.0, wallMask, inBounds);
           spillover = spillover * inBounds;
           
-          // Sample both textures with tiling
+          // Sample all textures with tiling
           vec2 texUV = worldUV * tileScale;
           vec3 pathColor = texture2D(pathTex, texUV).rgb * pathBrightness;
           vec3 grassColor = texture2D(grassTex, texUV).rgb * grassDarkness;
+          vec3 leavesColor = texture2D(leavesTex, texUV * 0.8).rgb * 0.85;
+          vec3 rocksColor = texture2D(rocksTex, texUV * 1.2).rgb * 0.9;
           
-          // Blend: path in corridors, grass under corn, spillover at edges
-          vec3 finalColor = mix(pathColor, grassColor, wallMask);
-          finalColor = mix(finalColor, grassColor, spillover);
+          // Random patches for variety
+          float patchNoise1 = noise(worldUV * 0.8 + 300.0);
+          float patchNoise2 = noise(worldUV * 1.1 + 500.0);
+          float patchNoise3 = noise(worldUV * 0.6 + 700.0);
+          
+          // Leaves patches - scattered on both path and grass
+          float leavesPatch = smoothstep(0.55, 0.75, patchNoise1) * 0.7;
+          
+          // Rock patches - sparse, mostly on paths
+          float rocksPatch = smoothstep(0.7, 0.85, patchNoise2) * (1.0 - wallMask * 0.5) * 0.6;
+          
+          // Extra grass patches on path edges
+          float extraGrass = smoothstep(0.5, 0.7, patchNoise3) * edgeProximity * 0.5;
+          
+          // Base blend: path vs grass under corn
+          vec3 baseColor = mix(pathColor, grassColor, wallMask);
+          
+          // Add spillover from corn
+          baseColor = mix(baseColor, grassColor, spillover * 0.7);
+          baseColor = mix(baseColor, leavesColor, spillover * 0.3);
+          
+          // Apply random patches
+          vec3 finalColor = baseColor;
+          finalColor = mix(finalColor, leavesColor, leavesPatch);
+          finalColor = mix(finalColor, rocksColor, rocksPatch);
+          finalColor = mix(finalColor, grassColor, extraGrass);
           
           // Apply fog
           float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
@@ -267,7 +289,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
     });
     
     return { material: mat };
-  }, [maze, simple, pathTexture, grassTexture]);
+  }, [maze, simple, pathTexture, grassTexture, leavesTexture, rocksTexture]);
   
   return <primitive object={material} attach="material" />;
 };
