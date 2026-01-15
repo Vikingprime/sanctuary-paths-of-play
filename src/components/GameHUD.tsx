@@ -69,6 +69,13 @@ interface GameHUDProps {
   onToggleOpacityFade?: () => void;
   cornEnabled?: boolean;
   onToggleCorn?: () => void;
+  // New visual toggles
+  rimLightEnabled?: boolean;
+  onToggleRimLight?: () => void;
+  vignetteEnabled?: boolean;
+  onToggleVignette?: () => void;
+  shadowIntensity?: number;
+  onShadowIntensityChange?: (value: number) => void;
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
@@ -114,6 +121,12 @@ export const GameHUD = ({
   onToggleOpacityFade,
   cornEnabled = true,
   onToggleCorn,
+  rimLightEnabled = true,
+  onToggleRimLight,
+  vignetteEnabled = true,
+  onToggleVignette,
+  shadowIntensity = 1.0,
+  onShadowIntensityChange,
   sensitivityConfig = DEFAULT_SENSITIVITY,
   onSensitivityChange,
   mobileControlsEnabled = true,
@@ -480,7 +493,50 @@ export const GameHUD = ({
                   Mobile
                 </button>
               )}
+              {onToggleRimLight && (
+                <button
+                  onClick={onToggleRimLight}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    rimLightEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                  title="Warm rim/back light"
+                >
+                  Rim
+                </button>
+              )}
+              {onToggleVignette && (
+                <button
+                  onClick={onToggleVignette}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    vignetteEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                  title="Screen edge vignette"
+                >
+                  Vign
+                </button>
+              )}
             </div>
+            
+            {/* Shadow Intensity Slider */}
+            {onShadowIntensityChange && (
+              <div className="mt-2">
+                <div className="flex justify-between text-[10px]">
+                  <span>Shadow intensity:</span>
+                  <span className="text-cyan-400">{(shadowIntensity * 100).toFixed(0)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={shadowIntensity}
+                  onChange={(e) => onShadowIntensityChange(parseFloat(e.target.value))}
+                  className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                />
+              </div>
+            )}
           </div>
           
           {/* Sensitivity Tuning */}
