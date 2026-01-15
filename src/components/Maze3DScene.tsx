@@ -815,35 +815,43 @@ const MazeWalls = forwardRef<Group, {
 const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<PlayerState> }) => {
   const groupRef = useRef<Group>(null);
   
+  // Bright mist color - warm white/cream to glow against the scene
+  const mistColor = new Color('#E8D8C8');
+  
   // Create mist material with noise-based transparency
+  // CRITICAL: fog: false so scene fog doesn't hide it
   const mistMaterial = useMemo(() => {
     return new ShaderMaterial({
       transparent: true,
       depthWrite: false,
       side: DoubleSide,
+      fog: false, // Don't let scene fog affect this
       uniforms: {
         uTime: { value: 0 },
-        uFogColor: { value: new Color(FogConfig.COLOR_HEX) },
-        uOpacity: { value: 0.35 }, // More visible base opacity
+        uMistColor: { value: mistColor },
+        uOpacity: { value: 0.55 }, // Strong visibility
       },
       vertexShader: `
         varying vec2 vUv;
         varying float vDistance;
+        varying vec3 vWorldPos;
         
         void main() {
           vUv = uv;
           vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPos = worldPos.xyz;
           vDistance = length(worldPos.xz - cameraPosition.xz);
           gl_Position = projectionMatrix * viewMatrix * worldPos;
         }
       `,
       fragmentShader: `
         uniform float uTime;
-        uniform vec3 uFogColor;
+        uniform vec3 uMistColor;
         uniform float uOpacity;
         
         varying vec2 vUv;
         varying float vDistance;
+        varying vec3 vWorldPos;
         
         // Simple noise function
         float hash(vec2 p) {
@@ -866,7 +874,7 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
         float fbm(vec2 p) {
           float sum = 0.0;
           float amp = 0.5;
-          for(int i = 0; i < 3; i++) {
+          for(int i = 0; i < 4; i++) {
             sum += noise(p) * amp;
             p *= 2.0;
             amp *= 0.5;
@@ -875,55 +883,63 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
         }
         
         void main() {
-          // Animated noise for subtle movement
-          vec2 noiseCoord = vUv * 3.0 + vec2(uTime * 0.02, uTime * 0.015);
+          // Use world position for stable noise (doesn't swim with camera)
+          vec2 noiseCoord = vWorldPos.xz * 0.3 + vec2(uTime * 0.015, uTime * 0.01);
           float n = fbm(noiseCoord);
           
-          // Fade at edges of plane (circular falloff) - softer edge
-          vec2 centered = vUv * 2.0 - 1.0;
-          float edgeFade = 1.0 - smoothstep(0.5, 1.0, length(centered));
+          // Add secondary noise layer for more variation
+          float n2 = fbm(vWorldPos.xz * 0.15 - vec2(uTime * 0.008, uTime * 0.012));
+          n = n * 0.7 + n2 * 0.3;
           
-          // Distance builds density but starts visible (0.3 base + distance boost)
-          float distFade = 0.3 + 0.7 * smoothstep(2.0, 10.0, vDistance);
+          // Fade at edges of plane (circular falloff)
+          vec2 centered = vUv * 2.0 - 1.0;
+          float edgeFade = 1.0 - smoothstep(0.4, 0.95, length(centered));
+          
+          // Build up with distance - thicker far away, thinner close
+          float distFade = 0.2 + 0.8 * smoothstep(1.5, 12.0, vDistance);
           
           // Combine for final opacity
           float alpha = uOpacity * n * edgeFade * distFade;
           
-          gl_FragColor = vec4(uFogColor, alpha);
+          gl_FragColor = vec4(uMistColor, alpha);
         }
       `,
     });
   }, []);
   
-  // Create second sheet with slightly different params
+  // Second sheet - higher, different noise pattern
   const mistMaterial2 = useMemo(() => {
     return new ShaderMaterial({
       transparent: true,
       depthWrite: false,
       side: DoubleSide,
+      fog: false,
       uniforms: {
         uTime: { value: 0 },
-        uFogColor: { value: new Color(FogConfig.COLOR_HEX) },
-        uOpacity: { value: 0.25 }, // More visible
+        uMistColor: { value: mistColor },
+        uOpacity: { value: 0.4 },
       },
       vertexShader: `
         varying vec2 vUv;
         varying float vDistance;
+        varying vec3 vWorldPos;
         
         void main() {
           vUv = uv;
           vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPos = worldPos.xyz;
           vDistance = length(worldPos.xz - cameraPosition.xz);
           gl_Position = projectionMatrix * viewMatrix * worldPos;
         }
       `,
       fragmentShader: `
         uniform float uTime;
-        uniform vec3 uFogColor;
+        uniform vec3 uMistColor;
         uniform float uOpacity;
         
         varying vec2 vUv;
         varying float vDistance;
+        varying vec3 vWorldPos;
         
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -945,7 +961,7 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
         float fbm(vec2 p) {
           float sum = 0.0;
           float amp = 0.5;
-          for(int i = 0; i < 3; i++) {
+          for(int i = 0; i < 4; i++) {
             sum += noise(p) * amp;
             p *= 2.0;
             amp *= 0.5;
@@ -954,26 +970,26 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
         }
         
         void main() {
-          // Offset noise pattern from first sheet
-          vec2 noiseCoord = vUv * 2.5 + vec2(uTime * -0.025, uTime * 0.018);
+          // Offset pattern from first sheet
+          vec2 noiseCoord = vWorldPos.xz * 0.2 + vec2(uTime * -0.02, uTime * 0.012) + 50.0;
           float n = fbm(noiseCoord);
           
           vec2 centered = vUv * 2.0 - 1.0;
-          float edgeFade = 1.0 - smoothstep(0.4, 0.95, length(centered));
+          float edgeFade = 1.0 - smoothstep(0.3, 0.9, length(centered));
           
-          // Visible near but builds with distance
-          float distFade = 0.4 + 0.6 * smoothstep(1.0, 7.0, vDistance);
+          // Builds faster with distance
+          float distFade = 0.15 + 0.85 * smoothstep(2.0, 10.0, vDistance);
           
           float alpha = uOpacity * n * edgeFade * distFade;
           
-          gl_FragColor = vec4(uFogColor, alpha);
+          gl_FragColor = vec4(uMistColor, alpha);
         }
       `,
     });
   }, []);
   
   // Animate and follow camera
-  useFrame((state, delta) => {
+  useFrame((state) => {
     if (!groupRef.current || !playerStateRef.current) return;
     
     // Follow player position
@@ -988,14 +1004,14 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
   
   return (
     <group ref={groupRef}>
-      {/* Lower mist sheet - right at ground level */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.15, 0]} material={mistMaterial}>
-        <planeGeometry args={[20, 20, 1, 1]} />
+      {/* Lower mist sheet - close to ground */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]} material={mistMaterial}>
+        <planeGeometry args={[30, 30, 1, 1]} />
       </mesh>
       
-      {/* Higher mist sheet - slightly above ground, larger spread */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.4, 0]} material={mistMaterial2}>
-        <planeGeometry args={[25, 25, 1, 1]} />
+      {/* Higher mist sheet - knee height, larger spread */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.3, 0]} material={mistMaterial2}>
+        <planeGeometry args={[35, 35, 1, 1]} />
       </mesh>
     </group>
   );
