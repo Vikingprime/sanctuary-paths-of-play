@@ -69,6 +69,10 @@ interface GameHUDProps {
   onToggleOpacityFade?: () => void;
   cornEnabled?: boolean;
   onToggleCorn?: () => void;
+  simpleGroundEnabled?: boolean;
+  onToggleSimpleGround?: () => void;
+  cornCullingEnabled?: boolean;
+  onToggleCornCulling?: () => void;
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
@@ -114,6 +118,10 @@ export const GameHUD = ({
   onToggleOpacityFade,
   cornEnabled = true,
   onToggleCorn,
+  simpleGroundEnabled = false,
+  onToggleSimpleGround,
+  cornCullingEnabled = true,
+  onToggleCornCulling,
   sensitivityConfig = DEFAULT_SENSITIVITY,
   onSensitivityChange,
   mobileControlsEnabled = true,
@@ -466,6 +474,28 @@ export const GameHUD = ({
                   )}
                 >
                   Corn
+                </button>
+              )}
+              {onToggleSimpleGround && (
+                <button
+                  onClick={onToggleSimpleGround}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    simpleGroundEnabled ? 'bg-yellow-600 text-white' : 'bg-green-600 text-white'
+                  )}
+                >
+                  Ground
+                </button>
+              )}
+              {onToggleCornCulling && (
+                <button
+                  onClick={onToggleCornCulling}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    cornCullingEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Cull
                 </button>
               )}
               {onToggleMobileControls && (
