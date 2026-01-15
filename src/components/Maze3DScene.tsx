@@ -239,6 +239,10 @@ const mat = new ShaderMaterial({
           pathColor = mix(pathColor, pathDark, shadows * 0.4);
           pathColor = mix(pathColor, pathDark * 0.85, (1.0 - fineVar) * 0.12);
           
+          // Lighten the trodden center of the path (away from walls/corn)
+          float centerBrightness = pow(1.0 - wallMask, 2.0);  // Stronger effect in center
+          pathColor = mix(pathColor, pathColor * 1.25, centerBrightness * 0.5);
+          
           // PATH ROCKS - use elliptical shapes with rotation for organic look
           float rockAngle1 = hash2(floor(worldUV * 1.8)) * 6.28;
           vec2 rockCenter1 = fract(worldUV * 1.8) - 0.5;
@@ -319,8 +323,8 @@ const mat = new ShaderMaterial({
           
           // Fake terrain bumps using noise-based lighting
           // Sample noise at slightly offset positions to get fake normal
-          float bumpScale = 12.0;  // Frequency of bumps
-          float bumpStrength = 0.12;  // Subtle bump intensity
+          float bumpScale = 8.0;  // Frequency of bumps (lower = larger bumps)
+          float bumpStrength = 0.25;  // Bump intensity (increased for visibility)
           float eps = 0.02;  // Sample offset for gradient
           float heightCenter = noise(worldUV * bumpScale + 900.0) + noise(worldUV * bumpScale * 2.5 + 950.0) * 0.4;
           float heightX = noise((worldUV + vec2(eps, 0.0)) * bumpScale + 900.0) + noise((worldUV + vec2(eps, 0.0)) * bumpScale * 2.5 + 950.0) * 0.4;
