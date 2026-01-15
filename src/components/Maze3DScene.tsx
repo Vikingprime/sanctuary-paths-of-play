@@ -1,6 +1,6 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend, useLoader } from '@react-three/fiber';
-import { PerspectiveCamera, ContactShadows, useGLTF, Html } from '@react-three/drei';
+import { PerspectiveCamera, ContactShadows, useGLTF, Html, useTexture } from '@react-three/drei';
 import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
@@ -14,6 +14,7 @@ import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics, checkGcSpike } fr
 import { MOBILE_CONTROL_CONFIG } from './MobileControls';
 import { FogConfig, FOG_COLOR } from '@/game/FogConfig';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
+import mapTowerSignImage from '@/assets/map-tower-sign.png';
 
 // Re-export for backward compatibility
 export const ATMOSPHERE_COLOR = FogConfig.COLOR_HEX;
@@ -828,6 +829,7 @@ const PowerUp = ({ position }: { position: [number, number, number] }) => {
 
 const MapStation = ({ position, showCollisionDebug = true }: { position: [number, number, number]; showCollisionDebug?: boolean }) => {
   const COLLISION_RADIUS = 0.12; // Tiny collision radius
+  const signTexture = useTexture(mapTowerSignImage);
   
   return (
     <group position={position}>
@@ -836,10 +838,15 @@ const MapStation = ({ position, showCollisionDebug = true }: { position: [number
         <cylinderGeometry args={[0.15, 0.2, 1, 8]} />
         <meshStandardMaterial color="#8B4513" />
       </mesh>
-      {/* Tower sign */}
+      {/* Tower sign with maze image */}
+      <mesh position={[0, 1.1, 0.03]}>
+        <planeGeometry args={[0.4, 0.3]} />
+        <meshStandardMaterial map={signTexture} />
+      </mesh>
+      {/* Sign backing */}
       <mesh position={[0, 1.1, 0]}>
-        <boxGeometry args={[0.4, 0.4, 0.05]} />
-        <meshStandardMaterial color="#DEB887" />
+        <boxGeometry args={[0.45, 0.35, 0.05]} />
+        <meshStandardMaterial color="#5C4033" />
       </mesh>
       
       {/* Debug collision ring only */}
