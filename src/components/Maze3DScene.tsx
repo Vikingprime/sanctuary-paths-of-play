@@ -816,8 +816,8 @@ const GroundMist = ({ playerStateRef }: { playerStateRef: MutableRefObject<Playe
   const groupRef = useRef<Group>(null);
   const { camera } = useThree();
   
-  // Warm mist color matching the atmosphere
-  const mistColor = new Color('#E8D0B8');
+  // NEON DEBUG COLOR - bright magenta so we can see it
+  const mistColor = new Color('#FF00FF');
   
   // Create billboard mist material - vertical planes that face camera
   const mistMaterial = useMemo(() => {
