@@ -109,6 +109,7 @@ export const MazeGame3D = ({
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [shaderFadeEnabled, setShaderFadeEnabled] = useState(true);
   const [dualLightsEnabled, setDualLightsEnabled] = useState(false); // Default OFF to test single-light performance
+  const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
@@ -779,6 +780,7 @@ export const MazeGame3D = ({
         skyEnabled={skyEnabled}
         shaderFadeEnabled={shaderFadeEnabled}
         dualLightsEnabled={dualLightsEnabled}
+        lowShadowRes={lowShadowRes}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -844,6 +846,8 @@ export const MazeGame3D = ({
           onToggleShaderFade={() => setShaderFadeEnabled(prev => !prev)}
           dualLightsEnabled={dualLightsEnabled}
           onToggleDualLights={() => setDualLightsEnabled(prev => !prev)}
+          lowShadowRes={lowShadowRes}
+          onToggleLowShadowRes={() => setLowShadowRes(prev => !prev)}
           sensitivityConfig={sensitivityConfig}
           onSensitivityChange={setSensitivityConfig}
           mobileControlsEnabled={mobileControlsEnabled}

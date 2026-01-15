@@ -80,6 +80,9 @@ interface GameHUDProps {
   // Dual lights toggle (for testing shadow performance)
   dualLightsEnabled?: boolean;
   onToggleDualLights?: () => void;
+  // Shadow resolution toggle
+  lowShadowRes?: boolean;
+  onToggleLowShadowRes?: () => void;
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
@@ -135,6 +138,8 @@ export const GameHUD = ({
   onToggleShaderFade,
   dualLightsEnabled = false,
   onToggleDualLights,
+  lowShadowRes = false,
+  onToggleLowShadowRes,
   sensitivityConfig = DEFAULT_SENSITIVITY,
   onSensitivityChange,
   mobileControlsEnabled = true,
@@ -554,6 +559,18 @@ export const GameHUD = ({
                   title="Toggle dual shadow lights (may hurt performance)"
                 >
                   DualLight
+                </button>
+              )}
+              {onToggleLowShadowRes && (
+                <button
+                  onClick={onToggleLowShadowRes}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    lowShadowRes ? 'bg-yellow-600 text-white' : 'bg-green-600 text-white'
+                  )}
+                  title="Toggle shadow resolution (2048 vs 512)"
+                >
+                  {lowShadowRes ? 'ShadLo' : 'ShadHi'}
                 </button>
               )}
               {onToggleMobileControls && (
