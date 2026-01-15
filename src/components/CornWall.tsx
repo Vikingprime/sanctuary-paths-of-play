@@ -251,11 +251,18 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       varying vec3 vWorldPos;${distanceUniforms}`
     );
     
-    // Apply per-instance opacity + color tint + optional distance fade at end of fragment shader
+    // Apply per-instance opacity + color tint + distance desaturation + optional distance fade
     const distanceFadeCode = playerPosRef ? `
       float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
       float distFade = 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer);
-      gl_FragColor.a *= distFade;` : '';
+      gl_FragColor.a *= distFade;
+      
+      // Distance desaturation - reduce saturation and contrast for depth
+      float desatAmount = smoothstep(4.0, 12.0, distToPlayer) * 0.35;
+      vec3 cornGray = vec3(dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114)));
+      gl_FragColor.rgb = mix(gl_FragColor.rgb, cornGray, desatAmount);
+      // Reduce contrast at distance (pull toward mid-gray)
+      gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * 0.85 + 0.08, desatAmount * 0.5);` : '';
     
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <dithering_fragment>',

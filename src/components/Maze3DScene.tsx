@@ -325,14 +325,28 @@ const mat = new ShaderMaterial({
           vec3 spilloverGrass = mix(grassDark, grassMoss, noise(worldUV * 5.0 + 800.0) * 0.4);
           finalColor = mix(finalColor, spilloverGrass, spilloverMask * (1.0 - wallMask));  // Only on path areas
           
-          // Fake terrain bumps using noise-based lighting
-          // Sample noise at slightly offset positions to get fake normal
-          float bumpScale = 8.0;  // Frequency of bumps (lower = larger bumps)
-          float bumpStrength = 0.25;  // Bump intensity (increased for visibility)
-          float eps = 0.02;  // Sample offset for gradient
-          float heightCenter = noise(worldUV * bumpScale + 900.0) + noise(worldUV * bumpScale * 2.5 + 950.0) * 0.4;
-          float heightX = noise((worldUV + vec2(eps, 0.0)) * bumpScale + 900.0) + noise((worldUV + vec2(eps, 0.0)) * bumpScale * 2.5 + 950.0) * 0.4;
-          float heightZ = noise((worldUV + vec2(0.0, eps)) * bumpScale + 900.0) + noise((worldUV + vec2(0.0, eps)) * bumpScale * 2.5 + 950.0) * 0.4;
+          // Fake terrain bumps using multi-octave noise for variety
+          // Layer multiple noise frequencies with different seeds for organic feel
+          float bumpScale = 8.0;
+          float bumpStrength = 0.25;
+          float eps = 0.02;
+          
+          // Multi-octave height: large slow bumps + medium bumps + fine detail
+          // Each layer has different seed offsets and weights for non-uniformity
+          float largeNoise = fbm(worldUV * 2.5 + 900.0) * 0.5;
+          float medNoise = noise(worldUV * bumpScale + 950.0) * 0.35;
+          float fineNoise = noise(worldUV * bumpScale * 3.0 + 1000.0) * 0.15;
+          float heightCenter = largeNoise + medNoise + fineNoise;
+          
+          float largeNoiseX = fbm((worldUV + vec2(eps, 0.0)) * 2.5 + 900.0) * 0.5;
+          float medNoiseX = noise((worldUV + vec2(eps, 0.0)) * bumpScale + 950.0) * 0.35;
+          float fineNoiseX = noise((worldUV + vec2(eps, 0.0)) * bumpScale * 3.0 + 1000.0) * 0.15;
+          float heightX = largeNoiseX + medNoiseX + fineNoiseX;
+          
+          float largeNoiseZ = fbm((worldUV + vec2(0.0, eps)) * 2.5 + 900.0) * 0.5;
+          float medNoiseZ = noise((worldUV + vec2(0.0, eps)) * bumpScale + 950.0) * 0.35;
+          float fineNoiseZ = noise((worldUV + vec2(0.0, eps)) * bumpScale * 3.0 + 1000.0) * 0.15;
+          float heightZ = largeNoiseZ + medNoiseZ + fineNoiseZ;
           
           // Compute fake normal from height differences
           vec3 bumpNormal = normalize(vec3(
@@ -343,7 +357,7 @@ const mat = new ShaderMaterial({
           
           // Simple directional light from top-left-front (morning sun direction)
           vec3 lightDir = normalize(vec3(0.5, 0.8, 0.3));
-          float bumpLighting = dot(bumpNormal, lightDir) * 0.5 + 0.5;  // 0-1 range
+          float bumpLighting = dot(bumpNormal, lightDir) * 0.5 + 0.5;
           
           // Apply subtle bump shading - darken valleys, brighten peaks
           finalColor *= 0.92 + bumpLighting * bumpStrength;
@@ -2177,7 +2191,7 @@ return (
     <>
       
       {/* Lighting - 8am morning sunlight */}
-      <ambientLight intensity={0.9} color="#FFF8F0" />
+      <ambientLight intensity={0.75} color="#FFF8F0" />
       
       {/* Main sun light - follows player for consistent shadows */}
       <directionalLight
@@ -2198,11 +2212,11 @@ return (
         <object3D attach="target" />
       </directionalLight>
       
-      {/* Fill light from opposite side */}
+      {/* Fill light from opposite side - cooler shadows */}
       <directionalLight
         position={[-15, 15, -10]}
-        intensity={0.45}
-        color="#D8E8FF"
+        intensity={0.55}
+        color="#C8D8F0"
       />
       
       {/* Warm rim/back light - creates dusty afternoon silhouette glow on animals and corn */}
