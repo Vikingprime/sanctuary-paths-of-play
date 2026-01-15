@@ -317,6 +317,29 @@ const mat = new ShaderMaterial({
           vec3 spilloverGrass = mix(grassDark, grassMoss, noise(worldUV * 5.0 + 800.0) * 0.4);
           finalColor = mix(finalColor, spilloverGrass, spilloverMask * (1.0 - wallMask));  // Only on path areas
           
+          // Fake terrain bumps using noise-based lighting
+          // Sample noise at slightly offset positions to get fake normal
+          float bumpScale = 12.0;  // Frequency of bumps
+          float bumpStrength = 0.12;  // Subtle bump intensity
+          float eps = 0.02;  // Sample offset for gradient
+          float heightCenter = noise(worldUV * bumpScale + 900.0) + noise(worldUV * bumpScale * 2.5 + 950.0) * 0.4;
+          float heightX = noise((worldUV + vec2(eps, 0.0)) * bumpScale + 900.0) + noise((worldUV + vec2(eps, 0.0)) * bumpScale * 2.5 + 950.0) * 0.4;
+          float heightZ = noise((worldUV + vec2(0.0, eps)) * bumpScale + 900.0) + noise((worldUV + vec2(0.0, eps)) * bumpScale * 2.5 + 950.0) * 0.4;
+          
+          // Compute fake normal from height differences
+          vec3 bumpNormal = normalize(vec3(
+            (heightCenter - heightX) / eps,
+            1.0,
+            (heightCenter - heightZ) / eps
+          ));
+          
+          // Simple directional light from top-left-front (morning sun direction)
+          vec3 lightDir = normalize(vec3(0.5, 0.8, 0.3));
+          float bumpLighting = dot(bumpNormal, lightDir) * 0.5 + 0.5;  // 0-1 range
+          
+          // Apply subtle bump shading - darken valleys, brighten peaks
+          finalColor *= 0.92 + bumpLighting * bumpStrength;
+          
           // Apply height-attenuated exponential fog
           // Ground is at Y=0, fog strongest there, fading out above corn height
           float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
