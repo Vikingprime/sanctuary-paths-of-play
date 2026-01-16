@@ -77,8 +77,8 @@ const playChickenSound = () => {
 
 // Per-animal rim light defaults
 const ANIMAL_RIM_LIGHT_DEFAULTS: Record<AnimalType, number> = {
-  pig: 0.3,
-  cow: 0.3,
+  pig: 0.25,
+  cow: 0.25,
   bird: 0, // No rim light for chicken
 };
 
