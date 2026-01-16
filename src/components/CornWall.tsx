@@ -916,7 +916,7 @@ export const InstancedWalls = ({
       billboardGeometry: lodCornGeo,
       billboardMaterial: lodCornMat
     };
-  }, [gltfScene, cornTex]);
+  }, [gltfScene, cornTex, rimLightStrength]);
   
   // Generate transforms for all corn types
   const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {
