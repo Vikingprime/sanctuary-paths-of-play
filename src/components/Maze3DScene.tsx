@@ -2145,7 +2145,7 @@ return (
         key={`shadow-light-${lowShadowRes ? 'lo' : 'hi'}`}
         ref={lightRef}
         position={[0, 35, -25]}
-        intensity={3.5}
+        intensity={1.75}
         color="#FFFDF5"
         castShadow={shadowsEnabled}
         shadow-mapSize={lowShadowRes ? [512, 512] : [2048, 2048]}
