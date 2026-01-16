@@ -106,7 +106,7 @@ export function generateRockPositions(maze: Maze): RockPosition[] {
   const ROCK_SIZE_MAX = 0.14;  // Max size increased
   const ROCK_EDGE_INSET = -0.15; // Negative = deeper into corn walls, away from path
   const ROCK_SPACING = 0.5; // Minimum distance between rocks
-  const MIN_PLACEMENT_CHANCE = 0.10; // Chance of placing a rock
+  const MIN_PLACEMENT_CHANCE = 0.20; // Chance of placing a rock (doubled)
 
   // Find all non-wall cells (paths) and place rocks near edges
   const mazeWidth = maze.grid[0].length;
