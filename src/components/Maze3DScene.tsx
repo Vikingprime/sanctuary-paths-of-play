@@ -235,21 +235,23 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           // Edge proximity for transition effects (wall edges)
           float edgeProximity = smoothstep(0.05, 0.45, isWall) * smoothstep(0.95, 0.4, isWall);
           
-          // Grass jutting FROM corn edges - irregular rounded protrusions
+          // Grass jutting FROM corn edges - organic irregular protrusions
           
-          // Lower frequency noise for smoother, rounder shapes
-          float juttingNoise = noise(worldUV * 1.5 + 100.0);
-          float juttingDetail = noise(worldUV * 2.5 + 150.0) * 0.3;
+          // Multi-frequency noise for organic texture
+          float baseNoise = noise(worldUV * 2.2 + 100.0);
+          float medNoise = noise(worldUV * 4.5 + 150.0) * 0.4;
+          float fineNoise = noise(worldUV * 8.0 + 200.0) * 0.15;
+          float combinedNoise = baseNoise + medNoise + fineNoise;
           
-          // Occasional deeper protrusions (~5-8%)
-          float deepProbeNoise = noise(worldUV * 0.7 + 300.0);
-          float deepExtension = smoothstep(0.85, 0.95, deepProbeNoise) * 0.5;
+          // Deep protrusions (~10% frequency)
+          float deepProbeNoise = noise(worldUV * 0.6 + 300.0);
+          float deepExtension = smoothstep(0.78, 0.92, deepProbeNoise) * 0.55;
           
-          // Base edge proximity + noise extension for irregular depth
-          float extendedEdge = edgeProximity + (juttingNoise * 0.35) + deepExtension;
+          // Base edge proximity + noise extension for irregular organic depth
+          float extendedEdge = edgeProximity + (baseNoise * 0.3) + deepExtension;
           
-          // Smooth rounded protrusions
-          float juttingAmount = smoothstep(0.25, 0.5, extendedEdge) * smoothstep(0.3, 0.5, juttingNoise + juttingDetail);
+          // Organic edge with fine detail variation
+          float juttingAmount = smoothstep(0.2, 0.45, extendedEdge) * smoothstep(0.32, 0.55, combinedNoise);
           float grassLeak = juttingAmount * spilloverStrength;
           
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
