@@ -91,8 +91,6 @@ interface Maze3DSceneProps {
   skyEnabled?: boolean;
   shaderFadeEnabled?: boolean;
   lowShadowRes?: boolean;
-  cornRimLight?: number;
-  animalRimLight?: number;
 }
 
 // Ground shader using multiple photo textures with random patches
@@ -728,7 +726,6 @@ const MazeWalls = forwardRef<Group, {
         optimizationSettings={optimizationSettings}
         onCullStats={onCullStats}
         shaderFadeEnabled={shaderFadeEnabled}
-        rimLightStrength={rimLightStrength}
       />
     </group>
   );
