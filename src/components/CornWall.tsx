@@ -190,8 +190,8 @@ function flushOpacityUpdates() {
 // Helper to add per-instance opacity AND color support to a material using onBeforeCompile
 // Rim light configuration
 const RIM_LIGHT_COLOR = 'vec3(1.0, 0.85, 0.6)'; // Warm sunset orange
-const RIM_LIGHT_POWER = '2.5'; // Fresnel falloff power
-const RIM_LIGHT_STRENGTH = '0.5'; // Overall intensity
+const RIM_LIGHT_POWER = '2.0'; // Fresnel falloff power (lower = wider rim)
+const RIM_LIGHT_STRENGTH = '1.2'; // Overall intensity (increased from 0.5)
 
 const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: Vector3 }): Material => {
   const mat = material as any;
