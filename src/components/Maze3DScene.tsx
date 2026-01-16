@@ -235,23 +235,18 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           // Edge proximity for transition effects (wall edges)
           float edgeProximity = smoothstep(0.05, 0.45, isWall) * smoothstep(0.95, 0.4, isWall);
           
-          // Grass jutting FROM corn edges - organic irregular protrusions
+          // Grass jutting FROM corn edges - irregular protrusions
+          float pathArea = 1.0 - smoothstep(0.3, 0.7, isWall);
           
-          // Multi-frequency noise for organic texture
-          float baseNoise = noise(worldUV * 2.2 + 100.0);
-          float medNoise = noise(worldUV * 4.5 + 150.0) * 0.4;
-          float fineNoise = noise(worldUV * 8.0 + 200.0) * 0.15;
-          float combinedNoise = baseNoise + medNoise + fineNoise;
+          // Directional noise that creates finger-like protrusions from edges
+          float juttingNoise = noise(worldUV * 3.0 + 100.0);
+          float juttingDetail = noise(worldUV * 6.0 + 150.0) * 0.25;
           
-          // Deep protrusions (~10% frequency)
-          float deepProbeNoise = noise(worldUV * 0.6 + 300.0);
-          float deepExtension = smoothstep(0.78, 0.92, deepProbeNoise) * 0.55;
+          // Extend edge proximity further on some spots (irregular edge depth)
+          float irregularEdge = edgeProximity + juttingNoise * 0.4;
           
-          // Base edge proximity + noise extension for irregular organic depth
-          float extendedEdge = edgeProximity + (baseNoise * 0.3) + deepExtension;
-          
-          // Organic edge with fine detail variation
-          float juttingAmount = smoothstep(0.2, 0.45, extendedEdge) * smoothstep(0.32, 0.55, combinedNoise);
+          // Create jagged protrusions - more grass where noise is high AND near edge
+          float juttingAmount = smoothstep(0.35, 0.65, irregularEdge) * smoothstep(0.4, 0.6, juttingNoise + juttingDetail);
           float grassLeak = juttingAmount * spilloverStrength;
           
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
