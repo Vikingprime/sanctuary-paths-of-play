@@ -144,6 +144,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
         tileScale: { value: 2.0 },
         pathBrightness: { value: 1.15 },
         grassDarkness: { value: 0.45 },
+        spilloverStrength: { value: 0.35 },
         fogColor: { value: new Color(ATMOSPHERE_COLOR) },
         fogDensity: { value: 0.14 },
         fogHeightMax: { value: 2.5 },
@@ -200,6 +201,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
         uniform float tileScale;
         uniform float pathBrightness;
         uniform float grassDarkness;
+        uniform float spilloverStrength;
         uniform vec3 fogColor;
         uniform float fogDensity;
         uniform float fogHeightMax;
@@ -226,56 +228,47 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
           float isWall = texture2D(wallMap, mazeUV).r;
           
-          // Organic edge distortion - stronger blend from corn areas
-          float edgeNoise = noise(worldUV * 1.0) * 0.6;
-          float detailNoise = noise(worldUV * 2.5) * 0.25;
-          float wallMask = smoothstep(0.0, 1.0, isWall + edgeNoise - detailNoise);
+          // Soft organic edge for wall/path boundary
+          float edgeNoise = noise(worldUV * 1.5) * 0.3;
+          float wallMask = smoothstep(0.3, 0.7, isWall + edgeNoise);
           
-          // Strong spillover from corn edges onto path
-          float spilloverNoise = noise(worldUV * 1.5 + 100.0);
-          float spilloverDetail = noise(worldUV * 4.0 + 200.0) * 0.35;
-          // Very wide edge zone - affects most of the path
-          float edgeProximity = smoothstep(-0.1, 0.6, isWall) * smoothstep(1.0, 0.3, isWall);
-          float spillover = edgeProximity * smoothstep(0.25, 0.5, spilloverNoise + spilloverDetail);
+          // Grass leaking from corn edges - narrow band at edges only
+          float edgeProximity = smoothstep(0.2, 0.5, isWall) * smoothstep(0.8, 0.5, isWall);
+          float spilloverNoise = noise(worldUV * 2.0 + 100.0);
+          float grassLeak = edgeProximity * smoothstep(0.4, 0.65, spilloverNoise) * spilloverStrength;
           
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
           wallMask = mix(1.0, wallMask, inBounds);
-          spillover = spillover * inBounds;
+          grassLeak = grassLeak * inBounds;
           
-          // Sample all textures with tiling
+          // Sample textures
           vec2 texUV = worldUV * tileScale;
           vec3 pathColor = texture2D(pathTex, texUV).rgb * pathBrightness;
           vec3 grassColor = texture2D(grassTex, texUV).rgb * grassDarkness;
-          vec3 leavesColor = texture2D(leavesTex, texUV * 0.8).rgb * 0.7;
-          vec3 dirtColor = texture2D(dirtTex, texUV * 1.5).rgb * 1.0;
+          vec3 leavesColor = texture2D(leavesTex, texUV * 0.8).rgb * 0.65;
+          vec3 dirtColor = texture2D(dirtTex, texUV * 1.5).rgb * 0.95;
           
-          // Random patches for variety
-          float patchNoise1 = noise(worldUV * 0.8 + 300.0);
-          float patchNoise2 = noise(worldUV * 1.1 + 500.0);
-          float patchNoise3 = noise(worldUV * 0.6 + 700.0);
+          // Occasional small patches - only near edges, sparse
+          float patchNoise1 = noise(worldUV * 1.2 + 300.0);
+          float patchNoise2 = noise(worldUV * 0.9 + 500.0);
           
-          // Leaves patches - scattered on both path and grass
-          float leavesPatch = smoothstep(0.55, 0.75, patchNoise1) * 0.7;
+          // Leaves - rare, small patches near edges
+          float leavesPatch = smoothstep(0.72, 0.85, patchNoise1) * edgeProximity * 0.4;
           
-          // Dirt patches - scattered on path areas
-          float dirtPatch = smoothstep(0.6, 0.8, patchNoise2) * (1.0 - wallMask * 0.7) * 0.5;
+          // Dirt patches - very sparse, on path sides
+          float dirtPatch = smoothstep(0.75, 0.88, patchNoise2) * edgeProximity * 0.35;
           
-          // Extra grass patches on path edges
-          float extraGrass = smoothstep(0.5, 0.7, patchNoise3) * edgeProximity * 0.5;
-          
-          // Base blend: path vs grass under corn
+          // Base: path is dominant, grass under corn
           vec3 baseColor = mix(pathColor, grassColor, wallMask);
           
-          // Add spillover from corn
-          baseColor = mix(baseColor, grassColor, spillover * 0.7);
-          baseColor = mix(baseColor, leavesColor, spillover * 0.3);
+          // Grass leaking onto path edges
+          baseColor = mix(baseColor, grassColor, grassLeak);
           
-          // Apply random patches
+          // Apply sparse patches
           vec3 finalColor = baseColor;
           finalColor = mix(finalColor, leavesColor, leavesPatch);
           finalColor = mix(finalColor, dirtColor, dirtPatch);
-          finalColor = mix(finalColor, grassColor, extraGrass);
           
           // Apply fog
           float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
