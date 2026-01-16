@@ -20,18 +20,19 @@ const addRimLighting = (material: Material, rimStrength: number = DEFAULT_RIM_LI
   
   const originalOnBeforeCompile = mat.onBeforeCompile;
   
+  // Create unique cache key based on rim strength to force recompile
+  const cacheKey = `rim_${rimStrength.toFixed(3)}`;
+  mat.customProgramCacheKey = () => cacheKey;
+  
   mat.onBeforeCompile = (shader: any) => {
     if (originalOnBeforeCompile) {
       originalOnBeforeCompile(shader);
     }
     
-    // Check if we've already injected rim lighting
-    if (shader.fragmentShader.includes('rimStrength')) {
+    // Check if we've already injected rim lighting with same value
+    if (shader.fragmentShader.includes('// RIM_INJECTED')) {
       return;
     }
-    
-    // Add rim strength uniform
-    shader.uniforms.rimStrength = { value: rimStrength };
     
     // Store shader reference for dynamic updates
     mat.userData.shader = shader;
@@ -57,26 +58,25 @@ const addRimLighting = (material: Material, rimStrength: number = DEFAULT_RIM_LI
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
       `#include <common>
-      uniform float rimStrength;
+      // RIM_INJECTED
       varying vec3 vWorldNormal;
       varying vec3 vViewDir;
       varying vec3 vWorldPos;`
     );
     
-    // Apply rim lighting at the end of fragment shader
+    // Apply rim lighting at the end of fragment shader - bake value directly into shader
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
       // Rim lighting - warm backlight effect
       float rimFactor = 1.0 - max(0.0, dot(normalize(vWorldNormal), normalize(vViewDir)));
-      rimFactor = pow(rimFactor, ${RIM_LIGHT_POWER}) * rimStrength;
+      rimFactor = pow(rimFactor, ${RIM_LIGHT_POWER}) * ${rimStrength.toFixed(3)};
       gl_FragColor.rgb += ${RIM_LIGHT_COLOR} * rimFactor;`
     );
   };
   
   // Force shader recompilation
   mat.needsUpdate = true;
-  mat.customProgramCacheKey = () => `rim_${rimStrength}_${Math.random()}`;
 };
 // Play chicken sound on spawn
 const playChickenSound = () => {
@@ -87,8 +87,8 @@ const playChickenSound = () => {
 
 // Per-animal rim light defaults
 const ANIMAL_RIM_LIGHT_DEFAULTS: Record<AnimalType, number> = {
-  pig: 0.2,
-  cow: 0.2,
+  pig: 0.0,  // OFF for testing
+  cow: 0.0,  // OFF for testing
   bird: 0, // No rim light for chicken
 };
 
