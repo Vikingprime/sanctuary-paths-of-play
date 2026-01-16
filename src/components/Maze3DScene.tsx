@@ -242,12 +242,18 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           float juttingNoise = noise(worldUV * 3.0 + 100.0);
           float juttingDetail = noise(worldUV * 6.0 + 150.0) * 0.25;
           
+          // Occasional deep protrusions (~5% of spots)
+          float deepProbeNoise = noise(worldUV * 1.5 + 300.0);
+          float deepProbe = smoothstep(0.92, 0.98, deepProbeNoise) * 0.5; // Rare deep juts
+          
           // Extend edge proximity further on some spots (irregular edge depth)
-          float irregularEdge = edgeProximity + juttingNoise * 0.4;
+          float irregularEdge = edgeProximity + juttingNoise * 0.4 + deepProbe;
           
           // Create jagged protrusions - more grass where noise is high AND near edge
           float juttingAmount = smoothstep(0.35, 0.65, irregularEdge) * smoothstep(0.4, 0.6, juttingNoise + juttingDetail);
-          float grassLeak = juttingAmount * spilloverStrength;
+          // Add the deep protrusions directly on path
+          float deepJut = pathArea * smoothstep(0.93, 0.99, deepProbeNoise) * 0.4;
+          float grassLeak = (juttingAmount + deepJut) * spilloverStrength;
           
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
