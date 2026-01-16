@@ -56,14 +56,12 @@ interface Maze3DSceneProps {
   isMovingRef: MutableRefObject<boolean>;
   collectedPowerUps?: Set<string>;
   keysPressed: MutableRefObject<Set<string>>;
-  // Mobile controls - WASD joystick system
-  mobileTargetYawRef?: MutableRefObject<number>; // Legacy - not used in new system
-  mobileYawRateRef?: MutableRefObject<number>;   // Legacy - not used in new system  
+  // Mobile controls - 2D joystick system (Summer Afternoon style)
+  joystickXRef?: MutableRefObject<number>; // -1 (left) to 1 (right)
+  joystickYRef?: MutableRefObject<number>; // -1 (toward camera) to 1 (away from camera)
   mobileIsMovingRef?: MutableRefObject<boolean>;
-  mobileThrottleRef?: MutableRefObject<number>;  // Legacy - not used in new system
   mobileTouchActiveRef?: MutableRefObject<boolean>;
-  mobileWasdRef?: MutableRefObject<{ w: boolean; a: boolean; s: boolean; d: boolean }>;
-  mobileTurnIntensityRef?: MutableRefObject<number>;
+  cameraYawRef?: MutableRefObject<number>; // Camera orbit yaw angle
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1050,12 +1048,11 @@ const RefBasedPlayer = ({
   isMovingRef,
   maze,
   keysPressed,
-  mobileYawRateRef,
+  joystickXRef,
+  joystickYRef,
   mobileIsMovingRef,
-  mobileThrottleRef,
   mobileTouchActiveRef,
-  mobileWasdRef,
-  mobileTurnIntensityRef,
+  cameraYawRef,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1070,12 +1067,11 @@ const RefBasedPlayer = ({
   isMovingRef: MutableRefObject<boolean>;
   maze: Maze;
   keysPressed: MutableRefObject<Set<string>>;
-  mobileYawRateRef?: MutableRefObject<number>;
+  joystickXRef?: MutableRefObject<number>;
+  joystickYRef?: MutableRefObject<number>;
   mobileIsMovingRef?: MutableRefObject<boolean>;
-  mobileThrottleRef?: MutableRefObject<number>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
-  mobileWasdRef?: MutableRefObject<{ w: boolean; a: boolean; s: boolean; d: boolean }>;
-  mobileTurnIntensityRef?: MutableRefObject<number>;
+  cameraYawRef?: MutableRefObject<number>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -2033,7 +2029,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5 }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5 }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2240,12 +2236,11 @@ return (
         isMovingRef={isMovingRef}
         maze={maze}
         keysPressed={keysPressed}
-        mobileYawRateRef={mobileYawRateRef}
+        joystickXRef={joystickXRef}
+        joystickYRef={joystickYRef}
         mobileIsMovingRef={mobileIsMovingRef}
-        mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
-        mobileWasdRef={mobileWasdRef}
-        mobileTurnIntensityRef={mobileTurnIntensityRef}
+        cameraYawRef={cameraYawRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}
