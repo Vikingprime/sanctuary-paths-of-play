@@ -15,11 +15,19 @@ const DEFAULT_RIM_LIGHT_STRENGTH = 0.5; // Default intensity
 const addRimLighting = (material: Material, rimStrength: number = DEFAULT_RIM_LIGHT_STRENGTH): void => {
   const mat = material as any;
   
+  // Force material to recompile by incrementing version
+  mat.version++;
+  
   const originalOnBeforeCompile = mat.onBeforeCompile;
   
   mat.onBeforeCompile = (shader: any) => {
     if (originalOnBeforeCompile) {
       originalOnBeforeCompile(shader);
+    }
+    
+    // Check if we've already injected rim lighting
+    if (shader.fragmentShader.includes('rimStrength')) {
+      return;
     }
     
     // Add rim strength uniform
@@ -66,7 +74,9 @@ const addRimLighting = (material: Material, rimStrength: number = DEFAULT_RIM_LI
     );
   };
   
+  // Force shader recompilation
   mat.needsUpdate = true;
+  mat.customProgramCacheKey = () => `rim_${rimStrength}_${Math.random()}`;
 };
 // Play chicken sound on spawn
 const playChickenSound = () => {
