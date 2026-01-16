@@ -2144,7 +2144,7 @@ return (
       <directionalLight
         key={`shadow-light-${lowShadowRes ? 'lo' : 'hi'}`}
         ref={lightRef}
-        position={[0, 35, -25]}
+        position={[0, 50, -25]}
         intensity={1.75}
         color="#FFFDF5"
         castShadow={shadowsEnabled}
