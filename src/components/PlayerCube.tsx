@@ -1,61 +1,11 @@
 import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Clone } from '@react-three/drei';
-import { AnimationMixer, LoopRepeat, LoopOnce, DoubleSide, Material, MeshStandardMaterial, MeshLambertMaterial } from 'three';
+import { AnimationMixer, LoopRepeat, LoopOnce, DoubleSide } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
 import { getCharacterDebugPlaneColor, getCharacterYOffset, getCharacterScale } from '@/game/CharacterConfig';
 
-// Rim light configuration for animals (defaults, can be overridden by props)
-const RIM_LIGHT_COLOR = 'vec3(1.0, 0.85, 0.6)'; // Warm sunset orange
-const RIM_LIGHT_POWER = '2.5'; // Fresnel falloff power
-const DEFAULT_RIM_LIGHT_STRENGTH = 0.5; // Default intensity
-
-// Add rim lighting shader injection to a material using unique program cache key
-const addRimLighting = (material: Material, rimStrength: number = DEFAULT_RIM_LIGHT_STRENGTH): void => {
-  const mat = material as MeshStandardMaterial;
-  
-  // Generate unique key with timestamp to FORCE fresh shader compilation
-  const uniqueKey = `rim_${rimStrength.toFixed(4)}_${Date.now()}_${Math.random()}`;
-  mat.customProgramCacheKey = () => uniqueKey;
-  
-  mat.onBeforeCompile = (shader: any) => {
-    // Inject varyings for rim light in vertex shader
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <common>',
-      `#include <common>
-      varying vec3 vWorldNormal;
-      varying vec3 vViewDir;`
-    );
-    
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <worldpos_vertex>',
-      `#include <worldpos_vertex>
-      vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-      vWorldNormal = normalize(mat3(modelMatrix) * normal);
-      vViewDir = normalize(cameraPosition - worldPos);`
-    );
-    
-    // Inject varying declarations in fragment shader
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <common>',
-      `#include <common>
-      varying vec3 vWorldNormal;
-      varying vec3 vViewDir;`
-    );
-    
-    // Apply rim lighting - bake the value directly
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <dithering_fragment>',
-      `#include <dithering_fragment>
-      float rimDot = 1.0 - max(0.0, dot(normalize(vWorldNormal), normalize(vViewDir)));
-      float rimFactor = pow(rimDot, ${RIM_LIGHT_POWER}) * ${rimStrength.toFixed(4)};
-      gl_FragColor.rgb += ${RIM_LIGHT_COLOR} * rimFactor;`
-    );
-  };
-  
-  mat.needsUpdate = true;
-};
 // Play chicken sound on spawn
 const playChickenSound = () => {
   const audio = new Audio('/sounds/chicken.mp3');
@@ -63,12 +13,6 @@ const playChickenSound = () => {
   audio.play().catch(() => {}); // Ignore autoplay errors
 };
 
-// Per-animal rim light defaults
-const ANIMAL_RIM_LIGHT_DEFAULTS: Record<AnimalType, number> = {
-  pig: 0.5,  // Test with visible value
-  cow: 0.5,  // Test with visible value
-  bird: 0,   // No rim light for chicken
-};
 
 interface PlayerCubeProps {
   animalType: AnimalType;
@@ -77,7 +21,6 @@ interface PlayerCubeProps {
   isMovingRef?: MutableRefObject<boolean>; // Ref for real-time movement state
   enableSound?: boolean; // Whether to play spawn sounds (false during preview)
   showCollisionDebug?: boolean; // Whether to show collision debug spheres
-  rimLightStrength?: number; // Rim light intensity override (0-1), uses per-animal defaults if not provided
 }
 
 // Preload models
@@ -92,7 +35,7 @@ const animalColors: Record<AnimalType, string | string[]> = {
   bird: '#FFD700', // Yellow/Gold
 };
 
-export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, enableSound = true, showCollisionDebug = true, rimLightStrength }: PlayerCubeProps) => {
+export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, enableSound = true, showCollisionDebug = true }: PlayerCubeProps) => {
   const innerGroupRef = useRef<any>(null);
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
@@ -103,9 +46,6 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   const { scene: cowScene, animations: cowAnimations } = useGLTF('/models/Cow.glb');
   const { scene: henWalkScene, animations: henWalkAnimations } = useGLTF('/models/Hen_walk.glb');
   const { animations: henIdleAnimations } = useGLTF('/models/Hen_idle.glb');
-  
-  // Use per-animal default if no override provided
-  const effectiveRimLight = rimLightStrength ?? ANIMAL_RIM_LIGHT_DEFAULTS[animalType];
 
   const clonedPigScene = useMemo(() => {
     const clone = pigScene.clone();
@@ -113,17 +53,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        // Clone material to avoid modifying shared materials and add rim lighting
-        if (child.material && effectiveRimLight > 0) {
-          child.material = child.material.clone();
-          addRimLighting(child.material, effectiveRimLight);
-        } else if (child.material) {
+        if (child.material) {
           child.material = child.material.clone();
         }
       }
     });
     return clone;
-  }, [pigScene, effectiveRimLight]);
+  }, [pigScene]);
   
   const clonedHenScene = useMemo(() => {
     const clone = SkeletonUtils.clone(henWalkScene);
@@ -131,17 +67,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        // Clone material to avoid modifying shared materials and add rim lighting
-        if (child.material && effectiveRimLight > 0) {
-          child.material = child.material.clone();
-          addRimLighting(child.material, effectiveRimLight);
-        } else if (child.material) {
+        if (child.material) {
           child.material = child.material.clone();
         }
       }
     });
     return clone;
-  }, [henWalkScene, effectiveRimLight]);
+  }, [henWalkScene]);
   
   // Use SkeletonUtils.clone for skinned meshes (cow has bones/skeleton)
   const clonedCowScene = useMemo(() => {
@@ -150,17 +82,13 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        // Clone material to avoid modifying shared materials and add rim lighting
-        if (child.material && effectiveRimLight > 0) {
-          child.material = child.material.clone();
-          addRimLighting(child.material, effectiveRimLight);
-        } else if (child.material) {
+        if (child.material) {
           child.material = child.material.clone();
         }
       }
     });
     return clone;
-  }, [cowScene, effectiveRimLight]);
+  }, [cowScene]);
   
   // Set up animation mixers and actions
   const cowMixerRef = useRef<AnimationMixer | null>(null);

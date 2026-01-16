@@ -1242,7 +1242,6 @@ const RefBasedPlayer = ({
         isMovingRef={isMovingRef}
         enableSound={!isPaused && !isMuted}
         showCollisionDebug={showCollisionDebug}
-        rimLightStrength={animalRimLight}
       />
     </group>
   );
