@@ -144,7 +144,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
         tileScale: { value: 2.0 },
         pathBrightness: { value: 1.15 },
         grassDarkness: { value: 0.45 },
-        spilloverStrength: { value: 4.0 },
+        spilloverStrength: { value: 1.5 },
         fogColor: { value: new Color(ATMOSPHERE_COLOR) },
         fogDensity: { value: 0.14 },
         fogHeightMax: { value: 2.5 },
@@ -237,15 +237,17 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           
           // Grass patches appearing ON the path itself (not just edges)
           float pathArea = 1.0 - smoothstep(0.3, 0.7, isWall); // 1.0 on path, 0.0 on walls
-          float spilloverNoise = noise(worldUV * 0.5 + 100.0);
-          float spilloverDetail = noise(worldUV * 1.2 + 150.0) * 0.5;
-          float deepPatchNoise = noise(worldUV * 0.3 + 250.0);
           
-          // Edge spillover (from corn edges)
-          float edgeSpillover = edgeProximity * smoothstep(0.3, 0.55, spilloverNoise + spilloverDetail);
-          // Random grass patches that appear deeper on the path
-          float deepPatches = pathArea * smoothstep(0.55, 0.75, deepPatchNoise) * 0.5;
-          float grassLeak = (edgeSpillover + deepPatches) * spilloverStrength;
+          // Higher frequency noise for smaller, scattered patches
+          float spilloverNoise = noise(worldUV * 2.5 + 100.0);
+          float spilloverDetail = noise(worldUV * 4.0 + 150.0) * 0.3;
+          float scatterNoise = noise(worldUV * 1.8 + 250.0);
+          
+          // Edge spillover (from corn edges) - smaller patches
+          float edgeSpillover = edgeProximity * smoothstep(0.55, 0.7, spilloverNoise + spilloverDetail) * 0.6;
+          // Scattered small grass patches across the path
+          float scatteredPatches = pathArea * smoothstep(0.62, 0.78, scatterNoise) * 0.35;
+          float grassLeak = (edgeSpillover + scatteredPatches) * spilloverStrength;
           
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
@@ -272,8 +274,9 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           // Base: path is dominant, grass under corn
           vec3 baseColor = mix(pathColor, grassColor, wallMask);
           
-          // Grass leaking onto path edges
-          baseColor = mix(baseColor, grassColor, grassLeak);
+          // Grass leaking onto path edges - blend with path color to lighten
+          vec3 lightGrass = mix(grassColor, pathColor, 0.45);
+          baseColor = mix(baseColor, lightGrass, grassLeak);
           
           // Apply sparse patches
           vec3 finalColor = baseColor;
