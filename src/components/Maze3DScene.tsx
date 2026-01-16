@@ -257,7 +257,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           // Sample textures
           vec2 texUV = worldUV * tileScale;
           vec3 pathColor = texture2D(pathTex, texUV).rgb * pathBrightness * vec3(1.0, 0.85, 0.7);
-          vec3 grassColor = texture2D(grassTex, texUV).rgb * grassDarkness;
+          vec3 grassColor = texture2D(grassTex, texUV).rgb * grassDarkness * vec3(1.0, 0.8, 0.55);
           vec3 leavesColor = texture2D(leavesTex, texUV * 0.8).rgb * 0.65;
           vec3 dirtColor = texture2D(dirtTex, texUV * 1.5).rgb * 0.95;
           
