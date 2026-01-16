@@ -1,11 +1,66 @@
 import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Clone } from '@react-three/drei';
-import { AnimationMixer, LoopRepeat, LoopOnce, DoubleSide } from 'three';
+import { AnimationMixer, LoopRepeat, LoopOnce, DoubleSide, Material, MeshStandardMaterial, MeshLambertMaterial } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
 import { getCharacterDebugPlaneColor, getCharacterYOffset, getCharacterScale } from '@/game/CharacterConfig';
 
+// Rim light configuration for animals
+const RIM_LIGHT_COLOR = 'vec3(1.0, 0.85, 0.6)'; // Warm sunset orange
+const RIM_LIGHT_POWER = '2.5'; // Fresnel falloff power
+const RIM_LIGHT_STRENGTH = '0.5'; // Overall intensity
+
+// Add rim lighting shader injection to a material
+const addRimLighting = (material: Material): void => {
+  const mat = material as any;
+  
+  const originalOnBeforeCompile = mat.onBeforeCompile;
+  
+  mat.onBeforeCompile = (shader: any) => {
+    if (originalOnBeforeCompile) {
+      originalOnBeforeCompile(shader);
+    }
+    
+    // Inject varyings for rim light in vertex shader
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <common>',
+      `#include <common>
+      varying vec3 vWorldNormal;
+      varying vec3 vViewDir;
+      varying vec3 vWorldPos;`
+    );
+    
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <worldpos_vertex>',
+      `#include <worldpos_vertex>
+      vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+      vWorldNormal = normalize(mat3(modelMatrix) * normal);
+      vViewDir = normalize(cameraPosition - vWorldPos);`
+    );
+    
+    // Inject varying declarations in fragment shader
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <common>',
+      `#include <common>
+      varying vec3 vWorldNormal;
+      varying vec3 vViewDir;
+      varying vec3 vWorldPos;`
+    );
+    
+    // Apply rim lighting at the end of fragment shader
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <dithering_fragment>',
+      `#include <dithering_fragment>
+      // Rim lighting - warm backlight effect
+      float rimFactor = 1.0 - max(0.0, dot(normalize(vWorldNormal), normalize(vViewDir)));
+      rimFactor = pow(rimFactor, ${RIM_LIGHT_POWER}) * ${RIM_LIGHT_STRENGTH};
+      gl_FragColor.rgb += ${RIM_LIGHT_COLOR} * rimFactor;`
+    );
+  };
+  
+  mat.needsUpdate = true;
+};
 // Play chicken sound on spawn
 const playChickenSound = () => {
   const audio = new Audio('/sounds/chicken.mp3');
@@ -52,6 +107,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        // Clone material to avoid modifying shared materials and add rim lighting
+        if (child.material) {
+          child.material = child.material.clone();
+          addRimLighting(child.material);
+        }
       }
     });
     return clone;
@@ -63,6 +123,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        // Clone material to avoid modifying shared materials and add rim lighting
+        if (child.material) {
+          child.material = child.material.clone();
+          addRimLighting(child.material);
+        }
       }
     });
     return clone;
@@ -75,6 +140,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        // Clone material to avoid modifying shared materials and add rim lighting
+        if (child.material) {
+          child.material = child.material.clone();
+          addRimLighting(child.material);
+        }
       }
     });
     return clone;

@@ -188,6 +188,11 @@ function flushOpacityUpdates() {
 // ============= End per-instance opacity system =============
 
 // Helper to add per-instance opacity AND color support to a material using onBeforeCompile
+// Rim light configuration
+const RIM_LIGHT_COLOR = 'vec3(1.0, 0.85, 0.6)'; // Warm sunset orange
+const RIM_LIGHT_POWER = '2.5'; // Fresnel falloff power
+const RIM_LIGHT_STRENGTH = '0.5'; // Overall intensity
+
 const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: Vector3 }): Material => {
   const mat = material as any;
   
@@ -215,7 +220,7 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
     // Store shader reference
     mat.userData.shader = shader;
     
-    // Inject attribute and varying in vertex shader (opacity + color)
+    // Inject attribute and varying in vertex shader (opacity + color + rim light normal)
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
       `#include <common>
@@ -223,7 +228,9 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       attribute vec3 instanceColor;
       varying float vInstanceOpacity;
       varying vec3 vInstanceColor;
-      varying vec3 vWorldPos;`
+      varying vec3 vWorldPos;
+      varying vec3 vWorldNormal;
+      varying vec3 vViewDir;`
     );
     
     shader.vertexShader = shader.vertexShader.replace(
@@ -233,9 +240,12 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       vInstanceColor = instanceColor;
       #ifdef USE_INSTANCING
         vWorldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
+        vWorldNormal = normalize(mat3(instanceMatrix) * normal);
       #else
         vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-      #endif`
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+      #endif
+      vViewDir = normalize(cameraPosition - vWorldPos);`
     );
     
     // Inject varying and uniforms in fragment shader
@@ -250,11 +260,12 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       `#include <common>
       varying float vInstanceOpacity;
       varying vec3 vInstanceColor;
-      varying vec3 vWorldPos;${distanceUniforms}`
+      varying vec3 vWorldPos;
+      varying vec3 vWorldNormal;
+      varying vec3 vViewDir;${distanceUniforms}`
     );
     
-    // Apply per-instance opacity + color tint + optional distance fade at end of fragment shader
-    // Distance fade is controlled by shaderFadeEnabled uniform (1.0 = apply fade, 0.0 = skip fade)
+    // Apply per-instance opacity + color tint + rim light + optional distance fade at end of fragment shader
     const distanceFadeCode = playerPosRef ? `
       float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
       float distFade = mix(1.0, 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer), shaderFadeEnabled);
@@ -265,6 +276,12 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       `#include <dithering_fragment>
       // Apply per-instance opacity from LOS fading
       gl_FragColor.a *= vInstanceOpacity;${distanceFadeCode}
+      
+      // Rim lighting - warm backlight effect
+      float rimFactor = 1.0 - max(0.0, dot(normalize(vWorldNormal), normalize(vViewDir)));
+      rimFactor = pow(rimFactor, ${RIM_LIGHT_POWER}) * ${RIM_LIGHT_STRENGTH};
+      gl_FragColor.rgb += ${RIM_LIGHT_COLOR} * rimFactor;
+      
       if (gl_FragColor.a < 0.01) discard;`
     );
   };
