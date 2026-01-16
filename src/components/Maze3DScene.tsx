@@ -2146,7 +2146,7 @@ return (
         ref={lightRef}
         position={[0, 50, -25]}
         intensity={1.75}
-        color="#FFFDF5"
+        color="#FFA050"
         castShadow={shadowsEnabled}
         shadow-mapSize={lowShadowRes ? [512, 512] : [2048, 2048]}
         shadow-camera-near={0.5}
