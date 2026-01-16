@@ -144,7 +144,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
         tileScale: { value: 2.0 },
         pathBrightness: { value: 1.15 },
         grassDarkness: { value: 0.45 },
-        spilloverStrength: { value: 0.9 },
+        spilloverStrength: { value: 1.5 },
         fogColor: { value: new Color(ATMOSPHERE_COLOR) },
         fogDensity: { value: 0.14 },
         fogHeightMax: { value: 2.5 },
@@ -232,11 +232,11 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           float edgeNoise = noise(worldUV * 1.2) * 0.4;
           float wallMask = smoothstep(0.25, 0.75, isWall + edgeNoise);
           
-          // Grass leaking from corn edges - wider band with more coverage
-          float edgeProximity = smoothstep(0.05, 0.45, isWall) * smoothstep(0.95, 0.4, isWall);
-          float spilloverNoise = noise(worldUV * 1.5 + 100.0);
-          float spilloverDetail = noise(worldUV * 3.5 + 150.0) * 0.3;
-          float grassLeak = edgeProximity * smoothstep(0.3, 0.55, spilloverNoise + spilloverDetail) * spilloverStrength;
+          // Grass leaking from corn edges - very wide band covering most of path
+          float edgeProximity = smoothstep(-0.1, 0.55, isWall) * smoothstep(1.0, 0.25, isWall);
+          float spilloverNoise = noise(worldUV * 1.2 + 100.0);
+          float spilloverDetail = noise(worldUV * 2.5 + 150.0) * 0.4;
+          float grassLeak = edgeProximity * smoothstep(0.2, 0.5, spilloverNoise + spilloverDetail) * spilloverStrength;
           
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
