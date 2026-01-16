@@ -86,6 +86,11 @@ interface GameHUDProps {
   // Mobile controls toggle (WASD only mode)
   mobileControlsEnabled?: boolean;
   onToggleMobileControls?: () => void;
+  // Rim light intensity sliders
+  cornRimLight?: number;
+  onCornRimLightChange?: (value: number) => void;
+  animalRimLight?: number;
+  onAnimalRimLightChange?: (value: number) => void;
 }
 
 export const GameHUD = ({
@@ -139,6 +144,10 @@ export const GameHUD = ({
   onSensitivityChange,
   mobileControlsEnabled = true,
   onToggleMobileControls,
+  cornRimLight = 0.25,
+  onCornRimLightChange,
+  animalRimLight = 0.5,
+  onAnimalRimLightChange,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -576,6 +585,49 @@ export const GameHUD = ({
               )}
             </div>
           </div>
+          
+            {/* Rim Light Intensity */}
+          {(onCornRimLightChange || onAnimalRimLightChange) && (
+            <div className="mt-2 pt-2 border-t border-gray-600">
+              <div className="text-[10px] text-gray-400 mb-1">--- Rim Light ---</div>
+              <div className="space-y-2">
+                {onCornRimLightChange && (
+                  <div>
+                    <div className="flex justify-between text-[10px]">
+                      <span>Corn rim:</span>
+                      <span className="text-cyan-400">{cornRimLight.toFixed(2)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="1.0"
+                      step="0.05"
+                      value={cornRimLight}
+                      onChange={(e) => onCornRimLightChange(parseFloat(e.target.value))}
+                      className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                    />
+                  </div>
+                )}
+                {onAnimalRimLightChange && (
+                  <div>
+                    <div className="flex justify-between text-[10px]">
+                      <span>Animal rim:</span>
+                      <span className="text-cyan-400">{animalRimLight.toFixed(2)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="1.0"
+                      step="0.05"
+                      value={animalRimLight}
+                      onChange={(e) => onAnimalRimLightChange(parseFloat(e.target.value))}
+                      className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           
           {/* Sensitivity Tuning */}
           {onSensitivityChange && (

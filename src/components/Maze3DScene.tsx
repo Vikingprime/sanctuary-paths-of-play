@@ -91,6 +91,8 @@ interface Maze3DSceneProps {
   skyEnabled?: boolean;
   shaderFadeEnabled?: boolean;
   lowShadowRes?: boolean;
+  cornRimLight?: number;
+  animalRimLight?: number;
 }
 
 // Ground shader using multiple photo textures with random patches
@@ -579,7 +581,8 @@ const MazeWalls = forwardRef<Group, {
   optimizationSettings?: CornOptimizationSettings;
   onCullStats?: (stats: CullStats) => void;
   shaderFadeEnabled?: boolean;
-}>(({ maze, playerStateRef, optimizationSettings, onCullStats, shaderFadeEnabled = true }, ref) => {
+  rimLightStrength?: number;
+}>(({ maze, playerStateRef, optimizationSettings, onCullStats, shaderFadeEnabled = true, rimLightStrength = 0.25 }, ref) => {
   // Ref for camera collision boxes (simple raycasting targets)
   const cameraCollidersRef = useRef<Group>(null);
   
@@ -725,6 +728,7 @@ const MazeWalls = forwardRef<Group, {
         optimizationSettings={optimizationSettings}
         onCullStats={onCullStats}
         shaderFadeEnabled={shaderFadeEnabled}
+        rimLightStrength={rimLightStrength}
       />
     </group>
   );
@@ -1062,6 +1066,7 @@ const RefBasedPlayer = ({
   rocks,
   characters,
   showCollisionDebug = true,
+  animalRimLight = 0.5,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1081,6 +1086,7 @@ const RefBasedPlayer = ({
   rocks: RockPosition[];
   characters: CharacterPosition[];
   showCollisionDebug?: boolean;
+  animalRimLight?: number;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
@@ -1239,6 +1245,7 @@ const RefBasedPlayer = ({
         isMovingRef={isMovingRef}
         enableSound={!isPaused && !isMuted}
         showCollisionDebug={showCollisionDebug}
+        rimLightStrength={animalRimLight}
       />
     </group>
   );
@@ -2030,7 +2037,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, mobileTargetYawRef, mobileYawRateRef, mobileIsMovingRef, mobileThrottleRef, mobileTouchActiveRef, mobileWasdRef, mobileTurnIntensityRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5 }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2185,6 +2192,7 @@ return (
           optimizationSettings={{ ...cornOptimizationSettings, enableDistanceCulling: cornCullingEnabled && (cornOptimizationSettings?.enableDistanceCulling ?? true) }}
           onCullStats={onCullStats}
           shaderFadeEnabled={shaderFadeEnabled}
+          rimLightStrength={cornRimLight}
         />
       )}
       
@@ -2248,6 +2256,7 @@ return (
         rocks={rocks}
         characters={characterPositions}
         showCollisionDebug={showCollisionDebug}
+        animalRimLight={animalRimLight}
       />
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}

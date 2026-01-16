@@ -111,6 +111,8 @@ export const MazeGame3D = ({
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
+  const [cornRimLight, setCornRimLight] = useState(0.25);
+  const [animalRimLight, setAnimalRimLight] = useState(0.5);
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
   // Mobile controls - yaw rate system (steering)
@@ -780,6 +782,8 @@ export const MazeGame3D = ({
         skyEnabled={skyEnabled}
         shaderFadeEnabled={shaderFadeEnabled}
         lowShadowRes={lowShadowRes}
+        cornRimLight={cornRimLight}
+        animalRimLight={animalRimLight}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -849,6 +853,10 @@ export const MazeGame3D = ({
           onSensitivityChange={setSensitivityConfig}
           mobileControlsEnabled={mobileControlsEnabled}
           onToggleMobileControls={() => setMobileControlsEnabled(prev => !prev)}
+          cornRimLight={cornRimLight}
+          onCornRimLightChange={setCornRimLight}
+          animalRimLight={animalRimLight}
+          onAnimalRimLightChange={setAnimalRimLight}
         />
       )}
 

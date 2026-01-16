@@ -6,13 +6,13 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
 import { getCharacterDebugPlaneColor, getCharacterYOffset, getCharacterScale } from '@/game/CharacterConfig';
 
-// Rim light configuration for animals
+// Rim light configuration for animals (defaults, can be overridden by props)
 const RIM_LIGHT_COLOR = 'vec3(1.0, 0.85, 0.6)'; // Warm sunset orange
 const RIM_LIGHT_POWER = '2.5'; // Fresnel falloff power
-const RIM_LIGHT_STRENGTH = '0.5'; // Overall intensity
+const DEFAULT_RIM_LIGHT_STRENGTH = 0.5; // Default intensity
 
 // Add rim lighting shader injection to a material
-const addRimLighting = (material: Material): void => {
+const addRimLighting = (material: Material, rimStrength: number = DEFAULT_RIM_LIGHT_STRENGTH): void => {
   const mat = material as any;
   
   const originalOnBeforeCompile = mat.onBeforeCompile;
@@ -21,6 +21,12 @@ const addRimLighting = (material: Material): void => {
     if (originalOnBeforeCompile) {
       originalOnBeforeCompile(shader);
     }
+    
+    // Add rim strength uniform
+    shader.uniforms.rimStrength = { value: rimStrength };
+    
+    // Store shader reference for dynamic updates
+    mat.userData.shader = shader;
     
     // Inject varyings for rim light in vertex shader
     shader.vertexShader = shader.vertexShader.replace(
@@ -43,6 +49,7 @@ const addRimLighting = (material: Material): void => {
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
       `#include <common>
+      uniform float rimStrength;
       varying vec3 vWorldNormal;
       varying vec3 vViewDir;
       varying vec3 vWorldPos;`
@@ -54,7 +61,7 @@ const addRimLighting = (material: Material): void => {
       `#include <dithering_fragment>
       // Rim lighting - warm backlight effect
       float rimFactor = 1.0 - max(0.0, dot(normalize(vWorldNormal), normalize(vViewDir)));
-      rimFactor = pow(rimFactor, ${RIM_LIGHT_POWER}) * ${RIM_LIGHT_STRENGTH};
+      rimFactor = pow(rimFactor, ${RIM_LIGHT_POWER}) * rimStrength;
       gl_FragColor.rgb += ${RIM_LIGHT_COLOR} * rimFactor;`
     );
   };
@@ -75,6 +82,7 @@ interface PlayerCubeProps {
   isMovingRef?: MutableRefObject<boolean>; // Ref for real-time movement state
   enableSound?: boolean; // Whether to play spawn sounds (false during preview)
   showCollisionDebug?: boolean; // Whether to show collision debug spheres
+  rimLightStrength?: number; // Rim light intensity (0-1)
 }
 
 // Preload models
@@ -89,7 +97,7 @@ const animalColors: Record<AnimalType, string | string[]> = {
   bird: '#FFD700', // Yellow/Gold
 };
 
-export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, enableSound = true, showCollisionDebug = true }: PlayerCubeProps) => {
+export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, enableSound = true, showCollisionDebug = true, rimLightStrength = DEFAULT_RIM_LIGHT_STRENGTH }: PlayerCubeProps) => {
   const innerGroupRef = useRef<any>(null);
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
@@ -110,12 +118,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
         // Clone material to avoid modifying shared materials and add rim lighting
         if (child.material) {
           child.material = child.material.clone();
-          addRimLighting(child.material);
+          addRimLighting(child.material, rimLightStrength);
         }
       }
     });
     return clone;
-  }, [pigScene]);
+  }, [pigScene, rimLightStrength]);
   
   const clonedHenScene = useMemo(() => {
     const clone = SkeletonUtils.clone(henWalkScene);
@@ -126,12 +134,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
         // Clone material to avoid modifying shared materials and add rim lighting
         if (child.material) {
           child.material = child.material.clone();
-          addRimLighting(child.material);
+          addRimLighting(child.material, rimLightStrength);
         }
       }
     });
     return clone;
-  }, [henWalkScene]);
+  }, [henWalkScene, rimLightStrength]);
   
   // Use SkeletonUtils.clone for skinned meshes (cow has bones/skeleton)
   const clonedCowScene = useMemo(() => {
@@ -143,12 +151,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
         // Clone material to avoid modifying shared materials and add rim lighting
         if (child.material) {
           child.material = child.material.clone();
-          addRimLighting(child.material);
+          addRimLighting(child.material, rimLightStrength);
         }
       }
     });
     return clone;
-  }, [cowScene]);
+  }, [cowScene, rimLightStrength]);
   
   // Set up animation mixers and actions
   const cowMixerRef = useRef<AnimationMixer | null>(null);
