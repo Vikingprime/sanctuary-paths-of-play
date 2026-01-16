@@ -2140,10 +2140,11 @@ return (
       
       {/* Near shadows - resolution controlled by lowShadowRes toggle */}
       {/* Key forces remount when resolution changes - Three.js caches shadow maps */}
+      {/* Main light coming from barn direction (Panel 1 = ~180° = -Z direction) */}
       <directionalLight
         key={`shadow-light-${lowShadowRes ? 'lo' : 'hi'}`}
         ref={lightRef}
-        position={[15, 35, 15]}
+        position={[0, 35, -25]}
         intensity={3.5}
         color="#FFFDF5"
         castShadow={shadowsEnabled}
@@ -2160,9 +2161,9 @@ return (
       </directionalLight>
       
       
-      {/* Fill light from opposite side */}
+      {/* Fill light from opposite side (trees direction) */}
       <directionalLight
-        position={[-15, 15, -10]}
+        position={[0, 15, 25]}
         intensity={0.45}
         color="#D8E8FF"
       />
