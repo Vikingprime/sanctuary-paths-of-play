@@ -11,71 +11,49 @@ const RIM_LIGHT_COLOR = 'vec3(1.0, 0.85, 0.6)'; // Warm sunset orange
 const RIM_LIGHT_POWER = '2.5'; // Fresnel falloff power
 const DEFAULT_RIM_LIGHT_STRENGTH = 0.5; // Default intensity
 
-// Add rim lighting shader injection to a material
+// Add rim lighting shader injection to a material using unique program cache key
 const addRimLighting = (material: Material, rimStrength: number = DEFAULT_RIM_LIGHT_STRENGTH): void => {
-  const mat = material as any;
+  const mat = material as MeshStandardMaterial;
   
-  // Force material to recompile by incrementing version
-  mat.version++;
-  
-  const originalOnBeforeCompile = mat.onBeforeCompile;
-  
-  // Create unique cache key based on rim strength to force recompile
-  const cacheKey = `rim_${rimStrength.toFixed(3)}`;
-  mat.customProgramCacheKey = () => cacheKey;
+  // Generate unique key with timestamp to FORCE fresh shader compilation
+  const uniqueKey = `rim_${rimStrength.toFixed(4)}_${Date.now()}_${Math.random()}`;
+  mat.customProgramCacheKey = () => uniqueKey;
   
   mat.onBeforeCompile = (shader: any) => {
-    if (originalOnBeforeCompile) {
-      originalOnBeforeCompile(shader);
-    }
-    
-    // Check if we've already injected rim lighting with same value
-    if (shader.fragmentShader.includes('// RIM_INJECTED')) {
-      return;
-    }
-    
-    // Store shader reference for dynamic updates
-    mat.userData.shader = shader;
-    
     // Inject varyings for rim light in vertex shader
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
       `#include <common>
       varying vec3 vWorldNormal;
-      varying vec3 vViewDir;
-      varying vec3 vWorldPos;`
+      varying vec3 vViewDir;`
     );
     
     shader.vertexShader = shader.vertexShader.replace(
       '#include <worldpos_vertex>',
       `#include <worldpos_vertex>
-      vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+      vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
       vWorldNormal = normalize(mat3(modelMatrix) * normal);
-      vViewDir = normalize(cameraPosition - vWorldPos);`
+      vViewDir = normalize(cameraPosition - worldPos);`
     );
     
     // Inject varying declarations in fragment shader
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
       `#include <common>
-      // RIM_INJECTED
       varying vec3 vWorldNormal;
-      varying vec3 vViewDir;
-      varying vec3 vWorldPos;`
+      varying vec3 vViewDir;`
     );
     
-    // Apply rim lighting at the end of fragment shader - bake value directly into shader
+    // Apply rim lighting - bake the value directly
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
-      // Rim lighting - warm backlight effect
-      float rimFactor = 1.0 - max(0.0, dot(normalize(vWorldNormal), normalize(vViewDir)));
-      rimFactor = pow(rimFactor, ${RIM_LIGHT_POWER}) * ${rimStrength.toFixed(3)};
+      float rimDot = 1.0 - max(0.0, dot(normalize(vWorldNormal), normalize(vViewDir)));
+      float rimFactor = pow(rimDot, ${RIM_LIGHT_POWER}) * ${rimStrength.toFixed(4)};
       gl_FragColor.rgb += ${RIM_LIGHT_COLOR} * rimFactor;`
     );
   };
   
-  // Force shader recompilation
   mat.needsUpdate = true;
 };
 // Play chicken sound on spawn
@@ -87,9 +65,9 @@ const playChickenSound = () => {
 
 // Per-animal rim light defaults
 const ANIMAL_RIM_LIGHT_DEFAULTS: Record<AnimalType, number> = {
-  pig: 0.0,  // OFF for testing
-  cow: 0.0,  // OFF for testing
-  bird: 0, // No rim light for chicken
+  pig: 0.5,  // Test with visible value
+  cow: 0.5,  // Test with visible value
+  bird: 0,   // No rim light for chicken
 };
 
 interface PlayerCubeProps {
