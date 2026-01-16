@@ -1112,10 +1112,11 @@ const RefBasedPlayer = ({
       // Clamp delta to prevent large jumps on frame drops
       const clampedDelta = Math.min(delta, 0.05);
       
-      // Check if mobile touch is active AND has actual input
-      const mobileWasd = mobileWasdRef?.current ?? { w: false, a: false, s: false, d: false };
-      const mobileHasInput = mobileWasd.w || mobileWasd.a || mobileWasd.s || mobileWasd.d;
-      const mobileActive = (mobileTouchActiveRef?.current ?? false) && mobileHasInput;
+      // Get joystick input
+      const joyX = joystickXRef?.current ?? 0;
+      const joyY = joystickYRef?.current ?? 0;
+      const joystickMagnitude = Math.sqrt(joyX * joyX + joyY * joyY);
+      const mobileActive = (mobileTouchActiveRef?.current ?? false) && joystickMagnitude > 0.01;
       
       // Check if any keyboard keys are pressed
       const keyboardActive = keysPressed.current.has('w') || keysPressed.current.has('s') || 
@@ -1125,43 +1126,82 @@ const RefBasedPlayer = ({
       
       let input: MovementInput;
       
-      // Keyboard ALWAYS takes priority, then mobile if it has actual input
+      // Keyboard ALWAYS takes priority, then mobile joystick
       if (keyboardActive) {
-        // KEYBOARD MODE: Original per-frame rotation accumulation
-        const isKeyboardRotation = keysPressed.current.has('arrowleft') || keysPressed.current.has('a') || 
-                                   keysPressed.current.has('arrowright') || keysPressed.current.has('d');
+        // KEYBOARD MODE: Traditional WASD controls
         input = {
           forward: keysPressed.current.has('arrowup') || keysPressed.current.has('w'),
           backward: keysPressed.current.has('arrowdown') || keysPressed.current.has('s'),
           rotateLeft: keysPressed.current.has('arrowleft') || keysPressed.current.has('a'),
           rotateRight: keysPressed.current.has('arrowright') || keysPressed.current.has('d'),
-          rotationIntensity: isKeyboardRotation ? 1.0 : 1.0,
+          rotationIntensity: 1.0,
         };
         
         // Update isMoving ref
         isMovingRef.current = input.forward || input.backward;
         
-        // Calculate movement with clamped delta (smooth per-frame updates)
+        // Calculate movement with clamped delta
         const prev = playerStateRef.current;
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         playerStateRef.current = newState;
       } else if (mobileActive) {
-        // MOBILE WASD MODE: Use joystick WASD flags directly like keyboard
-        input = {
-          forward: mobileWasd.w,
-          backward: mobileWasd.s,
-          rotateLeft: mobileWasd.a,
-          rotateRight: mobileWasd.d,
-          rotationIntensity: 1.5 * (mobileTurnIntensityRef?.current ?? 1.0), // Base 1.5x + proportional drag intensity
-        };
+        // MOBILE JOYSTICK MODE: Summer Afternoon style camera-relative movement
+        // Camera orbits based on joystick X
+        const ORBIT_SPEED = 2.5; // radians per second at full deflection
+        if (cameraYawRef) {
+          cameraYawRef.current += joyX * ORBIT_SPEED * clampedDelta;
+          // Normalize to 0-2PI
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
         
-        // Update isMoving ref - only forward/backward triggers animation
-        isMovingRef.current = mobileWasd.w || mobileWasd.s;
+        // Movement is ALWAYS forward (toward or away from camera based on joystick Y)
+        // joystickY > 0 = push away from camera, joystickY < 0 = pull toward camera
+        const hasMovement = Math.abs(joyY) > 0.1;
         
-        // Calculate movement (same as keyboard)
-        const prev = playerStateRef.current;
-        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-        playerStateRef.current = newState;
+        if (hasMovement && cameraYawRef) {
+          // Calculate world movement direction based on camera yaw
+          const cameraYaw = cameraYawRef.current;
+          
+          // Movement direction: forward from camera's perspective
+          // joyY positive = move in direction camera faces (away)
+          // joyY negative = move toward camera (but still facing camera direction)
+          const moveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
+          const moveSpeed = Math.abs(joyY);
+          
+          // Calculate world-space movement
+          const moveX = Math.sin(moveAngle) * moveSpeed;
+          const moveY = -Math.cos(moveAngle) * moveSpeed;
+          
+          // Set player rotation to face movement direction
+          const targetRotation = moveAngle;
+          
+          // Create movement input - always "forward" in the calculated direction
+          input = {
+            forward: true,
+            backward: false,
+            rotateLeft: false,
+            rotateRight: false,
+            rotationIntensity: 1.0,
+            speedMultiplier: moveSpeed,
+          };
+          
+          // Manually update player rotation to face movement direction
+          playerStateRef.current = {
+            ...playerStateRef.current,
+            rotation: targetRotation,
+          };
+          
+          // Calculate movement
+          const prev = playerStateRef.current;
+          const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+          playerStateRef.current = newState;
+          
+          isMovingRef.current = true;
+        } else {
+          // Only orbiting camera, no movement
+          isMovingRef.current = false;
+        }
       } else {
         // No input - no movement
         isMovingRef.current = false;
@@ -1189,7 +1229,7 @@ const RefBasedPlayer = ({
       positionInitialized.current = true;
     }
     
-    // Smooth position with fixed lerp factor (same approach as rotation)
+    // Smooth position with fixed lerp factor
     const targetX = playerStateRef.current.x;
     const targetZ = playerStateRef.current.y;
     smoothPositionX.current += (targetX - smoothPositionX.current) * 0.3;
@@ -1198,13 +1238,12 @@ const RefBasedPlayer = ({
     groupRef.current.position.x = smoothPositionX.current;
     groupRef.current.position.z = smoothPositionZ.current;
     
-    // Smooth rotation with fixed lerp factor (not delta-dependent)
+    // Smooth rotation with fixed lerp factor
     const targetRotation = -playerStateRef.current.rotation + Math.PI;
     let rotDiff = targetRotation - (smoothRotation.current ?? targetRotation);
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
     
-    // Fixed lerp factor for consistent rotation smoothing
     smoothRotation.current = (smoothRotation.current ?? targetRotation) + rotDiff * 0.15;
     
     // Normalize rotation
@@ -1214,12 +1253,12 @@ const RefBasedPlayer = ({
     groupRef.current.rotation.y = smoothRotation.current;
     
     // === BANKING / LEANING ===
-    // Bank angle is based on yaw rate - lean into turns
+    // Bank based on joystick X (turning/orbiting)
     const MAX_BANK_ANGLE = 0.18; // ~10 degrees max lean
-    const yawRate = mobileYawRateRef?.current ?? 0;
+    const joyXForBank = joystickXRef?.current ?? 0;
     
     // Target bank is opposite of turn direction (lean into the turn)
-    const targetBank = -yawRate * 0.08; // Scale yaw rate to bank angle
+    const targetBank = -joyXForBank * 0.15;
     const clampedTargetBank = Math.max(-MAX_BANK_ANGLE, Math.min(MAX_BANK_ANGLE, targetBank));
     
     // Smooth the bank angle
@@ -1275,6 +1314,7 @@ const AUTOPUSH_ZOOM_IN_SPEED = 2.0;  // Max zoom-in speed
 const AUTOPUSH_ZOOM_OUT_SPEED = 1.0; // Max zoom-out speed
 
 // Simple over-the-shoulder camera with smooth follow - reads from ref each frame
+// Supports orbit mode when cameraYawRef is provided (Summer Afternoon style)
 const OverShoulderCameraController = ({ 
   playerStateRef,
   restartKey,
@@ -1285,6 +1325,7 @@ const OverShoulderCameraController = ({
   animalType,
   maze,
   opacityFadeEnabled = true,
+  cameraYawRef,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
@@ -1295,6 +1336,7 @@ const OverShoulderCameraController = ({
   animalType?: AnimalType;
   maze?: Maze;
   opacityFadeEnabled?: boolean;
+  cameraYawRef?: MutableRefObject<number>;
 }) => {
   const { camera, scene } = useThree();
   
@@ -1377,6 +1419,9 @@ const OverShoulderCameraController = ({
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
+    // Use cameraYawRef for orbit camera, or fall back to player rotation
+    const targetCameraYaw = cameraYawRef?.current ?? playerRotation;
+    
     // Store initial position on first frame (after initialization)
     if (initialized.current && initialPlayerPos.current === null) {
       initialPlayerPos.current = { x: playerX, z: playerZ };
@@ -1403,9 +1448,9 @@ const OverShoulderCameraController = ({
     
     // Initialize on first frame BEFORE any calculations
     if (!initialized.current) {
-      smoothRotation.current = playerRotation;
+      smoothRotation.current = targetCameraYaw;
       initialPlayerPos.current = { x: playerX, z: playerZ };
-      const rot = playerRotation;
+      const rot = targetCameraYaw;
       // Set camera position immediately without interpolation (start close)
       currentPosition.current.set(
         playerX - Math.sin(rot) * CAMERA_DISTANCE_START,
@@ -1413,15 +1458,16 @@ const OverShoulderCameraController = ({
         playerZ + Math.cos(rot) * CAMERA_DISTANCE_START
       );
       currentLookAt.current.set(
-        playerX + Math.sin(rot) * LOOK_AHEAD,
+        playerX,
         LOOK_HEIGHT_START,
-        playerZ - Math.cos(rot) * LOOK_AHEAD
+        playerZ
       );
       initialized.current = true;
     }
     
-    // Smoothly interpolate rotation using shortest path
-    let rotDiff = playerRotation - smoothRotation.current;
+    // Smoothly interpolate camera rotation using shortest path
+    // Use cameraYawRef for orbit mode, player rotation for traditional mode
+    let rotDiff = targetCameraYaw - smoothRotation.current;
     // Handle wrap-around (shortest path)
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
@@ -1431,12 +1477,20 @@ const OverShoulderCameraController = ({
     
     const rot = smoothRotation.current;
     
-    // Calculate desired camera position behind player (reuse vector to avoid GC)
+    // Calculate desired camera position orbiting around player
     const desiredDist = currentDistance.current;
     targetPos.current.set(
       playerX - Math.sin(rot) * desiredDist,
       currentHeight,
       playerZ + Math.cos(rot) * desiredDist
+    );
+    
+    // For orbit camera, always look at player (not ahead of player)
+    const lookHeight = LOOK_HEIGHT_START + distanceProgress * (LOOK_HEIGHT_NORMAL - LOOK_HEIGHT_START);
+    targetLookAt.current.set(
+      playerX,
+      lookHeight,
+      playerZ
     );
     
     // Calculate target head position (for raycasting origin) - use character-scaled height
@@ -2270,6 +2324,7 @@ return (
             animalType={animalType}
             maze={maze}
             opacityFadeEnabled={opacityFadeEnabled}
+            cameraYawRef={cameraYawRef}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
         </>
