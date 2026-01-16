@@ -114,14 +114,13 @@ export const MazeGame3D = ({
   // Per-animal rim light: 0.3 for cow/pig, 0 for chicken (uses defaults in PlayerCube)
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
-  // Mobile controls - yaw rate system (steering)
-  const mobileTargetYawRef = useRef<number>(startRotation); // Legacy - not used in new system
-  const mobileYawRateRef = useRef(0); // Yaw rate in radians/sec from steering
+  // Mobile controls - 2D joystick system (Summer Afternoon style)
+  const joystickXRef = useRef(0); // Joystick X: -1 (left) to 1 (right)
+  const joystickYRef = useRef(0); // Joystick Y: -1 (toward camera) to 1 (away from camera)
   const mobileIsMovingRef = useRef(false);
-  const mobileThrottleRef = useRef(0); // Throttle: -1 (reverse) to 1 (forward)
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
-  const mobileWasdRef = useRef({ w: false, a: false, s: false, d: false }); // WASD joystick state
-  const mobileTurnIntensityRef = useRef(1.0); // Proportional turn intensity based on drag speed
+  // Camera orbit yaw - controlled by joystick X, used for orbit camera
+  const cameraYawRef = useRef(startRotation); // Camera yaw angle (orbits around player)
   
   // Debug toggle to completely disable mobile controls (WASD only mode)
   const [mobileControlsEnabled, setMobileControlsEnabled] = useState(true);
@@ -745,13 +744,11 @@ export const MazeGame3D = ({
         isMovingRef={isMovingRef}
         collectedPowerUps={collectedPowerUps}
         keysPressed={keysPressed}
-        mobileTargetYawRef={mobileTargetYawRef}
-        mobileYawRateRef={mobileYawRateRef}
+        joystickXRef={joystickXRef}
+        joystickYRef={joystickYRef}
         mobileIsMovingRef={mobileIsMovingRef}
-        mobileThrottleRef={mobileThrottleRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
-        mobileWasdRef={mobileWasdRef}
-        mobileTurnIntensityRef={mobileTurnIntensityRef}
+        cameraYawRef={cameraYawRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
@@ -857,15 +854,11 @@ export const MazeGame3D = ({
       {!isPreviewing && mobileControlsEnabled && (
         <MobileControls
           playerStateRef={playerStateRef}
-          targetYawRef={mobileTargetYawRef}
-          yawRateRef={mobileYawRateRef}
+          joystickXRef={joystickXRef}
+          joystickYRef={joystickYRef}
           isMovingRef={mobileIsMovingRef}
-          throttleRef={mobileThrottleRef}
           mobileTouchActiveRef={mobileTouchActiveRef}
-          wasdRef={mobileWasdRef}
-          turnIntensityRef={mobileTurnIntensityRef}
           debugMode={debugMode}
-          sensitivityConfig={sensitivityConfig}
         />
       )}
 
