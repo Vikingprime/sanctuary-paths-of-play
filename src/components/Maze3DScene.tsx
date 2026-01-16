@@ -232,12 +232,17 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           float edgeNoise = noise(worldUV * 1.2) * 0.4;
           float wallMask = smoothstep(0.25, 0.75, isWall + edgeNoise);
           
-          // Grass leaking from corn edges - deep spillover into path center
-          float edgeProximity = smoothstep(-0.35, 0.8, isWall) * smoothstep(1.0, 0.0, isWall);
-          float spilloverNoise = noise(worldUV * 0.6 + 100.0);
-          float spilloverDetail = noise(worldUV * 1.5 + 150.0) * 0.6;
-          float deepPenetration = noise(worldUV * 0.4 + 200.0) * 0.4;
-          float grassLeak = edgeProximity * smoothstep(0.1, 0.4, spilloverNoise + spilloverDetail + deepPenetration) * spilloverStrength;
+          // Grass patches appearing ON the path (not just at edges)
+          float pathArea = 1.0 - isWall; // 1.0 on path, 0.0 on walls
+          float spilloverNoise = noise(worldUV * 0.5 + 100.0);
+          float spilloverDetail = noise(worldUV * 1.2 + 150.0) * 0.5;
+          float deepPatchNoise = noise(worldUV * 0.3 + 250.0);
+          
+          // Random grass patches that appear on the path itself
+          float grassPatches = smoothstep(0.45, 0.7, spilloverNoise + spilloverDetail * 0.5);
+          // Occasional deep intrusions into path center
+          float deepIntrusion = smoothstep(0.6, 0.85, deepPatchNoise) * 0.6;
+          float grassLeak = pathArea * (grassPatches + deepIntrusion) * spilloverStrength;
           
           float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) * 
                           step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
