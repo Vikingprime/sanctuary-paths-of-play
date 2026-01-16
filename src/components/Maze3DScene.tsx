@@ -2136,7 +2136,7 @@ return (
     <>
       
       {/* Lighting - 8am morning sunlight */}
-      <ambientLight intensity={0.9} color="#FFF8F0" />
+      <ambientLight intensity={0.9} color="#FFE4CC" />
       
       {/* Near shadows - resolution controlled by lowShadowRes toggle */}
       {/* Key forces remount when resolution changes - Three.js caches shadow maps */}
@@ -2165,11 +2165,11 @@ return (
       <directionalLight
         position={[0, 15, 25]}
         intensity={0.45}
-        color="#D8E8FF"
+        color="#FFE8D0"
       />
       
       {/* Hemisphere light for natural sky/ground color */}
-      <hemisphereLight args={['#87CEEB', '#9B7B5A', 0.55]} />
+      <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />
       
       {/* Sky orb - flat material, no fog/tonemapping */}
       {skyEnabled && <SkyBackground />}
