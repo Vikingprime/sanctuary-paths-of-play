@@ -142,7 +142,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
         mazeWidth: { value: mazeWidth },
         mazeHeight: { value: mazeHeight },
         tileScale: { value: 2.0 },
-        pathBrightness: { value: 1.15 },
+        pathBrightness: { value: 1.0 },
         grassDarkness: { value: 0.45 },
         spilloverStrength: { value: 1.5 },
         fogColor: { value: new Color(ATMOSPHERE_COLOR) },
