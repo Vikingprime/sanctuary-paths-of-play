@@ -1,10 +1,63 @@
 import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Clone } from '@react-three/drei';
-import { AnimationMixer, LoopRepeat, LoopOnce, DoubleSide } from 'three';
+import { AnimationMixer, LoopRepeat, LoopOnce, DoubleSide, Material, MeshStandardMaterial } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimalType } from '@/types/game';
 import { getCharacterDebugPlaneColor, getCharacterYOffset, getCharacterScale } from '@/game/CharacterConfig';
+
+// Rim light settings per animal
+const RIM_LIGHT_SETTINGS: Record<AnimalType, number> = {
+  pig: 0.2,
+  cow: 0.2,
+  bird: 0, // No rim light for chicken
+};
+
+const RIM_LIGHT_COLOR = 'vec3(1.0, 0.85, 0.6)'; // Warm sunset orange
+const RIM_LIGHT_POWER = 2.5; // Fresnel falloff
+
+// Inject rim lighting into a material's shader
+const applyRimLight = (material: Material, intensity: number): void => {
+  if (intensity <= 0) return;
+  
+  const mat = material as MeshStandardMaterial;
+  // Unique cache key forces fresh shader compilation
+  mat.customProgramCacheKey = () => `rim_${intensity}_${Math.random()}`;
+  
+  mat.onBeforeCompile = (shader) => {
+    // Vertex shader: add varyings
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <common>',
+      `#include <common>
+      varying vec3 vRimNormal;
+      varying vec3 vRimViewDir;`
+    );
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <worldpos_vertex>',
+      `#include <worldpos_vertex>
+      vec3 rimWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+      vRimNormal = normalize(mat3(modelMatrix) * normal);
+      vRimViewDir = normalize(cameraPosition - rimWorldPos);`
+    );
+    
+    // Fragment shader: add varyings and apply rim
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <common>',
+      `#include <common>
+      varying vec3 vRimNormal;
+      varying vec3 vRimViewDir;`
+    );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <dithering_fragment>',
+      `#include <dithering_fragment>
+      float rimDot = 1.0 - max(0.0, dot(normalize(vRimNormal), normalize(vRimViewDir)));
+      float rim = pow(rimDot, ${RIM_LIGHT_POWER.toFixed(1)}) * ${intensity.toFixed(3)};
+      gl_FragColor.rgb += ${RIM_LIGHT_COLOR} * rim;`
+    );
+  };
+  
+  mat.needsUpdate = true;
+};
 
 // Play chicken sound on spawn
 const playChickenSound = () => {
@@ -47,6 +100,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   const { scene: henWalkScene, animations: henWalkAnimations } = useGLTF('/models/Hen_walk.glb');
   const { animations: henIdleAnimations } = useGLTF('/models/Hen_idle.glb');
 
+  const pigRimIntensity = RIM_LIGHT_SETTINGS.pig;
   const clonedPigScene = useMemo(() => {
     const clone = pigScene.clone();
     clone.traverse((child: any) => {
@@ -55,11 +109,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
         child.receiveShadow = true;
         if (child.material) {
           child.material = child.material.clone();
+          applyRimLight(child.material, pigRimIntensity);
         }
       }
     });
     return clone;
-  }, [pigScene]);
+  }, [pigScene, pigRimIntensity]);
   
   const clonedHenScene = useMemo(() => {
     const clone = SkeletonUtils.clone(henWalkScene);
@@ -75,7 +130,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     return clone;
   }, [henWalkScene]);
   
-  // Use SkeletonUtils.clone for skinned meshes (cow has bones/skeleton)
+  const cowRimIntensity = RIM_LIGHT_SETTINGS.cow;
   const clonedCowScene = useMemo(() => {
     const clone = SkeletonUtils.clone(cowScene);
     clone.traverse((child: any) => {
@@ -84,13 +139,12 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
         child.receiveShadow = true;
         if (child.material) {
           child.material = child.material.clone();
+          applyRimLight(child.material, cowRimIntensity);
         }
       }
     });
     return clone;
-  }, [cowScene]);
-  
-  // Set up animation mixers and actions
+  }, [cowScene, cowRimIntensity]);
   const cowMixerRef = useRef<AnimationMixer | null>(null);
   const gallopActionRef = useRef<any>(null);
   const cowIdle1ActionRef = useRef<any>(null);
