@@ -188,12 +188,7 @@ function flushOpacityUpdates() {
 // ============= End per-instance opacity system =============
 
 // Helper to add per-instance opacity AND color support to a material using onBeforeCompile
-// Rim light configuration (default values, can be overridden)
-const RIM_LIGHT_COLOR = 'vec3(1.0, 0.85, 0.6)'; // Warm sunset orange
-const RIM_LIGHT_POWER = '3.0'; // Fresnel falloff power (higher = tighter rim)
-const DEFAULT_CORN_RIM_STRENGTH = 0.25; // Default subtle intensity
-
-const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: Vector3 }, rimStrength: number = DEFAULT_CORN_RIM_STRENGTH): Material => {
+const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: Vector3 }): Material => {
   const mat = material as any;
   
   // Enable transparency for fading
@@ -217,13 +212,10 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       shader.uniforms.shaderFadeEnabled = { value: 1.0 }; // 1.0 = enabled, 0.0 = disabled
     }
     
-    // Add rim strength uniform
-    shader.uniforms.rimStrength = { value: rimStrength };
-    
     // Store shader reference
     mat.userData.shader = shader;
     
-    // Inject attribute and varying in vertex shader (opacity + color + rim light normal)
+    // Inject attribute and varying in vertex shader (opacity + color)
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
       `#include <common>
@@ -231,9 +223,7 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       attribute vec3 instanceColor;
       varying float vInstanceOpacity;
       varying vec3 vInstanceColor;
-      varying vec3 vWorldPos;
-      varying vec3 vWorldNormal;
-      varying vec3 vViewDir;`
+      varying vec3 vWorldPos;`
     );
     
     shader.vertexShader = shader.vertexShader.replace(
@@ -243,12 +233,9 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       vInstanceColor = instanceColor;
       #ifdef USE_INSTANCING
         vWorldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
-        vWorldNormal = normalize(mat3(instanceMatrix) * normal);
       #else
         vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-        vWorldNormal = normalize(mat3(modelMatrix) * normal);
-      #endif
-      vViewDir = normalize(cameraPosition - vWorldPos);`
+      #endif`
     );
     
     // Inject varying and uniforms in fragment shader
@@ -261,15 +248,12 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
       `#include <common>
-      uniform float rimStrength;
       varying float vInstanceOpacity;
       varying vec3 vInstanceColor;
-      varying vec3 vWorldPos;
-      varying vec3 vWorldNormal;
-      varying vec3 vViewDir;${distanceUniforms}`
+      varying vec3 vWorldPos;${distanceUniforms}`
     );
     
-    // Apply per-instance opacity + color tint + rim light + optional distance fade at end of fragment shader
+    // Apply per-instance opacity + optional distance fade at end of fragment shader
     const distanceFadeCode = playerPosRef ? `
       float distToPlayer = distance(vWorldPos.xz, playerPos.xz);
       float distFade = mix(1.0, 1.0 - smoothstep(fadeStart, fadeEnd, distToPlayer), shaderFadeEnabled);
@@ -281,11 +265,6 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
       // Apply per-instance opacity from LOS fading
       gl_FragColor.a *= vInstanceOpacity;${distanceFadeCode}
       
-      // Rim lighting - warm backlight effect
-      float rimFactor = 1.0 - max(0.0, dot(normalize(vWorldNormal), normalize(vViewDir)));
-      rimFactor = pow(rimFactor, ${RIM_LIGHT_POWER}) * rimStrength;
-      gl_FragColor.rgb += ${RIM_LIGHT_COLOR} * rimFactor;
-      
       if (gl_FragColor.a < 0.01) discard;`
     );
   };
@@ -295,8 +274,8 @@ const addInstanceOpacitySupport = (material: Material, playerPosRef?: { value: V
 };
 
 // Helper to optimize material for performance
-const optimizeMaterial = (material: Material, playerPosRef?: { value: Vector3 }, rimStrength?: number): Material => {
-  return addInstanceOpacitySupport(material, playerPosRef, rimStrength);
+const optimizeMaterial = (material: Material, playerPosRef?: { value: Vector3 }): Material => {
+  return addInstanceOpacitySupport(material, playerPosRef);
 };
 
 // Cull stats for debugging
@@ -317,7 +296,6 @@ interface InstancedWallsProps {
   optimizationSettings?: CornOptimizationSettings;
   onCullStats?: (stats: CullStats) => void;
   shaderFadeEnabled?: boolean;
-  rimLightStrength?: number;
 }
 
 // Density settings - staggered rows to close gaps
@@ -553,7 +531,6 @@ export const InstancedWalls = ({
   optimizationSettings = DEFAULT_CORN_SETTINGS,
   onCullStats,
   shaderFadeEnabled = true,
-  rimLightStrength = DEFAULT_CORN_RIM_STRENGTH,
 }: InstancedWallsProps) => {
   const edgeGroupRef = useRef<Group>(null);
   const cheapGroupRef = useRef<Group>(null);
@@ -797,8 +774,8 @@ export const InstancedWalls = ({
         }
         
         const optimizedMaterial = Array.isArray(mesh.material) 
-          ? mesh.material.map(m => optimizeMaterial(m.clone(), playerPosUniform, rimLightStrength))
-          : optimizeMaterial(mesh.material.clone(), playerPosUniform, rimLightStrength);
+          ? mesh.material.map(m => optimizeMaterial(m.clone(), playerPosUniform))
+          : optimizeMaterial(mesh.material.clone(), playerPosUniform);
         
         // Clone geometry - scale down corn cobs to 0.75x
         const clonedGeometry = mesh.geometry.clone();
@@ -916,7 +893,7 @@ export const InstancedWalls = ({
       billboardGeometry: lodCornGeo,
       billboardMaterial: lodCornMat
     };
-  }, [gltfScene, cornTex, rimLightStrength]);
+  }, [gltfScene, cornTex]);
   
   // Generate transforms for all corn types
   const { edgeTransforms, cheapTransforms, allBillboardTransforms } = useMemo(() => {

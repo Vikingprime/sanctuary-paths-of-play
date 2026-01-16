@@ -75,6 +75,13 @@ const playChickenSound = () => {
   audio.play().catch(() => {}); // Ignore autoplay errors
 };
 
+// Per-animal rim light defaults
+const ANIMAL_RIM_LIGHT_DEFAULTS: Record<AnimalType, number> = {
+  pig: 0.3,
+  cow: 0.3,
+  bird: 0, // No rim light for chicken
+};
+
 interface PlayerCubeProps {
   animalType: AnimalType;
   position: [number, number, number];
@@ -82,7 +89,7 @@ interface PlayerCubeProps {
   isMovingRef?: MutableRefObject<boolean>; // Ref for real-time movement state
   enableSound?: boolean; // Whether to play spawn sounds (false during preview)
   showCollisionDebug?: boolean; // Whether to show collision debug spheres
-  rimLightStrength?: number; // Rim light intensity (0-1)
+  rimLightStrength?: number; // Rim light intensity override (0-1), uses per-animal defaults if not provided
 }
 
 // Preload models
@@ -97,7 +104,7 @@ const animalColors: Record<AnimalType, string | string[]> = {
   bird: '#FFD700', // Yellow/Gold
 };
 
-export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, enableSound = true, showCollisionDebug = true, rimLightStrength = DEFAULT_RIM_LIGHT_STRENGTH }: PlayerCubeProps) => {
+export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, enableSound = true, showCollisionDebug = true, rimLightStrength }: PlayerCubeProps) => {
   const innerGroupRef = useRef<any>(null);
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
@@ -109,6 +116,9 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   const { scene: henWalkScene, animations: henWalkAnimations } = useGLTF('/models/Hen_walk.glb');
   const { animations: henIdleAnimations } = useGLTF('/models/Hen_idle.glb');
   
+  // Use per-animal default if no override provided
+  const effectiveRimLight = rimLightStrength ?? ANIMAL_RIM_LIGHT_DEFAULTS[animalType];
+
   const clonedPigScene = useMemo(() => {
     const clone = pigScene.clone();
     clone.traverse((child: any) => {
@@ -116,14 +126,16 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
         child.castShadow = true;
         child.receiveShadow = true;
         // Clone material to avoid modifying shared materials and add rim lighting
-        if (child.material) {
+        if (child.material && effectiveRimLight > 0) {
           child.material = child.material.clone();
-          addRimLighting(child.material, rimLightStrength);
+          addRimLighting(child.material, effectiveRimLight);
+        } else if (child.material) {
+          child.material = child.material.clone();
         }
       }
     });
     return clone;
-  }, [pigScene, rimLightStrength]);
+  }, [pigScene, effectiveRimLight]);
   
   const clonedHenScene = useMemo(() => {
     const clone = SkeletonUtils.clone(henWalkScene);
@@ -132,14 +144,16 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
         child.castShadow = true;
         child.receiveShadow = true;
         // Clone material to avoid modifying shared materials and add rim lighting
-        if (child.material) {
+        if (child.material && effectiveRimLight > 0) {
           child.material = child.material.clone();
-          addRimLighting(child.material, rimLightStrength);
+          addRimLighting(child.material, effectiveRimLight);
+        } else if (child.material) {
+          child.material = child.material.clone();
         }
       }
     });
     return clone;
-  }, [henWalkScene, rimLightStrength]);
+  }, [henWalkScene, effectiveRimLight]);
   
   // Use SkeletonUtils.clone for skinned meshes (cow has bones/skeleton)
   const clonedCowScene = useMemo(() => {
@@ -149,14 +163,16 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
         child.castShadow = true;
         child.receiveShadow = true;
         // Clone material to avoid modifying shared materials and add rim lighting
-        if (child.material) {
+        if (child.material && effectiveRimLight > 0) {
           child.material = child.material.clone();
-          addRimLighting(child.material, rimLightStrength);
+          addRimLighting(child.material, effectiveRimLight);
+        } else if (child.material) {
+          child.material = child.material.clone();
         }
       }
     });
     return clone;
-  }, [cowScene, rimLightStrength]);
+  }, [cowScene, effectiveRimLight]);
   
   // Set up animation mixers and actions
   const cowMixerRef = useRef<AnimationMixer | null>(null);
