@@ -13,6 +13,7 @@ import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics, checkGcSpike } from '@/lib/debug';
 import { MOBILE_CONTROL_CONFIG } from './MobileControls';
 import { FogConfig, FOG_COLOR } from '@/game/FogConfig';
+import { GameConfig } from '@/game/GameConfig';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 import mapTowerSignImage from '@/assets/map-tower-sign.png';
 
@@ -2083,7 +2084,38 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5 }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number }) => {
+// Debug visualization: dots at center of each path cell (non-wall cells)
+const DebugPathCellMarkers = ({ maze }: { maze: Maze }) => {
+  const CELL_SIZE = GameConfig.CELL_SIZE;
+  
+  const pathCells = useMemo(() => {
+    const cells: { x: number; z: number }[] = [];
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (!cell.isWall) {
+          cells.push({
+            x: (x + 0.5) * CELL_SIZE,
+            z: (y + 0.5) * CELL_SIZE,
+          });
+        }
+      });
+    });
+    return cells;
+  }, [maze, CELL_SIZE]);
+  
+  return (
+    <group>
+      {pathCells.map((cell, i) => (
+        <mesh key={i} position={[cell.x, 0.02, cell.z]}>
+          <sphereGeometry args={[0.05, 8, 8]} />
+          <meshBasicMaterial color="#00ff00" />
+        </mesh>
+      ))}
+    </group>
+  );
+};
+
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, debugMode = false }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; debugMode?: boolean }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2329,6 +2361,9 @@ return (
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
         </>
       )}
+      
+      {/* Debug: path cell markers */}
+      {debugMode && <DebugPathCellMarkers maze={maze} />}
     </>
   );
 };
