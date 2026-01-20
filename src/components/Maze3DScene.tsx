@@ -2084,7 +2084,7 @@ const SkyBackground = () => {
   );
 };
 
-// Debug visualization: dots at center of each path cell + boundary lines along corridor edges
+// Debug visualization: dots at center of each path cell + lines along corridor edges (not crossing middle)
 const DebugPathCellMarkers = ({ maze }: { maze: Maze }) => {
   const CELL_SIZE = GameConfig.CELL_SIZE;
   
@@ -2100,41 +2100,54 @@ const DebugPathCellMarkers = ({ maze }: { maze: Maze }) => {
       return row[gx].isWall;
     };
     
-    // For each path cell, check each edge for adjacent walls
+    // Collect all path cells
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (!cell.isWall) {
+          cells.push({
+            x: (x + 0.5) * CELL_SIZE,
+            z: (y + 0.5) * CELL_SIZE,
+            gridX: x,
+            gridY: y,
+          });
+        }
+      });
+    });
+    
+    // Connect path cell centers, but ONLY along corridor edges (adjacent to wall)
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
         if (cell.isWall) return;
         
-        // Add cell center dot
-        cells.push({
-          x: (x + 0.5) * CELL_SIZE,
-          z: (y + 0.5) * CELL_SIZE,
-          gridX: x,
-          gridY: y,
-        });
+        const cx = (x + 0.5) * CELL_SIZE;
+        const cz = (y + 0.5) * CELL_SIZE;
         
-        // Cell boundaries in world coords
-        const left = x * CELL_SIZE;
-        const right = (x + 1) * CELL_SIZE;
-        const top = y * CELL_SIZE;
-        const bottom = (y + 1) * CELL_SIZE;
+        // Check RIGHT neighbor - draw line if there's a wall above OR below this horizontal segment
+        if (!isWall(x + 1, y)) {
+          const hasWallAbove = isWall(x, y - 1) || isWall(x + 1, y - 1);
+          const hasWallBelow = isWall(x, y + 1) || isWall(x + 1, y + 1);
+          if (hasWallAbove || hasWallBelow) {
+            edges.push({
+              x1: cx,
+              z1: cz,
+              x2: (x + 1.5) * CELL_SIZE,
+              z2: cz,
+            });
+          }
+        }
         
-        // Check each side - if neighbor is wall, draw edge line
-        // Left edge
-        if (isWall(x - 1, y)) {
-          edges.push({ x1: left, z1: top, x2: left, z2: bottom });
-        }
-        // Right edge
-        if (isWall(x + 1, y)) {
-          edges.push({ x1: right, z1: top, x2: right, z2: bottom });
-        }
-        // Top edge
-        if (isWall(x, y - 1)) {
-          edges.push({ x1: left, z1: top, x2: right, z2: top });
-        }
-        // Bottom edge
-        if (isWall(x, y + 1)) {
-          edges.push({ x1: left, z1: bottom, x2: right, z2: bottom });
+        // Check DOWN neighbor - draw line if there's a wall to LEFT OR RIGHT of this vertical segment
+        if (!isWall(x, y + 1)) {
+          const hasWallLeft = isWall(x - 1, y) || isWall(x - 1, y + 1);
+          const hasWallRight = isWall(x + 1, y) || isWall(x + 1, y + 1);
+          if (hasWallLeft || hasWallRight) {
+            edges.push({
+              x1: cx,
+              z1: cz,
+              x2: cx,
+              z2: (y + 1.5) * CELL_SIZE,
+            });
+          }
         }
       });
     });
