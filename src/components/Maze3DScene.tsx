@@ -2084,73 +2084,73 @@ const SkyBackground = () => {
   );
 };
 
-// Debug visualization: dots at center of each path cell + lines connecting adjacent path cells
+// Debug visualization: dots at center of each path cell + boundary lines along corridor edges
 const DebugPathCellMarkers = ({ maze }: { maze: Maze }) => {
   const CELL_SIZE = GameConfig.CELL_SIZE;
   
-  const { pathCells, connections } = useMemo(() => {
+  const { pathCells, boundaryEdges } = useMemo(() => {
     const cells: { x: number; z: number; gridX: number; gridY: number }[] = [];
     const edges: { x1: number; z1: number; x2: number; z2: number }[] = [];
     
-    // First pass: collect all path cells
-    maze.grid.forEach((row, y) => {
-      row.forEach((cell, x) => {
-        if (!cell.isWall) {
-          cells.push({
-            x: (x + 0.5) * CELL_SIZE,
-            z: (y + 0.5) * CELL_SIZE,
-            gridX: x,
-            gridY: y,
-          });
-        }
-      });
-    });
+    // Helper to check if a cell is a wall (out of bounds = wall)
+    const isWall = (gx: number, gy: number): boolean => {
+      if (gy < 0 || gy >= maze.grid.length) return true;
+      const row = maze.grid[gy];
+      if (gx < 0 || gx >= row.length) return true;
+      return row[gx].isWall;
+    };
     
-    // Second pass: find connections (only right and down to avoid duplicates)
+    // For each path cell, check each edge for adjacent walls
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
         if (cell.isWall) return;
         
-        const cx = (x + 0.5) * CELL_SIZE;
-        const cz = (y + 0.5) * CELL_SIZE;
+        // Add cell center dot
+        cells.push({
+          x: (x + 0.5) * CELL_SIZE,
+          z: (y + 0.5) * CELL_SIZE,
+          gridX: x,
+          gridY: y,
+        });
         
-        // Check right neighbor
-        if (x + 1 < row.length && !row[x + 1].isWall) {
-          edges.push({
-            x1: cx,
-            z1: cz,
-            x2: (x + 1.5) * CELL_SIZE,
-            z2: cz,
-          });
+        // Cell boundaries in world coords
+        const left = x * CELL_SIZE;
+        const right = (x + 1) * CELL_SIZE;
+        const top = y * CELL_SIZE;
+        const bottom = (y + 1) * CELL_SIZE;
+        
+        // Check each side - if neighbor is wall, draw edge line
+        // Left edge
+        if (isWall(x - 1, y)) {
+          edges.push({ x1: left, z1: top, x2: left, z2: bottom });
         }
-        
-        // Check down neighbor
-        if (y + 1 < maze.grid.length) {
-          const downRow = maze.grid[y + 1];
-          if (x < downRow.length && !downRow[x].isWall) {
-            edges.push({
-              x1: cx,
-              z1: cz,
-              x2: cx,
-              z2: (y + 1.5) * CELL_SIZE,
-            });
-          }
+        // Right edge
+        if (isWall(x + 1, y)) {
+          edges.push({ x1: right, z1: top, x2: right, z2: bottom });
+        }
+        // Top edge
+        if (isWall(x, y - 1)) {
+          edges.push({ x1: left, z1: top, x2: right, z2: top });
+        }
+        // Bottom edge
+        if (isWall(x, y + 1)) {
+          edges.push({ x1: left, z1: bottom, x2: right, z2: bottom });
         }
       });
     });
     
-    return { pathCells: cells, connections: edges };
+    return { pathCells: cells, boundaryEdges: edges };
   }, [maze, CELL_SIZE]);
   
-  // Create line geometry for connections
+  // Create line geometry for boundary edges
   const linePositions = useMemo(() => {
     const positions: number[] = [];
-    connections.forEach(edge => {
+    boundaryEdges.forEach(edge => {
       positions.push(edge.x1, 0.03, edge.z1);
       positions.push(edge.x2, 0.03, edge.z2);
     });
     return new Float32Array(positions);
-  }, [connections]);
+  }, [boundaryEdges]);
   
   return (
     <group>
@@ -2162,8 +2162,8 @@ const DebugPathCellMarkers = ({ maze }: { maze: Maze }) => {
         </mesh>
       ))}
       
-      {/* Lines connecting adjacent path cells */}
-      {connections.length > 0 && (
+      {/* Lines along corridor boundaries (where path meets wall) */}
+      {boundaryEdges.length > 0 && (
         <lineSegments>
           <bufferGeometry>
             <bufferAttribute
