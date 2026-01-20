@@ -109,6 +109,7 @@ export const MazeGame3D = ({
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
+  const [borderAvoidanceStrength, setBorderAvoidanceStrength] = useState<number>(GameConfig.BORDER_AVOIDANCE.DEFAULT_STRENGTH);
   // Per-animal rim light: 0.3 for cow/pig, 0 for chicken (uses defaults in PlayerCube)
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
@@ -842,6 +843,7 @@ export const MazeGame3D = ({
         skyEnabled={skyEnabled}
         shaderFadeEnabled={shaderFadeEnabled}
         lowShadowRes={lowShadowRes}
+        borderAvoidanceStrength={borderAvoidanceStrength}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -911,6 +913,8 @@ export const MazeGame3D = ({
           onSensitivityChange={setSensitivityConfig}
           mobileControlsEnabled={mobileControlsEnabled}
           onToggleMobileControls={() => setMobileControlsEnabled(prev => !prev)}
+          borderAvoidanceStrength={borderAvoidanceStrength}
+          onBorderAvoidanceStrengthChange={setBorderAvoidanceStrength}
         />
       )}
 

@@ -41,3 +41,13 @@ export {
   calculateStars,
   executeAbility,
 } from './GameLogic';
+
+// Corridor edge utilities
+export {
+  type CorridorEdge,
+  type EdgeProximityResult,
+  computeCorridorEdges,
+  findNearestCorridorEdge,
+  calculateBorderAvoidance,
+  getUniqueCorridorEdgeSegments,
+} from './CorridorEdges';

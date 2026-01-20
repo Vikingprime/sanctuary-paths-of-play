@@ -7,6 +7,7 @@ import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
+import { computeCorridorEdges, calculateBorderAvoidance, getUniqueCorridorEdgeSegments, CorridorEdge } from '@/game/CorridorEdges';
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor } from '@/game/CharacterConfig';
 import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
@@ -90,6 +91,8 @@ interface Maze3DSceneProps {
   skyEnabled?: boolean;
   shaderFadeEnabled?: boolean;
   lowShadowRes?: boolean;
+  // Border avoidance strength (adjustable in debug mode)
+  borderAvoidanceStrength?: number;
 }
 
 // Ground shader using multiple photo textures with random patches
@@ -2088,9 +2091,25 @@ const SkyBackground = () => {
 const DebugPathCellMarkers = ({ maze }: { maze: Maze }) => {
   const CELL_SIZE = GameConfig.CELL_SIZE;
   
-  const { pathCells, boundaryEdges } = useMemo(() => {
+  // Use the shared utility for corridor edges
+  const boundaryEdges = useMemo(() => getUniqueCorridorEdgeSegments(maze), [maze]);
+  
+  const pathCells = useMemo(() => {
     const cells: { x: number; z: number; gridX: number; gridY: number }[] = [];
-    const edges: { x1: number; z1: number; x2: number; z2: number }[] = [];
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (!cell.isWall) {
+          cells.push({
+            x: (x + 0.5) * CELL_SIZE,
+            z: (y + 0.5) * CELL_SIZE,
+            gridX: x,
+            gridY: y,
+          });
+        }
+      });
+    });
+    return cells;
+  }, [maze, CELL_SIZE]);
     
     // Helper to check if a cell is a wall (out of bounds = wall)
     const isWall = (gx: number, gy: number): boolean => {
@@ -2193,7 +2212,7 @@ const DebugPathCellMarkers = ({ maze }: { maze: Maze }) => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, debugMode = false }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; debugMode?: boolean }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, debugMode = false, borderAvoidanceStrength = GameConfig.BORDER_AVOIDANCE.DEFAULT_STRENGTH }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; debugMode?: boolean; borderAvoidanceStrength?: number }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2209,6 +2228,9 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
+  
+  // Pre-compute corridor edges for border avoidance (Unity-portable)
+  const corridorEdges = useMemo(() => computeCorridorEdges(maze), [maze]);
 
   // Generate character positions for collision (all placed characters + map stations)
   const CHARACTER_COLLISION_RADIUS = 0.1;
