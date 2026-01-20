@@ -2110,69 +2110,6 @@ const DebugPathCellMarkers = ({ maze }: { maze: Maze }) => {
     });
     return cells;
   }, [maze, CELL_SIZE]);
-    
-    // Helper to check if a cell is a wall (out of bounds = wall)
-    const isWall = (gx: number, gy: number): boolean => {
-      if (gy < 0 || gy >= maze.grid.length) return true;
-      const row = maze.grid[gy];
-      if (gx < 0 || gx >= row.length) return true;
-      return row[gx].isWall;
-    };
-    
-    // Collect all path cells
-    maze.grid.forEach((row, y) => {
-      row.forEach((cell, x) => {
-        if (!cell.isWall) {
-          cells.push({
-            x: (x + 0.5) * CELL_SIZE,
-            z: (y + 0.5) * CELL_SIZE,
-            gridX: x,
-            gridY: y,
-          });
-        }
-      });
-    });
-    
-    // Connect path cell centers, but ONLY along corridor edges (adjacent to wall)
-    maze.grid.forEach((row, y) => {
-      row.forEach((cell, x) => {
-        if (cell.isWall) return;
-        
-        const cx = (x + 0.5) * CELL_SIZE;
-        const cz = (y + 0.5) * CELL_SIZE;
-        
-        // Check RIGHT neighbor - draw line if there's a wall above OR below this horizontal segment
-        if (!isWall(x + 1, y)) {
-          const hasWallAbove = isWall(x, y - 1) || isWall(x + 1, y - 1);
-          const hasWallBelow = isWall(x, y + 1) || isWall(x + 1, y + 1);
-          if (hasWallAbove || hasWallBelow) {
-            edges.push({
-              x1: cx,
-              z1: cz,
-              x2: (x + 1.5) * CELL_SIZE,
-              z2: cz,
-            });
-          }
-        }
-        
-        // Check DOWN neighbor - draw line if there's a wall to LEFT OR RIGHT of this vertical segment
-        if (!isWall(x, y + 1)) {
-          const hasWallLeft = isWall(x - 1, y) || isWall(x - 1, y + 1);
-          const hasWallRight = isWall(x + 1, y) || isWall(x + 1, y + 1);
-          if (hasWallLeft || hasWallRight) {
-            edges.push({
-              x1: cx,
-              z1: cz,
-              x2: cx,
-              z2: (y + 1.5) * CELL_SIZE,
-            });
-          }
-        }
-      });
-    });
-    
-    return { pathCells: cells, boundaryEdges: edges };
-  }, [maze, CELL_SIZE]);
   
   // Create line geometry for boundary edges
   const linePositions = useMemo(() => {
