@@ -2084,33 +2084,98 @@ const SkyBackground = () => {
   );
 };
 
-// Debug visualization: dots at center of each path cell (non-wall cells)
+// Debug visualization: dots at center of each path cell + lines connecting adjacent path cells
 const DebugPathCellMarkers = ({ maze }: { maze: Maze }) => {
   const CELL_SIZE = GameConfig.CELL_SIZE;
   
-  const pathCells = useMemo(() => {
-    const cells: { x: number; z: number }[] = [];
+  const { pathCells, connections } = useMemo(() => {
+    const cells: { x: number; z: number; gridX: number; gridY: number }[] = [];
+    const edges: { x1: number; z1: number; x2: number; z2: number }[] = [];
+    
+    // First pass: collect all path cells
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
         if (!cell.isWall) {
           cells.push({
             x: (x + 0.5) * CELL_SIZE,
             z: (y + 0.5) * CELL_SIZE,
+            gridX: x,
+            gridY: y,
           });
         }
       });
     });
-    return cells;
+    
+    // Second pass: find connections (only right and down to avoid duplicates)
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell.isWall) return;
+        
+        const cx = (x + 0.5) * CELL_SIZE;
+        const cz = (y + 0.5) * CELL_SIZE;
+        
+        // Check right neighbor
+        if (x + 1 < row.length && !row[x + 1].isWall) {
+          edges.push({
+            x1: cx,
+            z1: cz,
+            x2: (x + 1.5) * CELL_SIZE,
+            z2: cz,
+          });
+        }
+        
+        // Check down neighbor
+        if (y + 1 < maze.grid.length) {
+          const downRow = maze.grid[y + 1];
+          if (x < downRow.length && !downRow[x].isWall) {
+            edges.push({
+              x1: cx,
+              z1: cz,
+              x2: cx,
+              z2: (y + 1.5) * CELL_SIZE,
+            });
+          }
+        }
+      });
+    });
+    
+    return { pathCells: cells, connections: edges };
   }, [maze, CELL_SIZE]);
+  
+  // Create line geometry for connections
+  const linePositions = useMemo(() => {
+    const positions: number[] = [];
+    connections.forEach(edge => {
+      positions.push(edge.x1, 0.03, edge.z1);
+      positions.push(edge.x2, 0.03, edge.z2);
+    });
+    return new Float32Array(positions);
+  }, [connections]);
   
   return (
     <group>
+      {/* Dots at cell centers */}
       {pathCells.map((cell, i) => (
         <mesh key={i} position={[cell.x, 0.02, cell.z]}>
           <sphereGeometry args={[0.05, 8, 8]} />
           <meshBasicMaterial color="#00ff00" />
         </mesh>
       ))}
+      
+      {/* Lines connecting adjacent path cells */}
+      {connections.length > 0 && (
+        <lineSegments>
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              count={linePositions.length / 3}
+              array={linePositions}
+              itemSize={3}
+            />
+          </bufferGeometry>
+          <lineBasicMaterial color="#00ff00" linewidth={2} />
+        </lineSegments>
+      )}
     </group>
   );
 };
