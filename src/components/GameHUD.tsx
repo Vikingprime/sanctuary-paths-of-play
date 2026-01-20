@@ -86,6 +86,9 @@ interface GameHUDProps {
   // Mobile controls toggle (WASD only mode)
   mobileControlsEnabled?: boolean;
   onToggleMobileControls?: () => void;
+  // Border avoidance (path assist)
+  borderAvoidanceStrength?: number;
+  onBorderAvoidanceStrengthChange?: (value: number) => void;
 }
 
 export const GameHUD = ({
@@ -139,6 +142,8 @@ export const GameHUD = ({
   onSensitivityChange,
   mobileControlsEnabled = true,
   onToggleMobileControls,
+  borderAvoidanceStrength = 0.5,
+  onBorderAvoidanceStrengthChange,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -633,6 +638,30 @@ export const GameHUD = ({
                       ...sensitivityConfig,
                       maxDragPixels: parseInt(e.target.value)
                     })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Border Avoidance Tuning */}
+          {onBorderAvoidanceStrengthChange && (
+            <div className="mt-2 pt-2 border-t border-gray-600">
+              <div className="text-[10px] text-gray-400 mb-1">--- Border Avoidance ---</div>
+              <div className="space-y-2">
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Strength:</span>
+                    <span className="text-cyan-400">{borderAvoidanceStrength.toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="2.0"
+                    step="0.05"
+                    value={borderAvoidanceStrength}
+                    onChange={(e) => onBorderAvoidanceStrengthChange(parseFloat(e.target.value))}
                     className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
                   />
                 </div>

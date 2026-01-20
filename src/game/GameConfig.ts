@@ -28,6 +28,12 @@ export const GameConfig = {
   // Cell size in world units
   CELL_SIZE: 1.0,
   WALL_HEIGHT: 3.0,
+  
+  // Border avoidance - pushes animal away from corridor edges
+  BORDER_AVOIDANCE: {
+    TRIGGER_DISTANCE: 0.5,  // Half cell distance from edge
+    DEFAULT_STRENGTH: 0.5,  // Multiplier for turn correction (adjustable in debug)
+  },
 } as const;
 
 /**
