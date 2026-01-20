@@ -222,27 +222,51 @@ export const MazeGame3D = ({
   const animationFrameRef = useRef<number>();
 
   // Preview countdown
+  // Preview countdown - use ref to track interval for clean cleanup
+  const previewTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
   useEffect(() => {
+    // Clear any existing timer first
+    if (previewTimerRef.current) {
+      clearInterval(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+    
     if (!isPreviewing) return;
 
-    const timer = setInterval(() => {
+    previewTimerRef.current = setInterval(() => {
       setPreviewTimeLeft((prev) => {
         if (prev <= 1) {
+          if (previewTimerRef.current) {
+            clearInterval(previewTimerRef.current);
+            previewTimerRef.current = null;
+          }
           setIsPreviewing(false);
-          clearInterval(timer);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      if (previewTimerRef.current) {
+        clearInterval(previewTimerRef.current);
+        previewTimerRef.current = null;
+      }
+    };
   }, [isPreviewing]);
 
   // Game timer (paused during dialogue) - precise timing with 100ms updates
   const dialoguePauseStartRef = useRef<number | null>(null);
+  const gameTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   useEffect(() => {
+    // Clear any existing timer first
+    if (gameTimerRef.current) {
+      clearInterval(gameTimerRef.current);
+      gameTimerRef.current = null;
+    }
+    
     if (isPreviewing || gameOver) return;
     
     // Track when dialogue starts to pause timer
@@ -266,21 +290,29 @@ export const MazeGame3D = ({
     // In debug mode, don't count down time
     if (debugMode) return;
     
-    const timer = setInterval(() => {
+    gameTimerRef.current = setInterval(() => {
       const now = Date.now();
       const elapsed = (now - gameStartTimeRef.current! - pausedTimeRef.current) / 1000;
       const remaining = maze.timeLimit - elapsed;
       
       if (remaining <= 0) {
+        if (gameTimerRef.current) {
+          clearInterval(gameTimerRef.current);
+          gameTimerRef.current = null;
+        }
         setGameOver(true);
         setTimeLeft(0);
-        clearInterval(timer);
       } else {
         setTimeLeft(remaining);
       }
     }, 100); // Update every 100ms for precision
 
-    return () => clearInterval(timer);
+    return () => {
+      if (gameTimerRef.current) {
+        clearInterval(gameTimerRef.current);
+        gameTimerRef.current = null;
+      }
+    };
   }, [isPreviewing, gameOver, activeDialogue, maze.timeLimit, debugMode]);
 
   // Check if all required dialogues for a given dialogue are completed
@@ -437,13 +469,23 @@ export const MazeGame3D = ({
   }, [isPreviewing, showMiniMap]);
 
   // Map countdown timer (before viewing map)
+  const mapCountdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
   useEffect(() => {
+    if (mapCountdownTimerRef.current) {
+      clearInterval(mapCountdownTimerRef.current);
+      mapCountdownTimerRef.current = null;
+    }
+    
     if (mapCountdown === null || mapCountdown <= 0) return;
     
-    const timer = setInterval(() => {
+    mapCountdownTimerRef.current = setInterval(() => {
       setMapCountdown((prev) => {
         if (prev === null || prev <= 1) {
-          clearInterval(timer);
+          if (mapCountdownTimerRef.current) {
+            clearInterval(mapCountdownTimerRef.current);
+            mapCountdownTimerRef.current = null;
+          }
           // Start showing the map for 10 seconds
           setShowMiniMap(true);
           setMapViewTimeLeft(10);
@@ -453,17 +495,32 @@ export const MazeGame3D = ({
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      if (mapCountdownTimerRef.current) {
+        clearInterval(mapCountdownTimerRef.current);
+        mapCountdownTimerRef.current = null;
+      }
+    };
   }, [mapCountdown]);
 
   // Map view timer (auto-close after 10 seconds)
+  const mapViewTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
   useEffect(() => {
+    if (mapViewTimerRef.current) {
+      clearInterval(mapViewTimerRef.current);
+      mapViewTimerRef.current = null;
+    }
+    
     if (mapViewTimeLeft === null || mapViewTimeLeft <= 0) return;
     
-    const timer = setInterval(() => {
+    mapViewTimerRef.current = setInterval(() => {
       setMapViewTimeLeft((prev) => {
         if (prev === null || prev <= 1) {
-          clearInterval(timer);
+          if (mapViewTimerRef.current) {
+            clearInterval(mapViewTimerRef.current);
+            mapViewTimerRef.current = null;
+          }
           setShowMiniMap(false);
           setMapStationAvailable(false);
           return null;
@@ -472,7 +529,12 @@ export const MazeGame3D = ({
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      if (mapViewTimerRef.current) {
+        clearInterval(mapViewTimerRef.current);
+        mapViewTimerRef.current = null;
+      }
+    };
   }, [mapViewTimeLeft]);
 
   // Proximity check for map stations (runs continuously)
@@ -726,7 +788,11 @@ export const MazeGame3D = ({
       <MazeIntroSequence
         maze={maze}
         introDialogues={maze.introDialogues}
-        onComplete={() => setIsShowingIntro(false)}
+        onComplete={() => {
+          setIsShowingIntro(false);
+          // Skip the preview since intro sequence already showed a preview
+          setIsPreviewing(false);
+        }}
         isMuted={isMuted}
       />
     );
