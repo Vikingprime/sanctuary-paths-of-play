@@ -31,8 +31,8 @@ export const GameConfig = {
   
   // Border avoidance - pushes animal away from corridor edges
   BORDER_AVOIDANCE: {
-    TRIGGER_DISTANCE: 0.5,  // Half cell distance from edge
-    DEFAULT_STRENGTH: 0.5,  // Multiplier for turn correction (adjustable in debug)
+    TRIGGER_DISTANCE: 0.5,  // Half cell distance from edge  
+    DEFAULT_STRENGTH: 5.0,  // Base multiplier for turn correction (slider range: 0-10)
   },
 } as const;
 
