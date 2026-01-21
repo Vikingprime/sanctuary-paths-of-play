@@ -1107,7 +1107,8 @@ const RefBasedPlayer = ({
   const positionInitialized = useRef(false);
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   const smoothBankAngle = useRef(0); // For banking/leaning during turns
-  const smoothAvoidance = useRef(0); // Smoothed border avoidance rotation for gradual turns
+  const smoothAvoidance = useRef(0); // Smoothed border avoidance rotation rate for gradual turns
+  const accumulatedAvoidance = useRef(0); // Persistent accumulated avoidance angle offset
   
   // Mobile steering no longer uses these (yaw rate system instead)
   
@@ -1268,16 +1269,16 @@ const RefBasedPlayer = ({
           };
           debugVectorData.playerRotation = baseRotation;
           
-          // Calculate avoidance offset to ADD to base rotation
-          let avoidanceOffset = 0;
-          
+          // Calculate avoidance and ACCUMULATE it persistently
           if (corridorEdges.length > 0 && borderAvoidanceStrength > 0) {
             const headOffset = 0.3;
-            const headX = playerStateRef.current.x + Math.sin(baseRotation) * headOffset;
-            const headZ = playerStateRef.current.y - Math.cos(baseRotation) * headOffset;
+            // Use current accumulated rotation for head position calculation
+            const currentRotation = baseRotation + accumulatedAvoidance.current;
+            const headX = playerStateRef.current.x + Math.sin(currentRotation) * headOffset;
+            const headZ = playerStateRef.current.y - Math.cos(currentRotation) * headOffset;
             
             const avoidance = calculateBorderAvoidance(
-              headX, headZ, baseRotation, actualMoveSpeed,
+              headX, headZ, currentRotation, actualMoveSpeed,
               corridorEdges, { triggerDistance: GameConfig.BORDER_AVOIDANCE.TRIGGER_DISTANCE, strength: borderAvoidanceStrength }
             );
             
@@ -1289,18 +1290,26 @@ const RefBasedPlayer = ({
               distanceToEdge: avoidance.debugInfo.distance,
             };
             
-            // Smooth the avoidance rotation to prevent jerky turns
+            // Smooth the avoidance rotation RATE to prevent jerky turns
             const targetAvoidance = avoidance.rotationAdjustment;
             const avoidanceLerpSpeed = 8;
             smoothAvoidance.current = smoothAvoidance.current + (targetAvoidance - smoothAvoidance.current) * Math.min(1, avoidanceLerpSpeed * clampedDelta);
-            avoidanceOffset = smoothAvoidance.current * clampedDelta;
+            
+            // ACCUMULATE the avoidance into persistent offset
+            accumulatedAvoidance.current += smoothAvoidance.current * clampedDelta;
           } else {
-            smoothAvoidance.current = smoothAvoidance.current * 0.9; // Decay smoothly
+            // Decay both the rate and accumulated offset when not near walls
+            smoothAvoidance.current *= 0.9;
+            accumulatedAvoidance.current *= 0.95; // Slowly return to joystick direction
             debugVectorData.avoidanceVector = { x: 0, z: 0, magnitude: 0, distanceToEdge: 999 };
           }
           
-          // Apply combined rotation: base joystick direction + avoidance offset
-          const combinedRotation = baseRotation + avoidanceOffset;
+          // Clamp accumulated avoidance to prevent extreme rotation offsets
+          const MAX_ACCUMULATED = Math.PI / 3; // Max 60 degrees offset
+          accumulatedAvoidance.current = Math.max(-MAX_ACCUMULATED, Math.min(MAX_ACCUMULATED, accumulatedAvoidance.current));
+          
+          // Apply combined rotation: base joystick direction + ACCUMULATED avoidance
+          const combinedRotation = baseRotation + accumulatedAvoidance.current;
           
           // Set player rotation with avoidance included
           playerStateRef.current = {
