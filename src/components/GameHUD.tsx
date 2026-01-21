@@ -444,18 +444,19 @@ export const GameHUD = ({
                 {performanceInfo.movementVector && performanceInfo.movementVector.magnitude > 0.01 && (() => {
                   const scale = 10; // pixels per unit
                   const rot = performanceInfo.playerRotation ?? 0;
-                  // Transform world vector to camera-relative: rotate by -playerRotation
-                  // so that the player's forward direction points UP in the SVG
-                  const cosR = Math.cos(-rot);
-                  const sinR = Math.sin(-rot);
                   const worldX = performanceInfo.movementVector.x;
                   const worldZ = performanceInfo.movementVector.z;
-                  // Rotate world coords to local coords (player forward = +Y in SVG = -Z in world)
-                  const localX = worldX * cosR - worldZ * sinR;
-                  const localZ = worldX * sinR + worldZ * cosR;
-                  // SVG: x = right, y = down. We want forward = up, so flip Y
-                  const mx = localX * scale;
-                  const mz = -localZ * scale;
+                  // Transform world vector to local (player-relative):
+                  // In game: forward = (sin(rot), -cos(rot))
+                  // We want forward to show as "up" in SVG (0, -1)
+                  // Local X = right of player, Local Z = forward of player
+                  // localRight = (cos(rot), sin(rot)), localForward = (sin(rot), -cos(rot))
+                  // Project world vector onto local axes:
+                  const localRight = worldX * Math.cos(rot) + worldZ * Math.sin(rot);
+                  const localForward = worldX * Math.sin(rot) - worldZ * Math.cos(rot);
+                  // SVG: x = right, y = down. Forward = up means negative Y
+                  const mx = localRight * scale;
+                  const mz = -localForward * scale; // negative so forward = up
                   const len = Math.sqrt(mx * mx + mz * mz);
                   const maxLen = 30;
                   const clampedLen = Math.min(len, maxLen);
@@ -480,14 +481,13 @@ export const GameHUD = ({
                 {performanceInfo.avoidanceVector && performanceInfo.avoidanceVector.magnitude > 0.01 && (() => {
                   const scale = 3; // pixels per unit (smaller since magnitude can be large)
                   const rot = performanceInfo.playerRotation ?? 0;
-                  const cosR = Math.cos(-rot);
-                  const sinR = Math.sin(-rot);
                   const worldX = performanceInfo.avoidanceVector.x;
                   const worldZ = performanceInfo.avoidanceVector.z;
-                  const localX = worldX * cosR - worldZ * sinR;
-                  const localZ = worldX * sinR + worldZ * cosR;
-                  const ax = localX * scale;
-                  const az = -localZ * scale;
+                  // Same transform as movement vector
+                  const localRight = worldX * Math.cos(rot) + worldZ * Math.sin(rot);
+                  const localForward = worldX * Math.sin(rot) - worldZ * Math.cos(rot);
+                  const ax = localRight * scale;
+                  const az = -localForward * scale;
                   const len = Math.sqrt(ax * ax + az * az);
                   const maxLen = 30;
                   const clampedLen = Math.min(len, maxLen);
