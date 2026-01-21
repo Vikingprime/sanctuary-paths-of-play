@@ -1093,10 +1093,6 @@ const RefBasedPlayer = ({
   const isTurningRef = useRef(false); // True when turning in place (no forward movement)
   const moveSpeedRef = useRef(0); // Current movement speed 0-1 (for walk vs gallop)
   
-  // Track turn direction commitment to prevent flip-flopping at joyY=0 boundary
-  const lastJoyYSignRef = useRef<number>(0); // -1, 0, or 1
-  const committedTurnDirRef = useRef<number>(0); // -1 (right) or 1 (left), 0 = none
-  
   // Mobile steering no longer uses these (yaw rate system instead)
   
   // Helper: normalize angle to [-PI, PI] for shortest-path calculations
@@ -1200,46 +1196,30 @@ const RefBasedPlayer = ({
           const targetMoveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
           const moveSpeed = Math.abs(joyY);
           
-          // GRADUAL TURNING with turn direction commitment
+          // GRADUAL TURNING with orbit-based direction
           const currentRotation = playerStateRef.current.rotation;
-          
-          // Detect joyY sign and track boundary crossings
-          const currentJoyYSign = joyY > 0.05 ? 1 : (joyY < -0.05 ? -1 : 0);
-          const prevJoyYSign = lastJoyYSignRef.current;
           
           // Calculate the raw shortest angle diff
           let angleDiff = shortestAngleDiff(currentRotation, targetMoveAngle);
           
-          // Check if we crossed the joyY=0 boundary while dragging
-          // This happens when sign changes from positive to negative or vice versa
-          const crossedBoundary = prevJoyYSign !== 0 && currentJoyYSign !== 0 && prevJoyYSign !== currentJoyYSign;
-          
-          // If we were already turning and crossed the boundary, keep the same turn direction
-          if (crossedBoundary && committedTurnDirRef.current !== 0) {
-            // Force the turn to continue in the committed direction
-            // The angleDiff magnitude is roughly 180° at boundary crossing
-            // We want to turn 180° in the committed direction, not the shortest path
-            if (Math.sign(angleDiff) !== committedTurnDirRef.current) {
-              // Flip the direction - take the long way around
+          // KEY FIX: When orbiting (joyX significant), the turn direction should 
+          // follow the orbit direction, not the shortest path to target.
+          // joyX > 0 = camera orbits left (counter-clockwise) = animal should turn LEFT (positive angleDiff)
+          // joyX < 0 = camera orbits right (clockwise) = animal should turn RIGHT (negative angleDiff)
+          const orbitThreshold = 0.3; // Only apply when significantly orbiting
+          if (Math.abs(joyX) > orbitThreshold && Math.abs(angleDiff) > 0.1) {
+            const orbitDirection = joyX > 0 ? 1 : -1; // 1 = left, -1 = right
+            
+            // If shortest path goes opposite to orbit direction, take the long way
+            if (Math.sign(angleDiff) !== orbitDirection) {
+              // Flip to go the long way around, matching orbit direction
               angleDiff = angleDiff > 0 ? angleDiff - Math.PI * 2 : angleDiff + Math.PI * 2;
             }
           }
           
-          // Commit to a turn direction when we start turning significantly
-          if (Math.abs(angleDiff) > 0.3) {
-            committedTurnDirRef.current = Math.sign(angleDiff);
-          } else if (Math.abs(angleDiff) < 0.1) {
-            // Clear commitment when we're aligned
-            committedTurnDirRef.current = 0;
-          }
-          
-          // Update joyY sign tracker
-          if (currentJoyYSign !== 0) {
-            lastJoyYSignRef.current = currentJoyYSign;
-          }
-          
           // DEBUG LOGGING
-          console.log(`[TURN] joy:(${joyX.toFixed(2)},${joyY.toFixed(2)}) cam:${(cameraYaw * 180 / Math.PI).toFixed(1)}° target:${(targetMoveAngle * 180 / Math.PI).toFixed(1)}° current:${(currentRotation * 180 / Math.PI).toFixed(1)}° diff:${(angleDiff * 180 / Math.PI).toFixed(1)}° turn:${angleDiff > 0 ? 'LEFT' : 'RIGHT'} committed:${committedTurnDirRef.current > 0 ? 'L' : committedTurnDirRef.current < 0 ? 'R' : '-'}`);
+          const orbitDir = Math.abs(joyX) > orbitThreshold ? (joyX > 0 ? 'L' : 'R') : '-';
+          console.log(`[TURN] joy:(${joyX.toFixed(2)},${joyY.toFixed(2)}) cam:${(cameraYaw * 180 / Math.PI).toFixed(1)}° target:${(targetMoveAngle * 180 / Math.PI).toFixed(1)}° current:${(currentRotation * 180 / Math.PI).toFixed(1)}° diff:${(angleDiff * 180 / Math.PI).toFixed(1)}° turn:${angleDiff > 0 ? 'LEFT' : 'RIGHT'} orbit:${orbitDir}`);
           
           // Turn speed in radians per second (3.0 is the standard turn rate)
           const TURN_SPEED = 3.0;
