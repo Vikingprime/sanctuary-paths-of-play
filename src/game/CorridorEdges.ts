@@ -320,7 +320,7 @@ export function calculateBorderAvoidance(
   // 3. Base strength setting
   // 4. BASE_MULTIPLIER to make the effect impactful
   // 5. approachFactor - how much we're moving toward the wall
-  const BASE_MULTIPLIER = 3.0; // Makes strength=1.0 feel reasonable, strength=10 very strong
+  const BASE_MULTIPLIER = 1.0; // Reduced from 3.0 to prevent oscillation
   const proximityFactor = closeness * closeness;
   const adjustment = turnDirection * proximityFactor * moveSpeed * config.strength * BASE_MULTIPLIER * approachFactor;
   
