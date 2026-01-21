@@ -1202,66 +1202,25 @@ const RefBasedPlayer = ({
           const targetMoveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
           const moveSpeed = Math.abs(joyY);
           
-          // GRADUAL TURNING with orbit-based direction + committed fallback
+          // GRADUAL-ONLY TURNING: Animal can only rotate at a fixed max speed,
+          // regardless of how drastically the joystick is moved. This prevents
+          // any instant direction changes.
           const currentRotation = playerStateRef.current.rotation;
           
-          // Calculate the raw shortest angle diff
-          let angleDiff = shortestAngleDiff(currentRotation, targetMoveAngle);
-          
-          // DRAG DIRECTION DETECTION: Track joystick angle changes to detect
-          // counterclockwise vs clockwise drag, independent of joystick position.
-          // This is more reliable than using joyX sign, which fails at bottom of joystick.
-          const joystickAngle = Math.atan2(joyX, joyY); // Angle of joystick from center
-          const joystickMagnitude = Math.sqrt(joyX * joyX + joyY * joyY);
-          
-          let dragDirection = 0; // -1 = clockwise, 1 = counterclockwise, 0 = no drag
-          if (prevJoystickAngleRef.current !== null && joystickMagnitude > 0.2) {
-            // Calculate angular velocity of joystick
-            let angleDelta = joystickAngle - prevJoystickAngleRef.current;
-            // Normalize to [-PI, PI]
-            while (angleDelta > Math.PI) angleDelta -= Math.PI * 2;
-            while (angleDelta < -Math.PI) angleDelta += Math.PI * 2;
-            
-            // Only consider significant angular changes
-            if (Math.abs(angleDelta) > 0.02) {
-              dragDirection = angleDelta > 0 ? 1 : -1; // positive = counterclockwise
-            }
-          }
-          prevJoystickAngleRef.current = joystickMagnitude > 0.1 ? joystickAngle : null;
-          
-          // Update committed direction based on drag
-          if (dragDirection !== 0) {
-            committedTurnDirRef.current = dragDirection;
-          }
-          
-          // Apply committed turn direction when we have one
-          if (committedTurnDirRef.current !== 0 && Math.abs(angleDiff) > 0.1) {
-            // If shortest path goes opposite to drag direction, take the long way
-            if (Math.sign(angleDiff) !== committedTurnDirRef.current) {
-              angleDiff = angleDiff > 0 ? angleDiff - Math.PI * 2 : angleDiff + Math.PI * 2;
-            }
-          }
-          
-          // Clear commitment when aligned with target
-          if (Math.abs(angleDiff) < 0.15) {
-            committedTurnDirRef.current = 0;
-          }
-          
-          // DEBUG LOGGING
-          const dragDir = dragDirection > 0 ? 'CCW' : dragDirection < 0 ? 'CW' : '-';
-          const committed = committedTurnDirRef.current > 0 ? 'L' : committedTurnDirRef.current < 0 ? 'R' : '-';
-          console.log(`[TURN] joy:(${joyX.toFixed(2)},${joyY.toFixed(2)}) jAngle:${(joystickAngle * 180 / Math.PI).toFixed(0)}° drag:${dragDir} diff:${(angleDiff * 180 / Math.PI).toFixed(1)}° turn:${angleDiff > 0 ? 'LEFT' : 'RIGHT'} commit:${committed}`);
-          
-          // Turn speed in radians per second (3.0 is the standard turn rate)
+          // Turn speed in radians per second (3.0 rad/s ≈ 172°/s, so full 180° turn takes ~1s)
           const TURN_SPEED = 3.0;
           const maxTurn = TURN_SPEED * clampedDelta;
           
-          // Clamp the turn to max speed, ensuring we turn the committed direction
+          // Calculate shortest path to target (for determining turn direction)
+          const angleDiff = shortestAngleDiff(currentRotation, targetMoveAngle);
+          
+          // Clamp the rotation change to maxTurn - this is the key to gradual-only turns
           let newRotation: number;
           if (Math.abs(angleDiff) <= maxTurn) {
-            newRotation = targetMoveAngle; // Close enough, snap to target
+            // Close enough, snap to target
+            newRotation = targetMoveAngle;
           } else {
-            // Rotate toward target at max speed using sign of angleDiff
+            // Rotate toward target at max speed (always gradual)
             newRotation = currentRotation + Math.sign(angleDiff) * maxTurn;
           }
           
