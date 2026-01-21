@@ -1107,6 +1107,7 @@ const RefBasedPlayer = ({
   const positionInitialized = useRef(false);
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   const smoothBankAngle = useRef(0); // For banking/leaning during turns
+  const smoothAvoidance = useRef(0); // Smoothed border avoidance rotation for gradual turns
   
   // Mobile steering no longer uses these (yaw rate system instead)
   
@@ -1194,14 +1195,20 @@ const RefBasedPlayer = ({
             distanceToEdge: avoidance.debugInfo.distance,
           };
           
-          if (avoidance.rotationAdjustment !== 0) {
+          // Smooth the avoidance rotation to prevent jerky turns
+          const targetAvoidance = avoidance.rotationAdjustment;
+          const avoidanceLerpSpeed = 8; // How fast to ramp up/down the avoidance
+          smoothAvoidance.current = smoothAvoidance.current + (targetAvoidance - smoothAvoidance.current) * Math.min(1, avoidanceLerpSpeed * clampedDelta);
+          
+          if (Math.abs(smoothAvoidance.current) > 0.001) {
             newState = {
               ...newState,
-              rotation: newState.rotation + avoidance.rotationAdjustment * clampedDelta
+              rotation: newState.rotation + smoothAvoidance.current * clampedDelta
             };
           }
         } else {
           // Clear avoidance when not active
+          smoothAvoidance.current = smoothAvoidance.current * 0.9; // Decay smoothly
           debugVectorData.avoidanceVector = { x: 0, z: 0, magnitude: 0, distanceToEdge: 999 };
         }
         
@@ -1289,13 +1296,19 @@ const RefBasedPlayer = ({
               distanceToEdge: avoidance.debugInfo.distance,
             };
             
-            if (avoidance.rotationAdjustment !== 0) {
+            // Smooth the avoidance rotation to prevent jerky turns
+            const targetAvoidance = avoidance.rotationAdjustment;
+            const avoidanceLerpSpeed = 8; // How fast to ramp up/down the avoidance
+            smoothAvoidance.current = smoothAvoidance.current + (targetAvoidance - smoothAvoidance.current) * Math.min(1, avoidanceLerpSpeed * clampedDelta);
+            
+            if (Math.abs(smoothAvoidance.current) > 0.001) {
               newState = {
                 ...newState,
-                rotation: newState.rotation + avoidance.rotationAdjustment * clampedDelta
+                rotation: newState.rotation + smoothAvoidance.current * clampedDelta
               };
             }
           } else {
+            smoothAvoidance.current = smoothAvoidance.current * 0.9; // Decay smoothly
             debugVectorData.avoidanceVector = { x: 0, z: 0, magnitude: 0, distanceToEdge: 999 };
           }
           
