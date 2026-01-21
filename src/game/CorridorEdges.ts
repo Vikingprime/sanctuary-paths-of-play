@@ -257,10 +257,23 @@ export function calculateBorderAvoidance(
   const moveZ = -Math.cos(rotation);
   
   // Check if we're moving towards the edge (dot product with normal)
-  // If moving away from edge, no correction needed
+  // Normal points INTO corridor (away from wall)
+  // If dot(movement, normal) > 0: moving with normal = away from wall (toward center) - skip
+  // If dot(movement, normal) < 0: moving against normal = toward wall - apply avoidance
   const dotMovementWithNormal = moveX * proximity.pushX + moveZ * proximity.pushZ;
-  if (dotMovementWithNormal >= 0) {
-    // Moving towards center (away from edge), no correction
+  
+  // REMOVED: The early return was preventing avoidance when approaching walls head-on
+  // because the nearest edge might be a side wall with a perpendicular normal.
+  // Instead, we should ALWAYS apply avoidance when close to a wall, just adjust the strength
+  // based on how much we're moving toward it.
+  
+  // Scale avoidance by how much we're moving toward the wall (0 = parallel, 1 = head-on)
+  // Only skip if we're clearly moving AWAY from the wall
+  const movingTowardWall = dotMovementWithNormal < 0;
+  const approachFactor = movingTowardWall ? Math.min(1, Math.abs(dotMovementWithNormal)) : 0.3; // Still apply 30% even when moving away
+  
+  if (approachFactor < 0.01) {
+    // Essentially stationary or moving perfectly away - no correction
     return { 
       rotationAdjustment: 0, 
       debugInfo: { 
@@ -269,7 +282,7 @@ export function calculateBorderAvoidance(
         closeness,
         pushVectorX: proximity.pushX,
         pushVectorZ: proximity.pushZ,
-        pushMagnitude: 0, // Not active because moving away
+        pushMagnitude: 0,
         isActive: false,
       } 
     };
@@ -306,12 +319,13 @@ export function calculateBorderAvoidance(
   // 2. Speed of movement
   // 3. Base strength setting
   // 4. BASE_MULTIPLIER to make the effect impactful
+  // 5. approachFactor - how much we're moving toward the wall
   const BASE_MULTIPLIER = 3.0; // Makes strength=1.0 feel reasonable, strength=10 very strong
   const proximityFactor = closeness * closeness;
-  const adjustment = turnDirection * proximityFactor * moveSpeed * config.strength * BASE_MULTIPLIER;
+  const adjustment = turnDirection * proximityFactor * moveSpeed * config.strength * BASE_MULTIPLIER * approachFactor;
   
   // Calculate the push magnitude for debug visualization
-  const pushMagnitude = proximityFactor * moveSpeed * config.strength * BASE_MULTIPLIER;
+  const pushMagnitude = proximityFactor * moveSpeed * config.strength * BASE_MULTIPLIER * approachFactor;
   
   return {
     rotationAdjustment: adjustment,
