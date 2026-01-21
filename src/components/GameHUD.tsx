@@ -653,13 +653,13 @@ export const GameHUD = ({
                 <div>
                   <div className="flex justify-between text-[10px]">
                     <span>Strength:</span>
-                    <span className="text-cyan-400">{borderAvoidanceStrength.toFixed(2)}</span>
+                    <span className="text-cyan-400">{borderAvoidanceStrength.toFixed(1)}</span>
                   </div>
                   <input
                     type="range"
                     min="0"
-                    max="2.0"
-                    step="0.05"
+                    max="10"
+                    step="0.5"
                     value={borderAvoidanceStrength}
                     onChange={(e) => onBorderAvoidanceStrengthChange(parseFloat(e.target.value))}
                     className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
