@@ -1065,6 +1065,8 @@ const RefBasedPlayer = ({
   characters,
   showCollisionDebug = true,
   animalRimLight = 0.5,
+  corridorEdges = [],
+  borderAvoidanceStrength = GameConfig.BORDER_AVOIDANCE.DEFAULT_STRENGTH,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1084,6 +1086,8 @@ const RefBasedPlayer = ({
   characters: CharacterPosition[];
   showCollisionDebug?: boolean;
   animalRimLight?: number;
+  corridorEdges?: CorridorEdge[];
+  borderAvoidanceStrength?: number;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
@@ -1146,7 +1150,28 @@ const RefBasedPlayer = ({
         
         // Calculate movement with clamped delta
         const prev = playerStateRef.current;
-        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+        let newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+        
+        // Apply border avoidance - push away from corridor edges
+        if (corridorEdges.length > 0 && borderAvoidanceStrength > 0) {
+          const headOffset = 0.3; // Distance from center to head
+          const headX = newState.x + Math.sin(newState.rotation) * headOffset;
+          const headZ = newState.y - Math.cos(newState.rotation) * headOffset;
+          const movementSpeed = input.forward ? GameConfig.BASE_MOVE_SPEED * (speedBoostActive ? 1.8 : 1) : 0;
+          
+          const avoidance = calculateBorderAvoidance(
+            headX, headZ, newState.rotation, movementSpeed,
+            corridorEdges, { triggerDistance: GameConfig.BORDER_AVOIDANCE.TRIGGER_DISTANCE, strength: borderAvoidanceStrength }
+          );
+          
+          if (avoidance.rotationAdjustment !== 0) {
+            newState = {
+              ...newState,
+              rotation: newState.rotation + avoidance.rotationAdjustment * clampedDelta
+            };
+          }
+        }
+        
         playerStateRef.current = newState;
       } else if (mobileActive) {
         // MOBILE JOYSTICK MODE: Summer Afternoon style camera-relative movement
@@ -1198,7 +1223,28 @@ const RefBasedPlayer = ({
           
           // Calculate movement
           const prev = playerStateRef.current;
-          const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+          let newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+          
+          // Apply border avoidance for mobile movement too
+          if (corridorEdges.length > 0 && borderAvoidanceStrength > 0) {
+            const headOffset = 0.3;
+            const headX = newState.x + Math.sin(newState.rotation) * headOffset;
+            const headZ = newState.y - Math.cos(newState.rotation) * headOffset;
+            const movementSpeed = moveSpeed * GameConfig.BASE_MOVE_SPEED * (speedBoostActive ? 1.8 : 1);
+            
+            const avoidance = calculateBorderAvoidance(
+              headX, headZ, newState.rotation, movementSpeed,
+              corridorEdges, { triggerDistance: GameConfig.BORDER_AVOIDANCE.TRIGGER_DISTANCE, strength: borderAvoidanceStrength }
+            );
+            
+            if (avoidance.rotationAdjustment !== 0) {
+              newState = {
+                ...newState,
+                rotation: newState.rotation + avoidance.rotationAdjustment * clampedDelta
+              };
+            }
+          }
+          
           playerStateRef.current = newState;
           
           isMovingRef.current = true;
@@ -2372,6 +2418,8 @@ return (
         characters={characterPositions}
         showCollisionDebug={showCollisionDebug}
         animalRimLight={animalRimLight}
+        corridorEdges={corridorEdges}
+        borderAvoidanceStrength={borderAvoidanceStrength}
       />
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
