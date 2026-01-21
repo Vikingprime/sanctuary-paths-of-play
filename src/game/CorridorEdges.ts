@@ -276,28 +276,26 @@ export function calculateBorderAvoidance(
   }
   
   // TURN DIRECTION LOGIC:
-  // The goal is to turn the animal TOWARDS the corridor center.
-  // The "normal" (pushX, pushZ) points from the edge towards the center.
-  // We use the cross product (2D: moveX * normalZ - moveZ * normalX) to determine
-  // which way to turn to align with the normal direction.
+  // The goal is to turn the animal AWAY from the wall (towards the corridor center).
+  // The "normal" (pushX, pushZ) points from the wall INTO the corridor.
+  // We use the cross product to determine which side the wall is, then turn the OPPOSITE way.
   //
   // Cross product in 2D: 
   //   move × normal = moveX * normalZ - moveZ * normalX
-  //   If positive → normal is to the LEFT of move → turn LEFT (negative rotation)
-  //   If negative → normal is to the RIGHT of move → turn RIGHT (positive rotation)
+  //   If positive → wall/normal is to the LEFT → turn RIGHT (away from wall) = negative rotation
+  //   If negative → wall/normal is to the RIGHT → turn LEFT (away from wall) = positive rotation
   
   const crossProduct = moveX * proximity.pushZ - moveZ * proximity.pushX;
   
-  // turnDirection: which way to rotate to steer toward the corridor center
+  // turnDirection: which way to rotate to steer AWAY from the wall
   // In Three.js: positive rotation = counter-clockwise (LEFT), negative = clockwise (RIGHT)
-  // Cross product determines which side the normal (corridor center) is relative to movement:
-  //   Positive cross → normal is to the LEFT → turn LEFT (positive rotation)
-  //   Negative cross → normal is to the RIGHT → turn RIGHT (negative rotation)
-  const turnDirection = crossProduct > 0 ? 1 : -1;
+  //   Positive cross → wall is to the LEFT → turn RIGHT (negative rotation)
+  //   Negative cross → wall is to the RIGHT → turn LEFT (positive rotation)
+  const turnDirection = crossProduct > 0 ? -1 : 1;
   
   // Calculate perpendicular to movement in the turn direction for debug visualization
-  // Left perpendicular (-moveZ, moveX) for positive turn (left)
-  // Right perpendicular (moveZ, -moveX) for negative turn (right)
+  // Right perpendicular (moveZ, -moveX) for negative turn (right, turnDirection = -1)
+  // Left perpendicular (-moveZ, moveX) for positive turn (left, turnDirection = 1)
   const bounceX = turnDirection > 0 ? -moveZ : moveZ;
   const bounceZ = turnDirection > 0 ? moveX : -moveX;
   
