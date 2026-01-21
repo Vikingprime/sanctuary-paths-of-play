@@ -1093,6 +1093,10 @@ const RefBasedPlayer = ({
   const isTurningRef = useRef(false); // True when turning in place (no forward movement)
   const moveSpeedRef = useRef(0); // Current movement speed 0-1 (for walk vs gallop)
   
+  // Track turn direction commitment to prevent flip-flopping at joyY=0 boundary
+  const lastJoyYSignRef = useRef<number>(0); // -1, 0, or 1
+  const committedTurnDirRef = useRef<number>(0); // -1 (right) or 1 (left), 0 = none
+  
   // Mobile steering no longer uses these (yaw rate system instead)
   
   // Helper: normalize angle to [-PI, PI] for shortest-path calculations
@@ -1181,40 +1185,67 @@ const RefBasedPlayer = ({
           while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
         }
         
-        // Calculate the joystick angle in screen space
-        // atan2(x, y) gives angle where up (0,1) = 0, right (1,0) = PI/2, etc.
-        const joystickAngle = Math.atan2(joyX, joyY);
-        
         // Movement is ALWAYS forward (toward or away from camera based on joystick Y)
         // joystickY > 0 = push away from camera, joystickY < 0 = pull toward camera
         const hasMovement = Math.abs(joyY) > 0.1;
         const hasRotation = Math.abs(joyX) > 0.1; // Camera is orbiting, which implies character turn
         
         if (hasMovement && cameraYawRef) {
-          // Calculate world movement direction based on camera yaw AND joystick angle
+          // Calculate world movement direction based on camera yaw
           const cameraYaw = cameraYawRef.current;
           
-          // The target angle combines camera direction with joystick direction
-          // When joystick is pushed forward (0°), face camera direction
-          // When joystick is pushed right (+90°), face 90° right of camera
-          // This makes the rotation follow the joystick smoothly
-          const targetMoveAngle = cameraYaw + joystickAngle;
+          // Movement direction: forward from camera's perspective
+          // joyY positive = move in direction camera faces (away)
+          // joyY negative = move toward camera (flip by PI)
+          const targetMoveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
           const moveSpeed = Math.abs(joyY);
           
-          // GRADUAL TURNING: Instead of snapping to target rotation, smoothly rotate
-          // This prevents the jerking when joystick moves from one side to another
+          // GRADUAL TURNING with turn direction commitment
           const currentRotation = playerStateRef.current.rotation;
-          // Use shortestAngleDiff for correct turn direction across all angle ranges
-          const angleDiff = shortestAngleDiff(currentRotation, targetMoveAngle);
+          
+          // Detect joyY sign and track boundary crossings
+          const currentJoyYSign = joyY > 0.05 ? 1 : (joyY < -0.05 ? -1 : 0);
+          const prevJoyYSign = lastJoyYSignRef.current;
+          
+          // Calculate the raw shortest angle diff
+          let angleDiff = shortestAngleDiff(currentRotation, targetMoveAngle);
+          
+          // Check if we crossed the joyY=0 boundary while dragging
+          // This happens when sign changes from positive to negative or vice versa
+          const crossedBoundary = prevJoyYSign !== 0 && currentJoyYSign !== 0 && prevJoyYSign !== currentJoyYSign;
+          
+          // If we were already turning and crossed the boundary, keep the same turn direction
+          if (crossedBoundary && committedTurnDirRef.current !== 0) {
+            // Force the turn to continue in the committed direction
+            // The angleDiff magnitude is roughly 180° at boundary crossing
+            // We want to turn 180° in the committed direction, not the shortest path
+            if (Math.sign(angleDiff) !== committedTurnDirRef.current) {
+              // Flip the direction - take the long way around
+              angleDiff = angleDiff > 0 ? angleDiff - Math.PI * 2 : angleDiff + Math.PI * 2;
+            }
+          }
+          
+          // Commit to a turn direction when we start turning significantly
+          if (Math.abs(angleDiff) > 0.3) {
+            committedTurnDirRef.current = Math.sign(angleDiff);
+          } else if (Math.abs(angleDiff) < 0.1) {
+            // Clear commitment when we're aligned
+            committedTurnDirRef.current = 0;
+          }
+          
+          // Update joyY sign tracker
+          if (currentJoyYSign !== 0) {
+            lastJoyYSignRef.current = currentJoyYSign;
+          }
           
           // DEBUG LOGGING
-          console.log(`[TURN] joy:(${joyX.toFixed(2)},${joyY.toFixed(2)}) joyAngle:${(joystickAngle * 180 / Math.PI).toFixed(1)}° cam:${(cameraYaw * 180 / Math.PI).toFixed(1)}° target:${(targetMoveAngle * 180 / Math.PI).toFixed(1)}° current:${(currentRotation * 180 / Math.PI).toFixed(1)}° diff:${(angleDiff * 180 / Math.PI).toFixed(1)}° turn:${angleDiff > 0 ? 'LEFT' : 'RIGHT'}`);
+          console.log(`[TURN] joy:(${joyX.toFixed(2)},${joyY.toFixed(2)}) cam:${(cameraYaw * 180 / Math.PI).toFixed(1)}° target:${(targetMoveAngle * 180 / Math.PI).toFixed(1)}° current:${(currentRotation * 180 / Math.PI).toFixed(1)}° diff:${(angleDiff * 180 / Math.PI).toFixed(1)}° turn:${angleDiff > 0 ? 'LEFT' : 'RIGHT'} committed:${committedTurnDirRef.current > 0 ? 'L' : committedTurnDirRef.current < 0 ? 'R' : '-'}`);
           
           // Turn speed in radians per second (3.0 is the standard turn rate)
           const TURN_SPEED = 3.0;
           const maxTurn = TURN_SPEED * clampedDelta;
           
-          // Clamp the turn to max speed, ensuring we turn the shortest direction
+          // Clamp the turn to max speed, ensuring we turn the committed direction
           let newRotation: number;
           if (Math.abs(angleDiff) <= maxTurn) {
             newRotation = targetMoveAngle; // Close enough, snap to target
