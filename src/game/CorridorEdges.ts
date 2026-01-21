@@ -270,27 +270,29 @@ export function calculateBorderAvoidance(
     };
   }
   
-  // Calculate the perpendicular (tangent) to movement direction
-  // This is what we'll turn towards - perpendicular to current movement, biased by the edge normal
-  // Perpendicular to (moveX, moveZ) is (-moveZ, moveX) or (moveZ, -moveX)
+  // TURN DIRECTION LOGIC:
+  // The goal is to turn the animal TOWARDS the corridor center.
+  // The "normal" (pushX, pushZ) points from the edge towards the center.
+  // We use the cross product (2D: moveX * normalZ - moveZ * normalX) to determine
+  // which way to turn to align with the normal direction.
+  //
+  // Cross product in 2D: 
+  //   move × normal = moveX * normalZ - moveZ * normalX
+  //   If positive → normal is to the LEFT of move → turn LEFT (negative rotation)
+  //   If negative → normal is to the RIGHT of move → turn RIGHT (positive rotation)
   
-  // Pick the perpendicular that points more towards the corridor center (aligns with normal)
-  const perpX1 = -moveZ;
-  const perpZ1 = moveX;
-  const perpX2 = moveZ;
-  const perpZ2 = -moveX;
+  const crossProduct = moveX * proximity.pushZ - moveZ * proximity.pushX;
   
-  // Dot with normal to see which perpendicular points towards center
-  const dot1 = perpX1 * proximity.pushX + perpZ1 * proximity.pushZ;
-  const dot2 = perpX2 * proximity.pushX + perpZ2 * proximity.pushZ;
+  // turnDirection: which way to rotate to face toward the center
+  // Negative cross → turn right (positive rotation)
+  // Positive cross → turn left (negative rotation)
+  const turnDirection = crossProduct < 0 ? 1 : -1;
   
-  // Use the perpendicular that aligns better with the push direction (towards center)
-  // perp1 = (-moveZ, moveX) → turning towards it requires positive rotation
-  // perp2 = (moveZ, -moveX) → turning towards it requires negative rotation
-  const usePerp1 = dot1 > dot2;
-  const bounceX = usePerp1 ? perpX1 : perpX2;
-  const bounceZ = usePerp1 ? perpZ1 : perpZ2;
-  const turnDirection = usePerp1 ? 1 : -1;
+  // Calculate perpendicular to movement in the turn direction for debug visualization
+  // perp1 = (-moveZ, moveX) = 90° counter-clockwise (left turn)
+  // perp2 = (moveZ, -moveX) = 90° clockwise (right turn)
+  const bounceX = turnDirection > 0 ? moveZ : -moveZ;
+  const bounceZ = turnDirection > 0 ? -moveX : moveX;
   
   // Strength proportional to:
   // 1. How close to edge (closeness^2 for smooth ramp-up)
