@@ -1095,11 +1095,29 @@ const RefBasedPlayer = ({
   
   // Mobile steering no longer uses these (yaw rate system instead)
   
-  // Helper: normalize angle to [-PI, PI]
+  // Helper: normalize angle to [-PI, PI] for shortest-path calculations
   const normalizeAngle = (angle: number): number => {
-    while (angle > Math.PI) angle -= Math.PI * 2;
-    while (angle < -Math.PI) angle += Math.PI * 2;
+    // Use modulo for efficiency and avoid infinite loops with extreme values
+    angle = angle % (Math.PI * 2);
+    if (angle > Math.PI) angle -= Math.PI * 2;
+    if (angle < -Math.PI) angle += Math.PI * 2;
     return angle;
+  };
+  
+  // Helper: calculate shortest angle difference between two angles (both can be any range)
+  // Returns value in [-PI, PI] representing the shortest turn direction
+  const shortestAngleDiff = (from: number, to: number): number => {
+    // Normalize both angles to 0-2PI first, then calculate difference
+    const normFrom = ((from % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const normTo = ((to % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    
+    let diff = normTo - normFrom;
+    
+    // Ensure we take the shortest path
+    if (diff > Math.PI) diff -= Math.PI * 2;
+    if (diff < -Math.PI) diff += Math.PI * 2;
+    
+    return diff;
   };
   
   // Helper: lerp between angles (handles wraparound)
@@ -1181,7 +1199,8 @@ const RefBasedPlayer = ({
           // GRADUAL TURNING: Instead of snapping to target rotation, smoothly rotate
           // This prevents the jerking when joystick moves from one side to another
           const currentRotation = playerStateRef.current.rotation;
-          const angleDiff = normalizeAngle(targetMoveAngle - currentRotation);
+          // Use shortestAngleDiff for correct turn direction across all angle ranges
+          const angleDiff = shortestAngleDiff(currentRotation, targetMoveAngle);
           
           // Turn speed in radians per second (3.0 is the standard turn rate)
           const TURN_SPEED = 3.0;
@@ -1192,7 +1211,7 @@ const RefBasedPlayer = ({
           if (Math.abs(angleDiff) <= maxTurn) {
             newRotation = targetMoveAngle; // Close enough, snap to target
           } else {
-            // Rotate toward target at max speed
+            // Rotate toward target at max speed using sign of angleDiff
             newRotation = currentRotation + Math.sign(angleDiff) * maxTurn;
           }
           
@@ -1232,7 +1251,8 @@ const RefBasedPlayer = ({
           const targetRotation = cameraYaw; // Face the direction camera is looking
           
           const currentRotation = playerStateRef.current.rotation;
-          const angleDiff = normalizeAngle(targetRotation - currentRotation);
+          // Use shortestAngleDiff for correct turn direction
+          const angleDiff = shortestAngleDiff(currentRotation, targetRotation);
           
           // Slower turn when stationary
           const TURN_SPEED = 2.0;
