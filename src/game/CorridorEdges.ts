@@ -270,10 +270,24 @@ export function calculateBorderAvoidance(
     };
   }
   
-  // Calculate turn direction: cross product of movement with push direction
-  // Positive cross = turn right, negative = turn left
-  const cross = moveX * proximity.pushZ - moveZ * proximity.pushX;
-  const turnDirection = cross >= 0 ? 1 : -1;
+  // Calculate the perpendicular (tangent) to movement direction
+  // This is what we'll turn towards - perpendicular to current movement, biased by the edge normal
+  // Perpendicular to (moveX, moveZ) is (-moveZ, moveX) or (moveZ, -moveX)
+  
+  // Pick the perpendicular that points more towards the corridor center (aligns with normal)
+  const perpX1 = -moveZ;
+  const perpZ1 = moveX;
+  const perpX2 = moveZ;
+  const perpZ2 = -moveX;
+  
+  // Dot with normal to see which perpendicular points towards center
+  const dot1 = perpX1 * proximity.pushX + perpZ1 * proximity.pushZ;
+  const dot2 = perpX2 * proximity.pushX + perpZ2 * proximity.pushZ;
+  
+  // Use the perpendicular that aligns better with the push direction (towards center)
+  const bounceX = dot1 > dot2 ? perpX1 : perpX2;
+  const bounceZ = dot1 > dot2 ? perpZ1 : perpZ2;
+  const turnDirection = dot1 > dot2 ? 1 : -1; // Turn right or left
   
   // Strength proportional to:
   // 1. How close to edge (closeness^2 for smooth ramp-up)
@@ -291,8 +305,8 @@ export function calculateBorderAvoidance(
       distance: proximity.distance, 
       edge: proximity.nearestEdge,
       closeness,
-      pushVectorX: proximity.pushX,
-      pushVectorZ: proximity.pushZ,
+      pushVectorX: bounceX * pushMagnitude, // Perpendicular to movement, scaled by magnitude
+      pushVectorZ: bounceZ * pushMagnitude,
       pushMagnitude,
       isActive: true,
     },
