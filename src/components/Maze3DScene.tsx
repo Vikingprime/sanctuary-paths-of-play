@@ -1196,10 +1196,12 @@ const RefBasedPlayer = ({
           // Calculate world movement direction based on camera yaw
           const cameraYaw = cameraYawRef.current;
           
-          // Movement direction: forward from camera's perspective
-          // joyY positive = move in direction camera faces (away)
-          // joyY negative = move toward camera (flip by PI)
-          const targetMoveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
+          // Movement direction: Use joystick angle directly for smooth transitions
+          // This avoids the 180° flip that occurs when joyY crosses zero
+          // joystickAngle = atan2(joyX, joyY) gives angle from forward (12 o'clock)
+          // We add this to cameraYaw to get world-space target
+          const joystickAngle = Math.atan2(joyX, joyY);
+          const targetMoveAngle = cameraYaw + joystickAngle;
           const moveSpeed = Math.abs(joyY);
           
           // GRADUAL TURNING with orbit-based direction + committed fallback
@@ -1213,7 +1215,7 @@ const RefBasedPlayer = ({
           // atan2(x,y) measures angle from 12 o'clock, increasing clockwise.
           // So when dragging CCW on screen (6→3 o'clock), angle DECREASES (180→90).
           // We need to INVERT the sign: decreasing angle = CCW = turn left.
-          const joystickAngle = Math.atan2(joyX, joyY); // Angle of joystick from center
+          // joystickAngle already computed above for targetMoveAngle
           const joystickMagnitude = Math.sqrt(joyX * joyX + joyY * joyY);
           
           let dragDirection = 0; // -1 = clockwise (turn right), 1 = counterclockwise (turn left)
