@@ -305,11 +305,13 @@ export function calculateBorderAvoidance(
   // 1. Closeness curve (ramp-up then ramp-down)
   // 2. Speed of movement
   // 3. Base strength setting
+  // 4. BASE_MULTIPLIER to make the effect impactful
+  const BASE_MULTIPLIER = 3.0; // Makes strength=1.0 feel reasonable, strength=10 very strong
   const proximityFactor = closeness * closeness;
-  const adjustment = turnDirection * proximityFactor * moveSpeed * config.strength;
+  const adjustment = turnDirection * proximityFactor * moveSpeed * config.strength * BASE_MULTIPLIER;
   
   // Calculate the push magnitude for debug visualization
-  const pushMagnitude = proximityFactor * moveSpeed * config.strength;
+  const pushMagnitude = proximityFactor * moveSpeed * config.strength * BASE_MULTIPLIER;
   
   return {
     rotationAdjustment: adjustment,
