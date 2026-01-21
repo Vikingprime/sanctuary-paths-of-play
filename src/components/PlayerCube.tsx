@@ -72,6 +72,8 @@ interface PlayerCubeProps {
   position: [number, number, number];
   rotation?: number; // Y-axis rotation in radians
   isMovingRef?: MutableRefObject<boolean>; // Ref for real-time movement state
+  isTurningRef?: MutableRefObject<boolean>; // Ref for turning in place (triggers walk animation)
+  moveSpeedRef?: MutableRefObject<number>; // Ref for current movement speed (0-1, for walk vs gallop)
   enableSound?: boolean; // Whether to play spawn sounds (false during preview)
   showCollisionDebug?: boolean; // Whether to show collision debug spheres
 }
@@ -88,7 +90,7 @@ const animalColors: Record<AnimalType, string | string[]> = {
   bird: '#FFD700', // Yellow/Gold
 };
 
-export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, enableSound = true, showCollisionDebug = true }: PlayerCubeProps) => {
+export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, isTurningRef, moveSpeedRef, enableSound = true, showCollisionDebug = true }: PlayerCubeProps) => {
   const innerGroupRef = useRef<any>(null);
   const bobOffset = useRef(0);
   const cowGroupRef = useRef<any>(null);
@@ -147,9 +149,11 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
   }, [cowScene, cowRimIntensity]);
   const cowMixerRef = useRef<AnimationMixer | null>(null);
   const gallopActionRef = useRef<any>(null);
+  const cowWalkActionRef = useRef<any>(null);
   const cowIdle1ActionRef = useRef<any>(null);
   const cowIdle2ActionRef = useRef<any>(null);
   const cowIdleCountRef = useRef(0);
+  const cowCurrentAnimRef = useRef<'idle' | 'walk' | 'gallop'>('idle');
   
   const henMixerRef = useRef<AnimationMixer | null>(null);
   const henWalkActionRef = useRef<any>(null);
@@ -175,11 +179,23 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
         a.name.toLowerCase() === 'gallop'
       ) || cowAnimations.find(a => 
         a.name.toLowerCase().includes('gallop')
-      ) || cowAnimations[0];
+      );
       
       if (gallopAnim) {
         gallopActionRef.current = cowMixerRef.current.clipAction(gallopAnim);
         gallopActionRef.current.setLoop(LoopRepeat, Infinity);
+      }
+      
+      // Find walk animation
+      const walkAnim = cowAnimations.find(a => 
+        a.name.toLowerCase() === 'walk'
+      ) || cowAnimations.find(a => 
+        a.name.toLowerCase().includes('walk')
+      );
+      
+      if (walkAnim) {
+        cowWalkActionRef.current = cowMixerRef.current.clipAction(walkAnim);
+        cowWalkActionRef.current.setLoop(LoopRepeat, Infinity);
       }
       
       // Find specific idle animations: 'Idle' and 'Idle_2' only
@@ -200,6 +216,7 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
       // Start with idle animation
       if (cowIdle1ActionRef.current) {
         cowIdle1ActionRef.current.play();
+        cowCurrentAnimRef.current = 'idle';
       }
     }
     
@@ -273,27 +290,55 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
     }
     
     const isMoving = isMovingRef?.current ?? false;
+    const isTurning = isTurningRef?.current ?? false;
+    const moveSpeed = moveSpeedRef?.current ?? 1.0;
     
-    // Cow animation handling
+    // Cow animation handling - supports idle, walk (slow/turning), and gallop (fast)
     if (animalType === 'cow') {
-      if (isMoving !== wasMovingRef.current) {
-        if (isMoving) {
-          // Fade out idle animations
+      // Determine target animation state
+      let targetAnim: 'idle' | 'walk' | 'gallop' = 'idle';
+      
+      if (isMoving || isTurning) {
+        // Use walk for slow movement (< 0.6) or turning in place, gallop for fast movement
+        if (isTurning && !isMoving) {
+          targetAnim = 'walk'; // Turning in place
+        } else if (moveSpeed < 0.6) {
+          targetAnim = 'walk'; // Slow movement
+        } else {
+          targetAnim = 'gallop'; // Fast movement
+        }
+      }
+      
+      // Only transition if animation state changed
+      if (targetAnim !== cowCurrentAnimRef.current) {
+        const prevAnim = cowCurrentAnimRef.current;
+        cowCurrentAnimRef.current = targetAnim;
+        
+        // Fade out previous animation
+        if (prevAnim === 'idle') {
           if (cowIdle1ActionRef.current) cowIdle1ActionRef.current.fadeOut(0.2);
           if (cowIdle2ActionRef.current) cowIdle2ActionRef.current.fadeOut(0.2);
-          
-          // Fade in gallop
+        } else if (prevAnim === 'walk') {
+          if (cowWalkActionRef.current) cowWalkActionRef.current.fadeOut(0.2);
+        } else if (prevAnim === 'gallop') {
+          if (gallopActionRef.current) gallopActionRef.current.fadeOut(0.2);
+        }
+        
+        // Fade in new animation
+        if (targetAnim === 'walk') {
+          if (cowWalkActionRef.current) {
+            cowWalkActionRef.current.enabled = true;
+            cowWalkActionRef.current.setEffectiveWeight(1);
+            cowWalkActionRef.current.fadeIn(0.2).play();
+          }
+        } else if (targetAnim === 'gallop') {
           if (gallopActionRef.current) {
             gallopActionRef.current.enabled = true;
-            gallopActionRef.current.setEffectiveTimeScale(1);
             gallopActionRef.current.setEffectiveWeight(1);
             gallopActionRef.current.fadeIn(0.2).play();
           }
         } else {
-          // Fade out gallop
-          if (gallopActionRef.current) gallopActionRef.current.fadeOut(0.3);
-          
-          // Increment idle count and choose animation
+          // Idle
           cowIdleCountRef.current++;
           const useIdle2 = cowIdleCountRef.current % 3 === 0 && cowIdle2ActionRef.current;
           
@@ -302,9 +347,8 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
             cowIdle2ActionRef.current.setEffectiveWeight(1);
             cowIdle2ActionRef.current.fadeIn(0.3).play();
             
-            // When idle2 finishes, switch back to idle1
             const onFinished = () => {
-              if (cowIdle1ActionRef.current && !isMovingRef?.current) {
+              if (cowIdle1ActionRef.current && cowCurrentAnimRef.current === 'idle') {
                 cowIdle1ActionRef.current.reset();
                 cowIdle1ActionRef.current.fadeIn(0.2).play();
               }
@@ -317,8 +361,16 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, en
             cowIdle1ActionRef.current.fadeIn(0.3).play();
           }
         }
-        wasMovingRef.current = isMoving;
       }
+      
+      // Adjust walk animation speed based on movement speed
+      if (cowCurrentAnimRef.current === 'walk' && cowWalkActionRef.current) {
+        // Scale animation speed: 1.2x for turning, up to 2.5x for movement
+        const speedMultiplier = (isTurning && !isMoving) ? 1.2 : (1.0 + moveSpeed * 1.5);
+        cowWalkActionRef.current.setEffectiveTimeScale(speedMultiplier);
+      }
+      
+      wasMovingRef.current = isMoving;
     }
     
     // Hen animation handling
