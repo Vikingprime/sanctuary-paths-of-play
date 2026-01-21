@@ -1196,12 +1196,10 @@ const RefBasedPlayer = ({
           // Calculate world movement direction based on camera yaw
           const cameraYaw = cameraYawRef.current;
           
-          // Movement direction: Use joystick angle directly for smooth transitions
-          // This avoids the 180° flip that occurs when joyY crosses zero
-          // joystickAngle = atan2(joyX, joyY) gives angle from forward (12 o'clock)
-          // We add this to cameraYaw to get world-space target
-          const joystickAngle = Math.atan2(joyX, joyY);
-          const targetMoveAngle = cameraYaw + joystickAngle;
+          // Movement direction: forward from camera's perspective
+          // joyY positive = move in direction camera faces (away)
+          // joyY negative = move toward camera (flip by PI)
+          const targetMoveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
           const moveSpeed = Math.abs(joyY);
           
           // GRADUAL TURNING with orbit-based direction + committed fallback
@@ -1212,13 +1210,11 @@ const RefBasedPlayer = ({
           
           // DRAG DIRECTION DETECTION: Track joystick angle changes to detect
           // counterclockwise vs clockwise drag, independent of joystick position.
-          // atan2(x,y) measures angle from 12 o'clock, increasing clockwise.
-          // So when dragging CCW on screen (6→3 o'clock), angle DECREASES (180→90).
-          // We need to INVERT the sign: decreasing angle = CCW = turn left.
-          // joystickAngle already computed above for targetMoveAngle
+          // This is more reliable than using joyX sign, which fails at bottom of joystick.
+          const joystickAngle = Math.atan2(joyX, joyY); // Angle of joystick from center
           const joystickMagnitude = Math.sqrt(joyX * joyX + joyY * joyY);
           
-          let dragDirection = 0; // -1 = clockwise (turn right), 1 = counterclockwise (turn left)
+          let dragDirection = 0; // -1 = clockwise, 1 = counterclockwise, 0 = no drag
           if (prevJoystickAngleRef.current !== null && joystickMagnitude > 0.2) {
             // Calculate angular velocity of joystick
             let angleDelta = joystickAngle - prevJoystickAngleRef.current;
@@ -1227,9 +1223,8 @@ const RefBasedPlayer = ({
             while (angleDelta < -Math.PI) angleDelta += Math.PI * 2;
             
             // Only consider significant angular changes
-            // INVERTED: negative angleDelta (decreasing angle) = CCW on screen = turn left (positive)
             if (Math.abs(angleDelta) > 0.02) {
-              dragDirection = angleDelta < 0 ? 1 : -1; // INVERTED from before
+              dragDirection = angleDelta > 0 ? 1 : -1; // positive = counterclockwise
             }
           }
           prevJoystickAngleRef.current = joystickMagnitude > 0.1 ? joystickAngle : null;
