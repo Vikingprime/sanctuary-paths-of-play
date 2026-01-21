@@ -207,6 +207,11 @@ export interface BorderAvoidanceResult {
   };
 }
 
+// Distance thresholds for avoidance curve
+const OUTER_TRIGGER = 0.9;  // Start applying avoidance at this distance
+const PEAK_DISTANCE = 0.3;   // Maximum strength at this distance
+// Below PEAK_DISTANCE, strength drops off to allow mobility after collision
+
 export function calculateBorderAvoidance(
   headX: number,
   headZ: number,
@@ -215,9 +220,10 @@ export function calculateBorderAvoidance(
   edges: CorridorEdge[],
   config: { triggerDistance: number; strength: number }
 ): BorderAvoidanceResult {
-  const proximity = findNearestCorridorEdge(headX, headZ, edges, config.triggerDistance);
+  // Use OUTER_TRIGGER as the search radius
+  const proximity = findNearestCorridorEdge(headX, headZ, edges, OUTER_TRIGGER);
   
-  if (!proximity.nearestEdge || proximity.distance >= config.triggerDistance) {
+  if (!proximity.nearestEdge || proximity.distance >= OUTER_TRIGGER) {
     return { 
       rotationAdjustment: 0, 
       debugInfo: { 
@@ -232,8 +238,19 @@ export function calculateBorderAvoidance(
     };
   }
   
-  // Calculate how close we are (0 = at trigger distance, 1 = at edge)
-  const closeness = 1 - (proximity.distance / config.triggerDistance);
+  // Calculate strength curve:
+  // - At OUTER_TRIGGER (0.9): strength = 0
+  // - At PEAK_DISTANCE (0.3): strength = 1 (maximum)
+  // - Below PEAK_DISTANCE: strength drops off linearly to 0 at distance 0
+  let closeness: number;
+  if (proximity.distance >= PEAK_DISTANCE) {
+    // Ramp UP from 0 at OUTER_TRIGGER to 1 at PEAK_DISTANCE
+    closeness = (OUTER_TRIGGER - proximity.distance) / (OUTER_TRIGGER - PEAK_DISTANCE);
+  } else {
+    // Ramp DOWN from 1 at PEAK_DISTANCE to 0 at distance 0
+    closeness = proximity.distance / PEAK_DISTANCE;
+  }
+  closeness = Math.max(0, Math.min(1, closeness)); // Clamp to [0, 1]
   
   // Get current movement direction
   const moveX = Math.sin(rotation);
@@ -285,7 +302,7 @@ export function calculateBorderAvoidance(
   const bounceZ = turnDirection > 0 ? moveX : -moveX;
   
   // Strength proportional to:
-  // 1. How close to edge (closeness^2 for smooth ramp-up)
+  // 1. Closeness curve (ramp-up then ramp-down)
   // 2. Speed of movement
   // 3. Base strength setting
   const proximityFactor = closeness * closeness;
