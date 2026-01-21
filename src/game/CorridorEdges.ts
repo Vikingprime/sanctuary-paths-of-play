@@ -272,15 +272,16 @@ export function calculateBorderAvoidance(
   const crossProduct = moveX * proximity.pushZ - moveZ * proximity.pushX;
   
   // turnDirection: which way to rotate to face toward the center
-  // Negative cross → turn right (positive rotation)
-  // Positive cross → turn left (negative rotation)
-  const turnDirection = crossProduct < 0 ? 1 : -1;
+  // Cross product determines which side the normal is relative to movement:
+  //   Positive cross → normal is to the LEFT → turn LEFT (negative rotation)
+  //   Negative cross → normal is to the RIGHT → turn RIGHT (positive rotation)
+  const turnDirection = crossProduct > 0 ? -1 : 1;
   
   // Calculate perpendicular to movement in the turn direction for debug visualization
-  // perp1 = (-moveZ, moveX) = 90° counter-clockwise (left turn)
-  // perp2 = (moveZ, -moveX) = 90° clockwise (right turn)
-  const bounceX = turnDirection > 0 ? moveZ : -moveZ;
-  const bounceZ = turnDirection > 0 ? -moveX : moveX;
+  // perp1 = (-moveZ, moveX) = 90° counter-clockwise (left turn, negative rotation)
+  // perp2 = (moveZ, -moveX) = 90° clockwise (right turn, positive rotation)
+  const bounceX = turnDirection < 0 ? -moveZ : moveZ;
+  const bounceZ = turnDirection < 0 ? moveX : -moveX;
   
   // Strength proportional to:
   // 1. How close to edge (closeness^2 for smooth ramp-up)
