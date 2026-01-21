@@ -285,9 +285,10 @@ export function calculateBorderAvoidance(
   const dot2 = perpX2 * proximity.pushX + perpZ2 * proximity.pushZ;
   
   // Use the perpendicular that aligns better with the push direction (towards center)
+  // Pick the one with HIGHER dot product (more aligned with normal pointing to center)
   const bounceX = dot1 > dot2 ? perpX1 : perpX2;
   const bounceZ = dot1 > dot2 ? perpZ1 : perpZ2;
-  const turnDirection = dot1 > dot2 ? 1 : -1; // Turn right or left
+  const turnDirection = dot1 > dot2 ? -1 : 1; // Flip turn direction to push towards center
   
   // Strength proportional to:
   // 1. How close to edge (closeness^2 for smooth ramp-up)
