@@ -36,8 +36,8 @@ export interface EdgeProximityResult {
 
 /**
  * Compute all corridor edges for a maze
- * These are lines connecting path cell centers along the boundary of corridors
- * (where the path is adjacent to walls)
+ * These are lines at the ACTUAL WALL BOUNDARIES (not cell centers)
+ * Each edge has a normal pointing INTO the corridor (away from the wall)
  * 
  * Returns edges with normals pointing towards the center of the corridor
  */
@@ -53,70 +53,58 @@ export function computeCorridorEdges(maze: Maze): CorridorEdge[] {
     return row[gx].isWall;
   };
   
-  // Connect path cell centers, but ONLY along corridor edges (adjacent to wall)
+  // For each path cell, check all 4 sides for adjacent walls
+  // Place edge lines AT the wall boundary (cell edge), not at cell center
   maze.grid.forEach((row, y) => {
     row.forEach((cell, x) => {
       if (cell.isWall) return;
       
-      const cx = (x + 0.5) * CELL_SIZE;
-      const cz = (y + 0.5) * CELL_SIZE;
-      
-      // Check RIGHT neighbor - draw line if there's a wall above OR below this horizontal segment
-      if (!isWall(x + 1, y)) {
-        const hasWallAbove = isWall(x, y - 1) || isWall(x + 1, y - 1);
-        const hasWallBelow = isWall(x, y + 1) || isWall(x + 1, y + 1);
-        
-        if (hasWallAbove) {
-          // Edge along top of corridor, normal points down (+Z)
-          edges.push({
-            x1: cx,
-            z1: cz,
-            x2: (x + 1.5) * CELL_SIZE,
-            z2: cz,
-            normalX: 0,
-            normalZ: 1,
-          });
-        }
-        if (hasWallBelow) {
-          // Edge along bottom of corridor, normal points up (-Z)
-          edges.push({
-            x1: cx,
-            z1: cz,
-            x2: (x + 1.5) * CELL_SIZE,
-            z2: cz,
-            normalX: 0,
-            normalZ: -1,
-          });
-        }
+      // Wall ABOVE this path cell - edge at top boundary
+      if (isWall(x, y - 1)) {
+        edges.push({
+          x1: x * CELL_SIZE,
+          z1: y * CELL_SIZE,           // Top edge of this cell
+          x2: (x + 1) * CELL_SIZE,
+          z2: y * CELL_SIZE,
+          normalX: 0,
+          normalZ: 1,                   // Points INTO corridor (down/+Z)
+        });
       }
       
-      // Check DOWN neighbor - draw line if there's a wall to LEFT OR RIGHT of this vertical segment
-      if (!isWall(x, y + 1)) {
-        const hasWallLeft = isWall(x - 1, y) || isWall(x - 1, y + 1);
-        const hasWallRight = isWall(x + 1, y) || isWall(x + 1, y + 1);
-        
-        if (hasWallLeft) {
-          // Edge along left of corridor, normal points right (+X)
-          edges.push({
-            x1: cx,
-            z1: cz,
-            x2: cx,
-            z2: (y + 1.5) * CELL_SIZE,
-            normalX: 1,
-            normalZ: 0,
-          });
-        }
-        if (hasWallRight) {
-          // Edge along right of corridor, normal points left (-X)
-          edges.push({
-            x1: cx,
-            z1: cz,
-            x2: cx,
-            z2: (y + 1.5) * CELL_SIZE,
-            normalX: -1,
-            normalZ: 0,
-          });
-        }
+      // Wall BELOW this path cell - edge at bottom boundary
+      if (isWall(x, y + 1)) {
+        edges.push({
+          x1: x * CELL_SIZE,
+          z1: (y + 1) * CELL_SIZE,     // Bottom edge of this cell
+          x2: (x + 1) * CELL_SIZE,
+          z2: (y + 1) * CELL_SIZE,
+          normalX: 0,
+          normalZ: -1,                  // Points INTO corridor (up/-Z)
+        });
+      }
+      
+      // Wall to the LEFT of this path cell - edge at left boundary
+      if (isWall(x - 1, y)) {
+        edges.push({
+          x1: x * CELL_SIZE,           // Left edge of this cell
+          z1: y * CELL_SIZE,
+          x2: x * CELL_SIZE,
+          z2: (y + 1) * CELL_SIZE,
+          normalX: 1,                   // Points INTO corridor (right/+X)
+          normalZ: 0,
+        });
+      }
+      
+      // Wall to the RIGHT of this path cell - edge at right boundary
+      if (isWall(x + 1, y)) {
+        edges.push({
+          x1: (x + 1) * CELL_SIZE,     // Right edge of this cell
+          z1: y * CELL_SIZE,
+          x2: (x + 1) * CELL_SIZE,
+          z2: (y + 1) * CELL_SIZE,
+          normalX: -1,                  // Points INTO corridor (left/-X)
+          normalZ: 0,
+        });
       }
     });
   });
@@ -320,7 +308,7 @@ export function calculateBorderAvoidance(
 
 /**
  * Get simplified edges for debug visualization (without duplicate overlapping segments)
- * For rendering purposes - returns unique visual segments
+ * For rendering purposes - returns unique visual segments at WALL BOUNDARIES
  */
 export function getUniqueCorridorEdgeSegments(maze: Maze): { x1: number; z1: number; x2: number; z2: number }[] {
   const CELL_SIZE = GameConfig.CELL_SIZE;
@@ -338,42 +326,59 @@ export function getUniqueCorridorEdgeSegments(maze: Maze): { x1: number; z1: num
     row.forEach((cell, x) => {
       if (cell.isWall) return;
       
-      const cx = (x + 0.5) * CELL_SIZE;
-      const cz = (y + 0.5) * CELL_SIZE;
-      
-      // Horizontal segment to right
-      if (!isWall(x + 1, y)) {
-        const hasWallAbove = isWall(x, y - 1) || isWall(x + 1, y - 1);
-        const hasWallBelow = isWall(x, y + 1) || isWall(x + 1, y + 1);
-        if (hasWallAbove || hasWallBelow) {
-          const key = `H${x},${y}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            segments.push({
-              x1: cx,
-              z1: cz,
-              x2: (x + 1.5) * CELL_SIZE,
-              z2: cz,
-            });
-          }
+      // Wall above - horizontal edge at top boundary
+      if (isWall(x, y - 1)) {
+        const key = `T${x},${y}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          segments.push({
+            x1: x * CELL_SIZE,
+            z1: y * CELL_SIZE,
+            x2: (x + 1) * CELL_SIZE,
+            z2: y * CELL_SIZE,
+          });
         }
       }
       
-      // Vertical segment down
-      if (!isWall(x, y + 1)) {
-        const hasWallLeft = isWall(x - 1, y) || isWall(x - 1, y + 1);
-        const hasWallRight = isWall(x + 1, y) || isWall(x + 1, y + 1);
-        if (hasWallLeft || hasWallRight) {
-          const key = `V${x},${y}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            segments.push({
-              x1: cx,
-              z1: cz,
-              x2: cx,
-              z2: (y + 1.5) * CELL_SIZE,
-            });
-          }
+      // Wall below - horizontal edge at bottom boundary
+      if (isWall(x, y + 1)) {
+        const key = `B${x},${y}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          segments.push({
+            x1: x * CELL_SIZE,
+            z1: (y + 1) * CELL_SIZE,
+            x2: (x + 1) * CELL_SIZE,
+            z2: (y + 1) * CELL_SIZE,
+          });
+        }
+      }
+      
+      // Wall left - vertical edge at left boundary
+      if (isWall(x - 1, y)) {
+        const key = `L${x},${y}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          segments.push({
+            x1: x * CELL_SIZE,
+            z1: y * CELL_SIZE,
+            x2: x * CELL_SIZE,
+            z2: (y + 1) * CELL_SIZE,
+          });
+        }
+      }
+      
+      // Wall right - vertical edge at right boundary
+      if (isWall(x + 1, y)) {
+        const key = `R${x},${y}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          segments.push({
+            x1: (x + 1) * CELL_SIZE,
+            z1: y * CELL_SIZE,
+            x2: (x + 1) * CELL_SIZE,
+            z2: (y + 1) * CELL_SIZE,
+          });
         }
       }
     });
