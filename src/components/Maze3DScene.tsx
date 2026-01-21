@@ -1096,6 +1096,9 @@ const RefBasedPlayer = ({
   // Track committed turn direction for when joyX is small during boundary crossing
   const committedTurnDirRef = useRef<number>(0); // -1 (right) or 1 (left), 0 = none
   
+  // Track previous joystick angle for detecting drag direction
+  const prevJoystickAngleRef = useRef<number | null>(null);
+  
   // Mobile steering no longer uses these (yaw rate system instead)
   
   // Helper: normalize angle to [-PI, PI] for shortest-path calculations
@@ -1205,27 +1208,35 @@ const RefBasedPlayer = ({
           // Calculate the raw shortest angle diff
           let angleDiff = shortestAngleDiff(currentRotation, targetMoveAngle);
           
-          // KEY FIX: When orbiting (joyX significant), the turn direction should 
-          // follow the orbit direction, not the shortest path to target.
-          // joyX > 0 = camera orbits left (counter-clockwise) = animal should turn LEFT (positive angleDiff)
-          // joyX < 0 = camera orbits right (clockwise) = animal should turn RIGHT (negative angleDiff)
-          const orbitThreshold = 0.15; // Lower threshold to catch more orbit cases
-          const isOrbiting = Math.abs(joyX) > orbitThreshold;
+          // DRAG DIRECTION DETECTION: Track joystick angle changes to detect
+          // counterclockwise vs clockwise drag, independent of joystick position.
+          // This is more reliable than using joyX sign, which fails at bottom of joystick.
+          const joystickAngle = Math.atan2(joyX, joyY); // Angle of joystick from center
+          const joystickMagnitude = Math.sqrt(joyX * joyX + joyY * joyY);
           
-          if (isOrbiting && Math.abs(angleDiff) > 0.1) {
-            const orbitDirection = joyX > 0 ? 1 : -1; // 1 = left, -1 = right
+          let dragDirection = 0; // -1 = clockwise, 1 = counterclockwise, 0 = no drag
+          if (prevJoystickAngleRef.current !== null && joystickMagnitude > 0.2) {
+            // Calculate angular velocity of joystick
+            let angleDelta = joystickAngle - prevJoystickAngleRef.current;
+            // Normalize to [-PI, PI]
+            while (angleDelta > Math.PI) angleDelta -= Math.PI * 2;
+            while (angleDelta < -Math.PI) angleDelta += Math.PI * 2;
             
-            // Commit to this direction while orbiting
-            committedTurnDirRef.current = orbitDirection;
-            
-            // If shortest path goes opposite to orbit direction, take the long way
-            if (Math.sign(angleDiff) !== orbitDirection) {
-              // Flip to go the long way around, matching orbit direction
-              angleDiff = angleDiff > 0 ? angleDiff - Math.PI * 2 : angleDiff + Math.PI * 2;
+            // Only consider significant angular changes
+            if (Math.abs(angleDelta) > 0.02) {
+              dragDirection = angleDelta > 0 ? 1 : -1; // positive = counterclockwise
             }
-          } else if (committedTurnDirRef.current !== 0 && Math.abs(angleDiff) > 0.5) {
-            // FALLBACK: Use committed direction when joyX is small but we're mid-turn
-            // This handles cases where finger path crosses through low-joyX zone
+          }
+          prevJoystickAngleRef.current = joystickMagnitude > 0.1 ? joystickAngle : null;
+          
+          // Update committed direction based on drag
+          if (dragDirection !== 0) {
+            committedTurnDirRef.current = dragDirection;
+          }
+          
+          // Apply committed turn direction when we have one
+          if (committedTurnDirRef.current !== 0 && Math.abs(angleDiff) > 0.1) {
+            // If shortest path goes opposite to drag direction, take the long way
             if (Math.sign(angleDiff) !== committedTurnDirRef.current) {
               angleDiff = angleDiff > 0 ? angleDiff - Math.PI * 2 : angleDiff + Math.PI * 2;
             }
@@ -1237,9 +1248,9 @@ const RefBasedPlayer = ({
           }
           
           // DEBUG LOGGING
-          const orbitDir = isOrbiting ? (joyX > 0 ? 'L' : 'R') : '-';
+          const dragDir = dragDirection > 0 ? 'CCW' : dragDirection < 0 ? 'CW' : '-';
           const committed = committedTurnDirRef.current > 0 ? 'L' : committedTurnDirRef.current < 0 ? 'R' : '-';
-          console.log(`[TURN] joy:(${joyX.toFixed(2)},${joyY.toFixed(2)}) cam:${(cameraYaw * 180 / Math.PI).toFixed(1)}° target:${(targetMoveAngle * 180 / Math.PI).toFixed(1)}° current:${(currentRotation * 180 / Math.PI).toFixed(1)}° diff:${(angleDiff * 180 / Math.PI).toFixed(1)}° turn:${angleDiff > 0 ? 'LEFT' : 'RIGHT'} orbit:${orbitDir} commit:${committed}`);
+          console.log(`[TURN] joy:(${joyX.toFixed(2)},${joyY.toFixed(2)}) jAngle:${(joystickAngle * 180 / Math.PI).toFixed(0)}° drag:${dragDir} diff:${(angleDiff * 180 / Math.PI).toFixed(1)}° turn:${angleDiff > 0 ? 'LEFT' : 'RIGHT'} commit:${committed}`);
           
           // Turn speed in radians per second (3.0 is the standard turn rate)
           const TURN_SPEED = 3.0;
