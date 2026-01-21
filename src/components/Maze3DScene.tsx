@@ -1093,43 +1093,35 @@ const RefBasedPlayer = ({
   const isTurningRef = useRef(false); // True when turning in place (no forward movement)
   const moveSpeedRef = useRef(0); // Current movement speed 0-1 (for walk vs gallop)
   
-  // Track committed turn direction for when joyX is small during boundary crossing
-  const committedTurnDirRef = useRef<number>(0); // -1 (right) or 1 (left), 0 = none
+  // Unwrapped angle tracking for continuous rotation (prevents direction flips at ±π boundary)
+  const prevTargetWrappedRef = useRef<number | null>(null);
+  const targetUnwrappedRef = useRef<number>(0);
+  const currentUnwrappedRef = useRef<number>(0);
   
-  // Track previous joystick angle for detecting drag direction
-  const prevJoystickAngleRef = useRef<number | null>(null);
-  
-  // Mobile steering no longer uses these (yaw rate system instead)
-  
-  // Helper: normalize angle to [-PI, PI] for shortest-path calculations
-  const normalizeAngle = (angle: number): number => {
-    // Use modulo for efficiency and avoid infinite loops with extreme values
-    angle = angle % (Math.PI * 2);
-    if (angle > Math.PI) angle -= Math.PI * 2;
-    if (angle < -Math.PI) angle += Math.PI * 2;
-    return angle;
+  // Helper: wrap angle to [-π, π] range
+  const wrapPi = (a: number): number => {
+    a = (a + Math.PI) % (Math.PI * 2);
+    if (a <= 0) a += Math.PI * 2;
+    return a - Math.PI;
   };
   
-  // Helper: calculate shortest angle difference between two angles (both can be any range)
+  // Helper: calculate shortest angle difference between two angles
   // Returns value in [-PI, PI] representing the shortest turn direction
   const shortestAngleDiff = (from: number, to: number): number => {
-    // Normalize both angles to 0-2PI first, then calculate difference
-    const normFrom = ((from % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    const normTo = ((to % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    
-    let diff = normTo - normFrom;
-    
-    // Ensure we take the shortest path
-    if (diff > Math.PI) diff -= Math.PI * 2;
-    if (diff < -Math.PI) diff += Math.PI * 2;
-    
-    return diff;
+    return wrapPi(to - from);
+  };
+  
+  // Helper: move towards target at maximum delta per frame (for unwrapped angles)
+  const moveTowards = (current: number, target: number, maxDelta: number): number => {
+    const d = target - current;
+    if (Math.abs(d) <= maxDelta) return target;
+    return current + Math.sign(d) * maxDelta;
   };
   
   // Helper: lerp between angles (handles wraparound)
   const lerpAngle = (from: number, to: number, t: number): number => {
-    const diff = normalizeAngle(to - from);
-    return normalizeAngle(from + diff * t);
+    const diff = wrapPi(to - from);
+    return wrapPi(from + diff * t);
   };
   
   useFrame((state, delta) => {
@@ -1193,39 +1185,38 @@ const RefBasedPlayer = ({
         const hasRotation = Math.abs(joyX) > 0.1; // Camera is orbiting, which implies character turn
         
         if (hasMovement && cameraYawRef) {
-          // Calculate world movement direction based on camera yaw
+          // Calculate joystick angle relative to camera using atan2
           const cameraYaw = cameraYawRef.current;
+          const joyAngle = Math.atan2(joyX, joyY);
+          const targetWrapped = wrapPi(cameraYaw + joyAngle);
+          const moveSpeed = Math.sqrt(joyX * joyX + joyY * joyY);
           
-          // Movement direction: forward from camera's perspective
-          // joyY positive = move in direction camera faces (away)
-          // joyY negative = move toward camera (flip by PI)
-          const targetMoveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
-          const moveSpeed = Math.abs(joyY);
+          // Initialize unwrapped tracking on first frame
+          if (prevTargetWrappedRef.current === null) {
+            prevTargetWrappedRef.current = targetWrapped;
+            targetUnwrappedRef.current = targetWrapped;
+            currentUnwrappedRef.current = playerStateRef.current.rotation;
+          }
           
-          // GRADUAL-ONLY TURNING: Animal can only rotate at a fixed max speed,
-          // regardless of how drastically the joystick is moved. This prevents
-          // any instant direction changes.
-          const currentRotation = playerStateRef.current.rotation;
+          // Compute delta from previous target using shortest path (detects direction)
+          const dTarget = shortestAngleDiff(prevTargetWrappedRef.current, targetWrapped);
+          targetUnwrappedRef.current += dTarget;
+          prevTargetWrappedRef.current = targetWrapped;
           
-          // Turn speed in radians per second (3.0 rad/s ≈ 172°/s, so full 180° turn takes ~1s)
+          // Turn speed in radians per second (3.0 rad/s ≈ 172°/s)
           const TURN_SPEED = 3.0;
           const maxTurn = TURN_SPEED * clampedDelta;
           
-          // Calculate shortest path to target (for determining turn direction)
-          const angleDiff = shortestAngleDiff(currentRotation, targetMoveAngle);
+          // Rotate current toward target at max speed (continuous, no flipping)
+          currentUnwrappedRef.current = moveTowards(
+            currentUnwrappedRef.current,
+            targetUnwrappedRef.current,
+            maxTurn
+          );
           
-          // Clamp the rotation change to maxTurn - this is the key to gradual-only turns
-          let newRotation: number;
-          if (Math.abs(angleDiff) <= maxTurn) {
-            // Close enough, snap to target
-            newRotation = targetMoveAngle;
-          } else {
-            // Rotate toward target at max speed (always gradual)
-            newRotation = currentRotation + Math.sign(angleDiff) * maxTurn;
-          }
-          
-          // Normalize to 0-2PI range for consistency
-          newRotation = ((newRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+          // Apply wrapped version to rotation
+          const newRotation = wrapPi(currentUnwrappedRef.current);
+          const normalizedRotation = newRotation < 0 ? newRotation + Math.PI * 2 : newRotation;
           
           // Create movement input - always "forward" in the calculated direction
           input = {
@@ -1237,10 +1228,10 @@ const RefBasedPlayer = ({
             speedMultiplier: moveSpeed,
           };
           
-          // Update player rotation gradually
+          // Update player rotation
           playerStateRef.current = {
             ...playerStateRef.current,
-            rotation: newRotation,
+            rotation: normalizedRotation,
           };
           
           // Calculate movement
@@ -1250,38 +1241,47 @@ const RefBasedPlayer = ({
           
           // Update animation refs
           isMovingRef.current = true;
-          isTurningRef.current = Math.abs(angleDiff) > 0.15; // Turning significantly
+          const angleDiff = targetUnwrappedRef.current - currentUnwrappedRef.current;
+          isTurningRef.current = Math.abs(angleDiff) > 0.15;
           moveSpeedRef.current = moveSpeed;
         } else if (hasRotation && cameraYawRef) {
           // Only camera orbiting, animal should turn to face camera direction
           const cameraYaw = cameraYawRef.current;
-          const targetRotation = cameraYaw; // Face the direction camera is looking
+          const targetWrapped = wrapPi(cameraYaw);
           
-          const currentRotation = playerStateRef.current.rotation;
-          // Use shortestAngleDiff for correct turn direction
-          const angleDiff = shortestAngleDiff(currentRotation, targetRotation);
+          // Initialize unwrapped tracking if needed
+          if (prevTargetWrappedRef.current === null) {
+            prevTargetWrappedRef.current = targetWrapped;
+            targetUnwrappedRef.current = targetWrapped;
+            currentUnwrappedRef.current = playerStateRef.current.rotation;
+          }
+          
+          // Accumulate unwrapped target
+          const dTarget = shortestAngleDiff(prevTargetWrappedRef.current, targetWrapped);
+          targetUnwrappedRef.current += dTarget;
+          prevTargetWrappedRef.current = targetWrapped;
           
           // Slower turn when stationary
           const TURN_SPEED = 2.0;
           const maxTurn = TURN_SPEED * clampedDelta;
           
-          let newRotation: number;
-          if (Math.abs(angleDiff) <= maxTurn) {
-            newRotation = targetRotation;
-          } else {
-            newRotation = currentRotation + Math.sign(angleDiff) * maxTurn;
-          }
+          currentUnwrappedRef.current = moveTowards(
+            currentUnwrappedRef.current,
+            targetUnwrappedRef.current,
+            maxTurn
+          );
           
-          newRotation = normalizeAngle(newRotation);
-          if (newRotation < 0) newRotation += Math.PI * 2;
+          const newRotation = wrapPi(currentUnwrappedRef.current);
+          const normalizedRotation = newRotation < 0 ? newRotation + Math.PI * 2 : newRotation;
           
           playerStateRef.current = {
             ...playerStateRef.current,
-            rotation: newRotation,
+            rotation: normalizedRotation,
           };
           
           // Update animation refs - turning in place
           isMovingRef.current = false;
+          const angleDiff = targetUnwrappedRef.current - currentUnwrappedRef.current;
           isTurningRef.current = Math.abs(angleDiff) > 0.05;
           moveSpeedRef.current = 0;
         } else {
