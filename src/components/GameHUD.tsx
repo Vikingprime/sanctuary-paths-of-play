@@ -430,6 +430,90 @@ export const GameHUD = ({
             </div>
           </div>
           
+          {/* Movement & Avoidance Vectors Visualization */}
+          <div className="mt-2 pt-2 border-t border-gray-600">
+            <div className="text-[10px] text-gray-400 mb-1">--- Vectors ---</div>
+            <div className="flex items-center gap-4">
+              {/* Vector arrows visualization */}
+              <svg width="80" height="80" viewBox="-40 -40 80 80" className="bg-gray-900/50 rounded">
+                {/* Grid lines */}
+                <line x1="-35" y1="0" x2="35" y2="0" stroke="#333" strokeWidth="0.5" />
+                <line x1="0" y1="-35" x2="0" y2="35" stroke="#333" strokeWidth="0.5" />
+                
+                {/* Movement vector (cyan arrow) */}
+                {performanceInfo.movementVector && performanceInfo.movementVector.magnitude > 0.01 && (() => {
+                  const scale = 10; // pixels per unit
+                  const mx = performanceInfo.movementVector.x * scale;
+                  const mz = -performanceInfo.movementVector.z * scale; // Flip Z for screen coords
+                  const len = Math.sqrt(mx * mx + mz * mz);
+                  const maxLen = 30;
+                  const clampedLen = Math.min(len, maxLen);
+                  const nx = len > 0 ? (mx / len) * clampedLen : 0;
+                  const nz = len > 0 ? (mz / len) * clampedLen : 0;
+                  // Arrowhead
+                  const angle = Math.atan2(nz, nx);
+                  const arrowSize = 5;
+                  const ax1 = nx - Math.cos(angle - 0.5) * arrowSize;
+                  const az1 = nz - Math.sin(angle - 0.5) * arrowSize;
+                  const ax2 = nx - Math.cos(angle + 0.5) * arrowSize;
+                  const az2 = nz - Math.sin(angle + 0.5) * arrowSize;
+                  return (
+                    <g>
+                      <line x1="0" y1="0" x2={nx} y2={nz} stroke="#00ffff" strokeWidth="2" />
+                      <polygon points={`${nx},${nz} ${ax1},${az1} ${ax2},${az2}`} fill="#00ffff" />
+                    </g>
+                  );
+                })()}
+                
+                {/* Avoidance vector (red arrow) */}
+                {performanceInfo.avoidanceVector && performanceInfo.avoidanceVector.magnitude > 0.01 && (() => {
+                  const scale = 3; // pixels per unit (smaller since magnitude can be large)
+                  const ax = performanceInfo.avoidanceVector.x * scale;
+                  const az = -performanceInfo.avoidanceVector.z * scale;
+                  const len = Math.sqrt(ax * ax + az * az);
+                  const maxLen = 30;
+                  const clampedLen = Math.min(len, maxLen);
+                  const nx = len > 0 ? (ax / len) * clampedLen : 0;
+                  const nz = len > 0 ? (az / len) * clampedLen : 0;
+                  // Arrowhead
+                  const angle = Math.atan2(nz, nx);
+                  const arrowSize = 5;
+                  const ax1 = nx - Math.cos(angle - 0.5) * arrowSize;
+                  const az1 = nz - Math.sin(angle - 0.5) * arrowSize;
+                  const ax2 = nx - Math.cos(angle + 0.5) * arrowSize;
+                  const az2 = nz - Math.sin(angle + 0.5) * arrowSize;
+                  return (
+                    <g>
+                      <line x1="0" y1="0" x2={nx} y2={nz} stroke="#ff4444" strokeWidth="2" />
+                      <polygon points={`${nx},${nz} ${ax1},${az1} ${ax2},${az2}`} fill="#ff4444" />
+                    </g>
+                  );
+                })()}
+                
+                {/* Center dot */}
+                <circle cx="0" cy="0" r="2" fill="#888" />
+              </svg>
+              
+              {/* Vector values */}
+              <div className="text-[9px] space-y-1">
+                <div className="text-cyan-400">
+                  <div>Move: {performanceInfo.movementVector?.magnitude.toFixed(2) ?? '0.00'}</div>
+                  <div className="text-gray-500">
+                    ({performanceInfo.movementVector?.x.toFixed(2) ?? '0'}, {performanceInfo.movementVector?.z.toFixed(2) ?? '0'})
+                  </div>
+                </div>
+                <div className={cn(
+                  (performanceInfo.avoidanceVector?.magnitude ?? 0) > 0.01 ? 'text-red-400' : 'text-gray-500'
+                )}>
+                  <div>Avoid: {performanceInfo.avoidanceVector?.magnitude.toFixed(2) ?? '0.00'}</div>
+                  <div className="text-gray-500">
+                    Edge: {performanceInfo.avoidanceVector?.distanceToEdge.toFixed(2) ?? '---'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
           {/* Feature Toggles */}
           <div className="mt-2 pt-2 border-t border-gray-600">
             <div className="text-[10px] text-gray-400 mb-1">--- Feature Toggles ---</div>

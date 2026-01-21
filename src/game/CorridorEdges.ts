@@ -206,6 +206,19 @@ export function findNearestCorridorEdge(
  * @param config - Border avoidance configuration
  * @returns Rotation adjustment in radians (positive = turn right, negative = turn left)
  */
+export interface BorderAvoidanceResult {
+  rotationAdjustment: number;
+  debugInfo: {
+    distance: number;
+    edge: CorridorEdge | null;
+    closeness: number; // 0 = at trigger distance, 1 = at edge
+    pushVectorX: number; // Direction of the push (towards corridor center)
+    pushVectorZ: number;
+    pushMagnitude: number; // Strength of the push (scaled by closeness and speed)
+    isActive: boolean; // Whether avoidance is being applied
+  };
+}
+
 export function calculateBorderAvoidance(
   headX: number,
   headZ: number,
@@ -213,13 +226,21 @@ export function calculateBorderAvoidance(
   moveSpeed: number,
   edges: CorridorEdge[],
   config: { triggerDistance: number; strength: number }
-): { rotationAdjustment: number; debugInfo: { distance: number; edge: CorridorEdge | null } } {
+): BorderAvoidanceResult {
   const proximity = findNearestCorridorEdge(headX, headZ, edges, config.triggerDistance);
   
   if (!proximity.nearestEdge || proximity.distance >= config.triggerDistance) {
     return { 
       rotationAdjustment: 0, 
-      debugInfo: { distance: proximity.distance, edge: null } 
+      debugInfo: { 
+        distance: proximity.distance, 
+        edge: null, 
+        closeness: 0,
+        pushVectorX: 0,
+        pushVectorZ: 0,
+        pushMagnitude: 0,
+        isActive: false,
+      } 
     };
   }
   
@@ -237,7 +258,15 @@ export function calculateBorderAvoidance(
     // Moving towards center (away from edge), no correction
     return { 
       rotationAdjustment: 0, 
-      debugInfo: { distance: proximity.distance, edge: proximity.nearestEdge } 
+      debugInfo: { 
+        distance: proximity.distance, 
+        edge: proximity.nearestEdge, 
+        closeness,
+        pushVectorX: proximity.pushX,
+        pushVectorZ: proximity.pushZ,
+        pushMagnitude: 0, // Not active because moving away
+        isActive: false,
+      } 
     };
   }
   
@@ -250,11 +279,23 @@ export function calculateBorderAvoidance(
   // 1. How close to edge (closeness^2 for smooth ramp-up)
   // 2. Speed of movement
   // 3. Base strength setting
-  const adjustment = turnDirection * closeness * closeness * moveSpeed * config.strength;
+  const proximityFactor = closeness * closeness;
+  const adjustment = turnDirection * proximityFactor * moveSpeed * config.strength;
+  
+  // Calculate the push magnitude for debug visualization
+  const pushMagnitude = proximityFactor * moveSpeed * config.strength;
   
   return {
     rotationAdjustment: adjustment,
-    debugInfo: { distance: proximity.distance, edge: proximity.nearestEdge },
+    debugInfo: { 
+      distance: proximity.distance, 
+      edge: proximity.nearestEdge,
+      closeness,
+      pushVectorX: proximity.pushX,
+      pushVectorZ: proximity.pushZ,
+      pushMagnitude,
+      isActive: true,
+    },
   };
 }
 
