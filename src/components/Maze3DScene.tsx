@@ -1181,19 +1181,24 @@ const RefBasedPlayer = ({
           while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
         }
         
+        // Calculate the joystick angle in screen space
+        // atan2(x, y) gives angle where up (0,1) = 0, right (1,0) = PI/2, etc.
+        const joystickAngle = Math.atan2(joyX, joyY);
+        
         // Movement is ALWAYS forward (toward or away from camera based on joystick Y)
         // joystickY > 0 = push away from camera, joystickY < 0 = pull toward camera
         const hasMovement = Math.abs(joyY) > 0.1;
         const hasRotation = Math.abs(joyX) > 0.1; // Camera is orbiting, which implies character turn
         
         if (hasMovement && cameraYawRef) {
-          // Calculate world movement direction based on camera yaw
+          // Calculate world movement direction based on camera yaw AND joystick angle
           const cameraYaw = cameraYawRef.current;
           
-          // Movement direction: forward from camera's perspective
-          // joyY positive = move in direction camera faces (away)
-          // joyY negative = move toward camera (but still facing camera direction)
-          const targetMoveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
+          // The target angle combines camera direction with joystick direction
+          // When joystick is pushed forward (0°), face camera direction
+          // When joystick is pushed right (+90°), face 90° right of camera
+          // This makes the rotation follow the joystick smoothly
+          const targetMoveAngle = cameraYaw + joystickAngle;
           const moveSpeed = Math.abs(joyY);
           
           // GRADUAL TURNING: Instead of snapping to target rotation, smoothly rotate
@@ -1201,6 +1206,9 @@ const RefBasedPlayer = ({
           const currentRotation = playerStateRef.current.rotation;
           // Use shortestAngleDiff for correct turn direction across all angle ranges
           const angleDiff = shortestAngleDiff(currentRotation, targetMoveAngle);
+          
+          // DEBUG LOGGING
+          console.log(`[TURN] joy:(${joyX.toFixed(2)},${joyY.toFixed(2)}) joyAngle:${(joystickAngle * 180 / Math.PI).toFixed(1)}° cam:${(cameraYaw * 180 / Math.PI).toFixed(1)}° target:${(targetMoveAngle * 180 / Math.PI).toFixed(1)}° current:${(currentRotation * 180 / Math.PI).toFixed(1)}° diff:${(angleDiff * 180 / Math.PI).toFixed(1)}° turn:${angleDiff > 0 ? 'LEFT' : 'RIGHT'}`);
           
           // Turn speed in radians per second (3.0 is the standard turn rate)
           const TURN_SPEED = 3.0;
@@ -1215,10 +1223,8 @@ const RefBasedPlayer = ({
             newRotation = currentRotation + Math.sign(angleDiff) * maxTurn;
           }
           
-          // Normalize the new rotation
-          newRotation = normalizeAngle(newRotation);
-          // Convert to 0-2PI range for consistency
-          if (newRotation < 0) newRotation += Math.PI * 2;
+          // Normalize to 0-2PI range for consistency
+          newRotation = ((newRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
           
           // Create movement input - always "forward" in the calculated direction
           input = {
