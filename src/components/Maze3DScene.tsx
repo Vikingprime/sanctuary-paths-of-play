@@ -1210,11 +1210,13 @@ const RefBasedPlayer = ({
           
           // DRAG DIRECTION DETECTION: Track joystick angle changes to detect
           // counterclockwise vs clockwise drag, independent of joystick position.
-          // This is more reliable than using joyX sign, which fails at bottom of joystick.
+          // atan2(x,y) measures angle from 12 o'clock, increasing clockwise.
+          // So when dragging CCW on screen (6→3 o'clock), angle DECREASES (180→90).
+          // We need to INVERT the sign: decreasing angle = CCW = turn left.
           const joystickAngle = Math.atan2(joyX, joyY); // Angle of joystick from center
           const joystickMagnitude = Math.sqrt(joyX * joyX + joyY * joyY);
           
-          let dragDirection = 0; // -1 = clockwise, 1 = counterclockwise, 0 = no drag
+          let dragDirection = 0; // -1 = clockwise (turn right), 1 = counterclockwise (turn left)
           if (prevJoystickAngleRef.current !== null && joystickMagnitude > 0.2) {
             // Calculate angular velocity of joystick
             let angleDelta = joystickAngle - prevJoystickAngleRef.current;
@@ -1223,8 +1225,9 @@ const RefBasedPlayer = ({
             while (angleDelta < -Math.PI) angleDelta += Math.PI * 2;
             
             // Only consider significant angular changes
+            // INVERTED: negative angleDelta (decreasing angle) = CCW on screen = turn left (positive)
             if (Math.abs(angleDelta) > 0.02) {
-              dragDirection = angleDelta > 0 ? 1 : -1; // positive = counterclockwise
+              dragDirection = angleDelta < 0 ? 1 : -1; // INVERTED from before
             }
           }
           prevJoystickAngleRef.current = joystickMagnitude > 0.1 ? joystickAngle : null;
