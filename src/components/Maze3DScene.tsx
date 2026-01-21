@@ -1311,6 +1311,14 @@ const RefBasedPlayer = ({
           // Apply combined rotation: base joystick direction + ACCUMULATED avoidance
           const combinedRotation = baseRotation + accumulatedAvoidance.current;
           
+          // ALSO apply avoidance to camera yaw so camera follows the combined direction
+          if (cameraYawRef) {
+            cameraYawRef.current += smoothAvoidance.current * clampedDelta;
+            // Normalize to 0-2PI
+            while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+            while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+          }
+          
           // Set player rotation with avoidance included
           playerStateRef.current = {
             ...playerStateRef.current,
