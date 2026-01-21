@@ -221,9 +221,10 @@ export const MazeGame3D = ({
   const keysPressed = useRef<Set<string>>(new Set());
   const animationFrameRef = useRef<number>();
 
-  // Preview countdown
-  // Preview countdown - use ref to track interval for clean cleanup
+  // Preview countdown - use timestamp-based approach for reliable timing
   const previewTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const previewStartTimeRef = useRef<number | null>(null);
+  const previewDurationRef = useRef<number>(0);
   
   useEffect(() => {
     // Clear any existing timer first
@@ -232,21 +233,33 @@ export const MazeGame3D = ({
       previewTimerRef.current = null;
     }
     
-    if (!isPreviewing) return;
+    if (!isPreviewing) {
+      previewStartTimeRef.current = null;
+      return;
+    }
 
+    // Initialize start time and duration
+    const duration = debugMode ? 0 : maze.previewTime;
+    previewStartTimeRef.current = Date.now();
+    previewDurationRef.current = duration;
+
+    // Use faster interval (100ms) with timestamp-based calculation for accurate display
     previewTimerRef.current = setInterval(() => {
-      setPreviewTimeLeft((prev) => {
-        if (prev <= 1) {
-          if (previewTimerRef.current) {
-            clearInterval(previewTimerRef.current);
-            previewTimerRef.current = null;
-          }
-          setIsPreviewing(false);
-          return 0;
+      if (previewStartTimeRef.current === null) return;
+      
+      const elapsed = Math.floor((Date.now() - previewStartTimeRef.current) / 1000);
+      const remaining = Math.max(0, previewDurationRef.current - elapsed);
+      
+      setPreviewTimeLeft(remaining);
+      
+      if (remaining <= 0) {
+        if (previewTimerRef.current) {
+          clearInterval(previewTimerRef.current);
+          previewTimerRef.current = null;
         }
-        return prev - 1;
-      });
-    }, 1000);
+        setIsPreviewing(false);
+      }
+    }, 100); // Check every 100ms for smoother updates
 
     return () => {
       if (previewTimerRef.current) {
@@ -254,7 +267,7 @@ export const MazeGame3D = ({
         previewTimerRef.current = null;
       }
     };
-  }, [isPreviewing]);
+  }, [isPreviewing, debugMode, maze.previewTime]);
 
   // Game timer (paused during dialogue) - precise timing with 100ms updates
   const dialoguePauseStartRef = useRef<number | null>(null);
