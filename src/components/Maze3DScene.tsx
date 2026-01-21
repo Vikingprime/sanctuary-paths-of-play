@@ -18,6 +18,12 @@ import { GameConfig } from '@/game/GameConfig';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 import mapTowerSignImage from '@/assets/map-tower-sign.png';
 
+// Module-level debug data for movement and avoidance vectors (shared across components)
+export const debugVectorData = {
+  movementVector: { x: 0, z: 0, magnitude: 0 },
+  avoidanceVector: { x: 0, z: 0, magnitude: 0, distanceToEdge: 0 },
+};
+
 // Re-export for backward compatibility
 export const ATMOSPHERE_COLOR = FogConfig.COLOR_HEX;
 // Extended performance info type
@@ -41,6 +47,9 @@ export interface PerformanceInfo {
   animationUpdates?: number;
   gcSpikes?: number;
   shadowCasters?: number;
+  // Movement and avoidance vectors for debug visualization
+  movementVector?: { x: number; z: number; magnitude: number };
+  avoidanceVector?: { x: number; z: number; magnitude: number; distanceToEdge: number };
 }
 
 // === PERFORMANCE TOGGLES (for testing) ===
@@ -1153,16 +1162,34 @@ const RefBasedPlayer = ({
         let newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         
         // Apply border avoidance - push away from corridor edges
+        const movementSpeed = input.forward ? GameConfig.BASE_MOVE_SPEED * (speedBoostActive ? 1.8 : 1) : 0;
+        const moveX = Math.sin(newState.rotation);
+        const moveZ = -Math.cos(newState.rotation);
+        
+        // Update debug movement vector
+        debugVectorData.movementVector = {
+          x: moveX * movementSpeed,
+          z: moveZ * movementSpeed,
+          magnitude: movementSpeed,
+        };
+        
         if (corridorEdges.length > 0 && borderAvoidanceStrength > 0) {
           const headOffset = 0.3; // Distance from center to head
           const headX = newState.x + Math.sin(newState.rotation) * headOffset;
           const headZ = newState.y - Math.cos(newState.rotation) * headOffset;
-          const movementSpeed = input.forward ? GameConfig.BASE_MOVE_SPEED * (speedBoostActive ? 1.8 : 1) : 0;
           
           const avoidance = calculateBorderAvoidance(
             headX, headZ, newState.rotation, movementSpeed,
             corridorEdges, { triggerDistance: GameConfig.BORDER_AVOIDANCE.TRIGGER_DISTANCE, strength: borderAvoidanceStrength }
           );
+          
+          // Update debug avoidance vector
+          debugVectorData.avoidanceVector = {
+            x: avoidance.debugInfo.pushVectorX * avoidance.debugInfo.pushMagnitude,
+            z: avoidance.debugInfo.pushVectorZ * avoidance.debugInfo.pushMagnitude,
+            magnitude: avoidance.debugInfo.pushMagnitude,
+            distanceToEdge: avoidance.debugInfo.distance,
+          };
           
           if (avoidance.rotationAdjustment !== 0) {
             newState = {
@@ -1170,6 +1197,9 @@ const RefBasedPlayer = ({
               rotation: newState.rotation + avoidance.rotationAdjustment * clampedDelta
             };
           }
+        } else {
+          // Clear avoidance when not active
+          debugVectorData.avoidanceVector = { x: 0, z: 0, magnitude: 0, distanceToEdge: 999 };
         }
         
         playerStateRef.current = newState;
@@ -1226,16 +1256,34 @@ const RefBasedPlayer = ({
           let newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
           
           // Apply border avoidance for mobile movement too
+          const actualMoveSpeed = moveSpeed * GameConfig.BASE_MOVE_SPEED * (speedBoostActive ? 1.8 : 1);
+          const mobileMoveDirX = Math.sin(newState.rotation);
+          const mobileMoveDirZ = -Math.cos(newState.rotation);
+          
+          // Update debug movement vector for mobile too
+          debugVectorData.movementVector = {
+            x: mobileMoveDirX * actualMoveSpeed,
+            z: mobileMoveDirZ * actualMoveSpeed,
+            magnitude: actualMoveSpeed,
+          };
+          
           if (corridorEdges.length > 0 && borderAvoidanceStrength > 0) {
             const headOffset = 0.3;
             const headX = newState.x + Math.sin(newState.rotation) * headOffset;
             const headZ = newState.y - Math.cos(newState.rotation) * headOffset;
-            const movementSpeed = moveSpeed * GameConfig.BASE_MOVE_SPEED * (speedBoostActive ? 1.8 : 1);
             
             const avoidance = calculateBorderAvoidance(
-              headX, headZ, newState.rotation, movementSpeed,
+              headX, headZ, newState.rotation, actualMoveSpeed,
               corridorEdges, { triggerDistance: GameConfig.BORDER_AVOIDANCE.TRIGGER_DISTANCE, strength: borderAvoidanceStrength }
             );
+            
+            // Update debug avoidance vector
+            debugVectorData.avoidanceVector = {
+              x: avoidance.debugInfo.pushVectorX * avoidance.debugInfo.pushMagnitude,
+              z: avoidance.debugInfo.pushVectorZ * avoidance.debugInfo.pushMagnitude,
+              magnitude: avoidance.debugInfo.pushMagnitude,
+              distanceToEdge: avoidance.debugInfo.distance,
+            };
             
             if (avoidance.rotationAdjustment !== 0) {
               newState = {
@@ -1243,6 +1291,8 @@ const RefBasedPlayer = ({
                 rotation: newState.rotation + avoidance.rotationAdjustment * clampedDelta
               };
             }
+          } else {
+            debugVectorData.avoidanceVector = { x: 0, z: 0, magnitude: 0, distanceToEdge: 999 };
           }
           
           playerStateRef.current = newState;
@@ -2531,6 +2581,9 @@ const RendererInfoTracker = ({
           animationUpdates: perFrameAnimations,
           gcSpikes: frameMetrics.gcSpikes,
           shadowCasters: shadowCasterCount,
+          // Movement and avoidance vectors for debug visualization
+          movementVector: { ...debugVectorData.movementVector },
+          avoidanceVector: { ...debugVectorData.avoidanceVector },
         });
         
         // Reset metrics for next interval
