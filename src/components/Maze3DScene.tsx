@@ -1089,6 +1089,10 @@ const RefBasedPlayer = ({
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   const smoothBankAngle = useRef(0); // For banking/leaning during turns
   
+  // Animation state refs for PlayerCube
+  const isTurningRef = useRef(false); // True when turning in place (no forward movement)
+  const moveSpeedRef = useRef(0); // Current movement speed 0-1 (for walk vs gallop)
+  
   // Mobile steering no longer uses these (yaw rate system instead)
   
   // Helper: normalize angle to [-PI, PI]
@@ -1137,8 +1141,12 @@ const RefBasedPlayer = ({
           rotationIntensity: 1.0,
         };
         
-        // Update isMoving ref
-        isMovingRef.current = input.forward || input.backward;
+        // Update animation refs for keyboard
+        const isForwardOrBack = input.forward || input.backward;
+        const isRotating = input.rotateLeft || input.rotateRight;
+        isMovingRef.current = isForwardOrBack;
+        isTurningRef.current = isRotating && !isForwardOrBack; // Only turning in place
+        moveSpeedRef.current = isForwardOrBack ? 1.0 : 0; // Keyboard is always full speed
         
         // Calculate movement with clamped delta
         const prev = playerStateRef.current;
@@ -1158,6 +1166,7 @@ const RefBasedPlayer = ({
         // Movement is ALWAYS forward (toward or away from camera based on joystick Y)
         // joystickY > 0 = push away from camera, joystickY < 0 = pull toward camera
         const hasMovement = Math.abs(joyY) > 0.1;
+        const hasRotation = Math.abs(joyX) > 0.1; // Camera is orbiting, which implies character turn
         
         if (hasMovement && cameraYawRef) {
           // Calculate world movement direction based on camera yaw
@@ -1166,15 +1175,31 @@ const RefBasedPlayer = ({
           // Movement direction: forward from camera's perspective
           // joyY positive = move in direction camera faces (away)
           // joyY negative = move toward camera (but still facing camera direction)
-          const moveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
+          const targetMoveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
           const moveSpeed = Math.abs(joyY);
           
-          // Calculate world-space movement
-          const moveX = Math.sin(moveAngle) * moveSpeed;
-          const moveY = -Math.cos(moveAngle) * moveSpeed;
+          // GRADUAL TURNING: Instead of snapping to target rotation, smoothly rotate
+          // This prevents the jerking when joystick moves from one side to another
+          const currentRotation = playerStateRef.current.rotation;
+          const angleDiff = normalizeAngle(targetMoveAngle - currentRotation);
           
-          // Set player rotation to face movement direction
-          const targetRotation = moveAngle;
+          // Turn speed in radians per second (3.0 is the standard turn rate)
+          const TURN_SPEED = 3.0;
+          const maxTurn = TURN_SPEED * clampedDelta;
+          
+          // Clamp the turn to max speed, ensuring we turn the shortest direction
+          let newRotation: number;
+          if (Math.abs(angleDiff) <= maxTurn) {
+            newRotation = targetMoveAngle; // Close enough, snap to target
+          } else {
+            // Rotate toward target at max speed
+            newRotation = currentRotation + Math.sign(angleDiff) * maxTurn;
+          }
+          
+          // Normalize the new rotation
+          newRotation = normalizeAngle(newRotation);
+          // Convert to 0-2PI range for consistency
+          if (newRotation < 0) newRotation += Math.PI * 2;
           
           // Create movement input - always "forward" in the calculated direction
           input = {
@@ -1186,10 +1211,10 @@ const RefBasedPlayer = ({
             speedMultiplier: moveSpeed,
           };
           
-          // Manually update player rotation to face movement direction
+          // Update player rotation gradually
           playerStateRef.current = {
             ...playerStateRef.current,
-            rotation: targetRotation,
+            rotation: newRotation,
           };
           
           // Calculate movement
@@ -1197,14 +1222,52 @@ const RefBasedPlayer = ({
           const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
           playerStateRef.current = newState;
           
+          // Update animation refs
           isMovingRef.current = true;
-        } else {
-          // Only orbiting camera, no movement
+          isTurningRef.current = Math.abs(angleDiff) > 0.15; // Turning significantly
+          moveSpeedRef.current = moveSpeed;
+        } else if (hasRotation && cameraYawRef) {
+          // Only camera orbiting, animal should turn to face camera direction
+          const cameraYaw = cameraYawRef.current;
+          const targetRotation = cameraYaw; // Face the direction camera is looking
+          
+          const currentRotation = playerStateRef.current.rotation;
+          const angleDiff = normalizeAngle(targetRotation - currentRotation);
+          
+          // Slower turn when stationary
+          const TURN_SPEED = 2.0;
+          const maxTurn = TURN_SPEED * clampedDelta;
+          
+          let newRotation: number;
+          if (Math.abs(angleDiff) <= maxTurn) {
+            newRotation = targetRotation;
+          } else {
+            newRotation = currentRotation + Math.sign(angleDiff) * maxTurn;
+          }
+          
+          newRotation = normalizeAngle(newRotation);
+          if (newRotation < 0) newRotation += Math.PI * 2;
+          
+          playerStateRef.current = {
+            ...playerStateRef.current,
+            rotation: newRotation,
+          };
+          
+          // Update animation refs - turning in place
           isMovingRef.current = false;
+          isTurningRef.current = Math.abs(angleDiff) > 0.05;
+          moveSpeedRef.current = 0;
+        } else {
+          // No input - no movement or turning
+          isMovingRef.current = false;
+          isTurningRef.current = false;
+          moveSpeedRef.current = 0;
         }
       } else {
         // No input - no movement
         isMovingRef.current = false;
+        isTurningRef.current = false;
+        moveSpeedRef.current = 0;
       }
       
       // Only check interactions when entering a new cell
@@ -1275,6 +1338,8 @@ const RefBasedPlayer = ({
         position={[0, 0, 0]}
         rotation={0}
         isMovingRef={isMovingRef}
+        isTurningRef={isTurningRef}
+        moveSpeedRef={moveSpeedRef}
         enableSound={!isPaused && !isMuted}
         showCollisionDebug={showCollisionDebug}
       />
