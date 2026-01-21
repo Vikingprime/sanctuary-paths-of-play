@@ -1242,8 +1242,8 @@ const RefBasedPlayer = ({
           const moveX = Math.sin(moveAngle) * moveSpeed;
           const moveY = -Math.cos(moveAngle) * moveSpeed;
           
-          // Set player rotation to face movement direction
-          const targetRotation = moveAngle;
+          // Set BASE rotation to face movement direction, but PRESERVE accumulated avoidance
+          const baseRotation = moveAngle;
           
           // Create movement input - always "forward" in the calculated direction
           input = {
@@ -1255,20 +1255,10 @@ const RefBasedPlayer = ({
             speedMultiplier: moveSpeed,
           };
           
-          // Manually update player rotation to face movement direction
-          playerStateRef.current = {
-            ...playerStateRef.current,
-            rotation: targetRotation,
-          };
-          
-          // Calculate movement
-          const prev = playerStateRef.current;
-          let newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-          
-          // Apply border avoidance for mobile movement too
+          // Calculate border avoidance FIRST based on current position and intended direction
           const actualMoveSpeed = moveSpeed * GameConfig.BASE_MOVE_SPEED * (speedBoostActive ? 1.8 : 1);
-          const mobileMoveDirX = Math.sin(newState.rotation);
-          const mobileMoveDirZ = -Math.cos(newState.rotation);
+          const mobileMoveDirX = Math.sin(baseRotation);
+          const mobileMoveDirZ = -Math.cos(baseRotation);
           
           // Update debug movement vector for mobile too
           debugVectorData.movementVector = {
@@ -1276,15 +1266,18 @@ const RefBasedPlayer = ({
             z: mobileMoveDirZ * actualMoveSpeed,
             magnitude: actualMoveSpeed,
           };
-          debugVectorData.playerRotation = newState.rotation;
+          debugVectorData.playerRotation = baseRotation;
+          
+          // Calculate avoidance offset to ADD to base rotation
+          let avoidanceOffset = 0;
           
           if (corridorEdges.length > 0 && borderAvoidanceStrength > 0) {
             const headOffset = 0.3;
-            const headX = newState.x + Math.sin(newState.rotation) * headOffset;
-            const headZ = newState.y - Math.cos(newState.rotation) * headOffset;
+            const headX = playerStateRef.current.x + Math.sin(baseRotation) * headOffset;
+            const headZ = playerStateRef.current.y - Math.cos(baseRotation) * headOffset;
             
             const avoidance = calculateBorderAvoidance(
-              headX, headZ, newState.rotation, actualMoveSpeed,
+              headX, headZ, baseRotation, actualMoveSpeed,
               corridorEdges, { triggerDistance: GameConfig.BORDER_AVOIDANCE.TRIGGER_DISTANCE, strength: borderAvoidanceStrength }
             );
             
@@ -1298,19 +1291,26 @@ const RefBasedPlayer = ({
             
             // Smooth the avoidance rotation to prevent jerky turns
             const targetAvoidance = avoidance.rotationAdjustment;
-            const avoidanceLerpSpeed = 8; // How fast to ramp up/down the avoidance
+            const avoidanceLerpSpeed = 8;
             smoothAvoidance.current = smoothAvoidance.current + (targetAvoidance - smoothAvoidance.current) * Math.min(1, avoidanceLerpSpeed * clampedDelta);
-            
-            if (Math.abs(smoothAvoidance.current) > 0.001) {
-              newState = {
-                ...newState,
-                rotation: newState.rotation + smoothAvoidance.current * clampedDelta
-              };
-            }
+            avoidanceOffset = smoothAvoidance.current * clampedDelta;
           } else {
             smoothAvoidance.current = smoothAvoidance.current * 0.9; // Decay smoothly
             debugVectorData.avoidanceVector = { x: 0, z: 0, magnitude: 0, distanceToEdge: 999 };
           }
+          
+          // Apply combined rotation: base joystick direction + avoidance offset
+          const combinedRotation = baseRotation + avoidanceOffset;
+          
+          // Set player rotation with avoidance included
+          playerStateRef.current = {
+            ...playerStateRef.current,
+            rotation: combinedRotation,
+          };
+          
+          // Calculate movement with the combined rotation
+          const prev = playerStateRef.current;
+          let newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
           
           playerStateRef.current = newState;
           
