@@ -434,17 +434,28 @@ export const GameHUD = ({
           <div className="mt-2 pt-2 border-t border-gray-600">
             <div className="text-[10px] text-gray-400 mb-1">--- Vectors ---</div>
             <div className="flex items-center gap-4">
-              {/* Vector arrows visualization */}
+              {/* Vector arrows visualization - rotated to camera-relative (forward = up) */}
               <svg width="80" height="80" viewBox="-40 -40 80 80" className="bg-gray-900/50 rounded">
                 {/* Grid lines */}
                 <line x1="-35" y1="0" x2="35" y2="0" stroke="#333" strokeWidth="0.5" />
                 <line x1="0" y1="-35" x2="0" y2="35" stroke="#333" strokeWidth="0.5" />
                 
-                {/* Movement vector (cyan arrow) */}
+                {/* Movement vector (cyan arrow) - rotated to camera-relative */}
                 {performanceInfo.movementVector && performanceInfo.movementVector.magnitude > 0.01 && (() => {
                   const scale = 10; // pixels per unit
-                  const mx = performanceInfo.movementVector.x * scale;
-                  const mz = -performanceInfo.movementVector.z * scale; // Flip Z for screen coords
+                  const rot = performanceInfo.playerRotation ?? 0;
+                  // Transform world vector to camera-relative: rotate by -playerRotation
+                  // so that the player's forward direction points UP in the SVG
+                  const cosR = Math.cos(-rot);
+                  const sinR = Math.sin(-rot);
+                  const worldX = performanceInfo.movementVector.x;
+                  const worldZ = performanceInfo.movementVector.z;
+                  // Rotate world coords to local coords (player forward = +Y in SVG = -Z in world)
+                  const localX = worldX * cosR - worldZ * sinR;
+                  const localZ = worldX * sinR + worldZ * cosR;
+                  // SVG: x = right, y = down. We want forward = up, so flip Y
+                  const mx = localX * scale;
+                  const mz = -localZ * scale;
                   const len = Math.sqrt(mx * mx + mz * mz);
                   const maxLen = 30;
                   const clampedLen = Math.min(len, maxLen);
@@ -465,11 +476,18 @@ export const GameHUD = ({
                   );
                 })()}
                 
-                {/* Avoidance vector (red arrow) */}
+                {/* Avoidance vector (red arrow) - rotated to camera-relative */}
                 {performanceInfo.avoidanceVector && performanceInfo.avoidanceVector.magnitude > 0.01 && (() => {
                   const scale = 3; // pixels per unit (smaller since magnitude can be large)
-                  const ax = performanceInfo.avoidanceVector.x * scale;
-                  const az = -performanceInfo.avoidanceVector.z * scale;
+                  const rot = performanceInfo.playerRotation ?? 0;
+                  const cosR = Math.cos(-rot);
+                  const sinR = Math.sin(-rot);
+                  const worldX = performanceInfo.avoidanceVector.x;
+                  const worldZ = performanceInfo.avoidanceVector.z;
+                  const localX = worldX * cosR - worldZ * sinR;
+                  const localZ = worldX * sinR + worldZ * cosR;
+                  const ax = localX * scale;
+                  const az = -localZ * scale;
                   const len = Math.sqrt(ax * ax + az * az);
                   const maxLen = 30;
                   const clampedLen = Math.min(len, maxLen);

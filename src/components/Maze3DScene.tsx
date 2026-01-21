@@ -22,6 +22,7 @@ import mapTowerSignImage from '@/assets/map-tower-sign.png';
 export const debugVectorData = {
   movementVector: { x: 0, z: 0, magnitude: 0 },
   avoidanceVector: { x: 0, z: 0, magnitude: 0, distanceToEdge: 0 },
+  playerRotation: 0, // Current player rotation for camera-relative debug visualization
 };
 
 // Re-export for backward compatibility
@@ -50,6 +51,7 @@ export interface PerformanceInfo {
   // Movement and avoidance vectors for debug visualization
   movementVector?: { x: number; z: number; magnitude: number };
   avoidanceVector?: { x: number; z: number; magnitude: number; distanceToEdge: number };
+  playerRotation?: number; // Player rotation for camera-relative vector visualization
 }
 
 // === PERFORMANCE TOGGLES (for testing) ===
@@ -1172,6 +1174,7 @@ const RefBasedPlayer = ({
           z: moveZ * movementSpeed,
           magnitude: movementSpeed,
         };
+        debugVectorData.playerRotation = newState.rotation;
         
         if (corridorEdges.length > 0 && borderAvoidanceStrength > 0) {
           const headOffset = 0.3; // Distance from center to head
@@ -1266,6 +1269,7 @@ const RefBasedPlayer = ({
             z: mobileMoveDirZ * actualMoveSpeed,
             magnitude: actualMoveSpeed,
           };
+          debugVectorData.playerRotation = newState.rotation;
           
           if (corridorEdges.length > 0 && borderAvoidanceStrength > 0) {
             const headOffset = 0.3;
@@ -2584,6 +2588,7 @@ const RendererInfoTracker = ({
           // Movement and avoidance vectors for debug visualization
           movementVector: { ...debugVectorData.movementVector },
           avoidanceVector: { ...debugVectorData.avoidanceVector },
+          playerRotation: debugVectorData.playerRotation,
         });
         
         // Reset metrics for next interval
