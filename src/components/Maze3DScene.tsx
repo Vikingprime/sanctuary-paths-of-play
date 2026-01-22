@@ -1094,9 +1094,11 @@ const RefBasedPlayer = ({
   const moveSpeedRef = useRef(0); // Current movement speed 0-1 (for walk vs gallop)
   
   // Unwrapped angle tracking for continuous rotation (prevents direction flips at ±π boundary)
+  // Two-stage smoothing: desiredUnwrapped -> aimUnwrapped -> currentUnwrapped
   const prevTargetWrappedRef = useRef<number | null>(null);
-  const targetUnwrappedRef = useRef<number>(0);
-  const currentUnwrappedRef = useRef<number>(0);
+  const desiredUnwrappedRef = useRef<number>(0);  // Accumulated joystick target (instant)
+  const aimUnwrappedRef = useRef<number>(0);       // Smoothed target (gradual steering feel)
+  const currentUnwrappedRef = useRef<number>(0);   // Animal's actual rotation
   
   // Helper: wrap angle to [-π, π] range
   const wrapPi = (a: number): number => {
@@ -1194,24 +1196,34 @@ const RefBasedPlayer = ({
           // Initialize unwrapped tracking on first frame
           if (prevTargetWrappedRef.current === null) {
             prevTargetWrappedRef.current = targetWrapped;
-            targetUnwrappedRef.current = targetWrapped;
+            desiredUnwrappedRef.current = targetWrapped;
+            aimUnwrappedRef.current = targetWrapped;
             currentUnwrappedRef.current = playerStateRef.current.rotation;
           }
           
           // Compute delta from previous target using shortest path (detects direction)
           const dTarget = shortestAngleDiff(prevTargetWrappedRef.current, targetWrapped);
-          targetUnwrappedRef.current += dTarget;
+          desiredUnwrappedRef.current += dTarget;
           prevTargetWrappedRef.current = targetWrapped;
           
-          // Turn speed in radians per second (3.0 rad/s ≈ 172°/s)
-          const TURN_SPEED = 3.0;
-          const maxTurn = TURN_SPEED * clampedDelta;
+          // Two-stage smoothing for gradual steering feel:
+          // Stage 1: aimUnwrapped moves toward desiredUnwrapped at AIM_SPEED
+          // Stage 2: currentUnwrapped moves toward aimUnwrapped at TURN_SPEED
+          const AIM_SPEED = 2.5;   // How quickly the "steering target" responds to joystick (rad/s)
+          const TURN_SPEED = 3.0; // Maximum physical turn rate of the animal (rad/s)
           
-          // Rotate current toward target at max speed (continuous, no flipping)
+          // Stage 1: Gradual aiming - creates the "steering feel" layer
+          aimUnwrappedRef.current = moveTowards(
+            aimUnwrappedRef.current,
+            desiredUnwrappedRef.current,
+            AIM_SPEED * clampedDelta
+          );
+          
+          // Stage 2: Animal rotation follows aim, capped by TURN_SPEED
           currentUnwrappedRef.current = moveTowards(
             currentUnwrappedRef.current,
-            targetUnwrappedRef.current,
-            maxTurn
+            aimUnwrappedRef.current,
+            TURN_SPEED * clampedDelta
           );
           
           // Apply wrapped version to rotation
@@ -1241,7 +1253,7 @@ const RefBasedPlayer = ({
           
           // Update animation refs
           isMovingRef.current = true;
-          const angleDiff = targetUnwrappedRef.current - currentUnwrappedRef.current;
+          const angleDiff = aimUnwrappedRef.current - currentUnwrappedRef.current;
           isTurningRef.current = Math.abs(angleDiff) > 0.15;
           moveSpeedRef.current = moveSpeed;
         } else if (hasRotation && cameraYawRef) {
@@ -1252,23 +1264,32 @@ const RefBasedPlayer = ({
           // Initialize unwrapped tracking if needed
           if (prevTargetWrappedRef.current === null) {
             prevTargetWrappedRef.current = targetWrapped;
-            targetUnwrappedRef.current = targetWrapped;
+            desiredUnwrappedRef.current = targetWrapped;
+            aimUnwrappedRef.current = targetWrapped;
             currentUnwrappedRef.current = playerStateRef.current.rotation;
           }
           
           // Accumulate unwrapped target
           const dTarget = shortestAngleDiff(prevTargetWrappedRef.current, targetWrapped);
-          targetUnwrappedRef.current += dTarget;
+          desiredUnwrappedRef.current += dTarget;
           prevTargetWrappedRef.current = targetWrapped;
           
-          // Slower turn when stationary
-          const TURN_SPEED = 2.0;
-          const maxTurn = TURN_SPEED * clampedDelta;
+          // Two-stage smoothing for stationary camera orbit
+          const AIM_SPEED = 2.0;   // Slower aim tracking when stationary
+          const TURN_SPEED = 2.0;  // Slower turn when stationary
           
+          // Stage 1: Gradual aiming
+          aimUnwrappedRef.current = moveTowards(
+            aimUnwrappedRef.current,
+            desiredUnwrappedRef.current,
+            AIM_SPEED * clampedDelta
+          );
+          
+          // Stage 2: Animal rotation follows aim
           currentUnwrappedRef.current = moveTowards(
             currentUnwrappedRef.current,
-            targetUnwrappedRef.current,
-            maxTurn
+            aimUnwrappedRef.current,
+            TURN_SPEED * clampedDelta
           );
           
           const newRotation = wrapPi(currentUnwrappedRef.current);
@@ -1281,7 +1302,7 @@ const RefBasedPlayer = ({
           
           // Update animation refs - turning in place
           isMovingRef.current = false;
-          const angleDiff = targetUnwrappedRef.current - currentUnwrappedRef.current;
+          const angleDiff = aimUnwrappedRef.current - currentUnwrappedRef.current;
           isTurningRef.current = Math.abs(angleDiff) > 0.05;
           moveSpeedRef.current = 0;
         } else {
