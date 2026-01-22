@@ -513,6 +513,8 @@ function addOpacityAttribute(mesh: ThreeInstancedMesh, count: number, transforms
   const colorAttr = new InstancedBufferAttribute(colorArray, 3);
   mesh.geometry.setAttribute('instanceColor', colorAttr);
   
+  console.log('[CORN_WALL] Added opacity/color attributes to mesh with', count, 'instances');
+  console.log('[CORN_WALL] Mesh has instanceOpacity:', mesh.geometry.hasAttribute('instanceOpacity'));
   
   // Register each instance with its cell
   for (let i = 0; i < transforms.length && i < count; i++) {

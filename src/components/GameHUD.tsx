@@ -86,9 +86,6 @@ interface GameHUDProps {
   // Mobile controls toggle (WASD only mode)
   mobileControlsEnabled?: boolean;
   onToggleMobileControls?: () => void;
-  // Aim speed (steering smoothing)
-  aimSpeed?: number;
-  onAimSpeedChange?: (speed: number) => void;
 }
 
 export const GameHUD = ({
@@ -142,8 +139,6 @@ export const GameHUD = ({
   onSensitivityChange,
   mobileControlsEnabled = true,
   onToggleMobileControls,
-  aimSpeed = 2.5,
-  onAimSpeedChange,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -640,34 +635,6 @@ export const GameHUD = ({
                     })}
                     className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
                   />
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Steering Smoothing (Aim Speed) */}
-          {onAimSpeedChange && (
-            <div className="mt-2 pt-2 border-t border-gray-600">
-              <div className="text-[10px] text-gray-400 mb-1">--- Steering Smoothing ---</div>
-              <div className="space-y-2">
-                <div>
-                  <div className="flex justify-between text-[10px]">
-                    <span>Aim Speed:</span>
-                    <span className="text-cyan-400">{aimSpeed.toFixed(1)} rad/s</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="6.0"
-                    step="0.1"
-                    value={aimSpeed}
-                    onChange={(e) => onAimSpeedChange(parseFloat(e.target.value))}
-                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[8px] text-gray-500 mt-0.5">
-                    <span>Heavy</span>
-                    <span>Snappy</span>
-                  </div>
                 </div>
               </div>
             </div>

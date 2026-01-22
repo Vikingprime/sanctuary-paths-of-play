@@ -109,7 +109,6 @@ export const MazeGame3D = ({
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
-  const [aimSpeed, setAimSpeed] = useState(1.5); // Steering smoothing: how quickly target responds to joystick
   // Per-animal rim light: 0.3 for cow/pig, 0 for chicken (uses defaults in PlayerCube)
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
   const isMovingRef = useRef(false);
@@ -856,7 +855,6 @@ export const MazeGame3D = ({
         skyEnabled={skyEnabled}
         shaderFadeEnabled={shaderFadeEnabled}
         lowShadowRes={lowShadowRes}
-        aimSpeed={aimSpeed}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -926,8 +924,6 @@ export const MazeGame3D = ({
           onSensitivityChange={setSensitivityConfig}
           mobileControlsEnabled={mobileControlsEnabled}
           onToggleMobileControls={() => setMobileControlsEnabled(prev => !prev)}
-          aimSpeed={aimSpeed}
-          onAimSpeedChange={setAimSpeed}
         />
       )}
 
