@@ -86,6 +86,9 @@ interface GameHUDProps {
   // Mobile controls toggle (WASD only mode)
   mobileControlsEnabled?: boolean;
   onToggleMobileControls?: () => void;
+  // Medial axis skeleton debug
+  skeletonEnabled?: boolean;
+  onToggleSkeleton?: () => void;
 }
 
 export const GameHUD = ({
@@ -139,6 +142,8 @@ export const GameHUD = ({
   onSensitivityChange,
   mobileControlsEnabled = true,
   onToggleMobileControls,
+  skeletonEnabled = false,
+  onToggleSkeleton,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -572,6 +577,18 @@ export const GameHUD = ({
                   title="Disable mobile controls to use WASD only"
                 >
                   Mobile
+                </button>
+              )}
+              {onToggleSkeleton && (
+                <button
+                  onClick={onToggleSkeleton}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    skeletonEnabled ? 'bg-cyan-600 text-white' : 'bg-gray-600 text-white'
+                  )}
+                  title="Show medial axis skeleton (centerline)"
+                >
+                  Skeleton
                 </button>
               )}
             </div>

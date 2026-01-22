@@ -41,3 +41,9 @@ export {
   calculateStars,
   executeAbility,
 } from './GameLogic';
+
+// Medial axis (skeleton) computation
+export {
+  computeMedialAxis,
+  type MedialAxisResult,
+} from './MedialAxis';
