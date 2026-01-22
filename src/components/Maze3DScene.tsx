@@ -1621,7 +1621,7 @@ const OverShoulderCameraController = ({
   const LOOK_HEIGHT_START = 0.0;
   const LOOK_HEIGHT_NORMAL = targetHeight; // Use character-scaled look height
   const POSITION_SMOOTHING = 0.15;
-  const ROTATION_SMOOTHING = 0.12;
+  // ROTATION_SMOOTHING removed - camera yaw is now rate-limited by RefBasedPlayer's smoothDamp
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
   const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
   
@@ -1657,8 +1657,8 @@ const OverShoulderCameraController = ({
     
     // Initialize on first frame BEFORE any calculations
     if (!initialized.current) {
-      smoothRotation.current = targetCameraYaw;
       initialPlayerPos.current = { x: playerX, z: playerZ };
+      // Use targetCameraYaw directly (no smoothRotation needed - already damped by RefBasedPlayer)
       const rot = targetCameraYaw;
       // Set camera position immediately without interpolation (start close)
       currentPosition.current.set(
@@ -1674,17 +1674,9 @@ const OverShoulderCameraController = ({
       initialized.current = true;
     }
     
-    // Smoothly interpolate camera rotation using shortest path
-    // Use cameraYawRef for orbit mode, player rotation for traditional mode
-    let rotDiff = targetCameraYaw - smoothRotation.current;
-    // Handle wrap-around (shortest path)
-    if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-    if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-    smoothRotation.current += rotDiff * ROTATION_SMOOTHING;
-    // Keep in 0-2π range
-    smoothRotation.current = ((smoothRotation.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    
-    const rot = smoothRotation.current;
+    // Use the already-smoothed camera yaw directly (rate-limited by RefBasedPlayer's smoothDamp)
+    // No additional interpolation needed - cameraYawRef is already damped with CAM_YAW_MAX_SPEED
+    const rot = targetCameraYaw;
     
     // Calculate desired camera position orbiting around player
     const desiredDist = currentDistance.current;
