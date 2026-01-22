@@ -1093,6 +1093,10 @@ const RefBasedPlayer = ({
   const isTurningRef = useRef(false); // True when turning in place (no forward movement)
   const moveSpeedRef = useRef(0); // Current movement speed 0-1 (for walk vs gallop)
   
+  // Hybrid steering state: latched turn direction for rear zone (6 o'clock)
+  const prevJoyAngleRef = useRef<number>(0);
+  const latchedTurnDirRef = useRef<number>(1); // 1 = CCW, -1 = CW
+  
   // Helper: wrap angle to [-π, π] range
   const wrapPi = (a: number): number => {
     a = (a + Math.PI) % (Math.PI * 2);
@@ -1175,10 +1179,23 @@ const RefBasedPlayer = ({
         if (hasMovement && cameraYawRef) {
           // Calculate joystick angle relative to camera using atan2
           const cameraYaw = cameraYawRef.current;
-          // Steering/turn-force model: joystick angle determines turn direction
+          // Hybrid steering: positional + latched direction for rear zone
           const joyAngle = Math.atan2(joyX, joyY); // -PI..PI, 0 = forward, + = right, - = left
-          const turnSignal = Math.sin(joyAngle);   // -1..+1, smooth with no boundary flips
+          const positionalTurn = Math.sin(joyAngle); // -1..+1, smooth in most directions
           const moveSpeed = Math.sqrt(joyX * joyX + joyY * joyY);
+          
+          // Latch turn direction based on joystick rotation (ignore tiny noise)
+          const joyDelta = shortestAngleDiff(prevJoyAngleRef.current, joyAngle);
+          prevJoyAngleRef.current = joyAngle;
+          
+          const deltaEps = 0.02; // threshold to ignore jitter
+          if (Math.abs(joyDelta) > deltaEps) {
+            latchedTurnDirRef.current = Math.sign(joyDelta) || latchedTurnDirRef.current;
+          }
+          
+          // Rear zone near 6 o'clock: use latched direction to prevent flip
+          const rearZone = joyY < -0.6;
+          const turnSignal = rearZone ? latchedTurnDirRef.current : positionalTurn;
           
           // Apply steering: integrate yaw over time
           const TURN_SPEED = 3.0; // radians per second
