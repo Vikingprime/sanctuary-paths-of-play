@@ -254,13 +254,15 @@ interface DistanceLabelsProps {
  * Only renders walkable cells with distance > 0.
  */
 function DistanceLabels({ fineGrid, fineCellSize, height }: DistanceLabelsProps) {
-  // Collect all walkable cell positions with their distances
+  // Sample every SCALE cells to reduce Text count from ~2800 to ~112
+  const SAMPLE_RATE = 5;
+  
   const labelData = useMemo(() => {
     const data: Array<{ x: number; z: number; distance: number }> = [];
     
-    for (let fy = 0; fy < fineGrid.length; fy++) {
+    for (let fy = 0; fy < fineGrid.length; fy += SAMPLE_RATE) {
       const row = fineGrid[fy];
-      for (let fx = 0; fx < row.length; fx++) {
+      for (let fx = 0; fx < row.length; fx += SAMPLE_RATE) {
         const cell = row[fx];
         if (cell.walkable && cell.distance > 0) {
           const worldX = (fx + 0.5) * fineCellSize;
