@@ -89,6 +89,7 @@ interface Maze3DSceneProps {
   skyEnabled?: boolean;
   shaderFadeEnabled?: boolean;
   lowShadowRes?: boolean;
+  aimSpeed?: number; // How quickly the "steering target" responds to joystick (rad/s)
 }
 
 // Ground shader using multiple photo textures with random patches
@@ -1061,6 +1062,7 @@ const RefBasedPlayer = ({
   characters,
   showCollisionDebug = true,
   animalRimLight = 0.5,
+  aimSpeed = 2.5,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1080,6 +1082,7 @@ const RefBasedPlayer = ({
   characters: CharacterPosition[];
   showCollisionDebug?: boolean;
   animalRimLight?: number;
+  aimSpeed?: number;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
@@ -1207,16 +1210,15 @@ const RefBasedPlayer = ({
           prevTargetWrappedRef.current = targetWrapped;
           
           // Two-stage smoothing for gradual steering feel:
-          // Stage 1: aimUnwrapped moves toward desiredUnwrapped at AIM_SPEED
+          // Stage 1: aimUnwrapped moves toward desiredUnwrapped at aimSpeed
           // Stage 2: currentUnwrapped moves toward aimUnwrapped at TURN_SPEED
-          const AIM_SPEED = 2.5;   // How quickly the "steering target" responds to joystick (rad/s)
           const TURN_SPEED = 3.0; // Maximum physical turn rate of the animal (rad/s)
           
           // Stage 1: Gradual aiming - creates the "steering feel" layer
           aimUnwrappedRef.current = moveTowards(
             aimUnwrappedRef.current,
             desiredUnwrappedRef.current,
-            AIM_SPEED * clampedDelta
+            aimSpeed * clampedDelta
           );
           
           // Stage 2: Animal rotation follows aim, capped by TURN_SPEED
@@ -1274,15 +1276,14 @@ const RefBasedPlayer = ({
           desiredUnwrappedRef.current += dTarget;
           prevTargetWrappedRef.current = targetWrapped;
           
-          // Two-stage smoothing for stationary camera orbit
-          const AIM_SPEED = 2.0;   // Slower aim tracking when stationary
+          // Two-stage smoothing for stationary camera orbit (uses same aimSpeed)
           const TURN_SPEED = 2.0;  // Slower turn when stationary
           
           // Stage 1: Gradual aiming
           aimUnwrappedRef.current = moveTowards(
             aimUnwrappedRef.current,
             desiredUnwrappedRef.current,
-            AIM_SPEED * clampedDelta
+            Math.min(aimSpeed, 2.0) * clampedDelta  // Cap at 2.0 for stationary
           );
           
           // Stage 2: Animal rotation follows aim
@@ -2196,7 +2197,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5 }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, aimSpeed = 2.5 }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; aimSpeed?: number }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2416,6 +2417,7 @@ return (
         characters={characterPositions}
         showCollisionDebug={showCollisionDebug}
         animalRimLight={animalRimLight}
+        aimSpeed={aimSpeed}
       />
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
