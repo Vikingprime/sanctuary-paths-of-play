@@ -89,6 +89,9 @@ interface GameHUDProps {
   // Medial axis skeleton debug
   skeletonEnabled?: boolean;
   onToggleSkeleton?: () => void;
+  // Overlay grid debug (walkable vs blocked subcells)
+  overlayGridEnabled?: boolean;
+  onToggleOverlayGrid?: () => void;
 }
 
 export const GameHUD = ({
@@ -144,6 +147,8 @@ export const GameHUD = ({
   onToggleMobileControls,
   skeletonEnabled = false,
   onToggleSkeleton,
+  overlayGridEnabled = false,
+  onToggleOverlayGrid,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -589,6 +594,18 @@ export const GameHUD = ({
                   title="Show medial axis skeleton (centerline)"
                 >
                   Skeleton
+                </button>
+              )}
+              {onToggleOverlayGrid && (
+                <button
+                  onClick={onToggleOverlayGrid}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    overlayGridEnabled ? 'bg-green-600 text-white' : 'bg-gray-600 text-white'
+                  )}
+                  title="Show overlay grid (green=walkable, red=blocked)"
+                >
+                  OverlayGrid
                 </button>
               )}
             </div>
