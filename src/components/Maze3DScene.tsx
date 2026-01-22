@@ -1620,7 +1620,7 @@ const OverShoulderCameraController = ({
   const LOOK_AHEAD = 1.3;
   const LOOK_HEIGHT_START = 0.0;
   const LOOK_HEIGHT_NORMAL = targetHeight; // Use character-scaled look height
-  const POSITION_SMOOTHING = 0.15;
+  const POSITION_SMOOTHING = 0.075;
   // ROTATION_SMOOTHING removed - camera yaw is now rate-limited by RefBasedPlayer's smoothDamp
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
   const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
