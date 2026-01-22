@@ -1232,9 +1232,10 @@ const RefBasedPlayer = ({
         
         // Movement is ALWAYS forward (toward or away from camera based on joystick Y)
         // joystickY > 0 = push away from camera, joystickY < 0 = pull toward camera
-        const hasMovement = Math.abs(joyY) > 0.1;
-        const hasRotation = Math.abs(joyX) > 0.1; // Camera is orbiting, which implies character turn
-        const wantsMove = Math.sqrt(joyX * joyX + joyY * joyY) > 0.15;
+        const joyMagnitude = Math.sqrt(joyX * joyX + joyY * joyY);
+        const hasMovement = joyMagnitude > 0.15; // Movement if joystick is pushed in any direction
+        const hasRotation = !hasMovement && Math.abs(joyX) > 0.1; // Only pure X rotation without movement
+        const wantsMove = joyMagnitude > 0.15;
         
         // Variables to track if movement was blocked (set after movement calculation)
         let isBlocked = false;
