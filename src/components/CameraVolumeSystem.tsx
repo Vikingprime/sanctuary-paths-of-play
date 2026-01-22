@@ -35,8 +35,8 @@ export const DEFAULT_AUTOPUSH: AutopushConfig = {
   enabled: true,
   minDist: 0.8,         // Very close minimum
   padding: 0.3,         // Small padding before corn
-  pushLerp: 0.35,       // Fast push-in
-  relaxLerp: 0.08,      // Slow relax-out (prevents pumping)
+  pushLerp: 0.18,       // Slower push-in (reduced from 0.35)
+  relaxLerp: 0.05,      // Slower relax-out (reduced from 0.08)
   headHeight: 0.5,      // Animal head height
   rayCount: 3,          // Use 3 rays for stability
   raySpread: 0.15,      // ~8.5 degrees spread for side rays

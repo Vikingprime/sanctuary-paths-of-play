@@ -1111,9 +1111,9 @@ const RefBasedPlayer = ({
   const lastPositionRef = useRef({ x: 0, z: 0 });  // For detecting blocked state
   
   // Camera smoothing constants (tunable)
-  const CAM_YAW_MAX_SPEED = 1.6;          // Hard limit on camera rotation (rad/s) - ~92°/s
-  const CAM_YAW_MAX_SPEED_BLOCKED = 0.35; // Much slower when blocked (rad/s)
-  const CAM_SMOOTH_TIME = 0.20;           // Smoothing time (bigger = smoother/slower)
+  const CAM_YAW_MAX_SPEED = 1.4;          // Hard limit on camera rotation (rad/s) - ~80°/s
+  const CAM_YAW_MAX_SPEED_BLOCKED = 0.25; // Much slower when blocked (rad/s)
+  const CAM_SMOOTH_TIME = 0.25;           // Smoothing time (bigger = smoother/slower)
   const CAM_INPUT_DEADZONE = 0.02;        // Ignore tiny camera inputs
   
   // Helper: wrap angle to [-π, π] range
