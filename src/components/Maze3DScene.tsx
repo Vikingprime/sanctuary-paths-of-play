@@ -1175,10 +1175,25 @@ const RefBasedPlayer = ({
       // Clamp delta to prevent large jumps on frame drops
       const clampedDelta = Math.min(delta, 0.05);
       
-      // Get joystick input
-      const joyX = joystickXRef?.current ?? 0;
-      const joyY = joystickYRef?.current ?? 0;
-      const joystickMagnitude = Math.sqrt(joyX * joyX + joyY * joyY);
+      // Get joystick input with proper deadzone
+      const rawJoyX = joystickXRef?.current ?? 0;
+      const rawJoyY = joystickYRef?.current ?? 0;
+      
+      // Apply radial deadzone to eliminate joystick bias/noise
+      const DEADZONE = 0.18; // Mobile sticks need bigger deadzones
+      const applyDeadzone = (x: number, y: number, dz: number) => {
+        const m = Math.hypot(x, y);
+        if (m < dz) return { x: 0, y: 0, m: 0 };
+        const t = (m - dz) / (1 - dz); // 0..1 normalized
+        const s = t / m;
+        return { x: x * s, y: y * s, m: t };
+      };
+      
+      const joy = applyDeadzone(rawJoyX, rawJoyY, DEADZONE);
+      const joyX = joy.x;
+      const joyY = joy.y;
+      const joystickMagnitude = joy.m;
+      
       const mobileActive = (mobileTouchActiveRef?.current ?? false) && joystickMagnitude > 0.01;
       
       // Check if any keyboard keys are pressed
@@ -1212,97 +1227,77 @@ const RefBasedPlayer = ({
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         playerStateRef.current = newState;
       } else if (mobileActive) {
-        // MOBILE JOYSTICK MODE: Summer Afternoon style camera-relative movement
+        // MOBILE JOYSTICK MODE: Simplified tank-style controls
+        // - Y axis = forward/backward speed
+        // - X axis = turn rate (yaw change per second)
         // 
-        // KEY DESIGN: Movement uses ANIMAL yaw as stable reference (not smoothed camera yaw)
-        // Camera follows animal facing with rate-limited smoothing.
-        // This prevents straight-line drift when camera lags.
+        // This ensures holding forward goes STRAIGHT with no turning drift.
         
         // Camera turn speeds (camera follows animal yaw, not joystick)
         const CAM_TURN_SPEED = 1.0;           // rad/s - how fast camera catches up to animal
         const CAM_TURN_SPEED_BLOCKED = 0.2;   // rad/s - slower when blocked to prevent spin
         
+        // Turn speed for animal (rad/s)
+        const TURN_SPEED = 2.5;  // Maximum turn rate when X is fully deflected
+        
+        // Turn deadzone - ignore small X values to prevent drift
+        const TURN_DZ = 0.12;
+        let turnX = joyX;
+        if (Math.abs(turnX) < TURN_DZ) {
+          turnX = 0;
+        } else {
+          // Rescale after deadzone so it ramps nicely from 0
+          turnX = ((Math.abs(turnX) - TURN_DZ) / (1 - TURN_DZ)) * Math.sign(turnX);
+        }
+        
+        // Forward speed from Y axis (0 to 1, no backward for now)
+        const forwardSpeed = Math.max(0, joyY);  // Only forward when pushing up
+        const wantsMove = forwardSpeed > 0.05;
+        
         // Initialize camera yaw refs on first frame
         if (!cameraYawInitializedRef.current && cameraYawRef) {
-          // Initialize camera to match current animal facing
           const animalYaw = playerStateRef.current.rotation;
           cameraYawTargetRef.current = animalYaw;
           cameraYawCurrentRef.current = animalYaw;
           cameraYawVelRef.current = 0;
           lastPositionRef.current = { x: playerStateRef.current.x, z: playerStateRef.current.y };
           cameraYawInitializedRef.current = true;
+          // Also initialize the unwrapped rotation tracking
+          currentUnwrappedRef.current = animalYaw;
         }
         
         // Store position before movement to detect blocked state
         const posBeforeMove = { x: playerStateRef.current.x, z: playerStateRef.current.y };
         
-        // Movement is ALWAYS forward (toward or away from camera based on joystick Y)
-        // joystickY > 0 = push away from camera, joystickY < 0 = pull toward camera
-        const hasMovement = Math.abs(joyY) > 0.1;
-        const hasRotation = Math.abs(joyX) > 0.1; // Camera is orbiting, which implies character turn
-        const wantsMove = Math.sqrt(joyX * joyX + joyY * joyY) > 0.15;
-        
         // Variables to track if movement was blocked (set after movement calculation)
         let isBlocked = false;
         
-        if (hasMovement && cameraYawRef) {
-          // Calculate joystick angle relative to ANIMAL yaw (stable reference)
-          // This prevents drift - movement is always relative to where animal is facing
-          const animalYaw = currentUnwrappedRef.current; // Stable reference (NOT camera yaw)
-          const joyAngle = Math.atan2(joyX, joyY);
-          const targetWrapped = wrapPi(animalYaw + joyAngle);
-          const moveSpeed = Math.sqrt(joyX * joyX + joyY * joyY);
-          
-          // Initialize unwrapped tracking on first frame
-          if (prevTargetWrappedRef.current === null) {
-            prevTargetWrappedRef.current = targetWrapped;
-            desiredUnwrappedRef.current = targetWrapped;
-            aimUnwrappedRef.current = targetWrapped;
-            currentUnwrappedRef.current = playerStateRef.current.rotation;
-          }
-          
-          // Compute delta from previous target using shortest path (detects direction)
-          const dTarget = shortestAngleDiff(prevTargetWrappedRef.current, targetWrapped);
-          desiredUnwrappedRef.current += dTarget;
-          prevTargetWrappedRef.current = targetWrapped;
-          
-          // Two-stage smoothing for gradual steering feel:
-          // Stage 1: aimUnwrapped moves toward desiredUnwrapped at aimSpeed
-          // Stage 2: currentUnwrapped moves toward aimUnwrapped at TURN_SPEED
-          const TURN_SPEED = 3.0; // Maximum physical turn rate of the animal (rad/s)
-          
-          // Stage 1: Gradual aiming - creates the "steering feel" layer
-          aimUnwrappedRef.current = moveTowards(
-            aimUnwrappedRef.current,
-            desiredUnwrappedRef.current,
-            aimSpeed * clampedDelta
-          );
-          
-          // Stage 2: Animal rotation follows aim, capped by TURN_SPEED
-          currentUnwrappedRef.current = moveTowards(
-            currentUnwrappedRef.current,
-            aimUnwrappedRef.current,
-            TURN_SPEED * clampedDelta
-          );
-          
-          // Apply wrapped version to rotation
-          const newRotation = wrapPi(currentUnwrappedRef.current);
-          const normalizedRotation = newRotation < 0 ? newRotation + Math.PI * 2 : newRotation;
-          
-          // Create movement input - always "forward" in the calculated direction
+        // === TURNING: X axis only ===
+        // Apply turn (yaw integration) based on X input
+        // No atan2, no target angles - just direct yaw += turnX * speed * dt
+        if (turnX !== 0) {
+          currentUnwrappedRef.current += turnX * TURN_SPEED * clampedDelta;
+        }
+        
+        // Apply wrapped version to player rotation
+        const newRotation = wrapPi(currentUnwrappedRef.current);
+        const normalizedRotation = newRotation < 0 ? newRotation + Math.PI * 2 : newRotation;
+        
+        playerStateRef.current = {
+          ...playerStateRef.current,
+          rotation: normalizedRotation,
+        };
+        
+        // === MOVEMENT: Y axis = forward speed ===
+        // Movement direction is based on animal yaw (so forward goes straight)
+        if (wantsMove) {
           input = {
             forward: true,
             backward: false,
             rotateLeft: false,
             rotateRight: false,
             rotationIntensity: 1.0,
-            speedMultiplier: moveSpeed,
-          };
-          
-          // Update player rotation
-          playerStateRef.current = {
-            ...playerStateRef.current,
-            rotation: normalizedRotation,
+            speedMultiplier: forwardSpeed,
           };
           
           // Calculate movement
@@ -1316,69 +1311,14 @@ const RefBasedPlayer = ({
             Math.pow(posAfterMove.x - posBeforeMove.x, 2) + 
             Math.pow(posAfterMove.z - posBeforeMove.z, 2)
           );
-          const expectedMinDistance = moveSpeed * 0.5 * clampedDelta; // At least 50% of expected movement
-          isBlocked = wantsMove && actualMoveDistance < expectedMinDistance * 0.1;
-          
-          // Update animation refs
-          isMovingRef.current = true;
-          const angleDiff = aimUnwrappedRef.current - currentUnwrappedRef.current;
-          isTurningRef.current = Math.abs(angleDiff) > 0.15;
-          moveSpeedRef.current = moveSpeed;
-        } else if (hasRotation && cameraYawRef) {
-          // Only X input (no forward/back) - animal should turn in place
-          // Use current animal yaw + joystick X as turn intent
-          const animalYaw = currentUnwrappedRef.current;
-          const targetWrapped = wrapPi(animalYaw + joyX * 0.5); // Smaller turn for X-only
-          
-          // Initialize unwrapped tracking if needed
-          if (prevTargetWrappedRef.current === null) {
-            prevTargetWrappedRef.current = targetWrapped;
-            desiredUnwrappedRef.current = targetWrapped;
-            aimUnwrappedRef.current = targetWrapped;
-            currentUnwrappedRef.current = playerStateRef.current.rotation;
-          }
-          
-          // Accumulate unwrapped target
-          const dTarget = shortestAngleDiff(prevTargetWrappedRef.current, targetWrapped);
-          desiredUnwrappedRef.current += dTarget;
-          prevTargetWrappedRef.current = targetWrapped;
-          
-          // Two-stage smoothing for stationary camera orbit (uses same aimSpeed)
-          const TURN_SPEED = 2.0;  // Slower turn when stationary
-          
-          // Stage 1: Gradual aiming
-          aimUnwrappedRef.current = moveTowards(
-            aimUnwrappedRef.current,
-            desiredUnwrappedRef.current,
-            Math.min(aimSpeed, 2.0) * clampedDelta  // Cap at 2.0 for stationary
-          );
-          
-          // Stage 2: Animal rotation follows aim
-          currentUnwrappedRef.current = moveTowards(
-            currentUnwrappedRef.current,
-            aimUnwrappedRef.current,
-            TURN_SPEED * clampedDelta
-          );
-          
-          const newRotation = wrapPi(currentUnwrappedRef.current);
-          const normalizedRotation = newRotation < 0 ? newRotation + Math.PI * 2 : newRotation;
-          
-          playerStateRef.current = {
-            ...playerStateRef.current,
-            rotation: normalizedRotation,
-          };
-          
-          // Update animation refs - turning in place
-          isMovingRef.current = false;
-          const angleDiff = aimUnwrappedRef.current - currentUnwrappedRef.current;
-          isTurningRef.current = Math.abs(angleDiff) > 0.05;
-          moveSpeedRef.current = 0;
-        } else {
-          // No input - no movement or turning
-          isMovingRef.current = false;
-          isTurningRef.current = false;
-          moveSpeedRef.current = 0;
+          const expectedMinDistance = forwardSpeed * 0.5 * clampedDelta;
+          isBlocked = actualMoveDistance < expectedMinDistance * 0.1;
         }
+        
+        // Update animation refs
+        isMovingRef.current = wantsMove;
+        isTurningRef.current = Math.abs(turnX) > 0.05 && !wantsMove; // Turn in place animation
+        moveSpeedRef.current = forwardSpeed;
         
         // === CAMERA YAW SMOOTHING ===
         // Camera follows ANIMAL yaw with rate-limited smoothing.
