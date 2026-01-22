@@ -15,6 +15,7 @@ import { MOBILE_CONTROL_CONFIG } from './MobileControls';
 import { FogConfig, FOG_COLOR } from '@/game/FogConfig';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 import mapTowerSignImage from '@/assets/map-tower-sign.png';
+import { MedialAxisVisualization } from './MedialAxisVisualization';
 
 // Re-export for backward compatibility
 export const ATMOSPHERE_COLOR = FogConfig.COLOR_HEX;
@@ -89,6 +90,7 @@ interface Maze3DSceneProps {
   skyEnabled?: boolean;
   shaderFadeEnabled?: boolean;
   lowShadowRes?: boolean;
+  skeletonEnabled?: boolean;
 }
 
 // Ground shader using multiple photo textures with random patches
@@ -2148,7 +2150,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5 }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2317,6 +2319,15 @@ return (
       {items.stations.map((pos, i) => (
         <MapStation key={`station-${i}`} position={pos} />
       ))}
+      
+      {/* Medial Axis Skeleton Visualization (debug) */}
+      <MedialAxisVisualization 
+        maze={maze} 
+        visible={skeletonEnabled} 
+        showRidge={false}
+        height={0.15}
+        pointSize={0.08}
+      />
       
       {/* Placed Characters from maze.characters array */}
       {maze.characters?.map((character) => (

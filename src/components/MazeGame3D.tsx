@@ -106,6 +106,7 @@ export const MazeGame3D = ({
   const [cornCullingEnabled, setCornCullingEnabled] = useState(true);
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [shaderFadeEnabled, setShaderFadeEnabled] = useState(true);
+  const [skeletonEnabled, setSkeletonEnabled] = useState(false);
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
@@ -855,6 +856,7 @@ export const MazeGame3D = ({
         skyEnabled={skyEnabled}
         shaderFadeEnabled={shaderFadeEnabled}
         lowShadowRes={lowShadowRes}
+        skeletonEnabled={skeletonEnabled}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -924,6 +926,8 @@ export const MazeGame3D = ({
           onSensitivityChange={setSensitivityConfig}
           mobileControlsEnabled={mobileControlsEnabled}
           onToggleMobileControls={() => setMobileControlsEnabled(prev => !prev)}
+          skeletonEnabled={skeletonEnabled}
+          onToggleSkeleton={() => setSkeletonEnabled(prev => !prev)}
         />
       )}
 
