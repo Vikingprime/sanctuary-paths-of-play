@@ -1103,15 +1103,18 @@ const RefBasedPlayer = ({
   const aimUnwrappedRef = useRef<number>(0);       // Smoothed target (gradual steering feel)
   const currentUnwrappedRef = useRef<number>(0);   // Animal's actual rotation
   
-  // === POLICY A CAMERA: Camera follows character yaw (not joystick) ===
-  // Camera yaw smoothing refs - camera follows the character's facing direction
-  const camYawUnwrappedRef = useRef<number>(0);     // Current camera yaw (continuous/unwrapped)
-  const cameraYawInitializedRef = useRef(false);    // Whether camera yaw refs are initialized
-  const lastPositionRef = useRef({ x: 0, z: 0 });   // For detecting blocked state
+  // Camera yaw smoothing refs (prevents camera spin when blocked)
+  const cameraYawTargetRef = useRef<number>(0);    // Unwrapped target camera yaw
+  const cameraYawCurrentRef = useRef<number>(0);   // Unwrapped current camera yaw (smoothed)
+  const cameraYawVelRef = useRef<number>(0);       // Velocity for smoothDamp
+  const cameraYawInitializedRef = useRef(false);   // Whether camera yaw refs are initialized
+  const lastPositionRef = useRef({ x: 0, z: 0 });  // For detecting blocked state
   
-  // Camera smoothing constants - POLICY A: slow, nausea-reducing camera follow
-  const CAM_TURN_SPEED = 1.2;            // Max camera rotation (rad/s) - ~69°/s - comfortable
-  const CAM_TURN_SPEED_BLOCKED = 0.2;    // Much slower when blocked (rad/s) - prevents spin
+  // Camera smoothing constants (tunable)
+  const CAM_YAW_MAX_SPEED = 1.4;          // Hard limit on camera rotation (rad/s) - ~80°/s
+  const CAM_YAW_MAX_SPEED_BLOCKED = 0.25; // Much slower when blocked (rad/s)
+  const CAM_SMOOTH_TIME = 0.25;           // Smoothing time (bigger = smoother/slower)
+  const CAM_INPUT_DEADZONE = 0.02;        // Ignore tiny camera inputs
   
   // Helper: wrap angle to [-π, π] range
   const wrapPi = (a: number): number => {
@@ -1212,10 +1215,14 @@ const RefBasedPlayer = ({
       } else if (mobileActive) {
         // MOBILE JOYSTICK MODE: Summer Afternoon style camera-relative movement
         
-        // === POLICY A CAMERA: Camera follows character yaw (not joystick) ===
-        // Initialize camera yaw on first frame
+        // Orbit speed for how fast joystick input affects target
+        const ORBIT_SPEED = 2.0;           // How fast joystick input affects target (rad/s)
+        
+        // Initialize camera yaw refs on first frame
         if (!cameraYawInitializedRef.current && cameraYawRef) {
-          camYawUnwrappedRef.current = playerStateRef.current.rotation;
+          cameraYawTargetRef.current = cameraYawRef.current;
+          cameraYawCurrentRef.current = cameraYawRef.current;
+          cameraYawVelRef.current = 0;
           lastPositionRef.current = { x: playerStateRef.current.x, z: playerStateRef.current.y };
           cameraYawInitializedRef.current = true;
         }
@@ -1226,15 +1233,15 @@ const RefBasedPlayer = ({
         // Movement is ALWAYS forward (toward or away from camera based on joystick Y)
         // joystickY > 0 = push away from camera, joystickY < 0 = pull toward camera
         const hasMovement = Math.abs(joyY) > 0.1;
-        const hasRotation = Math.abs(joyX) > 0.1; // Joystick X implies character turn intent
+        const hasRotation = Math.abs(joyX) > 0.1; // Camera is orbiting, which implies character turn
         const wantsMove = Math.sqrt(joyX * joyX + joyY * joyY) > 0.15;
         
         // Variables to track if movement was blocked (set after movement calculation)
         let isBlocked = false;
         
         if (hasMovement && cameraYawRef) {
-          // POLICY A: Use current camera yaw for movement direction (read-only from camera perspective)
-          const cameraYaw = camYawUnwrappedRef.current; 
+          // Calculate joystick angle relative to camera using atan2
+          const cameraYaw = cameraYawCurrentRef.current; // Use smoothed camera yaw
           const joyAngle = Math.atan2(joyX, joyY);
           const targetWrapped = wrapPi(cameraYaw + joyAngle);
           const moveSpeed = Math.sqrt(joyX * joyX + joyY * joyY);
@@ -1311,28 +1318,27 @@ const RefBasedPlayer = ({
           isTurningRef.current = Math.abs(angleDiff) > 0.15;
           moveSpeedRef.current = moveSpeed;
         } else if (hasRotation && cameraYawRef) {
-          // Only horizontal input: character should turn in that direction
-          // POLICY A: Character turns based on joystick X, camera follows character
-          const cameraYaw = camYawUnwrappedRef.current;
-          // joyX > 0 means turn right (clockwise), joyX < 0 means turn left
-          const turnDelta = joyX * aimSpeed * clampedDelta;
+          // Only camera orbiting, animal should turn to face camera direction
+          const cameraYaw = cameraYawCurrentRef.current; // Use smoothed camera yaw
+          const targetWrapped = wrapPi(cameraYaw);
           
           // Initialize unwrapped tracking if needed
           if (prevTargetWrappedRef.current === null) {
-            prevTargetWrappedRef.current = wrapPi(playerStateRef.current.rotation);
-            desiredUnwrappedRef.current = playerStateRef.current.rotation;
-            aimUnwrappedRef.current = playerStateRef.current.rotation;
+            prevTargetWrappedRef.current = targetWrapped;
+            desiredUnwrappedRef.current = targetWrapped;
+            aimUnwrappedRef.current = targetWrapped;
             currentUnwrappedRef.current = playerStateRef.current.rotation;
           }
           
-          // Apply turn delta to desired heading
-          desiredUnwrappedRef.current += turnDelta;
-          prevTargetWrappedRef.current = wrapPi(desiredUnwrappedRef.current);
+          // Accumulate unwrapped target
+          const dTarget = shortestAngleDiff(prevTargetWrappedRef.current, targetWrapped);
+          desiredUnwrappedRef.current += dTarget;
+          prevTargetWrappedRef.current = targetWrapped;
           
-          // Two-stage smoothing for stationary turn (uses same aimSpeed)
+          // Two-stage smoothing for stationary camera orbit (uses same aimSpeed)
           const TURN_SPEED = 2.0;  // Slower turn when stationary
           
-          // Stage 1: Gradual aiming (already applied via turnDelta)
+          // Stage 1: Gradual aiming
           aimUnwrappedRef.current = moveTowards(
             aimUnwrappedRef.current,
             desiredUnwrappedRef.current,
@@ -1366,24 +1372,38 @@ const RefBasedPlayer = ({
           moveSpeedRef.current = 0;
         }
         
-        // === POLICY A CAMERA UPDATE ===
-        // Camera yaw follows CHARACTER yaw (not joystick direction)
-        // This creates the locked-behind-shoulder feel
+        // === CAMERA YAW SMOOTHING (Unity-style SmoothDamp) ===
+        // Update camera yaw target only when NOT blocked (prevents spin on collision)
         if (cameraYawRef && cameraYawInitializedRef.current) {
-          // Target = character's actual facing yaw (from currentUnwrappedRef)
-          const userYawOffset = 0; // No user-controlled camera offset in Policy A
-          const camYawTargetUnwrapped = currentUnwrappedRef.current + userYawOffset;
+          // Apply input deadzone to prevent jitter from tiny inputs
+          const joyXFiltered = Math.abs(joyX) < CAM_INPUT_DEADZONE ? 0 : joyX;
           
-          // Rate-limit camera rotation (reduces nausea, prevents orbiting)
-          const camSpeed = isBlocked ? CAM_TURN_SPEED_BLOCKED : CAM_TURN_SPEED;
-          camYawUnwrappedRef.current = moveTowards(
-            camYawUnwrappedRef.current,
-            camYawTargetUnwrapped,
-            camSpeed * clampedDelta
+          if (!isBlocked && joyXFiltered !== 0) {
+            // Update target based on joystick X input
+            cameraYawTargetRef.current += joyXFiltered * ORBIT_SPEED * clampedDelta;
+          }
+          
+          // Rebuild target near current to avoid wrap jumps (angle-aware smoothing)
+          const delta = shortestAngleDiff(wrapPi(cameraYawCurrentRef.current), wrapPi(cameraYawTargetRef.current));
+          const cameraYawTargetNear = cameraYawCurrentRef.current + delta;
+          
+          // Use appropriate max speed based on blocked state
+          const maxSpeed = isBlocked ? CAM_YAW_MAX_SPEED_BLOCKED : CAM_YAW_MAX_SPEED;
+          
+          // SmoothDamp for heavy, damped camera rotation
+          const result = smoothDamp(
+            cameraYawCurrentRef.current,
+            cameraYawTargetNear,
+            cameraYawVelRef.current,
+            CAM_SMOOTH_TIME,
+            maxSpeed,
+            clampedDelta
           );
+          cameraYawCurrentRef.current = result.value;
+          cameraYawVelRef.current = result.vel;
           
-          // Apply to renderer (wrap to 0-2π)
-          let wrappedYaw = wrapPi(camYawUnwrappedRef.current);
+          // Apply smoothed camera yaw (wrap to 0-2π for renderer)
+          let wrappedYaw = cameraYawCurrentRef.current % (Math.PI * 2);
           if (wrappedYaw < 0) wrappedYaw += Math.PI * 2;
           cameraYawRef.current = wrappedYaw;
         }
