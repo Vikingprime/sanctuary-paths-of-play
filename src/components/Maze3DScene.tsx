@@ -1097,17 +1097,24 @@ const RefBasedPlayer = ({
   const moveSpeedRef = useRef(0); // Current movement speed 0-1 (for walk vs gallop)
   
   // Unwrapped angle tracking for continuous rotation (prevents direction flips at ±π boundary)
-  const currentUnwrappedRef = useRef<number>(0);   // Animal's actual rotation (unwrapped)
-  
-  // Joystick rotation tracking (for detecting clockwise/counterclockwise stick rotation)
-  const prevJoyAngleRef = useRef<number | null>(null);  // Previous joystick angle
-  const turnDirLatchedRef = useRef<number>(0);          // Latched turn direction (-1, 0, or 1)
+  // Two-stage smoothing: desiredUnwrapped -> aimUnwrapped -> currentUnwrapped
+  const prevTargetWrappedRef = useRef<number | null>(null);
+  const desiredUnwrappedRef = useRef<number>(0);  // Accumulated joystick target (instant)
+  const aimUnwrappedRef = useRef<number>(0);       // Smoothed target (gradual steering feel)
+  const currentUnwrappedRef = useRef<number>(0);   // Animal's actual rotation
   
   // Camera yaw smoothing refs (prevents camera spin when blocked)
+  const cameraYawTargetRef = useRef<number>(0);    // Unwrapped target camera yaw
   const cameraYawCurrentRef = useRef<number>(0);   // Unwrapped current camera yaw (smoothed)
+  const cameraYawVelRef = useRef<number>(0);       // Velocity for smoothDamp
   const cameraYawInitializedRef = useRef(false);   // Whether camera yaw refs are initialized
   const lastPositionRef = useRef({ x: 0, z: 0 });  // For detecting blocked state
   
+  // Camera smoothing constants (tunable)
+  const CAM_YAW_MAX_SPEED = 1.4;          // Hard limit on camera rotation (rad/s) - ~80°/s
+  const CAM_YAW_MAX_SPEED_BLOCKED = 0.25; // Much slower when blocked (rad/s)
+  const CAM_SMOOTH_TIME = 0.25;           // Smoothing time (bigger = smoother/slower)
+  const CAM_INPUT_DEADZONE = 0.02;        // Ignore tiny camera inputs
   
   // Helper: wrap angle to [-π, π] range
   const wrapPi = (a: number): number => {
@@ -1169,25 +1176,10 @@ const RefBasedPlayer = ({
       // Clamp delta to prevent large jumps on frame drops
       const clampedDelta = Math.min(delta, 0.05);
       
-      // Get joystick input with proper deadzone
-      const rawJoyX = joystickXRef?.current ?? 0;
-      const rawJoyY = joystickYRef?.current ?? 0;
-      
-      // Apply radial deadzone to eliminate joystick bias/noise
-      const DEADZONE = 0.18; // Mobile sticks need bigger deadzones
-      const applyDeadzone = (x: number, y: number, dz: number) => {
-        const m = Math.hypot(x, y);
-        if (m < dz) return { x: 0, y: 0, m: 0 };
-        const t = (m - dz) / (1 - dz); // 0..1 normalized
-        const s = t / m;
-        return { x: x * s, y: y * s, m: t };
-      };
-      
-      const joy = applyDeadzone(rawJoyX, rawJoyY, DEADZONE);
-      const joyX = joy.x;
-      const joyY = joy.y;
-      const joystickMagnitude = joy.m;
-      
+      // Get joystick input
+      const joyX = joystickXRef?.current ?? 0;
+      const joyY = joystickYRef?.current ?? 0;
+      const joystickMagnitude = Math.sqrt(joyX * joyX + joyY * joyY);
       const mobileActive = (mobileTouchActiveRef?.current ?? false) && joystickMagnitude > 0.01;
       
       // Check if any keyboard keys are pressed
@@ -1221,114 +1213,95 @@ const RefBasedPlayer = ({
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         playerStateRef.current = newState;
       } else if (mobileActive) {
-        // MOBILE JOYSTICK MODE: Camera-relative movement with joystick-rotation turning
-        // - Movement: Camera-relative (push forward = move in camera direction)
-        // - Turning: Based on joystick angular change (rotate stick clockwise = turn clockwise)
+        // MOBILE JOYSTICK MODE: Summer Afternoon style camera-relative movement
         
-        // Camera turn speeds (camera follows animal yaw)
-        const CAM_TURN_SPEED = 1.0;           // rad/s - how fast camera catches up to animal
-        const CAM_TURN_SPEED_BLOCKED = 0.2;   // rad/s - slower when blocked to prevent spin
-        
-        // Turn speed for animal (rad/s)
-        const TURN_SPEED = 2.5;  // Maximum turn rate when stick is engaged
-        
-        // Jitter threshold for joystick rotation detection
-        const JOY_ANGLE_EPS = 0.02;
-        
-        // Get camera yaw for camera-relative movement
-        const cameraYaw = cameraYawRef?.current ?? playerStateRef.current.rotation;
+        // Orbit speed for how fast joystick input affects target
+        const ORBIT_SPEED = 2.0;           // How fast joystick input affects target (rad/s)
         
         // Initialize camera yaw refs on first frame
         if (!cameraYawInitializedRef.current && cameraYawRef) {
-          const animalYaw = playerStateRef.current.rotation;
-          cameraYawCurrentRef.current = animalYaw;
+          cameraYawTargetRef.current = cameraYawRef.current;
+          cameraYawCurrentRef.current = cameraYawRef.current;
+          cameraYawVelRef.current = 0;
           lastPositionRef.current = { x: playerStateRef.current.x, z: playerStateRef.current.y };
           cameraYawInitializedRef.current = true;
-          currentUnwrappedRef.current = animalYaw;
-          prevJoyAngleRef.current = null;
-          turnDirLatchedRef.current = 0;
         }
         
         // Store position before movement to detect blocked state
         const posBeforeMove = { x: playerStateRef.current.x, z: playerStateRef.current.y };
         
-        // Variables to track if movement was blocked
+        // Movement is ALWAYS forward (toward or away from camera based on joystick Y)
+        // joystickY > 0 = push away from camera, joystickY < 0 = pull toward camera
+        const hasMovement = Math.abs(joyY) > 0.1;
+        const hasRotation = Math.abs(joyX) > 0.1; // Camera is orbiting, which implies character turn
+        const wantsMove = Math.sqrt(joyX * joyX + joyY * joyY) > 0.15;
+        
+        // Variables to track if movement was blocked (set after movement calculation)
         let isBlocked = false;
         
-        // === TURNING: Based on joystick angular rotation ===
-        // If user rotates the joystick clockwise, animal turns clockwise
-        // This tracks change in joystick angle over time
-        if (joystickMagnitude > 0.1) {
-          // Calculate joystick angle (0 = forward, positive = clockwise)
-          const joyAngle = Math.atan2(joyX, joyY); // -PI..PI, 0 when pointing forward
+        if (hasMovement && cameraYawRef) {
+          // Calculate joystick angle relative to camera using atan2
+          const cameraYaw = cameraYawCurrentRef.current; // Use smoothed camera yaw
+          const joyAngle = Math.atan2(joyX, joyY);
+          const targetWrapped = wrapPi(cameraYaw + joyAngle);
+          const moveSpeed = Math.sqrt(joyX * joyX + joyY * joyY);
           
-          if (prevJoyAngleRef.current !== null) {
-            // Calculate angular change using shortest angle diff
-            const angleDiff = shortestAngleDiff(prevJoyAngleRef.current, joyAngle);
-            
-            // Only update latch if change is significant (ignore jitter)
-            if (Math.abs(angleDiff) > JOY_ANGLE_EPS) {
-              turnDirLatchedRef.current = Math.sign(angleDiff);
-            }
+          // Initialize unwrapped tracking on first frame
+          if (prevTargetWrappedRef.current === null) {
+            prevTargetWrappedRef.current = targetWrapped;
+            desiredUnwrappedRef.current = targetWrapped;
+            aimUnwrappedRef.current = targetWrapped;
+            currentUnwrappedRef.current = playerStateRef.current.rotation;
           }
           
-          prevJoyAngleRef.current = joyAngle;
+          // Compute delta from previous target using shortest path (detects direction)
+          const dTarget = shortestAngleDiff(prevTargetWrappedRef.current, targetWrapped);
+          desiredUnwrappedRef.current += dTarget;
+          prevTargetWrappedRef.current = targetWrapped;
           
-          // Apply turn based on latched direction while stick is engaged
-          if (turnDirLatchedRef.current !== 0) {
-            currentUnwrappedRef.current += turnDirLatchedRef.current * TURN_SPEED * clampedDelta;
-          }
-        } else {
-          // Stick released - reset tracking
-          prevJoyAngleRef.current = null;
-          turnDirLatchedRef.current = 0;
-        }
-        
-        // Apply wrapped version to player rotation
-        const newRotation = wrapPi(currentUnwrappedRef.current);
-        const normalizedRotation = newRotation < 0 ? newRotation + Math.PI * 2 : newRotation;
-        
-        playerStateRef.current = {
-          ...playerStateRef.current,
-          rotation: normalizedRotation,
-        };
-        
-        // === MOVEMENT: Camera-relative ===
-        // Y axis controls speed: positive = forward (away from camera), negative = backward
-        // Direction is based on camera yaw, not animal yaw
-        const speed = joyY;  // -1 to 1 (forward/backward relative to camera)
-        const wantsMove = Math.abs(speed) > 0.05;
-        
-        if (wantsMove) {
-          // Calculate movement direction based on camera yaw
-          const moveYaw = cameraYaw;
-          const forward = speed > 0;
+          // Two-stage smoothing for gradual steering feel:
+          // Stage 1: aimUnwrapped moves toward desiredUnwrapped at aimSpeed
+          // Stage 2: currentUnwrapped moves toward aimUnwrapped at TURN_SPEED
+          const TURN_SPEED = 3.0; // Maximum physical turn rate of the animal (rad/s)
           
+          // Stage 1: Gradual aiming - creates the "steering feel" layer
+          aimUnwrappedRef.current = moveTowards(
+            aimUnwrappedRef.current,
+            desiredUnwrappedRef.current,
+            aimSpeed * clampedDelta
+          );
+          
+          // Stage 2: Animal rotation follows aim, capped by TURN_SPEED
+          currentUnwrappedRef.current = moveTowards(
+            currentUnwrappedRef.current,
+            aimUnwrappedRef.current,
+            TURN_SPEED * clampedDelta
+          );
+          
+          // Apply wrapped version to rotation
+          const newRotation = wrapPi(currentUnwrappedRef.current);
+          const normalizedRotation = newRotation < 0 ? newRotation + Math.PI * 2 : newRotation;
+          
+          // Create movement input - always "forward" in the calculated direction
           input = {
-            forward: forward,
-            backward: !forward,
+            forward: true,
+            backward: false,
             rotateLeft: false,
             rotateRight: false,
             rotationIntensity: 1.0,
-            speedMultiplier: Math.abs(speed),
+            speedMultiplier: moveSpeed,
           };
           
-          // Override playerStateRef rotation temporarily to move in camera direction
-          const savedRotation = playerStateRef.current.rotation;
+          // Update player rotation
           playerStateRef.current = {
             ...playerStateRef.current,
-            rotation: moveYaw,
+            rotation: normalizedRotation,
           };
           
           // Calculate movement
           const prev = playerStateRef.current;
           const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-          
-          // Restore animal rotation (visual), keep new position
-          playerStateRef.current = {
-            ...newState,
-            rotation: normalizedRotation,
-          };
+          playerStateRef.current = newState;
           
           // Detect blocked state: wanted to move but didn't actually move
           const posAfterMove = { x: playerStateRef.current.x, z: playerStateRef.current.y };
@@ -1336,32 +1309,101 @@ const RefBasedPlayer = ({
             Math.pow(posAfterMove.x - posBeforeMove.x, 2) + 
             Math.pow(posAfterMove.z - posBeforeMove.z, 2)
           );
-          const expectedMinDistance = Math.abs(speed) * 0.5 * clampedDelta;
-          isBlocked = actualMoveDistance < expectedMinDistance * 0.1;
-        }
-        
-        // Update animation refs
-        isMovingRef.current = wantsMove;
-        isTurningRef.current = turnDirLatchedRef.current !== 0 && !wantsMove; // Turn in place animation
-        moveSpeedRef.current = Math.abs(speed);
-        
-        // === CAMERA YAW SMOOTHING ===
-        // Camera follows ANIMAL yaw with rate-limited smoothing.
-        if (cameraYawRef && cameraYawInitializedRef.current) {
-          const animalYawUnwrapped = currentUnwrappedRef.current;
+          const expectedMinDistance = moveSpeed * 0.5 * clampedDelta; // At least 50% of expected movement
+          isBlocked = wantsMove && actualMoveDistance < expectedMinDistance * 0.1;
           
-          // Select camera turn speed based on blocked state
-          const camSpeed = isBlocked ? CAM_TURN_SPEED_BLOCKED : CAM_TURN_SPEED;
+          // Update animation refs
+          isMovingRef.current = true;
+          const angleDiff = aimUnwrappedRef.current - currentUnwrappedRef.current;
+          isTurningRef.current = Math.abs(angleDiff) > 0.15;
+          moveSpeedRef.current = moveSpeed;
+        } else if (hasRotation && cameraYawRef) {
+          // Only camera orbiting, animal should turn to face camera direction
+          const cameraYaw = cameraYawCurrentRef.current; // Use smoothed camera yaw
+          const targetWrapped = wrapPi(cameraYaw);
           
-          // Move camera yaw toward animal yaw with fixed max angular speed
-          cameraYawCurrentRef.current = moveTowards(
-            cameraYawCurrentRef.current,
-            animalYawUnwrapped,
-            camSpeed * clampedDelta
+          // Initialize unwrapped tracking if needed
+          if (prevTargetWrappedRef.current === null) {
+            prevTargetWrappedRef.current = targetWrapped;
+            desiredUnwrappedRef.current = targetWrapped;
+            aimUnwrappedRef.current = targetWrapped;
+            currentUnwrappedRef.current = playerStateRef.current.rotation;
+          }
+          
+          // Accumulate unwrapped target
+          const dTarget = shortestAngleDiff(prevTargetWrappedRef.current, targetWrapped);
+          desiredUnwrappedRef.current += dTarget;
+          prevTargetWrappedRef.current = targetWrapped;
+          
+          // Two-stage smoothing for stationary camera orbit (uses same aimSpeed)
+          const TURN_SPEED = 2.0;  // Slower turn when stationary
+          
+          // Stage 1: Gradual aiming
+          aimUnwrappedRef.current = moveTowards(
+            aimUnwrappedRef.current,
+            desiredUnwrappedRef.current,
+            Math.min(aimSpeed, 2.0) * clampedDelta  // Cap at 2.0 for stationary
           );
           
-          // Apply to cameraYawRef (wrap to 0-2π for renderer)
-          let wrappedYaw = wrapPi(cameraYawCurrentRef.current);
+          // Stage 2: Animal rotation follows aim
+          currentUnwrappedRef.current = moveTowards(
+            currentUnwrappedRef.current,
+            aimUnwrappedRef.current,
+            TURN_SPEED * clampedDelta
+          );
+          
+          const newRotation = wrapPi(currentUnwrappedRef.current);
+          const normalizedRotation = newRotation < 0 ? newRotation + Math.PI * 2 : newRotation;
+          
+          playerStateRef.current = {
+            ...playerStateRef.current,
+            rotation: normalizedRotation,
+          };
+          
+          // Update animation refs - turning in place
+          isMovingRef.current = false;
+          const angleDiff = aimUnwrappedRef.current - currentUnwrappedRef.current;
+          isTurningRef.current = Math.abs(angleDiff) > 0.05;
+          moveSpeedRef.current = 0;
+        } else {
+          // No input - no movement or turning
+          isMovingRef.current = false;
+          isTurningRef.current = false;
+          moveSpeedRef.current = 0;
+        }
+        
+        // === CAMERA YAW SMOOTHING (Unity-style SmoothDamp) ===
+        // Update camera yaw target only when NOT blocked (prevents spin on collision)
+        if (cameraYawRef && cameraYawInitializedRef.current) {
+          // Apply input deadzone to prevent jitter from tiny inputs
+          const joyXFiltered = Math.abs(joyX) < CAM_INPUT_DEADZONE ? 0 : joyX;
+          
+          if (!isBlocked && joyXFiltered !== 0) {
+            // Update target based on joystick X input
+            cameraYawTargetRef.current += joyXFiltered * ORBIT_SPEED * clampedDelta;
+          }
+          
+          // Rebuild target near current to avoid wrap jumps (angle-aware smoothing)
+          const delta = shortestAngleDiff(wrapPi(cameraYawCurrentRef.current), wrapPi(cameraYawTargetRef.current));
+          const cameraYawTargetNear = cameraYawCurrentRef.current + delta;
+          
+          // Use appropriate max speed based on blocked state
+          const maxSpeed = isBlocked ? CAM_YAW_MAX_SPEED_BLOCKED : CAM_YAW_MAX_SPEED;
+          
+          // SmoothDamp for heavy, damped camera rotation
+          const result = smoothDamp(
+            cameraYawCurrentRef.current,
+            cameraYawTargetNear,
+            cameraYawVelRef.current,
+            CAM_SMOOTH_TIME,
+            maxSpeed,
+            clampedDelta
+          );
+          cameraYawCurrentRef.current = result.value;
+          cameraYawVelRef.current = result.vel;
+          
+          // Apply smoothed camera yaw (wrap to 0-2π for renderer)
+          let wrappedYaw = cameraYawCurrentRef.current % (Math.PI * 2);
           if (wrappedYaw < 0) wrappedYaw += Math.PI * 2;
           cameraYawRef.current = wrappedYaw;
         }
@@ -1520,87 +1562,86 @@ const OverShoulderCameraController = ({
   const initialPlayerPos = useRef<{ x: number; z: number } | null>(null);
   const hasPlayerMoved = useRef(false);
   const currentDistance = useRef(0.4); // Start very close
+  const lastRestartKey = useRef(restartKey);
   
-  // Camera distance constants
-  const CAMERA_DISTANCE_START = 0.4;  // Very close to start
-  const CAMERA_DISTANCE_NORMAL = 4.5; // Normal playing distance
-  const CAMERA_HEIGHT_START = 1.2;    // Lower when close
-  const CAMERA_HEIGHT_NORMAL = 2.8;   // Normal height
-  const LOOK_HEIGHT_START = 0.4;      // Look at animal when close
-  const LOOK_HEIGHT_NORMAL = 0.55;    // Look slightly above animal when far
-  const DISTANCE_ZOOM_SPEED = 0.02;   // How fast to zoom out
-  const LOOK_AHEAD = 0.0;             // For orbit camera, always look at player (not ahead)
-  const POSITION_SMOOTHING = 0.12;
-  const DEBUG_OVERHEAD_VIEW = false;  // Toggle for debugging
-  
-  // Get target height based on animal type
-  const targetHeight = animalType ? getCharacterHeight(animalType) : 0.6;
-  
-  // Reusable vectors for autopush (pre-allocated to avoid GC)
+  // Autopush state - scalar-based distance easing
+  const currentAutopushDist = useRef<number | null>(null);
+  const lastHitTime = useRef<number>(0); // Timestamp of last hit for hysteresis
+  const lastFrameTime = useRef<number>(performance.now()); // For speed limiting
   const raycaster = useRef(new Raycaster());
   const rayOrigin = useRef(new Vector3());
   const rayDir = useRef(new Vector3());
-  const headPosRef = useRef(new Vector3());
   const tempVec = useRef(new Vector3());
-  const finalTargetPosRef = useRef(new Vector3());
   
-  // Autopush state
-  const currentAutopushDist = useRef<number | null>(null);
-  const lastHitTime = useRef(0); // For hysteresis
+  // Corn fading state - track cells that are currently faded
+  const fadedCellsRef = useRef<Map<string, { opacity: number; lastHitTime: number }>>(new Map());
   
-  // Cache camera blockers to avoid per-frame traversal
+  // Cached camera blockers to avoid traversing every frame
   const cachedCameraBlockers = useRef<Object3D[]>([]);
-  const lastFoliageChildCount = useRef(0);
+  const lastFoliageChildCount = useRef<number>(0);
   
-  // Track faded corn cells for smooth transitions
-  interface FadedCellState {
-    opacity: number;
-    lastHitTime: number;
-  }
-  const fadedCellsRef = useRef<Map<string, FadedCellState>>(new Map());
+  // Reusable refs to avoid per-frame allocations (reduces GC pressure)
+  const headPosRef = useRef(new Vector3());
+  const finalTargetPosRef = useRef(new Vector3());
+  const hitCellsRef = useRef(new Set<string>());
+  const centerRayHitCellsRef = useRef(new Set<string>());
   
-  // Corn fading constants
-  const FADE_TARGET = 0.15;      // Target opacity when faded (was 0.25, lowered for more visibility)
-  const FADE_IN_SPEED = 0.12;    // Fade out speed per frame (faster)
-  const FADE_OUT_SPEED = 0.03;   // Fade back in speed per frame (slower)
-  const HOLD_TIME = 300;         // Hold faded state for this many ms after ray clears
-  
-  // Refs for hit cell tracking (to avoid per-frame allocations)
-  const hitCellsRef = useRef<Set<string>>(new Set());
-  const centerRayHitCellsRef = useRef<Set<string>>(new Set());
-  
-  // Reset camera when restartKey changes
+  // Reset camera state when restartKey changes
   useEffect(() => {
-    if (restartKey !== undefined) {
+    if (restartKey !== lastRestartKey.current) {
+      lastRestartKey.current = restartKey;
       initialized.current = false;
       hasPlayerMoved.current = false;
-      currentDistance.current = CAMERA_DISTANCE_START;
       initialPlayerPos.current = null;
-      smoothRotation.current = 0;
+      currentDistance.current = 0.4;
       currentAutopushDist.current = null;
-      lastHitTime.current = 0;
-      // Clear faded cells on restart
-      fadedCellsRef.current.forEach((_, cellKey) => {
-        const [cx, cz] = cellKey.split(',').map(Number);
-        setCellOpacity(cx, cz, 1.0);
-      });
+      // Clear faded cells to prevent stale fade states
       fadedCellsRef.current.clear();
     }
   }, [restartKey]);
   
-  useFrame((state, delta) => {
-    const playerX = playerStateRef.current.x;
-    const playerZ = playerStateRef.current.y;
-    const playerRotation = playerStateRef.current.rotation;
+  // Camera settings - over-the-shoulder view balanced for all animals
+  const DEBUG_OVERHEAD_VIEW = topDownCamera; // Use prop for toggle
+  
+  // Get character-scaled camera parameters
+  const animalModel = animalType === 'pig' ? 'Pig.glb' : animalType === 'cow' ? 'Cow.glb' : animalType === 'bird' ? 'Hen.glb' : 'Cow.glb';
+  const animalHeight = getCharacterHeight(animalModel);
+  
+  // Character-scaled camera framing:
+  // targetHeight: where camera looks (center of character) - scaled by animal height
+  // softMinDist: comfortable resting distance when clear - scaled by animal height
+  const targetHeight = Math.max(0.25, Math.min(1.2, 0.6 * animalHeight));
+  const softMinDist = Math.max(1.0, Math.min(2.4, 1.2 * animalHeight));
+  
+  const CAMERA_DISTANCE_START = 0.4;
+  const CAMERA_DISTANCE_NORMAL = Math.max(softMinDist, 2.0); // Use softMinDist as minimum comfortable distance
+  const CAMERA_HEIGHT_START = 1.8;
+  const CAMERA_HEIGHT_NORMAL = 2.4;
+  const LOOK_AHEAD = 1.3;
+  const LOOK_HEIGHT_START = 0.0;
+  const LOOK_HEIGHT_NORMAL = targetHeight; // Use character-scaled look height
+  const POSITION_SMOOTHING = 0.15;
+  // ROTATION_SMOOTHING removed - camera yaw is now rate-limited by RefBasedPlayer's smoothDamp
+  const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
+  const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
+  
+  useFrame(() => {
+    const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
-    // Use cameraYawRef if provided (orbit mode), otherwise follow player rotation
-    const targetCameraYaw = cameraYawRef ? cameraYawRef.current : playerRotation;
+    // Use cameraYawRef for orbit camera, or fall back to player rotation
+    const targetCameraYaw = cameraYawRef?.current ?? playerRotation;
     
-    // Check if player has moved (for zoom animation)
-    if (initialPlayerPos.current && !hasPlayerMoved.current) {
+    // Store initial position on first frame (after initialization)
+    if (initialized.current && initialPlayerPos.current === null) {
+      initialPlayerPos.current = { x: playerX, z: playerZ };
+    }
+    
+    // Check if player has moved from their initial spawn position
+    if (!hasPlayerMoved.current && initialPlayerPos.current !== null) {
       const dx = playerX - initialPlayerPos.current.x;
       const dz = playerZ - initialPlayerPos.current.z;
-      if (Math.abs(dx) > 0.1 || Math.abs(dz) > 0.1) {
+      const distFromSpawn = Math.sqrt(dx * dx + dz * dz);
+      if (distFromSpawn > MOVEMENT_THRESHOLD) {
         hasPlayerMoved.current = true;
       }
     }
@@ -1663,8 +1704,6 @@ const OverShoulderCameraController = ({
     
     // Check if autopush is enabled via debug toggle
     const autopushEnabled = getAutopushEnabled();
-    
-    const deltaTime = Math.min(delta, 0.05);
     
     if (autopush.enabled && autopushEnabled && foliageGroupRef?.current && !DEBUG_OVERHEAD_VIEW && !groundLevelCamera) {
       // Calculate direction from head to desired camera position
@@ -1738,32 +1777,63 @@ const OverShoulderCameraController = ({
       frameMetrics.raycastCount++; // Track raycasts for debug
       hitCellsRef.current.forEach(cell => centerRayHitCellsRef.current.add(cell));
       
-      // Side rays for autopush only (if using 3 rays)
-      const hitCells = hitCellsRef.current; // Alias for fading logic
+      // Side rays (if enabled) - only for autopush, NOT for fading
       if (autopush.rayCount === 3) {
+        // Calculate perpendicular direction in XZ plane
+        const perpX = -rayDir.current.z;
+        const perpZ = rayDir.current.x;
+        
+        // Save center ray hits, clear for side rays (they don't contribute to fading)
+        // No allocation needed - we already have centerRayHitCellsRef
+        hitCellsRef.current.clear();
+        
         // Left ray
-        const leftDir = rayDir.current.clone();
-        leftDir.applyAxisAngle(new Vector3(0, 1, 0), -autopush.raySpread);
-        performRaycast(leftDir);
+        tempVec.current.set(
+          rayDir.current.x + perpX * autopush.raySpread,
+          rayDir.current.y,
+          rayDir.current.z + perpZ * autopush.raySpread
+        ).normalize();
+        performRaycast(tempVec.current);
         frameMetrics.raycastCount++;
         
         // Right ray
-        const rightDir = rayDir.current.clone();
-        rightDir.applyAxisAngle(new Vector3(0, 1, 0), autopush.raySpread);
-        performRaycast(rightDir);
+        tempVec.current.set(
+          rayDir.current.x - perpX * autopush.raySpread,
+          rayDir.current.y,
+          rayDir.current.z - perpZ * autopush.raySpread
+        ).normalize();
+        performRaycast(tempVec.current);
         frameMetrics.raycastCount++;
+        // Restore only center ray hits for fading
+        hitCellsRef.current.clear();
+        centerRayHitCellsRef.current.forEach(cell => hitCellsRef.current.add(cell));
       }
       
-      // Calculate target distance with autopush
-      let targetDist = desiredDist; // Default: no push
+      // Get current time for hysteresis
       const now = performance.now();
       
+      // === CORN FADING LOGIC ===
+      // Constants for fading - will be applied AFTER we determine if autopush is triggered
+      const FADE_TARGET = 0.55;       // Target opacity when faded (more visible)
+      const FADE_IN_SPEED = 0.15;     // How fast corn fades out (per frame)
+      const FADE_OUT_SPEED = 0.03;    // How fast corn fades back in (per frame)
+      const HOLD_TIME = 200;          // ms to hold fade before starting fade-out
+      
+      // We'll apply fading ONLY after determining if autopush is actually pushing
+      // For now, just store the hit cells and process them after autopush logic
+      
+      // Determine blocked distance with micro-hit filtering and hysteresis
+      let targetDist = rayLength; // Default: no blocking, use full distance
+      const desiredDistForAutopush = rayLength;
+      
+      // Use the ref-based hitCells for all subsequent logic
+      const hitCells = hitCellsRef.current;
+      
       if (closestHitDist < rayLength) {
-        // Something was hit - need to push camera
-        // Calculate blocked distance (hit distance minus padding, clamped)
-        // Use a smaller absolute minimum to allow camera to stay closer
-        const absoluteMinDist = 0.5; // Allow camera to get very close when blocked
-        const desiredDistForAutopush = desiredDist;
+        // We have a hit - camera should be IN FRONT of the wall, not behind it
+        // Don't clamp to minDist here - that would put camera inside the wall!
+        // Use a small minimum to prevent camera from being inside player's head
+        const absoluteMinDist = 0.5; // Never closer than 0.5 units to player
         const potentialBlockedDist = Math.max(
           closestHitDist - autopush.padding,
           absoluteMinDist
@@ -1848,37 +1918,49 @@ const OverShoulderCameraController = ({
         // No hit - check hysteresis before relaxing
         const timeSinceHit = now - lastHitTime.current;
         if (timeSinceHit < autopush.holdTimeMs && currentAutopushDist.current !== null) {
-          // Still in hysteresis hold - maintain pushed distance
+          // Still in hysteresis hold period - maintain current pushed distance
           targetDist = currentAutopushDist.current;
+        } else {
+          // Hysteresis expired - relax toward comfortable distance for this character
+          // Use softMinDist to ensure small animals remain visible and well-framed
+          targetDist = Math.max(rayLength, softMinDist);
         }
         
-        // Fade back in any faded cells when no longer hitting
+        // No autopush active - fade all cells back to opaque
         // Only run if opacityFadeEnabled is true
         if (opacityFadeEnabled) {
           for (const [cellKey, state] of fadedCellsRef.current) {
             const timeSinceHitCell = now - state.lastHitTime;
+            
             if (timeSinceHitCell > HOLD_TIME) {
+              // Fade back in (increase opacity)
               state.opacity = Math.min(1.0, state.opacity + FADE_OUT_SPEED);
-              const [cx, cz] = cellKey.split(',').map(Number);
-              setCellOpacity(cx, cz, state.opacity);
-              
-              // Remove fully opaque cells
-              if (state.opacity >= 0.99 && timeSinceHitCell > 1000) {
-                setCellOpacity(cx, cz, 1.0);
-                fadedCellsRef.current.delete(cellKey);
-              }
+            }
+            
+            // Apply opacity to corn instances
+            const [cx, cz] = cellKey.split(',').map(Number);
+            setCellOpacity(cx, cz, state.opacity);
+            
+            // Remove fully opaque cells that haven't been hit recently
+            if (state.opacity >= 0.99 && timeSinceHitCell > 1000) {
+              setCellOpacity(cx, cz, 1.0); // Ensure fully reset
+              fadedCellsRef.current.delete(cellKey);
             }
           }
         }
       }
       
-      // Initialize autopush distance if null
+      // Initialize autopush distance on first frame
       if (currentAutopushDist.current === null) {
-        currentAutopushDist.current = targetDist;
+        currentAutopushDist.current = desiredDistForAutopush;
       }
       
-      // Lerp toward target distance with speed limits
+      // Scalar-based distance easing with speed limits
       const currAutoDist = currentAutopushDist.current;
+      
+      // Calculate delta time for speed limiting
+      const deltaTime = Math.min((now - lastFrameTime.current) / 1000, 0.1); // Cap at 100ms
+      lastFrameTime.current = now;
       
       // Determine if we're pushing in or relaxing out
       const isPushingIn = targetDist < currAutoDist;
@@ -1904,7 +1986,7 @@ const OverShoulderCameraController = ({
       
       // Clamp to valid range (use absoluteMinDist=0.5, not autopush.minDist which is for relaxed state)
       const absoluteMinDist = 0.5;
-      currentAutopushDist.current = Math.max(absoluteMinDist, Math.min(currentAutopushDist.current, desiredDist));
+      currentAutopushDist.current = Math.max(absoluteMinDist, Math.min(currentAutopushDist.current, desiredDistForAutopush));
       
       // Apply autopush: position camera at the smoothed distance
       // Reuse tempVec for the direction * distance calculation to avoid allocation
