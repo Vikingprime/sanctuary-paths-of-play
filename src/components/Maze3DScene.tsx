@@ -2326,7 +2326,8 @@ return (
         maze={maze} 
         visible={skeletonEnabled || overlayGridEnabled} 
         showRidge={false}
-        showOverlayGrid={overlayGridEnabled}
+        showHeatmap={overlayGridEnabled}
+        showDistanceNumbers={overlayGridEnabled}
         height={0.15}
         pointSize={0.08}
       />
