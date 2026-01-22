@@ -34,6 +34,8 @@ interface MedialAxisVisualizationProps {
   showHeatmap?: boolean;
   /** Show distance numbers on each subcell */
   showDistanceNumbers?: boolean;
+  /** Show pruned spur points (orange, for debugging) */
+  showPrunedSpurs?: boolean;
   /** Height above ground to render skeleton points */
   height?: number;
   /** Size of skeleton point spheres */
@@ -64,6 +66,7 @@ export function MedialAxisVisualization({
   showRidge = false,
   showHeatmap = false,
   showDistanceNumbers = false,
+  showPrunedSpurs = false,
   height = 0.15,
   pointSize = 0.08,
 }: MedialAxisVisualizationProps) {
@@ -72,7 +75,7 @@ export function MedialAxisVisualization({
     if (!visible) return null;
     console.log('[MedialAxis] Computing skeleton with scale=5...');
     const result = computeMedialAxis(maze, 5);
-    console.log(`[MedialAxis] Found ${result.skeletonPoints.length} skeleton points, ${result.ridgePoints.length} ridge points, maxDist=${result.maxDistance}`);
+    console.log(`[MedialAxis] Found ${result.skeletonPoints.length} skeleton points, ${result.ridgePoints.length} ridge points, ${result.prunedSpurPoints.length} pruned, maxDist=${result.maxDistance}`);
     return result;
   }, [maze, visible]);
 
@@ -106,6 +109,17 @@ export function MedialAxisVisualization({
         height={height}
         size={pointSize}
       />
+      
+      {/* Pruned Spur Points - orange, for debugging */}
+      {showPrunedSpurs && axisResult.prunedSpurPoints.length > 0 && (
+        <SkeletonPoints
+          points={axisResult.prunedSpurPoints}
+          color="#ff6600"
+          opacity={0.7}
+          height={height + 0.02}
+          size={pointSize * 0.8}
+        />
+      )}
       
       {/* Ridge Candidates (pre-thinning) - dim magenta, slightly lower */}
       {showRidge && (
