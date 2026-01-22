@@ -40,7 +40,7 @@ export interface MedialAxisResult {
  * @param scale - Upsampling factor (default 2: each cell becomes 2x2)
  * @returns MedialAxisResult with skeleton points in world coordinates
  */
-export function computeMedialAxis(maze: Maze, scale: number = 2): MedialAxisResult {
+export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResult {
   const cellSize = GameConfig.CELL_SIZE;
   const fineCellSize = cellSize / scale;
   
