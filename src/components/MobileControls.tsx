@@ -1,26 +1,26 @@
 import { useRef, useCallback, MutableRefObject, useEffect, useState } from 'react';
 import { PlayerState } from '@/game/GameLogic';
 
-// Control configuration for 2D joystick (Summer Afternoon style)
+// Control configuration for dial control (forward + turn only)
 export const MOBILE_CONTROL_CONFIG = {
-  // Dead zone - percentage of joystick radius before input registers
+  // Dead zone - percentage of dial radius before input registers
   deadZonePercent: 0.15,
   
-  // Maximum joystick radius as percentage of screen height
+  // Maximum dial radius as percentage of screen height
   maxRadiusPercent: 0.12,
   
   // Visual sizes
   baseRadiusPercent: 0.09,
   knobRadiusPercent: 0.035,
   
-  // Fixed joystick position (percentage from edge)
+  // Fixed dial position (percentage from edge)
   joystickLeftPercent: 0.15,
   joystickBottomPercent: 0.22,
 };
 
 interface MobileControlsProps {
   playerStateRef: MutableRefObject<PlayerState>;
-  // 2D joystick output: X (-1 left to 1 right), Y (-1 down/toward camera to 1 up/away from camera)
+  // Dial output: X (-1 left to 1 right), Y (0 to 1 forward only - no backward)
   joystickXRef: MutableRefObject<number>;
   joystickYRef: MutableRefObject<number>;
   isMovingRef: MutableRefObject<boolean>;
@@ -146,7 +146,7 @@ export const MobileControls = ({
     };
   }, [resetControls]);
 
-  // Main update loop - process joystick input
+  // Main update loop - process dial input (forward + turn only)
   useEffect(() => {
     const updateLoop = () => {
       const { deadZone, maxRadius, fixedAnchorX, fixedAnchorY } = getPixelValues();
@@ -156,18 +156,21 @@ export const MobileControls = ({
         const dx = fingerRef.current.x - anchorRef.current.x;
         const dy = fingerRef.current.y - anchorRef.current.y;
         
-        // Calculate magnitude
-        const magnitude = Math.sqrt(dx * dx + dy * dy);
+        // Clamp Y to only allow upward (forward) movement - no backward
+        const clampedDy = Math.min(dy, 0); // Negative Y = upward on screen = forward
+        
+        // Calculate magnitude using clamped values
+        const magnitude = Math.sqrt(dx * dx + clampedDy * clampedDy);
         
         // Clamp to max radius
         const clampedMagnitude = Math.min(magnitude, maxRadius);
         
         // Normalize direction
-        const angle = Math.atan2(dy, dx);
+        const angle = Math.atan2(clampedDy, dx);
         const clampedX = Math.cos(angle) * clampedMagnitude;
         const clampedY = Math.sin(angle) * clampedMagnitude;
         
-        // Visual knob position (always clamped to max radius)
+        // Visual knob position (clamped to upper semicircle)
         const knobX = anchorRef.current.x + clampedX;
         const knobY = anchorRef.current.y + clampedY;
         
@@ -187,13 +190,13 @@ export const MobileControls = ({
           });
         } else {
           // Outside dead zone - calculate normalized output
-          // X: -1 (left) to 1 (right)
-          // Y: -1 (down/toward camera) to 1 (up/away from camera)
-          // Note: Y is inverted because screen Y increases downward
+          // X: -1 (left) to 1 (right) for turning
+          // Y: 0 to 1 (forward only, no backward)
           const normalizedMagnitude = (clampedMagnitude - deadZone) / (maxRadius - deadZone);
           joystickXRef.current = (clampedX / maxRadius) * Math.min(normalizedMagnitude * 1.2, 1);
-          joystickYRef.current = -(clampedY / maxRadius) * Math.min(normalizedMagnitude * 1.2, 1); // Invert Y
-          isMovingRef.current = true;
+          // Y is now 0 to 1 (forward only) - we invert and clamp to positive
+          joystickYRef.current = Math.max(0, -(clampedY / maxRadius) * Math.min(normalizedMagnitude * 1.2, 1));
+          isMovingRef.current = joystickYRef.current > 0.05 || Math.abs(joystickXRef.current) > 0.05;
           
           setJoystickState({
             visible: true,
@@ -317,10 +320,10 @@ export const MobileControls = ({
         }}
       />
       
-      {/* 2D Joystick Visual */}
+      {/* Dial Visual - Upper semicircle only */}
       {joystickState.visible && (
         <>
-          {/* Base circle (outer ring) */}
+          {/* Base semicircle (upper arc) */}
           <div
             style={{
               position: 'fixed',
@@ -333,6 +336,24 @@ export const MobileControls = ({
               border: '2px solid rgba(255,255,255,0.3)',
               pointerEvents: 'none',
               zIndex: 11,
+              // Clip to upper semicircle
+              clipPath: 'polygon(0% 0%, 100% 0%, 100% 50%, 0% 50%)',
+            }}
+          />
+          {/* Lower half dimmed indicator */}
+          <div
+            style={{
+              position: 'fixed',
+              left: joystickState.baseX - baseRadius,
+              top: joystickState.baseY - baseRadius,
+              width: baseRadius * 2,
+              height: baseRadius * 2,
+              borderRadius: '50%',
+              background: 'transparent',
+              border: '2px dashed rgba(255,255,255,0.1)',
+              pointerEvents: 'none',
+              zIndex: 10,
+              clipPath: 'polygon(0% 50%, 100% 50%, 100% 100%, 0% 100%)',
             }}
           />
           
@@ -356,22 +377,40 @@ export const MobileControls = ({
         </>
       )}
       
-      {/* Always-visible joystick hint */}
+      {/* Always-visible dial hint - semicircle */}
       {!joystickState.visible && (
-        <div
-          style={{
-            position: 'fixed',
-            left: screenDimensionsRef.current.width * MOBILE_CONTROL_CONFIG.joystickLeftPercent - baseRadius,
-            top: screenDimensionsRef.current.height * (1 - MOBILE_CONTROL_CONFIG.joystickBottomPercent) - baseRadius,
-            width: baseRadius * 2,
-            height: baseRadius * 2,
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)',
-            border: '2px dashed rgba(255,255,255,0.2)',
-            pointerEvents: 'none',
-            zIndex: 9,
-          }}
-        />
+        <>
+          <div
+            style={{
+              position: 'fixed',
+              left: screenDimensionsRef.current.width * MOBILE_CONTROL_CONFIG.joystickLeftPercent - baseRadius,
+              top: screenDimensionsRef.current.height * (1 - MOBILE_CONTROL_CONFIG.joystickBottomPercent) - baseRadius,
+              width: baseRadius * 2,
+              height: baseRadius * 2,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)',
+              border: '2px dashed rgba(255,255,255,0.2)',
+              pointerEvents: 'none',
+              zIndex: 9,
+              clipPath: 'polygon(0% 0%, 100% 0%, 100% 50%, 0% 50%)',
+            }}
+          />
+          {/* Arrow indicator pointing up */}
+          <div
+            style={{
+              position: 'fixed',
+              left: screenDimensionsRef.current.width * MOBILE_CONTROL_CONFIG.joystickLeftPercent - 6,
+              top: screenDimensionsRef.current.height * (1 - MOBILE_CONTROL_CONFIG.joystickBottomPercent) - baseRadius * 0.6,
+              width: 0,
+              height: 0,
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderBottom: '10px solid rgba(255,255,255,0.3)',
+              pointerEvents: 'none',
+              zIndex: 9,
+            }}
+          />
+        </>
       )}
       
       {/* Debug overlay */}
