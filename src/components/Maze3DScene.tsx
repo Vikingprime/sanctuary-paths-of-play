@@ -1062,7 +1062,7 @@ const RefBasedPlayer = ({
   characters,
   showCollisionDebug = true,
   animalRimLight = 0.5,
-  aimSpeed = 2.5,
+  aimSpeed = 1.5,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
