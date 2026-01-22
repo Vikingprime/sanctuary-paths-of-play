@@ -1183,7 +1183,7 @@ const RefBasedPlayer = ({
         // MOBILE JOYSTICK MODE: Summer Afternoon style camera-relative movement
         
         // Camera yaw smoothing constants
-        const CAM_TURN_SPEED = 2.5;        // Max camera yaw speed when moving (rad/s)
+        const CAM_TURN_SPEED = 1.5;        // Max camera yaw speed when moving (rad/s)
         const CAM_TURN_SPEED_BLOCKED = 0.3; // Much slower when blocked (rad/s)
         const ORBIT_SPEED = 2.5;           // How fast joystick input affects target (rad/s)
         
