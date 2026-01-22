@@ -2327,7 +2327,7 @@ return (
         visible={skeletonEnabled || overlayGridEnabled} 
         showRidge={false}
         showHeatmap={overlayGridEnabled}
-        showDistanceNumbers={overlayGridEnabled}
+        showDistanceNumbers={false}
         height={0.15}
         pointSize={0.08}
       />
