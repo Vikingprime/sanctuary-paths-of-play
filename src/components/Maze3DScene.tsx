@@ -2328,7 +2328,7 @@ return (
         showRidge={false}
         showHeatmap={overlayGridEnabled}
         showDistanceNumbers={true}
-        showPrunedSpurs={skeletonEnabled}
+        showPrunedSpurs={false}
         height={0.15}
         pointSize={0.08}
         playerStateRef={playerStateRef}
