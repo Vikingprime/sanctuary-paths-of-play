@@ -381,7 +381,7 @@ function ProximityDistanceLabels({
     return dx * dx + dz * dz <= radiusSq;
   });
 
-  const fontSize = fineCellSize * 2.5;
+  const fontSize = fineCellSize * 0.6;
 
   return (
     <group name="proximity-distance-labels">
