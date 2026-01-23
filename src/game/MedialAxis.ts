@@ -42,9 +42,10 @@ interface FineCell {
 
 /** Spur tuning configuration for debug visualization */
 export interface SpurConfig {
-  maxSpurLen: number;      // Maximum length of spurs to prune (1-15)
-  minSpurDistance: number; // Minimum avg distance for spur protection (1-10)
-  skipCleanup?: boolean;   // Skip spur removal and BFS cycle cleanup (raw skeleton)
+  maxSpurLen: number;       // Maximum length of endpoint spurs to prune (1-15)
+  minSpurDistance: number;  // Minimum avg distance for spur protection (1-10)
+  maxBranchLen: number;     // Maximum length of junction branches to prune (1-10)
+  skipCleanup?: boolean;    // Skip all cleanup (raw skeleton mode)
 }
 
 /** Result of medial axis computation */
@@ -79,14 +80,14 @@ export interface MedialAxisResult {
  */
 function getScaleConstants(scale: number) {
   return {
-    /** Minimum distance from walls for ridge detection: ceil(0.5 * scale) */
+    /** Minimum distance from walls for ridge detection: ceil(0.4 * scale) */
     MIN_RIDGE_DISTANCE: Math.ceil(0.4 * scale),
     /** Maximum spur length to identify: ceil(1.0 * scale) */
     MAX_SPUR_LEN: Math.ceil(1.0 * scale),
-    /** Minimum avg distance for spur protection: ceil(0.7 * scale) */
+    /** Minimum avg distance for spur protection: ceil(1.0 * scale) */
     MIN_SPUR_DISTANCE: Math.ceil(1.0 * scale),
-    /** Maximum cycle length to treat as artifact: ceil(1.2 * scale) */
-    CYCLE_MAX: Math.ceil(1.2 * scale),
+    /** Maximum junction branch length to prune: ceil(0.5 * scale) */
+    MAX_BRANCH_LEN: Math.ceil(0.5 * scale),
   };
 }
 
@@ -167,11 +168,12 @@ export function computeMedialAxis(
   }
   
   // Get scale-dependent constants
-  const { MIN_RIDGE_DISTANCE, MAX_SPUR_LEN, MIN_SPUR_DISTANCE, CYCLE_MAX } = getScaleConstants(scale);
+  const { MIN_RIDGE_DISTANCE, MAX_SPUR_LEN, MIN_SPUR_DISTANCE, MAX_BRANCH_LEN } = getScaleConstants(scale);
   
   // Use custom spur config if provided, otherwise use scale defaults
   const effectiveMaxSpurLen = customSpurConfig?.maxSpurLen ?? MAX_SPUR_LEN;
   const effectiveMinSpurDistance = customSpurConfig?.minSpurDistance ?? MIN_SPUR_DISTANCE;
+  const effectiveMaxBranchLen = customSpurConfig?.maxBranchLen ?? MAX_BRANCH_LEN;
   
   // =========================================================================
   // STEP 2: DISTANCE TRANSFORM
@@ -228,33 +230,24 @@ export function computeMedialAxis(
   let prunedSpurs: Array<{ x: number; y: number }> = [];
   
   if (!skipCleanup) {
+    // STEP 5a: Endpoint spur pruning
     prunedSpurs = removeSpurs(fineGrid, fineWidth, fineHeight, effectiveMaxSpurLen, effectiveMinSpurDistance);
     
     // =========================================================================
-    // STEP 6: BFS-TREE CYCLE CLEANUP
+    // STEP 6: JUNCTION BRANCH PRUNING
     // =========================================================================
-    // Remove tiny diagonal artifacts/shortcut cycles using BFS spanning tree.
-    // Detects non-tree edges that form small cycles and breaks them.
-    // =========================================================================
-    
-    // Find maze start position for BFS root
-    const mazeStart = findMazeStart(maze, scale, fineCellSize, fineGrid, fineWidth, fineHeight);
-    bfsTreeCycleCleanup(fineGrid, fineWidth, fineHeight, mazeStart, CYCLE_MAX);
-    
-    // =========================================================================
-    // STEP 6b: SECOND SPUR PASS
-    // =========================================================================
-    // BFS cycle cleanup can break connections, creating NEW degree-1 endpoints.
-    // Run spur removal again to catch these newly created spurs.
+    // Remove short branches attached to junctions (degree >= 3) that end at
+    // an endpoint. This catches "Y" micro-branches that weren't removed by
+    // endpoint spur pruning because they form a small junction near their base.
     // =========================================================================
     
-    const prunedSpurs2 = removeSpurs(fineGrid, fineWidth, fineHeight, effectiveMaxSpurLen, effectiveMinSpurDistance);
-    prunedSpurs.push(...prunedSpurs2);
+    const junctionBranchSpurs = pruneJunctionBranches(fineGrid, fineWidth, fineHeight, effectiveMaxBranchLen, effectiveMinSpurDistance);
+    prunedSpurs.push(...junctionBranchSpurs);
     
     // =========================================================================
     // STEP 7: ORPHAN PIXEL CLEANUP
     // =========================================================================
-    // Remove disconnected skeleton pixels/fragments left by cycle cleanup.
+    // Remove disconnected skeleton pixels/fragments.
     // Only keep the largest connected component of the skeleton.
     // =========================================================================
     
@@ -312,6 +305,7 @@ export function computeMedialAxis(
     defaultSpurConfig: {
       maxSpurLen: MAX_SPUR_LEN,
       minSpurDistance: MIN_SPUR_DISTANCE,
+      maxBranchLen: MAX_BRANCH_LEN,
     },
   };
 }
@@ -807,7 +801,172 @@ function removeSpurs(
 }
 
 // ============================================================================
-// STEP 6: BFS-TREE CYCLE CLEANUP
+// STEP 6: JUNCTION BRANCH PRUNING
+// ============================================================================
+
+/**
+ * Remove short branches attached to junctions (degree >= 3) that end at endpoints.
+ * 
+ * This catches "Y" micro-branches that weren't removed by endpoint spur pruning
+ * because they form a small junction near their base. The entire short branch
+ * is removed, not just the tip.
+ * 
+ * Algorithm:
+ * 1. Find all junctions (degree >= 3) in the current skeleton
+ * 2. For each neighbor n of junction J:
+ *    - Trace branch from n away from J until:
+ *      (a) another junction (degree >= 3), or
+ *      (b) an endpoint (degree == 1), or  
+ *      (c) length > maxBranchLen
+ *    - If branch ends at endpoint AND length <= maxBranchLen, delete entire branch
+ *    - Optional: only delete if avgDistance < minSpurDistance
+ * 
+ * @param fineGrid - The fine grid (mutates isSkeleton and isSpur)
+ * @param width - Fine grid width
+ * @param height - Fine grid height
+ * @param maxBranchLen - Maximum branch length to prune (default 3 for scale=5)
+ * @param minSpurDistance - Minimum avg distance for branch protection
+ * @returns Array of removed branch pixel coordinates for debug visualization
+ */
+function pruneJunctionBranches(
+  fineGrid: FineCell[][],
+  width: number,
+  height: number,
+  maxBranchLen: number,
+  minSpurDistance: number
+): Array<{ x: number; y: number }> {
+  const prunedPixels: Array<{ x: number; y: number }> = [];
+  
+  // 8-neighborhood offsets
+  const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
+  const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
+  
+  function getSkeletonNeighbors(x: number, y: number): Array<{ x: number; y: number }> {
+    const neighbors: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < 8; i++) {
+      const nx = x + dx[i];
+      const ny = y + dy[i];
+      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+        if (fineGrid[ny][nx].isSkeleton) {
+          neighbors.push({ x: nx, y: ny });
+        }
+      }
+    }
+    return neighbors;
+  }
+  
+  function getDegree(x: number, y: number): number {
+    return getSkeletonNeighbors(x, y).length;
+  }
+  
+  /**
+   * Trace a branch starting from startX,startY (a neighbor of junction J at junctionX,junctionY)
+   * moving away from J until we hit another junction, endpoint, or exceed maxBranchLen.
+   */
+  function traceBranch(
+    startX: number, 
+    startY: number, 
+    junctionX: number, 
+    junctionY: number
+  ): { path: Array<{ x: number; y: number; distance: number }>; endsAtEndpoint: boolean } | null {
+    const path: Array<{ x: number; y: number; distance: number }> = [];
+    const visited = new Set<string>();
+    visited.add(`${junctionX},${junctionY}`); // Mark junction as visited so we don't go back
+    
+    let currX = startX;
+    let currY = startY;
+    
+    while (path.length <= maxBranchLen) {
+      const key = `${currX},${currY}`;
+      if (visited.has(key)) break;
+      visited.add(key);
+      
+      const cell = fineGrid[currY][currX];
+      if (!cell.isSkeleton) break;
+      
+      path.push({ x: currX, y: currY, distance: cell.distance });
+      
+      const neighbors = getSkeletonNeighbors(currX, currY).filter(
+        n => !visited.has(`${n.x},${n.y}`)
+      );
+      
+      const currentDegree = getDegree(currX, currY);
+      
+      // If this pixel is a junction (degree >= 3), stop - branch connects to main skeleton
+      if (currentDegree >= 3) {
+        // This branch connects junctions - not a spur, don't prune
+        return { path, endsAtEndpoint: false };
+      }
+      
+      // If no more neighbors, we hit an endpoint
+      if (neighbors.length === 0) {
+        return { path, endsAtEndpoint: true };
+      }
+      
+      // Continue tracing (should only have 1 unvisited neighbor for a simple branch)
+      if (neighbors.length === 1) {
+        currX = neighbors[0].x;
+        currY = neighbors[0].y;
+      } else {
+        // Multiple unvisited neighbors means we hit a mini-junction - stop
+        return { path, endsAtEndpoint: false };
+      }
+    }
+    
+    // Exceeded max length
+    return null;
+  }
+  
+  // Find all junctions (degree >= 3)
+  const junctions: Array<{ x: number; y: number }> = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (fineGrid[y][x].isSkeleton && getDegree(x, y) >= 3) {
+        junctions.push({ x, y });
+      }
+    }
+  }
+  
+  // Process each junction's neighbors
+  for (const junction of junctions) {
+    // Re-check degree in case earlier pruning changed it
+    if (!fineGrid[junction.y][junction.x].isSkeleton) continue;
+    if (getDegree(junction.x, junction.y) < 3) continue;
+    
+    const neighbors = getSkeletonNeighbors(junction.x, junction.y);
+    
+    for (const neighbor of neighbors) {
+      // Skip if already removed
+      if (!fineGrid[neighbor.y][neighbor.x].isSkeleton) continue;
+      
+      const result = traceBranch(neighbor.x, neighbor.y, junction.x, junction.y);
+      
+      if (result && result.endsAtEndpoint && result.path.length <= maxBranchLen && result.path.length > 0) {
+        // Check optional distance threshold
+        if (minSpurDistance > 0) {
+          const avgDistance = result.path.reduce((sum, p) => sum + p.distance, 0) / result.path.length;
+          if (avgDistance >= minSpurDistance) {
+            continue; // Branch is far enough from walls - keep it
+          }
+        }
+        
+        // Remove the entire branch
+        for (const pixel of result.path) {
+          fineGrid[pixel.y][pixel.x].isSkeleton = false;
+          fineGrid[pixel.y][pixel.x].isSpur = true;
+          prunedPixels.push({ x: pixel.x, y: pixel.y });
+        }
+      }
+    }
+  }
+  
+  console.log(`[MedialAxis] Junction branch pruning: removed ${prunedPixels.length} pixels from ${junctions.length} junctions`);
+  
+  return prunedPixels;
+}
+
+// ============================================================================
+// (DEPRECATED) BFS-TREE CYCLE CLEANUP - Kept for reference
 // ============================================================================
 
 /**
