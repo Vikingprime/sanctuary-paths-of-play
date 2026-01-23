@@ -4,6 +4,7 @@ import { animals } from '@/data/animals';
 import { cn } from '@/lib/utils';
 import { PerformanceInfo } from './Maze3DScene';
 import { Volume2, VolumeX, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { SpurConfig } from '@/game/MedialAxis';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -92,6 +93,12 @@ interface GameHUDProps {
   // Overlay grid debug (walkable vs blocked subcells)
   overlayGridEnabled?: boolean;
   onToggleOverlayGrid?: () => void;
+  // Spur tuning (debug visualization)
+  spurConfig?: SpurConfig;
+  defaultSpurConfig?: SpurConfig;
+  onSpurConfigChange?: (config: SpurConfig) => void;
+  showPrunedSpurs?: boolean;
+  onToggleShowPrunedSpurs?: () => void;
 }
 
 export const GameHUD = ({
@@ -149,6 +156,11 @@ export const GameHUD = ({
   onToggleSkeleton,
   overlayGridEnabled = false,
   onToggleOverlayGrid,
+  spurConfig,
+  defaultSpurConfig,
+  onSpurConfigChange,
+  showPrunedSpurs = false,
+  onToggleShowPrunedSpurs,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -608,8 +620,86 @@ export const GameHUD = ({
                   OverlayGrid
                 </button>
               )}
+              {onToggleShowPrunedSpurs && (
+                <button
+                  onClick={onToggleShowPrunedSpurs}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    showPrunedSpurs ? 'bg-orange-600 text-white' : 'bg-gray-600 text-white'
+                  )}
+                  title="Show pruned spurs in orange"
+                >
+                  Spurs
+                </button>
+              )}
             </div>
           </div>
+          
+          {/* Spur Tuning Sliders */}
+          {skeletonEnabled && onSpurConfigChange && spurConfig && defaultSpurConfig && (
+            <div className="mt-2 pt-2 border-t border-gray-600">
+              <div className="text-[10px] text-gray-400 mb-1">--- Spur Tuning ---</div>
+              <div className="space-y-2">
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Max Spur Len:</span>
+                    <span className={cn(
+                      spurConfig.maxSpurLen !== defaultSpurConfig.maxSpurLen 
+                        ? 'text-orange-400' 
+                        : 'text-cyan-400'
+                    )}>
+                      {spurConfig.maxSpurLen}
+                      {spurConfig.maxSpurLen !== defaultSpurConfig.maxSpurLen && (
+                        <span className="text-gray-500 ml-1">(def: {defaultSpurConfig.maxSpurLen})</span>
+                      )}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="15"
+                    step="1"
+                    value={spurConfig.maxSpurLen}
+                    onChange={(e) => onSpurConfigChange({
+                      ...spurConfig,
+                      maxSpurLen: parseInt(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Min Spur Dist:</span>
+                    <span className={cn(
+                      spurConfig.minSpurDistance !== defaultSpurConfig.minSpurDistance 
+                        ? 'text-orange-400' 
+                        : 'text-cyan-400'
+                    )}>
+                      {spurConfig.minSpurDistance}
+                      {spurConfig.minSpurDistance !== defaultSpurConfig.minSpurDistance && (
+                        <span className="text-gray-500 ml-1">(def: {defaultSpurConfig.minSpurDistance})</span>
+                      )}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value={spurConfig.minSpurDistance}
+                    onChange={(e) => onSpurConfigChange({
+                      ...spurConfig,
+                      minSpurDistance: parseInt(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+                <div className="text-[9px] text-gray-500 mt-1">
+                  Spurs ≤ maxLen with avgDist &lt; minDist are pruned (orange)
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Sensitivity Tuning */}
           {onSensitivityChange && (
