@@ -75,7 +75,7 @@ function getScaleConstants(scale: number) {
     /** Maximum spur length to identify: ceil(1.0 * scale) */
     MAX_SPUR_LEN: Math.ceil(1.0 * scale),
     /** Minimum avg distance for spur protection: ceil(0.7 * scale) */
-    MIN_SPUR_DISTANCE: Math.ceil(0.7 * scale),
+    MIN_SPUR_DISTANCE: Math.ceil(1.0 * scale),
   };
 }
 
