@@ -219,6 +219,15 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
   bfsTreeCycleCleanup(fineGrid, fineWidth, fineHeight, mazeStart, CYCLE_MAX);
   
   // =========================================================================
+  // STEP 7: ORPHAN PIXEL CLEANUP
+  // =========================================================================
+  // Remove disconnected skeleton pixels/fragments left by cycle cleanup.
+  // Only keep the largest connected component of the skeleton.
+  // =========================================================================
+  
+  removeOrphanedPixels(fineGrid, fineWidth, fineHeight);
+  
+  // =========================================================================
   // STEP 7: CONVERT TO WORLD COORDINATES
   // =========================================================================
   // Map fine grid (fx, fy) indices to world-space (x, z) coordinates.
@@ -1043,4 +1052,93 @@ function bfsTreeCycleCleanup(
   }
   
   console.log(`[MedialAxis] BFS cycle cleanup: ${nonTreeEdges.length} non-tree edges, deleted ${pixelsToDelete.size} pixels`);
+}
+
+// ============================================================================
+// STEP 7: ORPHAN PIXEL CLEANUP
+// ============================================================================
+
+/**
+ * Remove skeleton pixels not connected to the main (largest) component.
+ * This cleans up isolated pixels left behind by BFS cycle cleanup.
+ * 
+ * Algorithm:
+ * 1. Find all connected components using BFS (8-connectivity)
+ * 2. Identify the largest component
+ * 3. Remove all pixels NOT in the largest component
+ * 
+ * @param fineGrid - The fine grid (mutates isSkeleton)
+ * @param width - Fine grid width
+ * @param height - Fine grid height
+ * @returns Number of orphaned pixels removed
+ */
+function removeOrphanedPixels(
+  fineGrid: FineCell[][],
+  width: number,
+  height: number
+): number {
+  // 8-neighborhood offsets
+  const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
+  const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
+  
+  // Find all connected components via BFS
+  const visited = new Set<string>();
+  const components: Array<Set<string>> = [];
+  
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!fineGrid[y][x].isSkeleton) continue;
+      const startKey = `${x},${y}`;
+      if (visited.has(startKey)) continue;
+      
+      // BFS to find this component
+      const component = new Set<string>();
+      const queue: Array<{ x: number; y: number }> = [{ x, y }];
+      visited.add(startKey);
+      component.add(startKey);
+      
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        for (let i = 0; i < 8; i++) {
+          const nx = curr.x + dx[i];
+          const ny = curr.y + dy[i];
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+          if (!fineGrid[ny][nx].isSkeleton) continue;
+          const nkey = `${nx},${ny}`;
+          if (visited.has(nkey)) continue;
+          visited.add(nkey);
+          component.add(nkey);
+          queue.push({ x: nx, y: ny });
+        }
+      }
+      
+      components.push(component);
+    }
+  }
+  
+  if (components.length <= 1) {
+    console.log(`[MedialAxis] Orphan cleanup: ${components.length} component(s), no orphans removed`);
+    return 0;
+  }
+  
+  // Find the largest component
+  let largest = components[0];
+  for (const comp of components) {
+    if (comp.size > largest.size) largest = comp;
+  }
+  
+  // Remove all pixels NOT in the largest component
+  let removed = 0;
+  for (const comp of components) {
+    if (comp === largest) continue;
+    for (const key of comp) {
+      const [px, py] = key.split(',').map(Number);
+      fineGrid[py][px].isSkeleton = false;
+      removed++;
+    }
+  }
+  
+  console.log(`[MedialAxis] Orphan cleanup: ${components.length} component(s), removed ${removed} orphan pixels`);
+  
+  return removed;
 }
