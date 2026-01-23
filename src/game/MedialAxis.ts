@@ -40,6 +40,12 @@ interface FineCell {
   isSpur: boolean;        // True if identified as a spur (for visualization, not removed)
 }
 
+/** Spur tuning configuration for debug visualization */
+export interface SpurConfig {
+  maxSpurLen: number;      // Maximum length of spurs to prune (1-15)
+  minSpurDistance: number; // Minimum avg distance for spur protection (1-10)
+}
+
 /** Result of medial axis computation */
 export interface MedialAxisResult {
   /** Fine grid (upsampled by SCALE factor) */
@@ -56,6 +62,8 @@ export interface MedialAxisResult {
   ridgePoints: Array<{ x: number; z: number }>;
   /** World-space pruned spur points (for debug visualization) */
   prunedSpurPoints: Array<{ x: number; z: number }>;
+  /** Default spur config based on scale (for slider defaults) */
+  defaultSpurConfig: SpurConfig;
 }
 
 // ============================================================================
@@ -103,7 +111,11 @@ function getScaleConstants(scale: number) {
  * console.log(`Found ${result.skeletonPoints.length} skeleton points`);
  * ```
  */
-export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResult {
+export function computeMedialAxis(
+  maze: Maze, 
+  scale: number = 5,
+  customSpurConfig?: SpurConfig
+): MedialAxisResult {
   const cellSize = GameConfig.CELL_SIZE;
   const fineCellSize = cellSize / scale;
   
@@ -156,6 +168,10 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
   // Get scale-dependent constants
   const { MIN_RIDGE_DISTANCE, MAX_SPUR_LEN, MIN_SPUR_DISTANCE, CYCLE_MAX } = getScaleConstants(scale);
   
+  // Use custom spur config if provided, otherwise use scale defaults
+  const effectiveMaxSpurLen = customSpurConfig?.maxSpurLen ?? MAX_SPUR_LEN;
+  const effectiveMinSpurDistance = customSpurConfig?.minSpurDistance ?? MIN_SPUR_DISTANCE;
+  
   // =========================================================================
   // STEP 2: DISTANCE TRANSFORM
   // =========================================================================
@@ -205,7 +221,7 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
   // true corridor centerlines. Spurs are now REMOVED from the skeleton.
   // =========================================================================
   
-  const prunedSpurs = removeSpurs(fineGrid, fineWidth, fineHeight, MAX_SPUR_LEN, MIN_SPUR_DISTANCE);
+  const prunedSpurs = removeSpurs(fineGrid, fineWidth, fineHeight, effectiveMaxSpurLen, effectiveMinSpurDistance);
   
   // =========================================================================
   // STEP 6: BFS-TREE CYCLE CLEANUP
@@ -273,6 +289,10 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
     skeletonPoints,
     ridgePoints,
     prunedSpurPoints,
+    defaultSpurConfig: {
+      maxSpurLen: MAX_SPUR_LEN,
+      minSpurDistance: MIN_SPUR_DISTANCE,
+    },
   };
 }
 

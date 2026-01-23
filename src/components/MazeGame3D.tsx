@@ -108,6 +108,9 @@ export const MazeGame3D = ({
   const [shaderFadeEnabled, setShaderFadeEnabled] = useState(true);
   const [skeletonEnabled, setSkeletonEnabled] = useState(false);
   const [overlayGridEnabled, setOverlayGridEnabled] = useState(false);
+  const [showPrunedSpurs, setShowPrunedSpurs] = useState(true);
+  const [spurConfig, setSpurConfig] = useState<{ maxSpurLen: number; minSpurDistance: number } | null>(null);
+  const [defaultSpurConfig, setDefaultSpurConfig] = useState<{ maxSpurLen: number; minSpurDistance: number } | null>(null);
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
@@ -859,6 +862,17 @@ export const MazeGame3D = ({
         lowShadowRes={lowShadowRes}
         skeletonEnabled={skeletonEnabled}
         overlayGridEnabled={overlayGridEnabled}
+        showPrunedSpurs={showPrunedSpurs}
+        spurConfig={spurConfig}
+        onDefaultSpurConfig={(config) => {
+          if (!defaultSpurConfig) {
+            setDefaultSpurConfig(config);
+            // Initialize spurConfig to defaults on first load
+            if (!spurConfig) {
+              setSpurConfig(config);
+            }
+          }
+        }}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -932,6 +946,11 @@ export const MazeGame3D = ({
           onToggleSkeleton={() => setSkeletonEnabled(prev => !prev)}
           overlayGridEnabled={overlayGridEnabled}
           onToggleOverlayGrid={() => setOverlayGridEnabled(prev => !prev)}
+          showPrunedSpurs={showPrunedSpurs}
+          onToggleShowPrunedSpurs={() => setShowPrunedSpurs(prev => !prev)}
+          spurConfig={spurConfig ?? undefined}
+          defaultSpurConfig={defaultSpurConfig ?? undefined}
+          onSpurConfigChange={setSpurConfig}
         />
       )}
 

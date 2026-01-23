@@ -20,7 +20,7 @@ import { Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { Maze } from '@/types/game';
 import { PlayerState } from '@/game/GameLogic';
-import { computeMedialAxis, MedialAxisResult } from '@/game/MedialAxis';
+import { computeMedialAxis, MedialAxisResult, SpurConfig } from '@/game/MedialAxis';
 
 // ============================================================================
 // TYPES
@@ -46,6 +46,10 @@ interface MedialAxisVisualizationProps {
   playerStateRef?: MutableRefObject<PlayerState>;
   /** Radius around player to show distance numbers */
   labelRadius?: number;
+  /** Custom spur config for tuning visualization */
+  spurConfig?: SpurConfig | null;
+  /** Callback to report default spur config (from scale constants) */
+  onDefaultSpurConfig?: (config: SpurConfig) => void;
 }
 
 // ============================================================================
@@ -77,15 +81,24 @@ export function MedialAxisVisualization({
   pointSize = 0.08,
   playerStateRef,
   labelRadius = 5,
+  spurConfig,
+  onDefaultSpurConfig,
 }: MedialAxisVisualizationProps) {
-  // Compute medial axis once when maze changes or visibility toggles on
+  // Compute medial axis when maze changes, visibility toggles on, or spurConfig changes
   const axisResult = useMemo<MedialAxisResult | null>(() => {
     if (!visible) return null;
-    console.log('[MedialAxis] Computing skeleton with scale=5...');
-    const result = computeMedialAxis(maze, 5);
+    console.log('[MedialAxis] Computing skeleton with scale=5, spurConfig=', spurConfig);
+    const result = computeMedialAxis(maze, 5, spurConfig ?? undefined);
     console.log(`[MedialAxis] Found ${result.skeletonPoints.length} skeleton points, ${result.ridgePoints.length} ridge points, ${result.prunedSpurPoints.length} pruned, maxDist=${result.maxDistance}`);
     return result;
-  }, [maze, visible]);
+  }, [maze, visible, spurConfig]);
+  
+  // Report default spur config to parent on first computation
+  useMemo(() => {
+    if (axisResult && onDefaultSpurConfig) {
+      onDefaultSpurConfig(axisResult.defaultSpurConfig);
+    }
+  }, [axisResult?.defaultSpurConfig.maxSpurLen, axisResult?.defaultSpurConfig.minSpurDistance, onDefaultSpurConfig]);
 
   if (!visible || !axisResult) return null;
 
