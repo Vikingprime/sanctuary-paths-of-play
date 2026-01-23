@@ -235,6 +235,16 @@ export function computeMedialAxis(
   bfsTreeCycleCleanup(fineGrid, fineWidth, fineHeight, mazeStart, CYCLE_MAX);
   
   // =========================================================================
+  // STEP 6b: SECOND SPUR PASS
+  // =========================================================================
+  // BFS cycle cleanup can break connections, creating NEW degree-1 endpoints.
+  // Run spur removal again to catch these newly created spurs.
+  // =========================================================================
+  
+  const prunedSpurs2 = removeSpurs(fineGrid, fineWidth, fineHeight, effectiveMaxSpurLen, effectiveMinSpurDistance);
+  prunedSpurs.push(...prunedSpurs2);
+  
+  // =========================================================================
   // STEP 7: ORPHAN PIXEL CLEANUP
   // =========================================================================
   // Remove disconnected skeleton pixels/fragments left by cycle cleanup.
