@@ -76,6 +76,8 @@ function getScaleConstants(scale: number) {
     MAX_SPUR_LEN: Math.ceil(1.0 * scale),
     /** Minimum avg distance for spur protection: ceil(0.7 * scale) */
     MIN_SPUR_DISTANCE: Math.ceil(1.0 * scale),
+    /** Maximum cycle length to treat as artifact: ceil(1.2 * scale) */
+    CYCLE_MAX: Math.ceil(1.2 * scale),
   };
 }
 
@@ -152,7 +154,7 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
   }
   
   // Get scale-dependent constants
-  const { MIN_RIDGE_DISTANCE, MAX_SPUR_LEN, MIN_SPUR_DISTANCE } = getScaleConstants(scale);
+  const { MIN_RIDGE_DISTANCE, MAX_SPUR_LEN, MIN_SPUR_DISTANCE, CYCLE_MAX } = getScaleConstants(scale);
   
   // =========================================================================
   // STEP 2: DISTANCE TRANSFORM
@@ -200,13 +202,24 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
   // =========================================================================
   // Remove short dangling branches (spurs) that extend into corners.
   // These are artifacts of the thinning process and do not represent
-  // true corridor centerlines. Spurs are MARKED (not removed) for visualization.
+  // true corridor centerlines. Spurs are now REMOVED from the skeleton.
   // =========================================================================
   
-  const prunedSpurs = markSpurs(fineGrid, fineWidth, fineHeight, MAX_SPUR_LEN, MIN_SPUR_DISTANCE);
+  const prunedSpurs = removeSpurs(fineGrid, fineWidth, fineHeight, MAX_SPUR_LEN, MIN_SPUR_DISTANCE);
   
   // =========================================================================
-  // STEP 6: CONVERT TO WORLD COORDINATES
+  // STEP 6: BFS-TREE CYCLE CLEANUP
+  // =========================================================================
+  // Remove tiny diagonal artifacts/shortcut cycles using BFS spanning tree.
+  // Detects non-tree edges that form small cycles and breaks them.
+  // =========================================================================
+  
+  // Find maze start position for BFS root
+  const mazeStart = findMazeStart(maze, scale, fineCellSize, fineGrid, fineWidth, fineHeight);
+  bfsTreeCycleCleanup(fineGrid, fineWidth, fineHeight, mazeStart, CYCLE_MAX);
+  
+  // =========================================================================
+  // STEP 7: CONVERT TO WORLD COORDINATES
   // =========================================================================
   // Map fine grid (fx, fy) indices to world-space (x, z) coordinates.
   // Each subcell center is at ((fx + 0.5) * fineCellSize, (fy + 0.5) * fineCellSize).
@@ -601,11 +614,11 @@ function countTransitions(neighbors: boolean[]): number {
 }
 
 // ============================================================================
-// STEP 5: SPUR IDENTIFICATION (Mark but don't remove)
+// STEP 5: SPUR REMOVAL
 // ============================================================================
 
 /**
- * Mark short dangling branches (spurs) on the skeleton.
+ * Remove short dangling branches (spurs) from the skeleton.
  * 
  * A spur is a branch that:
  * 1. Starts at an endpoint (degree = 1)
@@ -617,16 +630,16 @@ function countTransitions(neighbors: boolean[]): number {
  * 1. Build degree map for all skeleton pixels (8-neighborhood)
  * 2. Find all endpoints (degree = 1)
  * 3. For each endpoint, trace the spur until junction/endpoint or max length
- * 4. If spur qualifies, MARK (but don't remove) all pixels in the path
+ * 4. If spur qualifies, REMOVE all pixels in the path from the skeleton
  * 
- * @param fineGrid - The fine grid (mutates isSpur)
+ * @param fineGrid - The fine grid (mutates isSkeleton and isSpur)
  * @param width - Fine grid width
  * @param height - Fine grid height
- * @param maxSpurLen - Maximum spur length to identify
+ * @param maxSpurLen - Maximum spur length to remove
  * @param minSpurDistance - Minimum avg distance for spur protection
- * @returns Array of marked spur pixel coordinates for debug visualization
+ * @returns Array of removed spur pixel coordinates for debug visualization
  */
-function markSpurs(
+function removeSpurs(
   fineGrid: FineCell[][],
   width: number,
   height: number,
@@ -639,9 +652,6 @@ function markSpurs(
   const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
   const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
   
-  /**
-   * Get skeleton neighbors of a pixel.
-   */
   function getSkeletonNeighbors(x: number, y: number): Array<{ x: number; y: number }> {
     const neighbors: Array<{ x: number; y: number }> = [];
     for (let i = 0; i < 8; i++) {
@@ -656,17 +666,10 @@ function markSpurs(
     return neighbors;
   }
   
-  /**
-   * Compute degree (number of skeleton neighbors) for a pixel.
-   */
   function getDegree(x: number, y: number): number {
     return getSkeletonNeighbors(x, y).length;
   }
   
-  /**
-   * Trace a spur from an endpoint.
-   * Returns the path if it qualifies for pruning, or null otherwise.
-   */
   function traceSpur(
     startX: number,
     startY: number
@@ -687,41 +690,32 @@ function markSpurs(
       const cell = fineGrid[currY][currX];
       path.push({ x: currX, y: currY, distance: cell.distance });
       
-      // Get neighbors excluding the previous pixel
       const neighbors = getSkeletonNeighbors(currX, currY).filter(
         n => !(n.x === prevX && n.y === prevY)
       );
       
-      const degree = neighbors.length + (prevX >= 0 ? 1 : 0); // Include prev in degree count
+      const degree = neighbors.length + (prevX >= 0 ? 1 : 0);
       
-      // If we hit a junction (degree >= 3 considering all neighbors)
       if (degree >= 3) {
-        // Spur ends at junction - qualifies for marking
-        // Don't include the junction pixel itself in the path
         path.pop();
         return path.length > 0 && path.length <= maxSpurLen ? path : null;
       }
       
-      // If we hit another endpoint (no more neighbors to follow)
       if (neighbors.length === 0) {
-        // Spur ends at endpoint - qualifies for marking
         return path.length <= maxSpurLen ? path : null;
       }
       
-      // Continue tracing (should be exactly 1 neighbor if degree = 2)
       if (neighbors.length === 1) {
         prevX = currX;
         prevY = currY;
         currX = neighbors[0].x;
         currY = neighbors[0].y;
       } else {
-        // Multiple forward neighbors means junction - stop
         path.pop();
         return path.length > 0 && path.length <= maxSpurLen ? path : null;
       }
     }
     
-    // Path exceeded maxSpurLen - don't mark
     return null;
   }
   
@@ -737,30 +731,316 @@ function markSpurs(
   
   // Process each endpoint
   for (const endpoint of endpoints) {
-    // Skip if this endpoint was already processed
     if (!fineGrid[endpoint.y][endpoint.x].isSkeleton) continue;
     
     const path = traceSpur(endpoint.x, endpoint.y);
     
     if (path && path.length > 0) {
-      // Optional safety: check average distance to wall
       if (minSpurDistance > 0) {
         const avgDistance = path.reduce((sum, p) => sum + p.distance, 0) / path.length;
         if (avgDistance >= minSpurDistance) {
-          // This spur has high average distance, might be legitimate centerline
           continue;
         }
       }
       
-      // Mark the spur (but don't remove from skeleton)
+      // REMOVE the spur from skeleton (not just mark)
       for (const pixel of path) {
+        fineGrid[pixel.y][pixel.x].isSkeleton = false;
         fineGrid[pixel.y][pixel.x].isSpur = true;
         spurPixels.push({ x: pixel.x, y: pixel.y });
       }
     }
   }
   
-  console.log(`[MedialAxis] Marked ${spurPixels.length} spur pixels from ${endpoints.length} endpoints`);
+  console.log(`[MedialAxis] Removed ${spurPixels.length} spur pixels from ${endpoints.length} endpoints`);
   
   return spurPixels;
+}
+
+// ============================================================================
+// STEP 6: BFS-TREE CYCLE CLEANUP
+// ============================================================================
+
+/**
+ * Find the skeleton pixel closest to the maze start position.
+ */
+function findMazeStart(
+  maze: Maze,
+  scale: number,
+  fineCellSize: number,
+  fineGrid: FineCell[][],
+  width: number,
+  height: number
+): { x: number; y: number } {
+  // Find the maze start cell (first non-wall cell in top row, or fallback)
+  let startX = 0;
+  let startY = 0;
+  
+  for (let y = 0; y < maze.grid.length; y++) {
+    for (let x = 0; x < (maze.grid[y]?.length ?? 0); x++) {
+      if (!maze.grid[y][x].isWall) {
+        startX = x;
+        startY = y;
+        break;
+      }
+    }
+    if (startX !== 0 || startY !== 0) break;
+  }
+  
+  // Convert to fine grid coordinates (center of cell)
+  const fineStartX = Math.floor(startX * scale + scale / 2);
+  const fineStartY = Math.floor(startY * scale + scale / 2);
+  
+  // Find nearest skeleton pixel to start
+  let nearestSkeleton: { x: number; y: number } | null = null;
+  let minDistSq = Infinity;
+  
+  for (let fy = 0; fy < height; fy++) {
+    for (let fx = 0; fx < width; fx++) {
+      if (fineGrid[fy][fx].isSkeleton) {
+        const dx = fx - fineStartX;
+        const dy = fy - fineStartY;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < minDistSq) {
+          minDistSq = distSq;
+          nearestSkeleton = { x: fx, y: fy };
+        }
+      }
+    }
+  }
+  
+  return nearestSkeleton ?? { x: fineStartX, y: fineStartY };
+}
+
+/**
+ * BFS-tree cleanup to remove tiny diagonal artifact cycles.
+ * 
+ * Algorithm:
+ * 1. Build BFS spanning tree from skeleton pixel nearest to maze start
+ * 2. Detect non-tree edges (cycle/shortcut edges)
+ * 3. For tiny cycles (length <= CYCLE_MAX), break deterministically
+ * 4. Apply deletions
+ * 
+ * @param fineGrid - The fine grid (mutates isSkeleton)
+ * @param width - Fine grid width
+ * @param height - Fine grid height
+ * @param startPixel - Starting skeleton pixel for BFS
+ * @param cycleMax - Maximum cycle length to treat as artifact
+ */
+function bfsTreeCycleCleanup(
+  fineGrid: FineCell[][],
+  width: number,
+  height: number,
+  startPixel: { x: number; y: number },
+  cycleMax: number
+): void {
+  // 8-neighborhood offsets
+  const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
+  const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
+  
+  function getSkeletonNeighbors(x: number, y: number): Array<{ x: number; y: number }> {
+    const neighbors: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < 8; i++) {
+      const nx = x + dx[i];
+      const ny = y + dy[i];
+      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+        if (fineGrid[ny][nx].isSkeleton) {
+          neighbors.push({ x: nx, y: ny });
+        }
+      }
+    }
+    return neighbors;
+  }
+  
+  function key(x: number, y: number): string {
+    return `${x},${y}`;
+  }
+  
+  // =========================================================================
+  // STEP 1: Build BFS spanning tree
+  // =========================================================================
+  const parent = new Map<string, { x: number; y: number } | null>();
+  const depth = new Map<string, number>();
+  const queue: Array<{ x: number; y: number }> = [];
+  const nonTreeEdges: Array<{ u: { x: number; y: number }; v: { x: number; y: number } }> = [];
+  
+  // Check if start pixel is valid skeleton
+  if (!fineGrid[startPixel.y]?.[startPixel.x]?.isSkeleton) {
+    console.log('[MedialAxis] BFS start pixel not on skeleton, skipping cycle cleanup');
+    return;
+  }
+  
+  const startKey = key(startPixel.x, startPixel.y);
+  parent.set(startKey, null);
+  depth.set(startKey, 0);
+  queue.push(startPixel);
+  
+  let head = 0;
+  while (head < queue.length) {
+    const curr = queue[head++];
+    const currKey = key(curr.x, curr.y);
+    const currDepth = depth.get(currKey)!;
+    const currParent = parent.get(currKey);
+    
+    const neighbors = getSkeletonNeighbors(curr.x, curr.y);
+    
+    for (const neighbor of neighbors) {
+      const neighborKey = key(neighbor.x, neighbor.y);
+      
+      // Skip parent
+      if (currParent && neighbor.x === currParent.x && neighbor.y === currParent.y) {
+        continue;
+      }
+      
+      if (!parent.has(neighborKey)) {
+        // Tree edge - add to BFS tree
+        parent.set(neighborKey, curr);
+        depth.set(neighborKey, currDepth + 1);
+        queue.push(neighbor);
+      } else {
+        // Non-tree edge detected (cycle/shortcut)
+        // Only record once per edge (when curr key < neighbor key lexicographically)
+        if (currKey < neighborKey) {
+          nonTreeEdges.push({ u: curr, v: neighbor });
+        }
+      }
+    }
+  }
+  
+  // =========================================================================
+  // STEP 2 & 3: Process non-tree edges and detect tiny cycles
+  // =========================================================================
+  const pixelsToDelete = new Set<string>();
+  
+  for (const edge of nonTreeEdges) {
+    const { u, v } = edge;
+    const uKey = key(u.x, u.y);
+    const vKey = key(v.x, v.y);
+    
+    // Walk parents from u and v to find common ancestor and cycle length
+    const uPath: Array<{ x: number; y: number }> = [u];
+    const vPath: Array<{ x: number; y: number }> = [v];
+    const uAncestors = new Set<string>([uKey]);
+    const vAncestors = new Set<string>([vKey]);
+    
+    let uCurr = parent.get(uKey);
+    let vCurr = parent.get(vKey);
+    
+    // Build paths up to cycleMax steps
+    for (let i = 0; i < cycleMax && (uCurr || vCurr); i++) {
+      if (uCurr) {
+        const uk = key(uCurr.x, uCurr.y);
+        uPath.push(uCurr);
+        uAncestors.add(uk);
+        uCurr = parent.get(uk) ?? null;
+      }
+      if (vCurr) {
+        const vk = key(vCurr.x, vCurr.y);
+        vPath.push(vCurr);
+        vAncestors.add(vk);
+        vCurr = parent.get(vk) ?? null;
+      }
+    }
+    
+    // Find common ancestor
+    let commonAncestor: { x: number; y: number } | null = null;
+    let uDistToAncestor = 0;
+    let vDistToAncestor = 0;
+    
+    for (let i = 0; i < uPath.length; i++) {
+      const uk = key(uPath[i].x, uPath[i].y);
+      if (vAncestors.has(uk)) {
+        commonAncestor = uPath[i];
+        uDistToAncestor = i;
+        // Find v's distance to this ancestor
+        for (let j = 0; j < vPath.length; j++) {
+          if (vPath[j].x === commonAncestor.x && vPath[j].y === commonAncestor.y) {
+            vDistToAncestor = j;
+            break;
+          }
+        }
+        break;
+      }
+    }
+    
+    if (!commonAncestor) {
+      // Also check if v is ancestor of u
+      for (let i = 0; i < vPath.length; i++) {
+        const vk = key(vPath[i].x, vPath[i].y);
+        if (uAncestors.has(vk)) {
+          commonAncestor = vPath[i];
+          vDistToAncestor = i;
+          for (let j = 0; j < uPath.length; j++) {
+            if (uPath[j].x === commonAncestor.x && uPath[j].y === commonAncestor.y) {
+              uDistToAncestor = j;
+              break;
+            }
+          }
+          break;
+        }
+      }
+    }
+    
+    if (!commonAncestor) continue;
+    
+    // Cycle length = distance from u to ancestor + distance from v to ancestor + 1 (the non-tree edge)
+    const cycleLength = uDistToAncestor + vDistToAncestor + 1;
+    
+    if (cycleLength > cycleMax) continue;
+    
+    // =========================================================================
+    // STEP 4: Choose pixel to delete
+    // =========================================================================
+    // Collect candidates: u, v, and pixels along the short cycle path
+    const candidates: Array<{ x: number; y: number }> = [];
+    
+    // Add u and v
+    candidates.push(u, v);
+    
+    // Add path pixels (excluding common ancestor)
+    for (let i = 1; i < uDistToAncestor; i++) {
+      candidates.push(uPath[i]);
+    }
+    for (let i = 1; i < vDistToAncestor; i++) {
+      candidates.push(vPath[i]);
+    }
+    
+    // Score candidates: prefer lower distance-to-wall, avoid high-degree, avoid start
+    let bestCandidate: { x: number; y: number } | null = null;
+    let bestScore = Infinity;
+    
+    for (const cand of candidates) {
+      // Skip start pixel
+      if (cand.x === startPixel.x && cand.y === startPixel.y) continue;
+      
+      // Skip already marked for deletion
+      const candKey = key(cand.x, cand.y);
+      if (pixelsToDelete.has(candKey)) continue;
+      
+      // Check degree (using 4-connectivity for junction detection)
+      const deg = getSkeletonNeighbors(cand.x, cand.y).length;
+      if (deg >= 3) continue; // Avoid deleting junctions
+      
+      // Score by distance (lower = more artifact-like = preferred)
+      const dist = fineGrid[cand.y][cand.x].distance;
+      if (dist < bestScore) {
+        bestScore = dist;
+        bestCandidate = cand;
+      }
+    }
+    
+    if (bestCandidate) {
+      pixelsToDelete.add(key(bestCandidate.x, bestCandidate.y));
+    }
+  }
+  
+  // =========================================================================
+  // STEP 5: Apply deletions
+  // =========================================================================
+  for (const pk of pixelsToDelete) {
+    const [px, py] = pk.split(',').map(Number);
+    fineGrid[py][px].isSkeleton = false;
+  }
+  
+  console.log(`[MedialAxis] BFS cycle cleanup: ${nonTreeEdges.length} non-tree edges, deleted ${pixelsToDelete.size} pixels`);
 }
