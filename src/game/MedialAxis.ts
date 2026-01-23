@@ -37,6 +37,7 @@ interface FineCell {
   distance: number;       // Manhattan distance to nearest wall (in subcell units)
   isRidge: boolean;       // True if this is a ridge candidate (local maximum)
   isSkeleton: boolean;    // True after thinning (final skeleton)
+  isSpur: boolean;        // True if identified as a spur (for visualization, not removed)
 }
 
 /** Result of medial axis computation */
@@ -58,31 +59,25 @@ export interface MedialAxisResult {
 }
 
 // ============================================================================
-// CONSTANTS
+// SCALE-DEPENDENT CONSTANTS (computed in computeMedialAxis)
 // ============================================================================
 
 /**
- * Minimum distance from walls for a cell to be considered a ridge candidate.
- * Cells with distance < MIN_RIDGE_DISTANCE are NEVER part of the skeleton.
+ * Compute scale-dependent constants for the medial axis algorithm.
  * 
- * Value of 2 means skeleton must be at least 2 subcells away from any wall.
- * With SCALE=5, this ensures skeleton stays ~0.4 cells from walls minimum.
+ * @param scale - The upsampling factor
+ * @returns Object with MIN_RIDGE_DISTANCE, MAX_SPUR_LEN, MIN_SPUR_DISTANCE
  */
-const MIN_RIDGE_DISTANCE = 2;
-
-/**
- * Maximum length of a spur (in fine pixels) that will be pruned.
- * Spurs are dangling branches that end at endpoints (degree=1).
- * Longer spurs are kept as they may be legitimate corridor ends.
- */
-const MAX_SPUR_LEN = 6;
-
-/**
- * Minimum average distance-to-wall for a spur to be protected from pruning.
- * Spurs with higher average distance are likely legitimate centerlines.
- * Set to 0 to disable this safety check.
- */
-const MIN_SPUR_DISTANCE = 3;
+function getScaleConstants(scale: number) {
+  return {
+    /** Minimum distance from walls for ridge detection: ceil(0.5 * scale) */
+    MIN_RIDGE_DISTANCE: Math.ceil(0.5 * scale),
+    /** Maximum spur length to identify: ceil(1.0 * scale) */
+    MAX_SPUR_LEN: Math.ceil(1.0 * scale),
+    /** Minimum avg distance for spur protection: ceil(0.6 * scale) */
+    MIN_SPUR_DISTANCE: Math.ceil(0.6 * scale),
+  };
+}
 
 // ============================================================================
 // MAIN ENTRY POINT
@@ -150,10 +145,14 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
         distance: 0,
         isRidge: false,
         isSkeleton: false,
+        isSpur: false,
       });
     }
     fineGrid.push(row);
   }
+  
+  // Get scale-dependent constants
+  const { MIN_RIDGE_DISTANCE, MAX_SPUR_LEN, MIN_SPUR_DISTANCE } = getScaleConstants(scale);
   
   // =========================================================================
   // STEP 2: DISTANCE TRANSFORM
@@ -184,7 +183,7 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
   // This detects "crest lines" (centerlines) rather than isolated peaks.
   // =========================================================================
   
-  detectRidges(fineGrid, fineWidth, fineHeight);
+  detectRidges(fineGrid, fineWidth, fineHeight, MIN_RIDGE_DISTANCE);
   
   // =========================================================================
   // STEP 4: ZHANG-SUEN THINNING
@@ -194,17 +193,17 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
   // sub-iterations per pass.
   // =========================================================================
   
-  zhangSuenThinning(fineGrid, fineWidth, fineHeight);
+  zhangSuenThinning(fineGrid, fineWidth, fineHeight, MIN_RIDGE_DISTANCE);
   
   // =========================================================================
   // STEP 5: SPUR PRUNING
   // =========================================================================
   // Remove short dangling branches (spurs) that extend into corners.
   // These are artifacts of the thinning process and do not represent
-  // true corridor centerlines.
+  // true corridor centerlines. Spurs are MARKED (not removed) for visualization.
   // =========================================================================
   
-  const prunedSpurs = pruneSpurs(fineGrid, fineWidth, fineHeight);
+  const prunedSpurs = markSpurs(fineGrid, fineWidth, fineHeight, MAX_SPUR_LEN, MIN_SPUR_DISTANCE);
   
   // =========================================================================
   // STEP 6: CONVERT TO WORLD COORDINATES
@@ -356,7 +355,8 @@ function computeDistanceTransform(
 function detectRidges(
   fineGrid: FineCell[][],
   width: number,
-  height: number
+  height: number,
+  minRidgeDistance: number
 ): void {
   /**
    * Check if distance d forms a ridge with neighbors a and b.
@@ -391,7 +391,7 @@ function detectRidges(
       
       // CRITICAL: Skip cells too close to walls
       // This is the primary fix - no skeleton points near walls
-      if (cell.distance < MIN_RIDGE_DISTANCE) {
+      if (cell.distance < minRidgeDistance) {
         cell.isRidge = false;
         continue;
       }
@@ -447,14 +447,15 @@ function detectRidges(
 function zhangSuenThinning(
   fineGrid: FineCell[][],
   width: number,
-  height: number
+  height: number,
+  minRidgeDistance: number
 ): void {
-  // Initialize skeleton from ridge candidates that passed MIN_RIDGE_DISTANCE
+  // Initialize skeleton from ridge candidates that passed minRidgeDistance
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const cell = fineGrid[y][x];
       // Only include ridges that passed the minimum distance filter
-      fineGrid[y][x].isSkeleton = cell.isRidge && cell.distance >= MIN_RIDGE_DISTANCE;
+      fineGrid[y][x].isSkeleton = cell.isRidge && cell.distance >= minRidgeDistance;
     }
   }
   
@@ -599,15 +600,15 @@ function countTransitions(neighbors: boolean[]): number {
 }
 
 // ============================================================================
-// STEP 5: SPUR PRUNING
+// STEP 5: SPUR IDENTIFICATION (Mark but don't remove)
 // ============================================================================
 
 /**
- * Prune short dangling branches (spurs) from the skeleton.
+ * Mark short dangling branches (spurs) on the skeleton.
  * 
  * A spur is a branch that:
  * 1. Starts at an endpoint (degree = 1)
- * 2. Has length <= MAX_SPUR_LEN
+ * 2. Has length <= maxSpurLen
  * 3. Either ends at another endpoint OR at a junction (degree >= 3)
  * 4. Optionally: has low average distance-to-wall (close to walls = corner artifact)
  * 
@@ -615,19 +616,23 @@ function countTransitions(neighbors: boolean[]): number {
  * 1. Build degree map for all skeleton pixels (8-neighborhood)
  * 2. Find all endpoints (degree = 1)
  * 3. For each endpoint, trace the spur until junction/endpoint or max length
- * 4. If spur qualifies, remove all pixels in the path
+ * 4. If spur qualifies, MARK (but don't remove) all pixels in the path
  * 
- * @param fineGrid - The fine grid (mutates isSkeleton)
+ * @param fineGrid - The fine grid (mutates isSpur)
  * @param width - Fine grid width
  * @param height - Fine grid height
- * @returns Array of pruned pixel coordinates for debug visualization
+ * @param maxSpurLen - Maximum spur length to identify
+ * @param minSpurDistance - Minimum avg distance for spur protection
+ * @returns Array of marked spur pixel coordinates for debug visualization
  */
-function pruneSpurs(
+function markSpurs(
   fineGrid: FineCell[][],
   width: number,
-  height: number
+  height: number,
+  maxSpurLen: number,
+  minSpurDistance: number
 ): Array<{ x: number; y: number }> {
-  const prunedPixels: Array<{ x: number; y: number }> = [];
+  const spurPixels: Array<{ x: number; y: number }> = [];
   
   // 8-neighborhood offsets
   const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
@@ -673,7 +678,7 @@ function pruneSpurs(
     let prevX = -1;
     let prevY = -1;
     
-    while (path.length <= MAX_SPUR_LEN) {
+    while (path.length <= maxSpurLen) {
       const key = `${currX},${currY}`;
       if (visited.has(key)) break;
       visited.add(key);
@@ -690,16 +695,16 @@ function pruneSpurs(
       
       // If we hit a junction (degree >= 3 considering all neighbors)
       if (degree >= 3) {
-        // Spur ends at junction - qualifies for pruning
+        // Spur ends at junction - qualifies for marking
         // Don't include the junction pixel itself in the path
         path.pop();
-        return path.length > 0 && path.length <= MAX_SPUR_LEN ? path : null;
+        return path.length > 0 && path.length <= maxSpurLen ? path : null;
       }
       
       // If we hit another endpoint (no more neighbors to follow)
       if (neighbors.length === 0) {
-        // Spur ends at endpoint - qualifies for pruning
-        return path.length <= MAX_SPUR_LEN ? path : null;
+        // Spur ends at endpoint - qualifies for marking
+        return path.length <= maxSpurLen ? path : null;
       }
       
       // Continue tracing (should be exactly 1 neighbor if degree = 2)
@@ -711,11 +716,11 @@ function pruneSpurs(
       } else {
         // Multiple forward neighbors means junction - stop
         path.pop();
-        return path.length > 0 && path.length <= MAX_SPUR_LEN ? path : null;
+        return path.length > 0 && path.length <= maxSpurLen ? path : null;
       }
     }
     
-    // Path exceeded MAX_SPUR_LEN - don't prune
+    // Path exceeded maxSpurLen - don't mark
     return null;
   }
   
@@ -731,30 +736,30 @@ function pruneSpurs(
   
   // Process each endpoint
   for (const endpoint of endpoints) {
-    // Skip if this endpoint was already pruned
+    // Skip if this endpoint was already processed
     if (!fineGrid[endpoint.y][endpoint.x].isSkeleton) continue;
     
     const path = traceSpur(endpoint.x, endpoint.y);
     
     if (path && path.length > 0) {
       // Optional safety: check average distance to wall
-      if (MIN_SPUR_DISTANCE > 0) {
+      if (minSpurDistance > 0) {
         const avgDistance = path.reduce((sum, p) => sum + p.distance, 0) / path.length;
-        if (avgDistance >= MIN_SPUR_DISTANCE) {
+        if (avgDistance >= minSpurDistance) {
           // This spur has high average distance, might be legitimate centerline
           continue;
         }
       }
       
-      // Prune the spur
+      // Mark the spur (but don't remove from skeleton)
       for (const pixel of path) {
-        fineGrid[pixel.y][pixel.x].isSkeleton = false;
-        prunedPixels.push({ x: pixel.x, y: pixel.y });
+        fineGrid[pixel.y][pixel.x].isSpur = true;
+        spurPixels.push({ x: pixel.x, y: pixel.y });
       }
     }
   }
   
-  console.log(`[MedialAxis] Pruned ${prunedPixels.length} spur pixels from ${endpoints.length} endpoints`);
+  console.log(`[MedialAxis] Marked ${spurPixels.length} spur pixels from ${endpoints.length} endpoints`);
   
-  return prunedPixels;
+  return spurPixels;
 }
