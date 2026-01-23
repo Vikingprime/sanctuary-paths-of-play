@@ -694,6 +694,24 @@ export const GameHUD = ({
                     className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
                   />
                 </div>
+                {/* Raw Skeleton Toggle */}
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700">
+                  <span className="text-[10px]">Raw Skeleton (no cleanup)</span>
+                  <button
+                    onClick={() => onSpurConfigChange({
+                      ...spurConfig,
+                      skipCleanup: !spurConfig.skipCleanup
+                    })}
+                    className={cn(
+                      "px-2 py-0.5 text-[9px] rounded",
+                      spurConfig.skipCleanup
+                        ? "bg-red-600 text-white"
+                        : "bg-gray-700 text-gray-400"
+                    )}
+                  >
+                    {spurConfig.skipCleanup ? 'ON' : 'OFF'}
+                  </button>
+                </div>
                 <div className="text-[9px] text-gray-500 mt-1">
                   Spurs ≤ maxLen with avgDist &lt; minDist are pruned (orange)
                 </div>

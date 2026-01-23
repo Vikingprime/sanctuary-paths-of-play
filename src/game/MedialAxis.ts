@@ -44,6 +44,7 @@ interface FineCell {
 export interface SpurConfig {
   maxSpurLen: number;      // Maximum length of spurs to prune (1-15)
   minSpurDistance: number; // Minimum avg distance for spur protection (1-10)
+  skipCleanup?: boolean;   // Skip spur removal and BFS cycle cleanup (raw skeleton)
 }
 
 /** Result of medial axis computation */
@@ -221,37 +222,46 @@ export function computeMedialAxis(
   // true corridor centerlines. Spurs are now REMOVED from the skeleton.
   // =========================================================================
   
-  const prunedSpurs = removeSpurs(fineGrid, fineWidth, fineHeight, effectiveMaxSpurLen, effectiveMinSpurDistance);
+  // Skip cleanup passes if requested (for debugging raw skeleton)
+  const skipCleanup = customSpurConfig?.skipCleanup ?? false;
   
-  // =========================================================================
-  // STEP 6: BFS-TREE CYCLE CLEANUP
-  // =========================================================================
-  // Remove tiny diagonal artifacts/shortcut cycles using BFS spanning tree.
-  // Detects non-tree edges that form small cycles and breaks them.
-  // =========================================================================
+  let prunedSpurs: Array<{ x: number; y: number }> = [];
   
-  // Find maze start position for BFS root
-  const mazeStart = findMazeStart(maze, scale, fineCellSize, fineGrid, fineWidth, fineHeight);
-  bfsTreeCycleCleanup(fineGrid, fineWidth, fineHeight, mazeStart, CYCLE_MAX);
-  
-  // =========================================================================
-  // STEP 6b: SECOND SPUR PASS
-  // =========================================================================
-  // BFS cycle cleanup can break connections, creating NEW degree-1 endpoints.
-  // Run spur removal again to catch these newly created spurs.
-  // =========================================================================
-  
-  const prunedSpurs2 = removeSpurs(fineGrid, fineWidth, fineHeight, effectiveMaxSpurLen, effectiveMinSpurDistance);
-  prunedSpurs.push(...prunedSpurs2);
-  
-  // =========================================================================
-  // STEP 7: ORPHAN PIXEL CLEANUP
-  // =========================================================================
-  // Remove disconnected skeleton pixels/fragments left by cycle cleanup.
-  // Only keep the largest connected component of the skeleton.
-  // =========================================================================
-  
-  removeOrphanedPixels(fineGrid, fineWidth, fineHeight);
+  if (!skipCleanup) {
+    prunedSpurs = removeSpurs(fineGrid, fineWidth, fineHeight, effectiveMaxSpurLen, effectiveMinSpurDistance);
+    
+    // =========================================================================
+    // STEP 6: BFS-TREE CYCLE CLEANUP
+    // =========================================================================
+    // Remove tiny diagonal artifacts/shortcut cycles using BFS spanning tree.
+    // Detects non-tree edges that form small cycles and breaks them.
+    // =========================================================================
+    
+    // Find maze start position for BFS root
+    const mazeStart = findMazeStart(maze, scale, fineCellSize, fineGrid, fineWidth, fineHeight);
+    bfsTreeCycleCleanup(fineGrid, fineWidth, fineHeight, mazeStart, CYCLE_MAX);
+    
+    // =========================================================================
+    // STEP 6b: SECOND SPUR PASS
+    // =========================================================================
+    // BFS cycle cleanup can break connections, creating NEW degree-1 endpoints.
+    // Run spur removal again to catch these newly created spurs.
+    // =========================================================================
+    
+    const prunedSpurs2 = removeSpurs(fineGrid, fineWidth, fineHeight, effectiveMaxSpurLen, effectiveMinSpurDistance);
+    prunedSpurs.push(...prunedSpurs2);
+    
+    // =========================================================================
+    // STEP 7: ORPHAN PIXEL CLEANUP
+    // =========================================================================
+    // Remove disconnected skeleton pixels/fragments left by cycle cleanup.
+    // Only keep the largest connected component of the skeleton.
+    // =========================================================================
+    
+    removeOrphanedPixels(fineGrid, fineWidth, fineHeight);
+  } else {
+    console.log('[MedialAxis] Cleanup skipped (raw skeleton mode)');
+  }
   
   // =========================================================================
   // STEP 7: CONVERT TO WORLD COORDINATES
