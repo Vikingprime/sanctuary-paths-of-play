@@ -58,31 +58,44 @@ export interface MedialAxisResult {
 }
 
 // ============================================================================
-// CONSTANTS
+// SCALE-DEPENDENT CONSTANTS
 // ============================================================================
 
 /**
- * Minimum distance from walls for a cell to be considered a ridge candidate.
- * Cells with distance < MIN_RIDGE_DISTANCE are NEVER part of the skeleton.
+ * Compute minimum distance from walls for ridge candidates.
+ * Cells with distance < this value are NEVER part of the skeleton.
  * 
- * Value of 2 means skeleton must be at least 2 subcells away from any wall.
- * With SCALE=5, this ensures skeleton stays ~0.4 cells from walls minimum.
+ * Formula: ceil(0.5 * scale)
+ * - scale=5 → 3 subcells (~0.6 cells from walls)
+ * - scale=2 → 1 subcell (~0.5 cells from walls)
  */
-const MIN_RIDGE_DISTANCE = 2;
+function getMinRidgeDistance(scale: number): number {
+  return Math.ceil(0.5 * scale);
+}
 
 /**
- * Maximum length of a spur (in fine pixels) that will be pruned.
- * Spurs are dangling branches that end at endpoints (degree=1).
- * Longer spurs are kept as they may be legitimate corridor ends.
+ * Compute maximum spur length for pruning.
+ * Spurs (dangling branches) shorter than this are removed.
+ * 
+ * Formula: ceil(1.0 * scale)
+ * - scale=5 → 5 fine pixels
+ * - scale=2 → 2 fine pixels
  */
-const MAX_SPUR_LEN = 6;
+function getMaxSpurLen(scale: number): number {
+  return Math.ceil(1.0 * scale);
+}
 
 /**
- * Minimum average distance-to-wall for a spur to be protected from pruning.
- * Spurs with higher average distance are likely legitimate centerlines.
- * Set to 0 to disable this safety check.
+ * Compute minimum average distance-to-wall for spur protection.
+ * Spurs with higher average distance are kept as legitimate centerlines.
+ * 
+ * Formula: ceil(0.6 * scale)
+ * - scale=5 → 3 fine units
+ * - scale=2 → 2 fine units
  */
-const MIN_SPUR_DISTANCE = 3;
+function getMinSpurDistance(scale: number): number {
+  return Math.ceil(0.6 * scale);
+}
 
 // ============================================================================
 // MAIN ENTRY POINT
@@ -184,7 +197,7 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
   // This detects "crest lines" (centerlines) rather than isolated peaks.
   // =========================================================================
   
-  detectRidges(fineGrid, fineWidth, fineHeight);
+  detectRidges(fineGrid, fineWidth, fineHeight, scale);
   
   // =========================================================================
   // STEP 4: ZHANG-SUEN THINNING
@@ -194,7 +207,7 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
   // sub-iterations per pass.
   // =========================================================================
   
-  zhangSuenThinning(fineGrid, fineWidth, fineHeight);
+  zhangSuenThinning(fineGrid, fineWidth, fineHeight, scale);
   
   // =========================================================================
   // STEP 5: SPUR PRUNING
@@ -204,7 +217,7 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
   // true corridor centerlines.
   // =========================================================================
   
-  const prunedSpurs = pruneSpurs(fineGrid, fineWidth, fineHeight);
+  const prunedSpurs = pruneSpurs(fineGrid, fineWidth, fineHeight, scale);
   
   // =========================================================================
   // STEP 6: CONVERT TO WORLD COORDINATES
@@ -356,8 +369,11 @@ function computeDistanceTransform(
 function detectRidges(
   fineGrid: FineCell[][],
   width: number,
-  height: number
+  height: number,
+  scale: number
 ): void {
+  const minRidgeDistance = getMinRidgeDistance(scale);
+  
   /**
    * Check if distance d forms a ridge with neighbors a and b.
    * Ridge condition: d >= a AND d >= b AND (d > a OR d > b)
@@ -391,7 +407,7 @@ function detectRidges(
       
       // CRITICAL: Skip cells too close to walls
       // This is the primary fix - no skeleton points near walls
-      if (cell.distance < MIN_RIDGE_DISTANCE) {
+      if (cell.distance < minRidgeDistance) {
         cell.isRidge = false;
         continue;
       }
@@ -447,14 +463,17 @@ function detectRidges(
 function zhangSuenThinning(
   fineGrid: FineCell[][],
   width: number,
-  height: number
+  height: number,
+  scale: number
 ): void {
-  // Initialize skeleton from ridge candidates that passed MIN_RIDGE_DISTANCE
+  const minRidgeDistance = getMinRidgeDistance(scale);
+  
+  // Initialize skeleton from ridge candidates that passed minRidgeDistance
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const cell = fineGrid[y][x];
       // Only include ridges that passed the minimum distance filter
-      fineGrid[y][x].isSkeleton = cell.isRidge && cell.distance >= MIN_RIDGE_DISTANCE;
+      fineGrid[y][x].isSkeleton = cell.isRidge && cell.distance >= minRidgeDistance;
     }
   }
   
@@ -625,8 +644,11 @@ function countTransitions(neighbors: boolean[]): number {
 function pruneSpurs(
   fineGrid: FineCell[][],
   width: number,
-  height: number
+  height: number,
+  scale: number
 ): Array<{ x: number; y: number }> {
+  const maxSpurLen = getMaxSpurLen(scale);
+  const minSpurDistance = getMinSpurDistance(scale);
   const prunedPixels: Array<{ x: number; y: number }> = [];
   
   // 8-neighborhood offsets
@@ -673,7 +695,7 @@ function pruneSpurs(
     let prevX = -1;
     let prevY = -1;
     
-    while (path.length <= MAX_SPUR_LEN) {
+    while (path.length <= maxSpurLen) {
       const key = `${currX},${currY}`;
       if (visited.has(key)) break;
       visited.add(key);
@@ -693,13 +715,13 @@ function pruneSpurs(
         // Spur ends at junction - qualifies for pruning
         // Don't include the junction pixel itself in the path
         path.pop();
-        return path.length > 0 && path.length <= MAX_SPUR_LEN ? path : null;
+        return path.length > 0 && path.length <= maxSpurLen ? path : null;
       }
       
       // If we hit another endpoint (no more neighbors to follow)
       if (neighbors.length === 0) {
         // Spur ends at endpoint - qualifies for pruning
-        return path.length <= MAX_SPUR_LEN ? path : null;
+        return path.length <= maxSpurLen ? path : null;
       }
       
       // Continue tracing (should be exactly 1 neighbor if degree = 2)
@@ -711,11 +733,11 @@ function pruneSpurs(
       } else {
         // Multiple forward neighbors means junction - stop
         path.pop();
-        return path.length > 0 && path.length <= MAX_SPUR_LEN ? path : null;
+        return path.length > 0 && path.length <= maxSpurLen ? path : null;
       }
     }
     
-    // Path exceeded MAX_SPUR_LEN - don't prune
+    // Path exceeded maxSpurLen - don't prune
     return null;
   }
   
@@ -738,9 +760,9 @@ function pruneSpurs(
     
     if (path && path.length > 0) {
       // Optional safety: check average distance to wall
-      if (MIN_SPUR_DISTANCE > 0) {
+      if (minSpurDistance > 0) {
         const avgDistance = path.reduce((sum, p) => sum + p.distance, 0) / path.length;
-        if (avgDistance >= MIN_SPUR_DISTANCE) {
+        if (avgDistance >= minSpurDistance) {
           // This spur has high average distance, might be legitimate centerline
           continue;
         }
@@ -754,7 +776,7 @@ function pruneSpurs(
     }
   }
   
-  console.log(`[MedialAxis] Pruned ${prunedPixels.length} spur pixels from ${endpoints.length} endpoints`);
+  console.log(`[MedialAxis] Pruned ${prunedPixels.length} spur pixels from ${endpoints.length} endpoints (maxSpurLen=${maxSpurLen}, minSpurDistance=${minSpurDistance})`);
   
   return prunedPixels;
 }
