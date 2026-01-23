@@ -224,7 +224,8 @@ export function computeMedialAxis(maze: Maze, scale: number = 5): MedialAxisResu
       const worldX = (fx + 0.5) * fineCellSize;
       const worldZ = (fy + 0.5) * fineCellSize;
       
-      if (cell.isSkeleton) {
+      // Exclude spurs from main skeleton (they'll be rendered separately in orange)
+      if (cell.isSkeleton && !cell.isSpur) {
         skeletonPoints.push({ x: worldX, z: worldZ });
       }
       if (cell.isRidge) {

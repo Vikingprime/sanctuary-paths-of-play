@@ -2328,6 +2328,7 @@ return (
         showRidge={false}
         showHeatmap={overlayGridEnabled}
         showDistanceNumbers={false}
+        showPrunedSpurs={skeletonEnabled}
         height={0.15}
         pointSize={0.08}
       />
