@@ -744,10 +744,9 @@ function markSpurs(
     
     if (path && path.length > 0) {
       // Optional safety: check average distance to wall
-      // Only protect spurs that are CLEARLY in corridor centers (avgDist > threshold)
       if (minSpurDistance > 0) {
         const avgDistance = path.reduce((sum, p) => sum + p.distance, 0) / path.length;
-        if (avgDistance > minSpurDistance) {
+        if (avgDistance >= minSpurDistance) {
           // This spur has high average distance, might be legitimate centerline
           continue;
         }
