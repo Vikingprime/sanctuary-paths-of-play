@@ -694,6 +694,34 @@ export const GameHUD = ({
                     className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
                   />
                 </div>
+                {/* Max Branch Len slider */}
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Max Branch Len:</span>
+                    <span className={cn(
+                      spurConfig.maxBranchLen !== defaultSpurConfig.maxBranchLen 
+                        ? 'text-orange-400' 
+                        : 'text-cyan-400'
+                    )}>
+                      {spurConfig.maxBranchLen}
+                      {spurConfig.maxBranchLen !== defaultSpurConfig.maxBranchLen && (
+                        <span className="text-gray-500 ml-1">(def: {defaultSpurConfig.maxBranchLen})</span>
+                      )}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value={spurConfig.maxBranchLen}
+                    onChange={(e) => onSpurConfigChange({
+                      ...spurConfig,
+                      maxBranchLen: parseInt(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
                 {/* Raw Skeleton Toggle */}
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700">
                   <span className="text-[10px]">Raw Skeleton (no cleanup)</span>
@@ -713,7 +741,7 @@ export const GameHUD = ({
                   </button>
                 </div>
                 <div className="text-[9px] text-gray-500 mt-1">
-                  Spurs ≤ maxLen with avgDist &lt; minDist are pruned (orange)
+                  Endpoint spurs ≤ maxLen; junction branches ≤ maxBranchLen (orange)
                 </div>
               </div>
             </div>

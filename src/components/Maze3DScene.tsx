@@ -16,6 +16,7 @@ import { FogConfig, FOG_COLOR } from '@/game/FogConfig';
 // LOSCornFader removed - corn fading is now integrated into CameraController's autopush logic
 import mapTowerSignImage from '@/assets/map-tower-sign.png';
 import { MedialAxisVisualization } from './MedialAxisVisualization';
+import { SpurConfig } from '@/game/MedialAxis';
 
 // Re-export for backward compatibility
 export const ATMOSPHERE_COLOR = FogConfig.COLOR_HEX;
@@ -93,8 +94,8 @@ interface Maze3DSceneProps {
   skeletonEnabled?: boolean;
   overlayGridEnabled?: boolean;
   showPrunedSpurs?: boolean;
-  spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null;
-  onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void;
+  spurConfig?: SpurConfig | null;
+  onDefaultSpurConfig?: (config: SpurConfig) => void;
 }
 
 // Ground shader using multiple photo textures with random patches

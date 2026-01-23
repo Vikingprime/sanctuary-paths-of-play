@@ -109,8 +109,8 @@ export const MazeGame3D = ({
   const [skeletonEnabled, setSkeletonEnabled] = useState(false);
   const [overlayGridEnabled, setOverlayGridEnabled] = useState(false);
   const [showPrunedSpurs, setShowPrunedSpurs] = useState(true);
-  const [spurConfig, setSpurConfig] = useState<{ maxSpurLen: number; minSpurDistance: number } | null>(null);
-  const [defaultSpurConfig, setDefaultSpurConfig] = useState<{ maxSpurLen: number; minSpurDistance: number } | null>(null);
+  const [spurConfig, setSpurConfig] = useState<{ maxSpurLen: number; minSpurDistance: number; maxBranchLen: number } | null>(null);
+  const [defaultSpurConfig, setDefaultSpurConfig] = useState<{ maxSpurLen: number; minSpurDistance: number; maxBranchLen: number } | null>(null);
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);

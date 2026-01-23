@@ -98,7 +98,7 @@ export function MedialAxisVisualization({
     if (axisResult && onDefaultSpurConfig) {
       onDefaultSpurConfig(axisResult.defaultSpurConfig);
     }
-  }, [axisResult?.defaultSpurConfig.maxSpurLen, axisResult?.defaultSpurConfig.minSpurDistance, onDefaultSpurConfig]);
+  }, [axisResult?.defaultSpurConfig.maxSpurLen, axisResult?.defaultSpurConfig.minSpurDistance, axisResult?.defaultSpurConfig.maxBranchLen, onDefaultSpurConfig]);
 
   if (!visible || !axisResult) return null;
 
