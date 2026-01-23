@@ -14,10 +14,12 @@
  * ============================================================================
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState, MutableRefObject } from 'react';
 import * as THREE from 'three';
 import { Text } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import { Maze } from '@/types/game';
+import { PlayerState } from '@/game/GameLogic';
 import { computeMedialAxis, MedialAxisResult } from '@/game/MedialAxis';
 
 // ============================================================================
@@ -40,6 +42,10 @@ interface MedialAxisVisualizationProps {
   height?: number;
   /** Size of skeleton point spheres */
   pointSize?: number;
+  /** Player state ref for proximity-based labels */
+  playerStateRef?: MutableRefObject<PlayerState>;
+  /** Radius around player to show distance numbers */
+  labelRadius?: number;
 }
 
 // ============================================================================
@@ -69,6 +75,8 @@ export function MedialAxisVisualization({
   showPrunedSpurs = false,
   height = 0.15,
   pointSize = 0.08,
+  playerStateRef,
+  labelRadius = 5,
 }: MedialAxisVisualizationProps) {
   // Compute medial axis once when maze changes or visibility toggles on
   const axisResult = useMemo<MedialAxisResult | null>(() => {
@@ -93,12 +101,14 @@ export function MedialAxisVisualization({
         />
       )}
       
-      {/* Distance Number Labels */}
-      {showDistanceNumbers && (
-        <DistanceLabels
+      {/* Distance Number Labels - filtered by player proximity */}
+      {showDistanceNumbers && playerStateRef && (
+        <ProximityDistanceLabels
           fineGrid={axisResult.fineGrid}
           fineCellSize={axisResult.fineCellSize}
           height={0.05}
+          playerStateRef={playerStateRef}
+          radius={labelRadius}
         />
       )}
       
@@ -304,6 +314,87 @@ function DistanceLabels({ fineGrid, fineCellSize, height }: DistanceLabelsProps)
           anchorY="middle"
           rotation={[-Math.PI / 2, 0, 0]} // Face up
           outlineWidth={0.01}
+          outlineColor="black"
+        >
+          {item.distance}
+        </Text>
+      ))}
+    </group>
+  );
+}
+
+// ============================================================================
+// PROXIMITY DISTANCE LABELS (Only near player)
+// ============================================================================
+
+interface ProximityDistanceLabelsProps {
+  fineGrid: Array<Array<{ walkable: boolean; distance: number }>>;
+  fineCellSize: number;
+  height: number;
+  playerStateRef: MutableRefObject<PlayerState>;
+  radius: number;
+}
+
+/**
+ * Renders distance values as 3D text labels only within a radius of the player.
+ * Updates every frame to follow player position.
+ */
+function ProximityDistanceLabels({ 
+  fineGrid, 
+  fineCellSize, 
+  height, 
+  playerStateRef,
+  radius 
+}: ProximityDistanceLabelsProps) {
+  const [playerPos, setPlayerPos] = useState({ x: 0, z: 0 });
+  
+  // Update player position each frame
+  useFrame(() => {
+    const state = playerStateRef.current;
+    setPlayerPos({ x: state.x, z: state.y });
+  });
+  
+  // Pre-compute all label positions, filter by distance each render
+  const allLabels = useMemo(() => {
+    const data: Array<{ x: number; z: number; distance: number }> = [];
+    
+    for (let fy = 0; fy < fineGrid.length; fy++) {
+      const row = fineGrid[fy];
+      for (let fx = 0; fx < row.length; fx++) {
+        const cell = row[fx];
+        if (cell.walkable && cell.distance > 0) {
+          const worldX = (fx + 0.5) * fineCellSize;
+          const worldZ = (fy + 0.5) * fineCellSize;
+          data.push({ x: worldX, z: worldZ, distance: cell.distance });
+        }
+      }
+    }
+    
+    return data;
+  }, [fineGrid, fineCellSize]);
+  
+  // Filter to only labels within radius of player
+  const radiusSq = radius * radius;
+  const visibleLabels = allLabels.filter(label => {
+    const dx = label.x - playerPos.x;
+    const dz = label.z - playerPos.z;
+    return dx * dx + dz * dz <= radiusSq;
+  });
+
+  const fontSize = fineCellSize * 2.5;
+
+  return (
+    <group name="proximity-distance-labels">
+      {visibleLabels.map((item, i) => (
+        <Text
+          key={`prox-${item.x}-${item.z}`}
+          position={[item.x, height, item.z]}
+          fontSize={fontSize}
+          color="yellow"
+          anchorX="center"
+          anchorY="middle"
+          rotation={[-Math.PI / 2, 0, 0]}
+          outlineWidth={0.02}
           outlineColor="black"
         >
           {item.distance}
