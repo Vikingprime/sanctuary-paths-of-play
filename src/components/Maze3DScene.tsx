@@ -2327,10 +2327,12 @@ return (
         visible={skeletonEnabled || overlayGridEnabled} 
         showRidge={false}
         showHeatmap={overlayGridEnabled}
-        showDistanceNumbers={false}
+        showDistanceNumbers={true}
         showPrunedSpurs={skeletonEnabled}
         height={0.15}
         pointSize={0.08}
+        playerStateRef={playerStateRef}
+        labelRadius={5}
       />
       
       {/* Placed Characters from maze.characters array */}
