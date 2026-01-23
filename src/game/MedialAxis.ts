@@ -245,6 +245,16 @@ export function computeMedialAxis(
     prunedSpurs.push(...junctionBranchSpurs);
     
     // =========================================================================
+    // STEP 6b: REDUNDANT JUNCTION REMOVAL
+    // =========================================================================
+    // Remove junction nodes where all connected neighbors are already directly
+    // adjacent to each other (forming a clique). These are "nub" artifacts.
+    // =========================================================================
+    
+    const redundantJunctionPixels = removeRedundantJunctions(fineGrid, fineWidth, fineHeight);
+    prunedSpurs.push(...redundantJunctionPixels);
+    
+    // =========================================================================
     // STEP 7: ORPHAN PIXEL CLEANUP
     // =========================================================================
     // Remove disconnected skeleton pixels/fragments.
@@ -963,6 +973,117 @@ function pruneJunctionBranches(
   console.log(`[MedialAxis] Junction branch pruning: removed ${prunedPixels.length} pixels from ${junctions.length} junctions`);
   
   return prunedPixels;
+}
+
+// ============================================================================
+// (DEPRECATED) BFS-TREE CYCLE CLEANUP - Kept for reference
+// ============================================================================
+
+// ============================================================================
+// STEP 6b: REDUNDANT JUNCTION REMOVAL
+// ============================================================================
+
+/**
+ * Remove junction nodes where all connected neighbors are directly adjacent to each other.
+ * 
+ * A junction J is "redundant" if every pair of its neighbors (A, B) are also directly 
+ * adjacent (8-neighborhood). This means J is just a "nub" that can be safely removed
+ * since the neighbors still form a connected path without J.
+ * 
+ * Example: If J connects A, B, C and A-B, A-C, and B-C are all adjacent, J is redundant.
+ * 
+ * @param fineGrid - The fine grid (mutates isSkeleton and isSpur)
+ * @param width - Fine grid width
+ * @param height - Fine grid height
+ * @returns Array of removed junction pixel coordinates for debug visualization
+ */
+function removeRedundantJunctions(
+  fineGrid: FineCell[][],
+  width: number,
+  height: number
+): Array<{ x: number; y: number }> {
+  const removedPixels: Array<{ x: number; y: number }> = [];
+  
+  // 8-neighborhood offsets
+  const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
+  const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
+  
+  function getSkeletonNeighbors(x: number, y: number): Array<{ x: number; y: number }> {
+    const neighbors: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < 8; i++) {
+      const nx = x + dx[i];
+      const ny = y + dy[i];
+      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+        if (fineGrid[ny][nx].isSkeleton) {
+          neighbors.push({ x: nx, y: ny });
+        }
+      }
+    }
+    return neighbors;
+  }
+  
+  function getDegree(x: number, y: number): number {
+    return getSkeletonNeighbors(x, y).length;
+  }
+  
+  /**
+   * Check if two points are directly adjacent (8-neighborhood).
+   */
+  function areAdjacent(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
+    const diffX = Math.abs(a.x - b.x);
+    const diffY = Math.abs(a.y - b.y);
+    // Adjacent means within 1 step in both x and y (but not same point)
+    return diffX <= 1 && diffY <= 1 && (diffX > 0 || diffY > 0);
+  }
+  
+  /**
+   * Check if all pairs in a list of neighbors are directly adjacent to each other.
+   */
+  function allNeighborsConnected(neighbors: Array<{ x: number; y: number }>): boolean {
+    for (let i = 0; i < neighbors.length; i++) {
+      for (let j = i + 1; j < neighbors.length; j++) {
+        if (!areAdjacent(neighbors[i], neighbors[j])) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+  
+  // Find all junctions (degree >= 3) and check if they're redundant
+  // We need to iterate multiple times since removing a junction may create new opportunities
+  let changed = true;
+  let iterations = 0;
+  const MAX_ITERATIONS = 10;
+  
+  while (changed && iterations < MAX_ITERATIONS) {
+    changed = false;
+    iterations++;
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (!fineGrid[y][x].isSkeleton) continue;
+        
+        const degree = getDegree(x, y);
+        if (degree < 3) continue; // Only process junctions
+        
+        const neighbors = getSkeletonNeighbors(x, y);
+        
+        // Check if all neighbors are directly connected to each other
+        if (allNeighborsConnected(neighbors)) {
+          // This junction is redundant - remove it
+          fineGrid[y][x].isSkeleton = false;
+          fineGrid[y][x].isSpur = true;
+          removedPixels.push({ x, y });
+          changed = true;
+        }
+      }
+    }
+  }
+  
+  console.log(`[MedialAxis] Redundant junction removal: removed ${removedPixels.length} pixels in ${iterations} iterations`);
+  
+  return removedPixels;
 }
 
 // ============================================================================
