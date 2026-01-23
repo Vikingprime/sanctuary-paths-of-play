@@ -649,14 +649,13 @@ function pruneSpurs(
 ): Array<{ x: number; y: number }> {
   const maxSpurLen = getMaxSpurLen(scale);
   const minSpurDistance = getMinSpurDistance(scale);
-  const prunedPixels: Array<{ x: number; y: number }> = [];
   
   // 8-neighborhood offsets
   const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
   const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
   
   /**
-   * Get skeleton neighbors of a pixel.
+   * Get skeleton neighbors of a pixel (read-only, does not mutate).
    */
   function getSkeletonNeighbors(x: number, y: number): Array<{ x: number; y: number }> {
     const neighbors: Array<{ x: number; y: number }> = [];
@@ -680,13 +679,13 @@ function pruneSpurs(
   }
   
   /**
-   * Trace a spur from an endpoint.
-   * Returns the path if it qualifies for pruning, or null otherwise.
+   * Trace a spur from an endpoint WITHOUT modifying the skeleton.
+   * Returns the full path regardless of length (caller decides prune/keep).
    */
   function traceSpur(
     startX: number,
     startY: number
-  ): Array<{ x: number; y: number; distance: number }> | null {
+  ): Array<{ x: number; y: number; distance: number }> {
     const path: Array<{ x: number; y: number; distance: number }> = [];
     const visited = new Set<string>();
     
@@ -695,7 +694,10 @@ function pruneSpurs(
     let prevX = -1;
     let prevY = -1;
     
-    while (path.length <= maxSpurLen) {
+    // Trace until we hit a junction, dead-end, or exceed reasonable limit
+    const maxTraceLen = maxSpurLen + 2; // Allow slight over-trace to detect long spurs
+    
+    while (path.length <= maxTraceLen) {
       const key = `${currX},${currY}`;
       if (visited.has(key)) break;
       visited.add(key);
@@ -710,38 +712,36 @@ function pruneSpurs(
       
       const degree = neighbors.length + (prevX >= 0 ? 1 : 0); // Include prev in degree count
       
-      // If we hit a junction (degree >= 3 considering all neighbors)
+      // If we hit a junction (degree >= 3), stop and exclude junction pixel
       if (degree >= 3) {
-        // Spur ends at junction - qualifies for pruning
-        // Don't include the junction pixel itself in the path
-        path.pop();
-        return path.length > 0 && path.length <= maxSpurLen ? path : null;
+        path.pop(); // Don't include junction in spur
+        break;
       }
       
-      // If we hit another endpoint (no more neighbors to follow)
+      // If we hit a dead-end (no more neighbors), stop
       if (neighbors.length === 0) {
-        // Spur ends at endpoint - qualifies for pruning
-        return path.length <= maxSpurLen ? path : null;
+        break;
       }
       
-      // Continue tracing (should be exactly 1 neighbor if degree = 2)
+      // Continue tracing
       if (neighbors.length === 1) {
         prevX = currX;
         prevY = currY;
         currX = neighbors[0].x;
         currY = neighbors[0].y;
       } else {
-        // Multiple forward neighbors means junction - stop
+        // Multiple forward neighbors means junction - stop and exclude
         path.pop();
-        return path.length > 0 && path.length <= maxSpurLen ? path : null;
+        break;
       }
     }
     
-    // Path exceeded maxSpurLen - don't prune
-    return null;
+    return path;
   }
   
-  // Find all endpoints (degree = 1)
+  // =========================================================================
+  // PHASE 1: Find all endpoints and collect spur paths (READ-ONLY)
+  // =========================================================================
   const endpoints: Array<{ x: number; y: number }> = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -751,32 +751,45 @@ function pruneSpurs(
     }
   }
   
-  // Process each endpoint
+  // Collect all spurs that qualify for pruning
+  const spursToPrune: Array<Array<{ x: number; y: number; distance: number }>> = [];
+  
   for (const endpoint of endpoints) {
-    // Skip if this endpoint was already pruned
-    if (!fineGrid[endpoint.y][endpoint.x].isSkeleton) continue;
-    
     const path = traceSpur(endpoint.x, endpoint.y);
     
-    if (path && path.length > 0) {
-      // Optional safety: check average distance to wall
-      if (minSpurDistance > 0) {
-        const avgDistance = path.reduce((sum, p) => sum + p.distance, 0) / path.length;
-        if (avgDistance >= minSpurDistance) {
-          // This spur has high average distance, might be legitimate centerline
-          continue;
-        }
-      }
-      
-      // Prune the spur
-      for (const pixel of path) {
+    if (path.length === 0) continue;
+    
+    // Check length constraint
+    if (path.length > maxSpurLen) continue;
+    
+    // Check distance constraint (safety: protect high-distance spurs)
+    if (minSpurDistance > 0) {
+      const avgDistance = path.reduce((sum, p) => sum + p.distance, 0) / path.length;
+      if (avgDistance >= minSpurDistance) continue;
+    }
+    
+    // This spur qualifies for pruning
+    spursToPrune.push(path);
+  }
+  
+  // =========================================================================
+  // PHASE 2: Delete all collected spurs in one batch (MUTATE)
+  // =========================================================================
+  const prunedPixels: Array<{ x: number; y: number }> = [];
+  const prunedSet = new Set<string>(); // Avoid duplicates from overlapping spurs
+  
+  for (const spur of spursToPrune) {
+    for (const pixel of spur) {
+      const key = `${pixel.x},${pixel.y}`;
+      if (!prunedSet.has(key)) {
+        prunedSet.add(key);
         fineGrid[pixel.y][pixel.x].isSkeleton = false;
         prunedPixels.push({ x: pixel.x, y: pixel.y });
       }
     }
   }
   
-  console.log(`[MedialAxis] Pruned ${prunedPixels.length} spur pixels from ${endpoints.length} endpoints (maxSpurLen=${maxSpurLen}, minSpurDistance=${minSpurDistance})`);
+  console.log(`[MedialAxis] Pruned ${prunedPixels.length} spur pixels from ${spursToPrune.length} spurs (maxSpurLen=${maxSpurLen}, minSpurDistance=${minSpurDistance})`);
   
   return prunedPixels;
 }
