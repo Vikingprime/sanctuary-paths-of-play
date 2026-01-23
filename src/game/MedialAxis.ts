@@ -71,7 +71,7 @@ export interface MedialAxisResult {
 function getScaleConstants(scale: number) {
   return {
     /** Minimum distance from walls for ridge detection: ceil(0.5 * scale) */
-    MIN_RIDGE_DISTANCE: Math.ceil(0.5 * scale),
+    MIN_RIDGE_DISTANCE: Math.ceil(0.4 * scale),
     /** Maximum spur length to identify: ceil(1.0 * scale) */
     MAX_SPUR_LEN: Math.ceil(1.0 * scale),
     /** Minimum avg distance for spur protection: ceil(0.7 * scale) */
