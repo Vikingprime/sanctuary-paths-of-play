@@ -1123,6 +1123,19 @@ const RefBasedPlayer = ({
   const magnetismCacheRef = useRef<MagnetismCache | null>(null);
   const magnetismFilterRef = useRef<MagnetismFilterState>({ targetX: 0, targetZ: 0, initialized: false });
   
+  // Velocity-based facing: track position for actual velocity calculation
+  const prevPositionRef = useRef<{ x: number; z: number } | null>(null);
+  const velocityYawRef = useRef<number>(0); // Smoothed yaw from actual velocity
+  const velocityYawInitialized = useRef(false);
+  
+  // Tunables for velocity-based facing
+  const VELOCITY_FACING_CONFIG = {
+    speedEpsilon: 0.05,       // Minimum velocity to derive facing from
+    turnRate: 6.0,            // Radians/sec for smoothing toward velocity yaw
+    magThreshold: 0.1,        // Magnetism strength threshold to use velocity facing
+    magVelRatio: 0.2,         // If |magVel| < this * |inputVel|, use input facing
+  };
+  
   // Build magnetism cache when maze changes
   useMemo(() => {
     if (magnetismConfig?.enabled) {
@@ -1306,6 +1319,12 @@ const RefBasedPlayer = ({
       }
       
       // === MAGNETISM: Apply corridor centerline pull ===
+      // Store position before magnetism for velocity calculation
+      const posBeforeMag = { x: playerStateRef.current.x, z: playerStateRef.current.y };
+      let magnetStrength = 0;
+      let magCorrectionX = 0;
+      let magCorrectionZ = 0;
+      
       if (magnetismConfig?.enabled && magnetismCacheRef.current && isMovingRef.current) {
         const config = magnetismConfig || DEFAULT_MAGNETISM_CONFIG;
         const player = playerStateRef.current;
@@ -1324,6 +1343,10 @@ const RefBasedPlayer = ({
           config,
           clampedDelta
         );
+        
+        magnetStrength = magnetResult.debug.strengthMultiplier;
+        magCorrectionX = magnetResult.correctionX;
+        magCorrectionZ = magnetResult.correctionZ;
         
         // Apply low-pass filter to target for stability
         const filtered = filterTargetPoint(
@@ -1358,6 +1381,72 @@ const RefBasedPlayer = ({
         // Clear debug when not active
         magnetismDebugRef.current = null;
       }
+      
+      // === VELOCITY-BASED FACING ===
+      // Calculate actual velocity from position delta (includes magnetism)
+      const posAfterMag = { x: playerStateRef.current.x, z: playerStateRef.current.y };
+      
+      if (prevPositionRef.current && clampedDelta > 0.001) {
+        const velX = (posAfterMag.x - prevPositionRef.current.x) / clampedDelta;
+        const velZ = (posAfterMag.z - prevPositionRef.current.z) / clampedDelta;
+        const velMag = Math.sqrt(velX * velX + velZ * velZ);
+        
+        // Calculate input velocity (from pre-magnetism position)
+        const inputVelX = (posBeforeMag.x - prevPositionRef.current.x) / clampedDelta;
+        const inputVelZ = (posBeforeMag.z - prevPositionRef.current.z) / clampedDelta;
+        const inputVelMag = Math.sqrt(inputVelX * inputVelX + inputVelZ * inputVelZ);
+        
+        // Calculate magnetism velocity contribution
+        const magVelMag = Math.sqrt(magCorrectionX * magCorrectionX + magCorrectionZ * magCorrectionZ) / clampedDelta;
+        
+        // Determine if we should use velocity-based facing
+        const useVelocityFacing = velMag > VELOCITY_FACING_CONFIG.speedEpsilon &&
+          magnetStrength >= VELOCITY_FACING_CONFIG.magThreshold &&
+          magVelMag >= VELOCITY_FACING_CONFIG.magVelRatio * inputVelMag;
+        
+        if (useVelocityFacing) {
+          // Target yaw from actual velocity
+          const targetVelYaw = Math.atan2(velX, velZ);
+          
+          // Initialize velocity yaw if needed
+          if (!velocityYawInitialized.current) {
+            velocityYawRef.current = targetVelYaw;
+            velocityYawInitialized.current = true;
+          }
+          
+          // Smooth toward target velocity yaw
+          const currentVelYaw = velocityYawRef.current;
+          let yawDiff = targetVelYaw - currentVelYaw;
+          // Normalize to [-PI, PI]
+          while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+          while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+          
+          const maxTurn = VELOCITY_FACING_CONFIG.turnRate * clampedDelta;
+          if (Math.abs(yawDiff) <= maxTurn) {
+            velocityYawRef.current = targetVelYaw;
+          } else {
+            velocityYawRef.current += Math.sign(yawDiff) * maxTurn;
+          }
+          
+          // Normalize velocity yaw
+          while (velocityYawRef.current > Math.PI) velocityYawRef.current -= Math.PI * 2;
+          while (velocityYawRef.current < -Math.PI) velocityYawRef.current += Math.PI * 2;
+          
+          // Override logical rotation with velocity-based yaw
+          let newRot = velocityYawRef.current;
+          if (newRot < 0) newRot += Math.PI * 2;
+          playerStateRef.current = {
+            ...playerStateRef.current,
+            rotation: newRot,
+          };
+        } else {
+          // Keep velocity yaw synced to input rotation when not using velocity facing
+          velocityYawRef.current = playerStateRef.current.rotation;
+        }
+      }
+      
+      // Update previous position for next frame
+      prevPositionRef.current = { x: posAfterMag.x, z: posAfterMag.z };
       
       // Only check interactions when entering a new cell
       const currentCellX = Math.floor(playerStateRef.current.x);
