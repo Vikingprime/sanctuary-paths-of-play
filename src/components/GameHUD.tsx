@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { PerformanceInfo } from './Maze3DScene';
 import { Volume2, VolumeX, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { SpurConfig } from '@/game/MedialAxis';
+import { MagnetismConfig, DEFAULT_MAGNETISM_CONFIG } from '@/game/CorridorMagnetism';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,6 +100,14 @@ interface GameHUDProps {
   onSpurConfigChange?: (config: SpurConfig) => void;
   showPrunedSpurs?: boolean;
   onToggleShowPrunedSpurs?: () => void;
+  // Magnetism tuning
+  magnetismConfig?: MagnetismConfig;
+  onMagnetismConfigChange?: (config: MagnetismConfig) => void;
+  // Magnetism debug visualization
+  showMagnetTarget?: boolean;
+  onToggleShowMagnetTarget?: () => void;
+  showMagnetVector?: boolean;
+  onToggleShowMagnetVector?: () => void;
 }
 
 export const GameHUD = ({
@@ -161,6 +170,12 @@ export const GameHUD = ({
   onSpurConfigChange,
   showPrunedSpurs = false,
   onToggleShowPrunedSpurs,
+  magnetismConfig,
+  onMagnetismConfigChange,
+  showMagnetTarget = false,
+  onToggleShowMagnetTarget,
+  showMagnetVector = false,
+  onToggleShowMagnetVector,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -742,6 +757,110 @@ export const GameHUD = ({
                 </div>
                 <div className="text-[9px] text-gray-500 mt-1">
                   Endpoint spurs ≤ maxLen; junction branches ≤ maxBranchLen (orange)
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Magnetism Tuning */}
+          {magnetismConfig && onMagnetismConfigChange && (
+            <div className="mt-2 pt-2 border-t border-gray-600">
+              <div className="text-[10px] text-gray-400 mb-1">--- Corridor Magnetism ---</div>
+              <div className="space-y-2">
+                {/* Enable/Disable Toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px]">Enabled</span>
+                  <button
+                    onClick={() => onMagnetismConfigChange({
+                      ...magnetismConfig,
+                      enabled: !magnetismConfig.enabled
+                    })}
+                    className={cn(
+                      "px-2 py-0.5 text-[9px] rounded font-bold",
+                      magnetismConfig.enabled
+                        ? "bg-green-600 text-white"
+                        : "bg-red-600 text-white"
+                    )}
+                  >
+                    {magnetismConfig.enabled ? 'ON' : 'OFF'}
+                  </button>
+                </div>
+                
+                {/* Strength Slider */}
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Strength:</span>
+                    <span className={cn(
+                      magnetismConfig.strength !== DEFAULT_MAGNETISM_CONFIG.strength 
+                        ? 'text-orange-400' 
+                        : 'text-cyan-400'
+                    )}>
+                      {magnetismConfig.strength.toFixed(1)}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={magnetismConfig.strength}
+                    onChange={(e) => onMagnetismConfigChange({
+                      ...magnetismConfig,
+                      strength: parseFloat(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+                
+                {/* Spring K Slider */}
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Spring K:</span>
+                    <span className="text-cyan-400">{magnetismConfig.springK.toFixed(1)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="15"
+                    step="0.5"
+                    value={magnetismConfig.springK}
+                    onChange={(e) => onMagnetismConfigChange({
+                      ...magnetismConfig,
+                      springK: parseFloat(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+                
+                {/* Debug Visualization Toggles */}
+                <div className="flex gap-2 mt-2 pt-2 border-t border-gray-700">
+                  {onToggleShowMagnetTarget && (
+                    <button
+                      onClick={onToggleShowMagnetTarget}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-[10px] font-bold',
+                        showMagnetTarget ? 'bg-green-600 text-white' : 'bg-gray-600 text-white'
+                      )}
+                      title="Show target point on skeleton"
+                    >
+                      Target
+                    </button>
+                  )}
+                  {onToggleShowMagnetVector && (
+                    <button
+                      onClick={onToggleShowMagnetVector}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-[10px] font-bold',
+                        showMagnetVector ? 'bg-yellow-600 text-white' : 'bg-gray-600 text-white'
+                      )}
+                      title="Show vector from player to target"
+                    >
+                      Vector
+                    </button>
+                  )}
+                </div>
+                <div className="text-[9px] text-gray-500 mt-1">
+                  Gently pulls animal toward corridor centerlines
                 </div>
               </div>
             </div>

@@ -17,6 +17,16 @@ import { FogConfig, FOG_COLOR } from '@/game/FogConfig';
 import mapTowerSignImage from '@/assets/map-tower-sign.png';
 import { MedialAxisVisualization } from './MedialAxisVisualization';
 import { SpurConfig } from '@/game/MedialAxis';
+import { 
+  MagnetismConfig, 
+  MagnetismCache, 
+  MagnetismResult,
+  MagnetismFilterState,
+  DEFAULT_MAGNETISM_CONFIG, 
+  buildMagnetismCache, 
+  calculateMagnetism,
+  filterTargetPoint,
+} from '@/game/CorridorMagnetism';
 
 // Re-export for backward compatibility
 export const ATMOSPHERE_COLOR = FogConfig.COLOR_HEX;
@@ -96,6 +106,11 @@ interface Maze3DSceneProps {
   showPrunedSpurs?: boolean;
   spurConfig?: SpurConfig | null;
   onDefaultSpurConfig?: (config: SpurConfig) => void;
+  // Magnetism configuration
+  magnetismConfig?: MagnetismConfig;
+  magnetismDebugRef?: MutableRefObject<MagnetismResult['debug'] | null>;
+  showMagnetTarget?: boolean;
+  showMagnetVector?: boolean;
 }
 
 // Ground shader using multiple photo textures with random patches

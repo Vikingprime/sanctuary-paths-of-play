@@ -47,3 +47,15 @@ export {
   computeMedialAxis,
   type MedialAxisResult,
 } from './MedialAxis';
+
+// Corridor magnetism system
+export {
+  calculateMagnetism,
+  buildMagnetismCache,
+  filterTargetPoint,
+  DEFAULT_MAGNETISM_CONFIG,
+  type MagnetismConfig,
+  type MagnetismCache,
+  type MagnetismResult,
+  type MagnetismFilterState,
+} from './CorridorMagnetism';
