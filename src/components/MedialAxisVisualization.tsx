@@ -9,17 +9,13 @@
  * - Skeleton: Bright cyan spheres (final 1-pixel-wide centerline)
  * - Ridge: Dim magenta spheres (pre-thinning ridge candidates)
  * - Heatmap: Color-coded overlay showing distance to walls
- * - Distance Numbers: Text labels showing distance values
- * 
+ *
  * ============================================================================
  */
 
-import { useMemo, useState, MutableRefObject } from 'react';
+import { useMemo } from 'react';
 import * as THREE from 'three';
-import { Text } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
 import { Maze } from '@/types/game';
-import { PlayerState } from '@/game/GameLogic';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from '@/game/MedialAxis';
 
 // ============================================================================
@@ -34,18 +30,12 @@ interface MedialAxisVisualizationProps {
   showRidge?: boolean;
   /** Show distance heatmap overlay (green gradient) */
   showHeatmap?: boolean;
-  /** Show distance numbers on each subcell */
-  showDistanceNumbers?: boolean;
   /** Show pruned spur points (orange, for debugging) */
   showPrunedSpurs?: boolean;
   /** Height above ground to render skeleton points */
   height?: number;
   /** Size of skeleton point spheres */
   pointSize?: number;
-  /** Player state ref for proximity-based labels */
-  playerStateRef?: MutableRefObject<PlayerState>;
-  /** Radius around player to show distance numbers */
-  labelRadius?: number;
   /** Custom spur config for tuning visualization */
   spurConfig?: SpurConfig | null;
   /** Callback to report default spur config (from scale constants) */
@@ -65,7 +55,6 @@ interface MedialAxisVisualizationProps {
  *   maze={maze}
  *   visible={debugMode}
  *   showHeatmap={true}
- *   showDistanceNumbers={true}
  *   showRidge={false}
  * />
  * ```
@@ -75,12 +64,9 @@ export function MedialAxisVisualization({
   visible,
   showRidge = false,
   showHeatmap = false,
-  showDistanceNumbers = false,
   showPrunedSpurs = false,
   height = 0.15,
   pointSize = 0.08,
-  playerStateRef,
-  labelRadius = 5,
   spurConfig,
   onDefaultSpurConfig,
 }: MedialAxisVisualizationProps) {
@@ -114,16 +100,7 @@ export function MedialAxisVisualization({
         />
       )}
       
-      {/* Distance Number Labels - filtered by player proximity */}
-      {showDistanceNumbers && playerStateRef && (
-        <ProximityDistanceLabels
-          fineGrid={axisResult.fineGrid}
-          fineCellSize={axisResult.fineCellSize}
-          height={0.05}
-          playerStateRef={playerStateRef}
-          radius={labelRadius}
-        />
-      )}
+      
       
       {/* Final Skeleton Points - bright cyan spheres */}
       <SkeletonPoints
@@ -272,147 +249,6 @@ function HeatmapOverlay({ fineGrid, fineCellSize, maxDistance, height }: Heatmap
     <group name="heatmap-overlay">
       {walkableInstanced && <primitive object={walkableInstanced} />}
       {blockedInstanced && <primitive object={blockedInstanced} />}
-    </group>
-  );
-}
-
-// ============================================================================
-// DISTANCE LABELS (Text showing distance values)
-// ============================================================================
-
-interface DistanceLabelsProps {
-  fineGrid: Array<Array<{ walkable: boolean; distance: number }>>;
-  fineCellSize: number;
-  height: number;
-}
-
-/**
- * Renders distance values as 3D text labels on each walkable subcell.
- * Only renders walkable cells with distance > 0.
- */
-function DistanceLabels({ fineGrid, fineCellSize, height }: DistanceLabelsProps) {
-  // Sample every SCALE cells to reduce Text count from ~2800 to ~112
-  const SAMPLE_RATE = 5;
-  
-  const labelData = useMemo(() => {
-    const data: Array<{ x: number; z: number; distance: number }> = [];
-    
-    for (let fy = 0; fy < fineGrid.length; fy += SAMPLE_RATE) {
-      const row = fineGrid[fy];
-      for (let fx = 0; fx < row.length; fx += SAMPLE_RATE) {
-        const cell = row[fx];
-        if (cell.walkable && cell.distance > 0) {
-          const worldX = (fx + 0.5) * fineCellSize;
-          const worldZ = (fy + 0.5) * fineCellSize;
-          data.push({ x: worldX, z: worldZ, distance: cell.distance });
-        }
-      }
-    }
-    
-    return data;
-  }, [fineGrid, fineCellSize]);
-
-  // Calculate appropriate font size based on cell size
-  const fontSize = fineCellSize * 0.5;
-
-  return (
-    <group name="distance-labels">
-      {labelData.map((item, i) => (
-        <Text
-          key={`${i}-${item.x}-${item.z}`}
-          position={[item.x, height, item.z]}
-          fontSize={fontSize}
-          color="white"
-          anchorX="center"
-          anchorY="middle"
-          rotation={[-Math.PI / 2, 0, 0]} // Face up
-          outlineWidth={0.01}
-          outlineColor="black"
-        >
-          {item.distance}
-        </Text>
-      ))}
-    </group>
-  );
-}
-
-// ============================================================================
-// PROXIMITY DISTANCE LABELS (Only near player)
-// ============================================================================
-
-interface ProximityDistanceLabelsProps {
-  fineGrid: Array<Array<{ walkable: boolean; distance: number }>>;
-  fineCellSize: number;
-  height: number;
-  playerStateRef: MutableRefObject<PlayerState>;
-  radius: number;
-}
-
-/**
- * Renders distance values as 3D text labels only within a radius of the player.
- * Updates every frame to follow player position.
- */
-function ProximityDistanceLabels({ 
-  fineGrid, 
-  fineCellSize, 
-  height, 
-  playerStateRef,
-  radius 
-}: ProximityDistanceLabelsProps) {
-  const [playerPos, setPlayerPos] = useState({ x: 0, z: 0 });
-  
-  // Update player position each frame
-  useFrame(() => {
-    const state = playerStateRef.current;
-    setPlayerPos({ x: state.x, z: state.y });
-  });
-  
-  // Pre-compute all label positions, filter by distance each render
-  const allLabels = useMemo(() => {
-    const data: Array<{ x: number; z: number; distance: number }> = [];
-    
-    for (let fy = 0; fy < fineGrid.length; fy++) {
-      const row = fineGrid[fy];
-      for (let fx = 0; fx < row.length; fx++) {
-        const cell = row[fx];
-        if (cell.walkable && cell.distance > 0) {
-          const worldX = (fx + 0.5) * fineCellSize;
-          const worldZ = (fy + 0.5) * fineCellSize;
-          data.push({ x: worldX, z: worldZ, distance: cell.distance });
-        }
-      }
-    }
-    
-    return data;
-  }, [fineGrid, fineCellSize]);
-  
-  // Filter to only labels within radius of player
-  const radiusSq = radius * radius;
-  const visibleLabels = allLabels.filter(label => {
-    const dx = label.x - playerPos.x;
-    const dz = label.z - playerPos.z;
-    return dx * dx + dz * dz <= radiusSq;
-  });
-
-  const fontSize = fineCellSize * 0.6;
-
-  return (
-    <group name="proximity-distance-labels">
-      {visibleLabels.map((item, i) => (
-        <Text
-          key={`prox-${item.x}-${item.z}`}
-          position={[item.x, height, item.z]}
-          fontSize={fontSize}
-          color="yellow"
-          anchorX="center"
-          anchorY="middle"
-          rotation={[-Math.PI / 2, 0, 0]}
-          outlineWidth={0.02}
-          outlineColor="black"
-        >
-          {item.distance}
-        </Text>
-      ))}
     </group>
   );
 }

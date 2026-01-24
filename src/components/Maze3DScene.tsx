@@ -2331,12 +2331,10 @@ return (
         visible={skeletonEnabled || overlayGridEnabled} 
         showRidge={false}
         showHeatmap={overlayGridEnabled}
-        showDistanceNumbers={true}
+        
         showPrunedSpurs={showPrunedSpurs}
         height={0.15}
         pointSize={0.08}
-        playerStateRef={playerStateRef}
-        labelRadius={5}
         spurConfig={spurConfig}
         onDefaultSpurConfig={onDefaultSpurConfig}
       />
