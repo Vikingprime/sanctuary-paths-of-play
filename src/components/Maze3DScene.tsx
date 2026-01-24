@@ -6,7 +6,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
-import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision } from '@/game/GameLogic';
+import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision, checkCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor } from '@/game/CharacterConfig';
 import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
@@ -1083,6 +1083,8 @@ const RefBasedPlayer = ({
   characters,
   showCollisionDebug = true,
   animalRimLight = 0.5,
+  magnetismConfig,
+  magnetismDebugRef,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1102,6 +1104,8 @@ const RefBasedPlayer = ({
   characters: CharacterPosition[];
   showCollisionDebug?: boolean;
   animalRimLight?: number;
+  magnetismConfig?: MagnetismConfig;
+  magnetismDebugRef?: MutableRefObject<MagnetismResult['debug'] | null>;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
@@ -1115,7 +1119,16 @@ const RefBasedPlayer = ({
   const isTurningRef = useRef(false); // True when turning in place (no forward movement)
   const moveSpeedRef = useRef(0); // Current movement speed 0-1 (for walk vs gallop)
   
-  // Mobile steering no longer uses these (yaw rate system instead)
+  // Magnetism state
+  const magnetismCacheRef = useRef<MagnetismCache | null>(null);
+  const magnetismFilterRef = useRef<MagnetismFilterState>({ targetX: 0, targetZ: 0, initialized: false });
+  
+  // Build magnetism cache when maze changes
+  useMemo(() => {
+    if (magnetismConfig?.enabled) {
+      magnetismCacheRef.current = buildMagnetismCache(maze);
+    }
+  }, [maze, magnetismConfig?.enabled]);
   
   // Helper: normalize angle to [-PI, PI]
   const normalizeAngle = (angle: number): number => {
@@ -1290,6 +1303,60 @@ const RefBasedPlayer = ({
         isMovingRef.current = false;
         isTurningRef.current = false;
         moveSpeedRef.current = 0;
+      }
+      
+      // === MAGNETISM: Apply corridor centerline pull ===
+      if (magnetismConfig?.enabled && magnetismCacheRef.current && isMovingRef.current) {
+        const config = magnetismConfig || DEFAULT_MAGNETISM_CONFIG;
+        const player = playerStateRef.current;
+        
+        // Get movement direction from rotation
+        const inputDirX = Math.sin(player.rotation);
+        const inputDirZ = Math.cos(player.rotation);
+        
+        // Calculate magnetism correction
+        const magnetResult = calculateMagnetism(
+          player.x,
+          player.y,
+          inputDirX,
+          inputDirZ,
+          magnetismCacheRef.current,
+          config,
+          clampedDelta
+        );
+        
+        // Apply low-pass filter to target for stability
+        const filtered = filterTargetPoint(
+          magnetResult.debug.targetX,
+          magnetResult.debug.targetZ,
+          magnetismFilterRef.current,
+          0.15, // tau = 0.15s
+          clampedDelta
+        );
+        
+        // Apply correction to player position (collision-safe)
+        if (magnetResult.correctionX !== 0 || magnetResult.correctionZ !== 0) {
+          const newX = player.x + magnetResult.correctionX;
+          const newZ = player.y + magnetResult.correctionZ;
+          
+          // Only apply if it doesn't cause a wall collision
+          const PLAYER_RADIUS = 0.25;
+          if (!checkCollision(maze, newX, newZ, PLAYER_RADIUS)) {
+            playerStateRef.current = {
+              ...playerStateRef.current,
+              x: newX,
+              y: newZ,
+            };
+          }
+        }
+        
+        // Update debug ref for visualization
+        if (magnetismDebugRef) {
+          magnetismDebugRef.current = magnetResult.debug;
+        }
+      } else if (magnetismDebugRef) {
+        // Clear debug when not active
+        magnetismDebugRef.current = null;
       }
       
       // Only check interactions when entering a new cell
@@ -2170,7 +2237,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2343,15 +2410,18 @@ return (
       {/* Medial Axis Skeleton Visualization (debug) */}
       <MedialAxisVisualization 
         maze={maze} 
-        visible={skeletonEnabled || overlayGridEnabled} 
+        visible={skeletonEnabled || overlayGridEnabled || showMagnetTarget || showMagnetVector} 
         showRidge={false}
         showHeatmap={overlayGridEnabled}
-        
         showPrunedSpurs={showPrunedSpurs}
         height={0.15}
         pointSize={0.08}
         spurConfig={spurConfig}
         onDefaultSpurConfig={onDefaultSpurConfig}
+        showMagnetTarget={showMagnetTarget}
+        showMagnetVector={showMagnetVector}
+        magnetismDebugRef={magnetismDebugRef}
+        playerStateRef={playerStateRef}
       />
       
       {/* Placed Characters from maze.characters array */}
@@ -2404,6 +2474,8 @@ return (
         characters={characterPositions}
         showCollisionDebug={showCollisionDebug}
         animalRimLight={animalRimLight}
+        magnetismConfig={magnetismConfig}
+        magnetismDebugRef={magnetismDebugRef}
       />
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
