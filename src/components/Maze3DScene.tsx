@@ -1122,23 +1122,13 @@ const RefBasedPlayer = ({
   // Magnetism state
   const magnetismCacheRef = useRef<MagnetismCache | null>(null);
   const magnetismFilterRef = useRef<MagnetismFilterState>({ targetX: 0, targetZ: 0, initialized: false });
-  const magnetismDebugFrameRef = useRef(0); // For throttled logging
   
-  // Build magnetism cache when maze changes or magnetism is enabled
-  // Use DEFAULT_MAGNETISM_CONFIG as fallback if not provided
-  const effectiveConfig = magnetismConfig ?? DEFAULT_MAGNETISM_CONFIG;
-  
-  // Build magnetism cache immediately on mount and when maze/config changes
-  useEffect(() => {
-    if (effectiveConfig.enabled) {
-      console.log('[RefBasedPlayer] Building magnetism cache...');
+  // Build magnetism cache when maze changes
+  useMemo(() => {
+    if (magnetismConfig?.enabled) {
       magnetismCacheRef.current = buildMagnetismCache(maze);
-      console.log('[RefBasedPlayer] Magnetism cache built:', magnetismCacheRef.current?.skeletonPixels.length, 'skeleton pixels');
-    } else {
-      console.log('[RefBasedPlayer] Magnetism disabled, clearing cache');
-      magnetismCacheRef.current = null;
     }
-  }, [maze, effectiveConfig.enabled]);
+  }, [maze, magnetismConfig?.enabled]);
   
   // Helper: normalize angle to [-PI, PI]
   const normalizeAngle = (angle: number): number => {
@@ -1316,8 +1306,8 @@ const RefBasedPlayer = ({
       }
       
       // === MAGNETISM: Apply corridor centerline pull ===
-      if (effectiveConfig.enabled && magnetismCacheRef.current && isMovingRef.current) {
-        const config = effectiveConfig;
+      if (magnetismConfig?.enabled && magnetismCacheRef.current && isMovingRef.current) {
+        const config = magnetismConfig || DEFAULT_MAGNETISM_CONFIG;
         const player = playerStateRef.current;
         
         // Get movement direction from rotation
@@ -1336,7 +1326,7 @@ const RefBasedPlayer = ({
         );
         
         // Apply low-pass filter to target for stability
-        filterTargetPoint(
+        const filtered = filterTargetPoint(
           magnetResult.debug.targetX,
           magnetResult.debug.targetZ,
           magnetismFilterRef.current,
@@ -1345,28 +1335,13 @@ const RefBasedPlayer = ({
         );
         
         // Apply correction to player position (collision-safe)
-        const corrX = magnetResult.correctionX;
-        const corrZ = magnetResult.correctionZ;
-        
-        // Debug: Log magnetism activity every 120 frames
-        if (magnetismDebugFrameRef.current++ % 120 === 0 && magnetResult.debug.isActive) {
-          console.log('[Magnetism] Active:', {
-            corrX: corrX.toFixed(4),
-            corrZ: corrZ.toFixed(4),
-            crossDist: magnetResult.debug.crossDist.toFixed(3),
-            strength: magnetResult.debug.strengthMultiplier.toFixed(3),
-            curveSharpness: magnetResult.debug.curveSharpness.toFixed(3),
-          });
-        }
-        
-        // Extra NaN guard before applying
-        if (Number.isFinite(corrX) && Number.isFinite(corrZ) && (corrX !== 0 || corrZ !== 0)) {
-          const newX = player.x + corrX;
-          const newZ = player.y + corrZ;
+        if (magnetResult.correctionX !== 0 || magnetResult.correctionZ !== 0) {
+          const newX = player.x + magnetResult.correctionX;
+          const newZ = player.y + magnetResult.correctionZ;
           
           // Only apply if it doesn't cause a wall collision
           const PLAYER_RADIUS = 0.25;
-          if (Number.isFinite(newX) && Number.isFinite(newZ) && !checkCollision(maze, newX, newZ, PLAYER_RADIUS)) {
+          if (!checkCollision(maze, newX, newZ, PLAYER_RADIUS)) {
             playerStateRef.current = {
               ...playerStateRef.current,
               x: newX,
@@ -1375,7 +1350,7 @@ const RefBasedPlayer = ({
           }
         }
         
-        // Update debug ref for visualization (throttled to reduce DOM updates)
+        // Update debug ref for visualization
         if (magnetismDebugRef) {
           magnetismDebugRef.current = magnetResult.debug;
         }
