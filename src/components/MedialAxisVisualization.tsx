@@ -9,14 +9,17 @@
  * - Skeleton: Bright cyan spheres (final 1-pixel-wide centerline)
  * - Ridge: Dim magenta spheres (pre-thinning ridge candidates)
  * - Heatmap: Color-coded overlay showing distance to walls
+ * - Magnetism Debug: Target point, vector arrow, junction suppression
  *
  * ============================================================================
  */
 
-import { useMemo } from 'react';
+import { useMemo, MutableRefObject } from 'react';
 import * as THREE from 'three';
 import { Maze } from '@/types/game';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from '@/game/MedialAxis';
+import { MagnetismResult } from '@/game/CorridorMagnetism';
+import { PlayerState } from '@/game/GameLogic';
 
 // ============================================================================
 // TYPES
@@ -40,6 +43,14 @@ interface MedialAxisVisualizationProps {
   spurConfig?: SpurConfig | null;
   /** Callback to report default spur config (from scale constants) */
   onDefaultSpurConfig?: (config: SpurConfig) => void;
+  /** Magnetism debug: show target point marker */
+  showMagnetTarget?: boolean;
+  /** Magnetism debug: show vector arrow from player to target */
+  showMagnetVector?: boolean;
+  /** Current magnetism result for debug visualization */
+  magnetismDebugRef?: MutableRefObject<MagnetismResult['debug'] | null>;
+  /** Player state ref for debug visualization */
+  playerStateRef?: MutableRefObject<PlayerState>;
 }
 
 // ============================================================================
@@ -69,6 +80,10 @@ export function MedialAxisVisualization({
   pointSize = 0.08,
   spurConfig,
   onDefaultSpurConfig,
+  showMagnetTarget = false,
+  showMagnetVector = false,
+  magnetismDebugRef,
+  playerStateRef,
 }: MedialAxisVisualizationProps) {
   // Compute medial axis when maze changes, visibility toggles on, or spurConfig changes
   const axisResult = useMemo<MedialAxisResult | null>(() => {
@@ -129,6 +144,17 @@ export function MedialAxisVisualization({
           opacity={0.4}
           height={height - 0.03}
           size={pointSize * 0.6}
+        />
+      )}
+      
+      {/* Magnetism Debug Visualization */}
+      {(showMagnetTarget || showMagnetVector) && magnetismDebugRef && playerStateRef && (
+        <MagnetismDebugOverlay
+          magnetismDebugRef={magnetismDebugRef}
+          playerStateRef={playerStateRef}
+          showTarget={showMagnetTarget}
+          showVector={showMagnetVector}
+          height={height + 0.1}
         />
       )}
     </group>
@@ -307,4 +333,105 @@ function SkeletonPoints({
   if (!instancedMesh) return null;
 
   return <primitive object={instancedMesh} />;
+}
+
+// ============================================================================
+// MAGNETISM DEBUG OVERLAY
+// ============================================================================
+
+interface MagnetismDebugOverlayProps {
+  magnetismDebugRef: MutableRefObject<MagnetismResult['debug'] | null>;
+  playerStateRef: MutableRefObject<PlayerState>;
+  showTarget: boolean;
+  showVector: boolean;
+  height: number;
+}
+
+/**
+ * Renders magnetism debug visualization:
+ * - Target point marker (green = active, red = junction suppressed, gray = inactive)
+ * - Vector arrow from player to target
+ * - Tangent direction indicator
+ */
+function MagnetismDebugOverlay({
+  magnetismDebugRef,
+  playerStateRef,
+  showTarget,
+  showVector,
+  height,
+}: MagnetismDebugOverlayProps) {
+  // Create reusable geometries and materials
+  const { targetGeometry, arrowGeometry, targetMaterials, arrowMaterial, tangentMaterial } = useMemo(() => {
+    return {
+      targetGeometry: new THREE.SphereGeometry(0.12, 8, 6),
+      arrowGeometry: new THREE.CylinderGeometry(0.02, 0.04, 1, 6),
+      targetMaterials: {
+        active: new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8 }),
+        suppressed: new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 }),
+        inactive: new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.5 }),
+      },
+      arrowMaterial: new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.7 }),
+      tangentMaterial: new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 }),
+    };
+  }, []);
+
+  // Get current debug state (this updates each frame via ref)
+  const debug = magnetismDebugRef.current;
+  const player = playerStateRef.current;
+  
+  if (!debug) return null;
+  
+  // Determine target marker color
+  const targetMaterial = debug.isJunctionSuppressed 
+    ? targetMaterials.suppressed 
+    : debug.isActive 
+      ? targetMaterials.active 
+      : targetMaterials.inactive;
+  
+  // Calculate vector from player to target
+  const dx = debug.targetX - player.x;
+  const dz = debug.targetZ - player.y;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  const angle = Math.atan2(dx, dz);
+  
+  return (
+    <group name="magnetism-debug">
+      {/* Target Point Marker */}
+      {showTarget && (
+        <mesh
+          geometry={targetGeometry}
+          material={targetMaterial}
+          position={[debug.targetX, height, debug.targetZ]}
+        />
+      )}
+      
+      {/* Vector Arrow from player to target */}
+      {showVector && dist > 0.1 && (
+        <group position={[player.x, height, player.y]}>
+          <mesh
+            geometry={arrowGeometry}
+            material={arrowMaterial}
+            position={[dx / 2, 0, dz / 2]}
+            rotation={[0, 0, Math.PI / 2]}
+            scale={[1, dist, 1]}
+          >
+            {/* Rotate cylinder to point in right direction */}
+            <group rotation={[0, -angle, 0]} />
+          </mesh>
+        </group>
+      )}
+      
+      {/* Tangent Direction Indicator (at target) */}
+      {showTarget && debug.isActive && (
+        <group position={[debug.targetX, height + 0.05, debug.targetZ]}>
+          <mesh
+            geometry={arrowGeometry}
+            material={tangentMaterial}
+            rotation={[Math.PI / 2, 0, Math.atan2(debug.tangentX, debug.tangentZ)]}
+            scale={[0.5, 0.4, 0.5]}
+          />
+        </group>
+      )}
+    </group>
+  );
 }
