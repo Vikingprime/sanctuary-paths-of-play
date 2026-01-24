@@ -36,6 +36,8 @@ export interface MagnetismConfig {
   alignMin: number;
   /** Master strength multiplier (0-10) */
   strength: number;
+  /** Curve boost multiplier (1.0 = no boost, 2.0 = double at sharp curves) */
+  curveBoost: number;
   /** Enable/disable magnetism entirely */
   enabled: boolean;
 }
@@ -63,6 +65,8 @@ export interface MagnetismResult {
     /** Tangent direction at target */
     tangentX: number;
     tangentZ: number;
+    /** Curve sharpness (0 = straight, 1 = 90° turn) */
+    curveSharpness: number;
   };
 }
 
@@ -105,6 +109,7 @@ export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
   maxPullSpeed: 0.8 * 2.5,            // 80% of base player speed (2.5)
   alignMin: 0.4,                      // Minimum alignment with corridor
   strength: 5.0,                      // Default strength (0-10 scale)
+  curveBoost: 1.5,                    // 50% boost at sharp curves
   enabled: true,
 };
 
@@ -261,6 +266,39 @@ function computeTangent(pixel: SkeletonPixel): { tx: number; tz: number } {
 }
 
 /**
+ * Compute curve sharpness at a degree-2 skeleton pixel.
+ * Returns 0 for straight corridors, 1 for 90° turns.
+ */
+function computeCurveSharpness(pixel: SkeletonPixel): number {
+  if (pixel.degree !== 2) return 0;
+  
+  const n1 = pixel.neighbors[0];
+  const n2 = pixel.neighbors[1];
+  
+  // Vectors from pixel to each neighbor
+  const v1x = n1.wx - pixel.wx;
+  const v1z = n1.wz - pixel.wz;
+  const v2x = n2.wx - pixel.wx;
+  const v2z = n2.wz - pixel.wz;
+  
+  const len1 = Math.sqrt(v1x * v1x + v1z * v1z);
+  const len2 = Math.sqrt(v2x * v2x + v2z * v2z);
+  
+  if (len1 < 0.001 || len2 < 0.001) return 0;
+  
+  // Dot product of normalized vectors
+  // For a straight line, vectors point in opposite directions: dot = -1
+  // For a 90° turn, dot = 0
+  const dot = (v1x * v2x + v1z * v2z) / (len1 * len2);
+  
+  // Convert: -1 (straight) -> 0, 0 (90°) -> 1, +1 (hairpin) -> 2
+  // Clamp to 0-1 range for practical use
+  const sharpness = Math.max(0, Math.min(1, (dot + 1) / 2));
+  
+  return sharpness;
+}
+
+/**
  * Smoothstep interpolation: 0 at edge0, 1 at edge1, smooth transition between
  */
 function smoothstep(edge0: number, edge1: number, x: number): number {
@@ -331,6 +369,7 @@ export function calculateMagnetism(
       nearestDegree: 0,
       tangentX: 0,
       tangentZ: 0,
+      curveSharpness: 0,
     },
   };
   
@@ -378,8 +417,9 @@ export function calculateMagnetism(
   const crossZ = vz - along * tz;
   const crossDist = Math.sqrt(crossX * crossX + crossZ * crossZ);
   
-  // Step 4: Check junction suppression (degree >= 3)
+  // Step 4: Check junction suppression (degree >= 3) and curve sharpness
   const isJunctionSuppressed = nearest.degree >= 3;
+  const curveSharpness = computeCurveSharpness(nearest);
   
   // Step 5: Compute strength based on distance
   let distStrength = 0;
@@ -407,8 +447,11 @@ export function calculateMagnetism(
     alignStrength = smoothstep(config.alignMin, 1, align);
   }
   
-  // Step 7: Combine strength factors
-  let totalStrength = distStrength * alignStrength * (config.strength / 10);
+  // Step 7: Combine strength factors with curve boost
+  // curveSharpness is 0 for straight, 1 for 90° turns
+  // Apply boost: 1.0 at straight, up to curveBoost at sharp curves
+  const curveMultiplier = 1 + curveSharpness * (config.curveBoost - 1);
+  let totalStrength = distStrength * alignStrength * curveMultiplier * (config.strength / 10);
   
   // Suppress at junctions
   if (isJunctionSuppressed) {
@@ -431,6 +474,7 @@ export function calculateMagnetism(
         nearestDegree: nearest.degree,
         tangentX: tx,
         tangentZ: tz,
+        curveSharpness,
       },
     };
   }
@@ -462,6 +506,7 @@ export function calculateMagnetism(
       nearestDegree: nearest.degree,
       tangentX: tx,
       tangentZ: tz,
+      curveSharpness,
     },
   };
 }
