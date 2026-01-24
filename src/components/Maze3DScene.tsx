@@ -1335,13 +1335,17 @@ const RefBasedPlayer = ({
         );
         
         // Apply correction to player position (collision-safe)
-        if (magnetResult.correctionX !== 0 || magnetResult.correctionZ !== 0) {
-          const newX = player.x + magnetResult.correctionX;
-          const newZ = player.y + magnetResult.correctionZ;
+        const corrX = magnetResult.correctionX;
+        const corrZ = magnetResult.correctionZ;
+        
+        // Extra NaN guard before applying
+        if (Number.isFinite(corrX) && Number.isFinite(corrZ) && (corrX !== 0 || corrZ !== 0)) {
+          const newX = player.x + corrX;
+          const newZ = player.y + corrZ;
           
           // Only apply if it doesn't cause a wall collision
           const PLAYER_RADIUS = 0.25;
-          if (!checkCollision(maze, newX, newZ, PLAYER_RADIUS)) {
+          if (Number.isFinite(newX) && Number.isFinite(newZ) && !checkCollision(maze, newX, newZ, PLAYER_RADIUS)) {
             playerStateRef.current = {
               ...playerStateRef.current,
               x: newX,
@@ -1350,7 +1354,7 @@ const RefBasedPlayer = ({
           }
         }
         
-        // Update debug ref for visualization
+        // Update debug ref for visualization (throttled to reduce DOM updates)
         if (magnetismDebugRef) {
           magnetismDebugRef.current = magnetResult.debug;
         }

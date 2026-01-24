@@ -490,8 +490,14 @@ export function calculateMagnetism(
   );
   
   // Scale by delta for frame-rate independence
-  const correctionX = toSkeletonX * correctionMag * delta;
-  const correctionZ = toSkeletonZ * correctionMag * delta;
+  let correctionX = toSkeletonX * correctionMag * delta;
+  let correctionZ = toSkeletonZ * correctionMag * delta;
+  
+  // NaN guard - never return invalid values
+  if (!Number.isFinite(correctionX) || !Number.isFinite(correctionZ)) {
+    correctionX = 0;
+    correctionZ = 0;
+  }
   
   return {
     correctionX,

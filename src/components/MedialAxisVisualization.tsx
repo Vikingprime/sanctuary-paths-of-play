@@ -14,7 +14,8 @@
  * ============================================================================
  */
 
-import { useMemo, MutableRefObject } from 'react';
+import { useMemo, MutableRefObject, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Maze } from '@/types/game';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from '@/game/MedialAxis';
@@ -352,6 +353,8 @@ interface MagnetismDebugOverlayProps {
  * - Target point marker (green = active, red = junction suppressed, gray = inactive)
  * - Vector arrow from player to target
  * - Tangent direction indicator
+ * 
+ * Uses useFrame to update positions without causing React re-renders.
  */
 function MagnetismDebugOverlay({
   magnetismDebugRef,
@@ -360,6 +363,10 @@ function MagnetismDebugOverlay({
   showVector,
   height,
 }: MagnetismDebugOverlayProps) {
+  const targetRef = useRef<THREE.Mesh>(null);
+  const arrowRef = useRef<THREE.Group>(null);
+  const tangentRef = useRef<THREE.Mesh>(null);
+  
   // Create reusable geometries and materials
   const { targetGeometry, arrowGeometry, targetMaterials, arrowMaterial, tangentMaterial } = useMemo(() => {
     return {
@@ -375,63 +382,86 @@ function MagnetismDebugOverlay({
     };
   }, []);
 
-  // Get current debug state (this updates each frame via ref)
-  const debug = magnetismDebugRef.current;
-  const player = playerStateRef.current;
-  
-  if (!debug) return null;
-  
-  // Determine target marker color
-  const targetMaterial = debug.isJunctionSuppressed 
-    ? targetMaterials.suppressed 
-    : debug.isActive 
-      ? targetMaterials.active 
-      : targetMaterials.inactive;
-  
-  // Calculate vector from player to target
-  const dx = debug.targetX - player.x;
-  const dz = debug.targetZ - player.y;
-  const dist = Math.sqrt(dx * dx + dz * dz);
-  const angle = Math.atan2(dx, dz);
-  
+  // Update positions via useFrame instead of React state to avoid re-renders
+  useFrame(() => {
+    const debug = magnetismDebugRef.current;
+    const player = playerStateRef.current;
+    
+    if (!debug) {
+      // Hide everything when no debug data
+      if (targetRef.current) targetRef.current.visible = false;
+      if (arrowRef.current) arrowRef.current.visible = false;
+      if (tangentRef.current) tangentRef.current.visible = false;
+      return;
+    }
+    
+    // Update target marker
+    if (targetRef.current && showTarget) {
+      targetRef.current.visible = true;
+      targetRef.current.position.set(debug.targetX, height, debug.targetZ);
+      targetRef.current.material = debug.isJunctionSuppressed 
+        ? targetMaterials.suppressed 
+        : debug.isActive 
+          ? targetMaterials.active 
+          : targetMaterials.inactive;
+    } else if (targetRef.current) {
+      targetRef.current.visible = false;
+    }
+    
+    // Update arrow
+    if (arrowRef.current && showVector) {
+      const dx = debug.targetX - player.x;
+      const dz = debug.targetZ - player.y;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      
+      if (dist > 0.1) {
+        arrowRef.current.visible = true;
+        arrowRef.current.position.set(player.x + dx / 2, height, player.y + dz / 2);
+        arrowRef.current.rotation.set(0, Math.atan2(dx, dz), Math.PI / 2);
+        arrowRef.current.scale.set(1, dist, 1);
+      } else {
+        arrowRef.current.visible = false;
+      }
+    } else if (arrowRef.current) {
+      arrowRef.current.visible = false;
+    }
+    
+    // Update tangent indicator
+    if (tangentRef.current && showTarget && debug.isActive) {
+      tangentRef.current.visible = true;
+      tangentRef.current.position.set(debug.targetX, height + 0.05, debug.targetZ);
+      tangentRef.current.rotation.set(Math.PI / 2, 0, Math.atan2(debug.tangentX, debug.tangentZ));
+    } else if (tangentRef.current) {
+      tangentRef.current.visible = false;
+    }
+  });
+
   return (
     <group name="magnetism-debug">
       {/* Target Point Marker */}
-      {showTarget && (
-        <mesh
-          geometry={targetGeometry}
-          material={targetMaterial}
-          position={[debug.targetX, height, debug.targetZ]}
-        />
-      )}
+      <mesh
+        ref={targetRef}
+        geometry={targetGeometry}
+        material={targetMaterials.inactive}
+        visible={false}
+      />
       
       {/* Vector Arrow from player to target */}
-      {showVector && dist > 0.1 && (
-        <group position={[player.x, height, player.y]}>
-          <mesh
-            geometry={arrowGeometry}
-            material={arrowMaterial}
-            position={[dx / 2, 0, dz / 2]}
-            rotation={[0, 0, Math.PI / 2]}
-            scale={[1, dist, 1]}
-          >
-            {/* Rotate cylinder to point in right direction */}
-            <group rotation={[0, -angle, 0]} />
-          </mesh>
-        </group>
-      )}
+      <group ref={arrowRef} visible={false}>
+        <mesh
+          geometry={arrowGeometry}
+          material={arrowMaterial}
+        />
+      </group>
       
-      {/* Tangent Direction Indicator (at target) */}
-      {showTarget && debug.isActive && (
-        <group position={[debug.targetX, height + 0.05, debug.targetZ]}>
-          <mesh
-            geometry={arrowGeometry}
-            material={tangentMaterial}
-            rotation={[Math.PI / 2, 0, Math.atan2(debug.tangentX, debug.tangentZ)]}
-            scale={[0.5, 0.4, 0.5]}
-          />
-        </group>
-      )}
+      {/* Tangent Direction Indicator */}
+      <mesh
+        ref={tangentRef}
+        geometry={arrowGeometry}
+        material={tangentMaterial}
+        scale={[0.5, 0.4, 0.5]}
+        visible={false}
+      />
     </group>
   );
 }
