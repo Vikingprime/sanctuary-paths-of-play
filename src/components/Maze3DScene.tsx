@@ -1122,13 +1122,23 @@ const RefBasedPlayer = ({
   // Magnetism state
   const magnetismCacheRef = useRef<MagnetismCache | null>(null);
   const magnetismFilterRef = useRef<MagnetismFilterState>({ targetX: 0, targetZ: 0, initialized: false });
+  const magnetismDebugFrameRef = useRef(0); // For throttled logging
   
-  // Build magnetism cache when maze changes
-  useMemo(() => {
-    if (magnetismConfig?.enabled) {
+  // Build magnetism cache when maze changes or magnetism is enabled
+  // Use DEFAULT_MAGNETISM_CONFIG as fallback if not provided
+  const effectiveConfig = magnetismConfig ?? DEFAULT_MAGNETISM_CONFIG;
+  
+  // Build magnetism cache immediately on mount and when maze/config changes
+  useEffect(() => {
+    if (effectiveConfig.enabled) {
+      console.log('[RefBasedPlayer] Building magnetism cache...');
       magnetismCacheRef.current = buildMagnetismCache(maze);
+      console.log('[RefBasedPlayer] Magnetism cache built:', magnetismCacheRef.current?.skeletonPixels.length, 'skeleton pixels');
+    } else {
+      console.log('[RefBasedPlayer] Magnetism disabled, clearing cache');
+      magnetismCacheRef.current = null;
     }
-  }, [maze, magnetismConfig?.enabled]);
+  }, [maze, effectiveConfig.enabled]);
   
   // Helper: normalize angle to [-PI, PI]
   const normalizeAngle = (angle: number): number => {
@@ -1306,8 +1316,8 @@ const RefBasedPlayer = ({
       }
       
       // === MAGNETISM: Apply corridor centerline pull ===
-      if (magnetismConfig?.enabled && magnetismCacheRef.current && isMovingRef.current) {
-        const config = magnetismConfig || DEFAULT_MAGNETISM_CONFIG;
+      if (effectiveConfig.enabled && magnetismCacheRef.current && isMovingRef.current) {
+        const config = effectiveConfig;
         const player = playerStateRef.current;
         
         // Get movement direction from rotation
@@ -1326,7 +1336,7 @@ const RefBasedPlayer = ({
         );
         
         // Apply low-pass filter to target for stability
-        const filtered = filterTargetPoint(
+        filterTargetPoint(
           magnetResult.debug.targetX,
           magnetResult.debug.targetZ,
           magnetismFilterRef.current,
@@ -1337,6 +1347,17 @@ const RefBasedPlayer = ({
         // Apply correction to player position (collision-safe)
         const corrX = magnetResult.correctionX;
         const corrZ = magnetResult.correctionZ;
+        
+        // Debug: Log magnetism activity every 120 frames
+        if (magnetismDebugFrameRef.current++ % 120 === 0 && magnetResult.debug.isActive) {
+          console.log('[Magnetism] Active:', {
+            corrX: corrX.toFixed(4),
+            corrZ: corrZ.toFixed(4),
+            crossDist: magnetResult.debug.crossDist.toFixed(3),
+            strength: magnetResult.debug.strengthMultiplier.toFixed(3),
+            curveSharpness: magnetResult.debug.curveSharpness.toFixed(3),
+          });
+        }
         
         // Extra NaN guard before applying
         if (Number.isFinite(corrX) && Number.isFinite(corrZ) && (corrX !== 0 || corrZ !== 0)) {
