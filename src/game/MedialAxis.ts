@@ -1050,8 +1050,8 @@ function removeRedundantJunctions(
     return true;
   }
   
-  // Find all junctions (degree >= 3) and check if they're redundant
-  // We need to iterate multiple times since removing a junction may create new opportunities
+  // Find nodes with degree >= 2 where all neighbors are directly adjacent
+  // We need to iterate multiple times since removing a node may create new opportunities
   let changed = true;
   let iterations = 0;
   const MAX_ITERATIONS = 10;
@@ -1065,7 +1065,7 @@ function removeRedundantJunctions(
         if (!fineGrid[y][x].isSkeleton) continue;
         
         const degree = getDegree(x, y);
-        if (degree < 3) continue; // Only process junctions
+        if (degree < 2) continue; // Need at least 2 neighbors to check adjacency
         
         const neighbors = getSkeletonNeighbors(x, y);
         
