@@ -21,6 +21,8 @@ import {
   PlayerState,
   checkCellInteraction,
   executeAbility,
+  DEFAULT_MAGNETISM_CONFIG,
+  MagnetismConfig,
 } from '@/game';
 
 // Completion result returned from parent after saving
@@ -111,6 +113,11 @@ export const MazeGame3D = ({
   const [showPrunedSpurs, setShowPrunedSpurs] = useState(true);
   const [spurConfig, setSpurConfig] = useState<{ maxSpurLen: number; minSpurDistance: number; maxBranchLen: number } | null>(null);
   const [defaultSpurConfig, setDefaultSpurConfig] = useState<{ maxSpurLen: number; minSpurDistance: number; maxBranchLen: number } | null>(null);
+  
+  // Magnetism configuration state
+  const [magnetismConfig, setMagnetismConfig] = useState<MagnetismConfig>(DEFAULT_MAGNETISM_CONFIG);
+  const [showMagnetTarget, setShowMagnetTarget] = useState(true);
+  const [showMagnetVector, setShowMagnetVector] = useState(true);
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
@@ -864,6 +871,9 @@ export const MazeGame3D = ({
         overlayGridEnabled={overlayGridEnabled}
         showPrunedSpurs={showPrunedSpurs}
         spurConfig={spurConfig}
+        magnetismConfig={magnetismConfig}
+        showMagnetTarget={showMagnetTarget}
+        showMagnetVector={showMagnetVector}
         onDefaultSpurConfig={(config) => {
           if (!defaultSpurConfig) {
             setDefaultSpurConfig(config);
@@ -951,6 +961,12 @@ export const MazeGame3D = ({
           spurConfig={spurConfig ?? undefined}
           defaultSpurConfig={defaultSpurConfig ?? undefined}
           onSpurConfigChange={setSpurConfig}
+          magnetismConfig={magnetismConfig}
+          onMagnetismConfigChange={setMagnetismConfig}
+          showMagnetTarget={showMagnetTarget}
+          onToggleShowMagnetTarget={() => setShowMagnetTarget(prev => !prev)}
+          showMagnetVector={showMagnetVector}
+          onToggleShowMagnetVector={() => setShowMagnetVector(prev => !prev)}
         />
       )}
 
