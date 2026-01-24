@@ -84,8 +84,8 @@ function getScaleConstants(scale: number) {
     MIN_RIDGE_DISTANCE: Math.ceil(0.4 * scale),
     /** Maximum spur length to identify: ceil(1.0 * scale) */
     MAX_SPUR_LEN: Math.ceil(1.0 * scale),
-    /** Minimum avg distance for spur protection: ceil(1.0 * scale) */
-    MIN_SPUR_DISTANCE: Math.ceil(1.0 * scale),
+    /** Minimum avg distance for spur protection: ceil(1.4 * scale) = 7 at scale=5 */
+    MIN_SPUR_DISTANCE: Math.ceil(1.4 * scale),
     /** Maximum junction branch length to prune: ceil(0.5 * scale) */
     MAX_BRANCH_LEN: Math.ceil(0.5 * scale),
   };
