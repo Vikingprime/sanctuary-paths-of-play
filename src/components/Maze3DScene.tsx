@@ -1306,6 +1306,7 @@ const RefBasedPlayer = ({
       }
       
       // === MAGNETISM: Apply corridor centerline pull ===
+      // Magnetism is sensed at the animal's head (offset forward from center)
       if (magnetismConfig?.enabled && magnetismCacheRef.current && isMovingRef.current) {
         const config = magnetismConfig || DEFAULT_MAGNETISM_CONFIG;
         const player = playerStateRef.current;
@@ -1314,10 +1315,15 @@ const RefBasedPlayer = ({
         const inputDirX = Math.sin(player.rotation);
         const inputDirZ = Math.cos(player.rotation);
         
-        // Calculate magnetism correction
+        // Offset sensing point to the animal's head
+        const HEAD_OFFSET = 0.35; // Distance forward from center to head
+        const headX = player.x + inputDirX * HEAD_OFFSET;
+        const headZ = player.y + inputDirZ * HEAD_OFFSET;
+        
+        // Calculate magnetism correction at head position
         const magnetResult = calculateMagnetism(
-          player.x,
-          player.y,
+          headX,
+          headZ,
           inputDirX,
           inputDirZ,
           magnetismCacheRef.current,
