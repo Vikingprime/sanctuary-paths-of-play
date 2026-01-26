@@ -1123,24 +1123,6 @@ const RefBasedPlayer = ({
   const magnetismCacheRef = useRef<MagnetismCache | null>(null);
   const magnetismFilterRef = useRef<MagnetismFilterState>({ targetX: 0, targetZ: 0, initialized: false });
   
-  // Velocity-based facing: track position for actual velocity calculation
-  const prevPositionRef = useRef<{ x: number; z: number } | null>(null);
-  
-  // Visual yaw is SEPARATE from logical rotation - used only for rendering
-  const visualYawRef = useRef<number>(0); // Smoothed visual yaw for model rotation
-  const visualYawInitialized = useRef(false);
-  const isMagFacingActiveRef = useRef(false); // Hysteresis: avoid flicker on/off
-  
-  // Tunables for velocity-based facing
-  const VELOCITY_FACING_CONFIG = {
-    speedEpsilon: 0.05,       // Minimum velocity to derive facing from
-    turnRate: 6.0,            // Radians/sec for smoothing toward blended target yaw
-    magStart: 0.05,           // Magnetism blend starts at this strength
-    magFull: 0.25,            // Full magnetism blend at this strength
-    hystOn: 0.12,             // Turn on hysteresis when mag > this
-    hystOff: 0.08,            // Turn off hysteresis when mag < this
-  };
-  
   // Build magnetism cache when maze changes
   useMemo(() => {
     if (magnetismConfig?.enabled) {
@@ -1324,12 +1306,6 @@ const RefBasedPlayer = ({
       }
       
       // === MAGNETISM: Apply corridor centerline pull ===
-      // Store position before magnetism for velocity calculation
-      const posBeforeMag = { x: playerStateRef.current.x, z: playerStateRef.current.y };
-      let magnetStrength = 0;
-      let magCorrectionX = 0;
-      let magCorrectionZ = 0;
-      
       if (magnetismConfig?.enabled && magnetismCacheRef.current && isMovingRef.current) {
         const config = magnetismConfig || DEFAULT_MAGNETISM_CONFIG;
         const player = playerStateRef.current;
@@ -1348,10 +1324,6 @@ const RefBasedPlayer = ({
           config,
           clampedDelta
         );
-        
-        magnetStrength = magnetResult.debug.strengthMultiplier;
-        magCorrectionX = magnetResult.correctionX;
-        magCorrectionZ = magnetResult.correctionZ;
         
         // Apply low-pass filter to target for stability
         const filtered = filterTargetPoint(
@@ -1387,65 +1359,6 @@ const RefBasedPlayer = ({
         magnetismDebugRef.current = null;
       }
       
-      // === VISUAL FACING (separate from logical rotation) ===
-      // Calculate actual velocity from position delta (includes magnetism)
-      const posAfterMag = { x: playerStateRef.current.x, z: playerStateRef.current.y };
-      
-      // Input yaw is always from the logical rotation (driven by player input)
-      const inputYaw = playerStateRef.current.rotation;
-      
-      // Initialize visual yaw on first frame
-      if (!visualYawInitialized.current) {
-        visualYawRef.current = inputYaw;
-        visualYawInitialized.current = true;
-      }
-      
-      if (prevPositionRef.current && clampedDelta > 0.001) {
-        const velX = (posAfterMag.x - prevPositionRef.current.x) / clampedDelta;
-        const velZ = (posAfterMag.z - prevPositionRef.current.z) / clampedDelta;
-        const velMag = Math.sqrt(velX * velX + velZ * velZ);
-        
-        // Compute movement yaw from actual displacement (only if moving)
-        let movementYaw = inputYaw;
-        if (velMag > VELOCITY_FACING_CONFIG.speedEpsilon) {
-          movementYaw = Math.atan2(velX, velZ);
-        }
-        
-        // Hysteresis for magnetism facing
-        if (magnetStrength > VELOCITY_FACING_CONFIG.hystOn) {
-          isMagFacingActiveRef.current = true;
-        } else if (magnetStrength < VELOCITY_FACING_CONFIG.hystOff) {
-          isMagFacingActiveRef.current = false;
-        }
-        
-        // Blend factor based on magnetism strength (smooth ramp)
-        let blendT = 0;
-        if (isMagFacingActiveRef.current && velMag > VELOCITY_FACING_CONFIG.speedEpsilon) {
-          const { magStart, magFull } = VELOCITY_FACING_CONFIG;
-          blendT = Math.max(0, Math.min(1, (magnetStrength - magStart) / (magFull - magStart)));
-        }
-        
-        // Target visual yaw = blend between input yaw and movement yaw
-        const targetVisualYaw = lerpAngle(inputYaw, movementYaw, blendT);
-        
-        // Smooth visualYawRef toward target using max turn rate
-        const currentVisualYaw = visualYawRef.current;
-        let yawDiff = normalizeAngle(targetVisualYaw - currentVisualYaw);
-        
-        const maxTurn = VELOCITY_FACING_CONFIG.turnRate * clampedDelta;
-        if (Math.abs(yawDiff) <= maxTurn) {
-          visualYawRef.current = targetVisualYaw;
-        } else {
-          visualYawRef.current = normalizeAngle(currentVisualYaw + Math.sign(yawDiff) * maxTurn);
-        }
-      } else {
-        // No previous position or paused: keep visual yaw synced to input
-        visualYawRef.current = inputYaw;
-      }
-      
-      // Update previous position for next frame
-      prevPositionRef.current = { x: posAfterMag.x, z: posAfterMag.z };
-      
       // Only check interactions when entering a new cell
       const currentCellX = Math.floor(playerStateRef.current.x);
       const currentCellY = Math.floor(playerStateRef.current.y);
@@ -1462,10 +1375,8 @@ const RefBasedPlayer = ({
     if (!positionInitialized.current) {
       smoothPositionX.current = playerStateRef.current.x;
       smoothPositionZ.current = playerStateRef.current.y;
-      // Initialize visual yaw and smooth rotation to match starting rotation
-      visualYawRef.current = playerStateRef.current.rotation;
-      visualYawInitialized.current = true;
-      const initialRotation = -visualYawRef.current + Math.PI;
+      // Initialize rotation to match the actual starting rotation
+      const initialRotation = -playerStateRef.current.rotation + Math.PI;
       smoothRotation.current = initialRotation;
       positionInitialized.current = true;
     }
@@ -1479,9 +1390,8 @@ const RefBasedPlayer = ({
     groupRef.current.position.x = smoothPositionX.current;
     groupRef.current.position.z = smoothPositionZ.current;
     
-    // Smooth rotation using VISUAL YAW (not logical rotation) for rendering
-    // This prevents feedback loops between magnetism and player controls
-    const targetRotation = -visualYawRef.current + Math.PI;
+    // Smooth rotation with fixed lerp factor
+    const targetRotation = -playerStateRef.current.rotation + Math.PI;
     let rotDiff = targetRotation - (smoothRotation.current ?? targetRotation);
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
