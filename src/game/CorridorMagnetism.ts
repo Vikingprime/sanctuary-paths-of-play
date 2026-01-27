@@ -368,8 +368,8 @@ export function calculateMagnetismTurn(
   const frontX = playerX + facingX * config.frontOffset;
   const frontZ = playerZ + facingZ * config.frontOffset;
   
-  // Find nearest skeleton pixel to back point
-  const nearest = findNearestSkeletonPixel(backX, backZ, cache);
+  // Find nearest skeleton pixel to front (head) point for better anticipation
+  const nearest = findNearestSkeletonPixel(frontX, frontZ, cache);
   if (!nearest) {
     // Decay and return
     state.currentCorrection *= Math.exp(-config.decayRate * delta);
@@ -379,9 +379,9 @@ export function calculateMagnetismTurn(
   // Get tangent at skeleton point
   const { tx, tz } = computeTangent(nearest);
   
-  // Calculate cross-track distance for gating
-  const toSpineX = nearest.wx - backX;
-  const toSpineZ = nearest.wz - backZ;
+  // Calculate cross-track distance from front point to spine for gating
+  const toSpineX = nearest.wx - frontX;
+  const toSpineZ = nearest.wz - frontZ;
   const crossDist = Math.sqrt(toSpineX * toSpineX + toSpineZ * toSpineZ);
   
   // Distance-based strength gating (stronger when closer to spine)
