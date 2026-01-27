@@ -812,21 +812,21 @@ export const GameHUD = ({
                   />
                 </div>
                 
-                {/* Spring K Slider */}
+                {/* Smoothing Tau Slider */}
                 <div>
                   <div className="flex justify-between text-[10px]">
-                    <span>Spring K:</span>
-                    <span className="text-cyan-400">{magnetismConfig.springK.toFixed(1)}</span>
+                    <span>Smoothing:</span>
+                    <span className="text-cyan-400">{(magnetismConfig.smoothingTau * 1000).toFixed(0)}ms</span>
                   </div>
                   <input
                     type="range"
-                    min="1"
-                    max="15"
-                    step="0.5"
-                    value={magnetismConfig.springK}
+                    min="0.05"
+                    max="0.5"
+                    step="0.05"
+                    value={magnetismConfig.smoothingTau}
                     onChange={(e) => onMagnetismConfigChange({
                       ...magnetismConfig,
-                      springK: parseFloat(e.target.value)
+                      smoothingTau: parseFloat(e.target.value)
                     })}
                     className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
                   />

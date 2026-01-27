@@ -3,11 +3,15 @@
  * CORRIDOR MAGNETISM SYSTEM
  * ============================================================================
  * 
- * Gently pulls the player toward corridor centerlines using the medial axis
- * skeleton data. This is a movement assist that modifies velocity, not teleporting.
+ * Gently aligns the player with corridor centerlines using the medial axis
+ * skeleton data. This applies a gradual turn correction to the joystick input,
+ * not a position teleport.
  * 
- * Phase 1: Basic magnetism using nearest skeleton pixel
- * Phase 2: Segment-based targeting with low-pass filtering
+ * Strategy: 
+ * 1. Define back and front points on the animal
+ * 2. Find nearest skeleton point to the back
+ * 3. Calculate angle between animal facing and spine tangent
+ * 4. Apply gradual turn correction to align with corridor
  * 
  * ============================================================================
  */
@@ -22,47 +26,57 @@ import { computeMedialAxis, MedialAxisResult, SpurConfig } from './MedialAxis';
 
 /** Magnetism tuning configuration */
 export interface MagnetismConfig {
-  /** Dead zone - no correction applied when within this distance */
+  /** Dead zone angle - no correction applied when within this angle (radians) */
   deadzone: number;
-  /** Distance at which full magnetism strength applies (D0) */
-  fullStrengthDist: number;
-  /** Distance beyond which magnetism fades to zero (D1) */
-  fadeOutDist: number;
-  /** Spring constant (1/sec) - how aggressively to pull toward centerline */
-  springK: number;
-  /** Maximum pull speed in world units/second */
-  maxPullSpeed: number;
-  /** Minimum alignment with corridor to apply magnetism (0-1) */
-  alignMin: number;
+  /** Maximum turn correction strength (0-1) */
+  maxStrength: number;
+  /** Smoothing time constant for turn correction (seconds) */
+  smoothingTau: number;
+  /** Decay rate when no correction needed (per second) */
+  decayRate: number;
+  /** Distance from center to back sensing point */
+  backOffset: number;
+  /** Distance from center to front sensing point */
+  frontOffset: number;
   /** Master strength multiplier (0-10) */
   strength: number;
   /** Enable/disable magnetism entirely */
   enabled: boolean;
 }
 
-/** Result of magnetism calculation for one frame */
-export interface MagnetismResult {
-  /** Correction velocity to add to player movement (world space XZ) */
-  correctionX: number;
-  correctionZ: number;
+/** Result of magnetism turn calculation */
+export interface MagnetismTurnResult {
+  /** Turn correction to apply to joystick (radians, positive = turn right) */
+  turnCorrection: number;
   /** Debug info */
   debug: {
-    /** Target point on skeleton (world space) */
+    /** Back sensing point (world space) */
+    backX: number;
+    backZ: number;
+    /** Front sensing point (world space) */
+    frontX: number;
+    frontZ: number;
+    /** Nearest spine point (world space) */
+    spineX: number;
+    spineZ: number;
+    /** Target point on spine for visualization */
     targetX: number;
     targetZ: number;
+    /** Spine tangent direction */
+    tangentX: number;
+    tangentZ: number;
+    /** Raw angle difference before smoothing */
+    rawAngleDiff: number;
     /** Whether magnetism is active */
     isActive: boolean;
-    /** Cross-track distance from skeleton */
-    crossDist: number;
-    /** Current strength multiplier (0-1) */
+    /** Current smoothed correction strength */
     strengthMultiplier: number;
-    /** Whether suppressed due to junction */
+    /** Cross-track distance (for compatibility) */
+    crossDist: number;
+    /** Whether at a junction */
     isJunctionSuppressed: boolean;
     /** Degree of nearest skeleton pixel */
     nearestDegree: number;
-    /** Tangent direction at target */
-    tangentX: number;
-    tangentZ: number;
   };
 }
 
@@ -91,6 +105,14 @@ export interface MagnetismCache {
   fineHeight: number;
 }
 
+/** State for smoothing turn corrections */
+export interface MagnetismTurnState {
+  /** Current smoothed turn correction (radians) */
+  currentCorrection: number;
+  /** Whether state has been initialized */
+  initialized: boolean;
+}
+
 // ============================================================================
 // DEFAULT CONFIGURATION
 // ============================================================================
@@ -98,12 +120,12 @@ export interface MagnetismCache {
 const CELL_SIZE = GameConfig.CELL_SIZE;
 
 export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
-  deadzone: 0.15 * CELL_SIZE,        // ~0.15 cells
-  fullStrengthDist: 0.35 * CELL_SIZE, // D0
-  fadeOutDist: 0.85 * CELL_SIZE,      // D1
-  springK: 6.0,                       // 1/sec
-  maxPullSpeed: 0.8 * 2.5,            // 80% of base player speed (2.5)
-  alignMin: 0.4,                      // Minimum alignment with corridor
+  deadzone: 0.1,                      // ~6 degrees
+  maxStrength: 0.25,                  // 25% of full turn
+  smoothingTau: 0.15,                 // 150ms smoothing
+  decayRate: 3.0,                     // Decay over ~0.3s
+  backOffset: 0.2,                    // Distance to back sensing point
+  frontOffset: 0.35,                  // Distance to front sensing point
   strength: 5.0,                      // Default strength (0-10 scale)
   enabled: true,
 };
@@ -180,29 +202,27 @@ export function buildMagnetismCache(
 }
 
 // ============================================================================
-// MAGNETISM CALCULATION
+// HELPER FUNCTIONS
 // ============================================================================
 
 /**
  * Find nearest skeleton pixel within a local search window.
- * Returns null if no skeleton pixel found nearby.
  */
 function findNearestSkeletonPixel(
-  playerX: number,
-  playerZ: number,
+  x: number,
+  z: number,
   cache: MagnetismCache,
-  searchRadius: number = 2.0 // World units
+  searchRadius: number = 2.0
 ): SkeletonPixel | null {
-  const { skeletonPixels, fineCellSize } = cache;
+  const { skeletonPixels } = cache;
   
   let nearest: SkeletonPixel | null = null;
   let nearestDistSq = Infinity;
   const searchRadiusSq = searchRadius * searchRadius;
   
-  // Linear search through skeleton pixels (fast enough for ~1000 pixels)
   for (const pixel of skeletonPixels) {
-    const dx = playerX - pixel.wx;
-    const dz = playerZ - pixel.wz;
+    const dx = x - pixel.wx;
+    const dz = z - pixel.wz;
     const distSq = dx * dx + dz * dz;
     
     if (distSq < searchRadiusSq && distSq < nearestDistSq) {
@@ -222,12 +242,10 @@ function computeTangent(pixel: SkeletonPixel): { tx: number; tz: number } {
   const { degree, neighbors, wx, wz } = pixel;
   
   if (degree === 0) {
-    // Isolated pixel - no tangent (shouldn't happen)
     return { tx: 1, tz: 0 };
   }
   
   if (degree === 1) {
-    // Endpoint: tangent points from neighbor to this pixel
     const n = neighbors[0];
     const dx = wx - n.wx;
     const dz = wz - n.wz;
@@ -236,7 +254,6 @@ function computeTangent(pixel: SkeletonPixel): { tx: number; tz: number } {
   }
   
   if (degree === 2) {
-    // Normal corridor: tangent is direction between the two neighbors
     const n1 = neighbors[0];
     const n2 = neighbors[1];
     const dx = n2.wx - n1.wx;
@@ -245,7 +262,7 @@ function computeTangent(pixel: SkeletonPixel): { tx: number; tz: number } {
     return len > 0.001 ? { tx: dx / len, tz: dz / len } : { tx: 1, tz: 0 };
   }
   
-  // Junction (degree >= 3): use average direction of neighbors
+  // Junction (degree >= 3): use average direction
   let avgDx = 0, avgDz = 0;
   for (const n of neighbors) {
     const dx = n.wx - wx;
@@ -261,53 +278,214 @@ function computeTangent(pixel: SkeletonPixel): { tx: number; tz: number } {
 }
 
 /**
- * Smoothstep interpolation: 0 at edge0, 1 at edge1, smooth transition between
+ * Normalize angle to [-PI, PI]
+ */
+function normalizeAngle(angle: number): number {
+  while (angle > Math.PI) angle -= 2 * Math.PI;
+  while (angle < -Math.PI) angle += 2 * Math.PI;
+  return angle;
+}
+
+/**
+ * Smoothstep interpolation
  */
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
 }
 
-/**
- * Phase 2: Find nearest point on skeleton segment (between pixel and neighbor)
- * Returns the closest point on the line segment.
- */
-function nearestPointOnSegment(
-  px: number, pz: number,
-  ax: number, az: number,
-  bx: number, bz: number
-): { x: number; z: number; t: number } {
-  const abx = bx - ax;
-  const abz = bz - az;
-  const apx = px - ax;
-  const apz = pz - az;
-  
-  const abLenSq = abx * abx + abz * abz;
-  if (abLenSq < 0.0001) {
-    return { x: ax, z: az, t: 0 };
-  }
-  
-  let t = (apx * abx + apz * abz) / abLenSq;
-  t = Math.max(0, Math.min(1, t));
-  
-  return {
-    x: ax + t * abx,
-    z: az + t * abz,
-    t,
-  };
-}
+// ============================================================================
+// TURN-BASED MAGNETISM CALCULATION
+// ============================================================================
 
 /**
- * Calculate magnetism correction for this frame.
+ * Calculate turn-based magnetism correction.
+ * 
+ * This calculates how much the animal should turn to align with the corridor.
+ * The correction is applied to the joystick input, not the position.
  * 
  * @param playerX - Player world X position
  * @param playerZ - Player world Z position  
- * @param inputDirX - Player input direction X (normalized)
- * @param inputDirZ - Player input direction Z (normalized)
+ * @param playerRotation - Player facing angle (radians, 0 = +Z, increases clockwise)
  * @param cache - Magnetism cache (skeleton data)
  * @param config - Magnetism configuration
+ * @param state - Turn smoothing state (mutated)
  * @param delta - Frame time in seconds
- * @returns Magnetism result with correction velocity
+ * @returns Magnetism turn result with correction angle
+ */
+export function calculateMagnetismTurn(
+  playerX: number,
+  playerZ: number,
+  playerRotation: number,
+  cache: MagnetismCache,
+  config: MagnetismConfig,
+  state: MagnetismTurnState,
+  delta: number
+): MagnetismTurnResult {
+  const noOpResult: MagnetismTurnResult = {
+    turnCorrection: 0,
+    debug: {
+      backX: playerX,
+      backZ: playerZ,
+      frontX: playerX,
+      frontZ: playerZ,
+      spineX: playerX,
+      spineZ: playerZ,
+      targetX: playerX,
+      targetZ: playerZ,
+      tangentX: 0,
+      tangentZ: 1,
+      rawAngleDiff: 0,
+      isActive: false,
+      strengthMultiplier: 0,
+      crossDist: 0,
+      isJunctionSuppressed: false,
+      nearestDegree: 0,
+    },
+  };
+  
+  if (!config.enabled || config.strength <= 0) {
+    // Decay existing correction
+    if (state.initialized && Math.abs(state.currentCorrection) > 0.001) {
+      state.currentCorrection *= Math.exp(-config.decayRate * delta);
+    }
+    return { ...noOpResult, turnCorrection: state.currentCorrection };
+  }
+  
+  // Initialize state if needed
+  if (!state.initialized) {
+    state.currentCorrection = 0;
+    state.initialized = true;
+  }
+  
+  // Calculate facing direction
+  const facingX = Math.sin(playerRotation);
+  const facingZ = Math.cos(playerRotation);
+  
+  // Calculate back and front sensing points
+  const backX = playerX - facingX * config.backOffset;
+  const backZ = playerZ - facingZ * config.backOffset;
+  const frontX = playerX + facingX * config.frontOffset;
+  const frontZ = playerZ + facingZ * config.frontOffset;
+  
+  // Find nearest skeleton pixel to back point
+  const nearest = findNearestSkeletonPixel(backX, backZ, cache);
+  if (!nearest) {
+    // Decay and return
+    state.currentCorrection *= Math.exp(-config.decayRate * delta);
+    return { ...noOpResult, turnCorrection: state.currentCorrection };
+  }
+  
+  // Get tangent at skeleton point
+  const { tx, tz } = computeTangent(nearest);
+  
+  // Calculate cross-track distance for gating
+  const toSpineX = nearest.wx - backX;
+  const toSpineZ = nearest.wz - backZ;
+  const crossDist = Math.sqrt(toSpineX * toSpineX + toSpineZ * toSpineZ);
+  
+  // Distance-based strength gating (stronger when closer to spine)
+  const maxDist = CELL_SIZE * 0.8;
+  const distFactor = 1 - smoothstep(0, maxDist, crossDist);
+  
+  // Junction suppression
+  const isJunction = nearest.degree >= 3;
+  const junctionFactor = isJunction ? 0.1 : 1.0;
+  
+  // Calculate animal's facing angle and spine tangent angle
+  const animalAngle = Math.atan2(facingX, facingZ);
+  const spineAngle = Math.atan2(tx, tz);
+  
+  // The spine tangent has two possible directions (±180°)
+  // Choose the one closer to animal's facing direction
+  let angleDiff = normalizeAngle(spineAngle - animalAngle);
+  if (Math.abs(angleDiff) > Math.PI / 2) {
+    // Flip tangent direction
+    angleDiff = normalizeAngle(angleDiff + Math.PI);
+  }
+  
+  // Apply deadzone
+  const rawAngleDiff = angleDiff;
+  if (Math.abs(angleDiff) < config.deadzone) {
+    angleDiff = 0;
+  } else {
+    // Reduce by deadzone amount (smooth ramp from deadzone edge)
+    const sign = angleDiff > 0 ? 1 : -1;
+    angleDiff = sign * (Math.abs(angleDiff) - config.deadzone);
+  }
+  
+  // Calculate target correction
+  const strengthScale = (config.strength / 10) * config.maxStrength;
+  const targetCorrection = angleDiff * strengthScale * distFactor * junctionFactor;
+  
+  // Smooth the correction using exponential moving average
+  const alpha = delta / (config.smoothingTau + delta);
+  state.currentCorrection += (targetCorrection - state.currentCorrection) * alpha;
+  
+  // Also apply decay to prevent buildup
+  if (Math.abs(targetCorrection) < Math.abs(state.currentCorrection)) {
+    state.currentCorrection *= Math.exp(-config.decayRate * delta * 0.5);
+  }
+  
+  // Clamp final correction
+  const maxCorrection = Math.PI / 6; // Max 30 degrees
+  state.currentCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, state.currentCorrection));
+  
+  const isActive = Math.abs(state.currentCorrection) > 0.001;
+  
+  return {
+    turnCorrection: state.currentCorrection,
+    debug: {
+      backX,
+      backZ,
+      frontX,
+      frontZ,
+      spineX: nearest.wx,
+      spineZ: nearest.wz,
+      targetX: nearest.wx,
+      targetZ: nearest.wz,
+      tangentX: tx,
+      tangentZ: tz,
+      rawAngleDiff,
+      isActive,
+      strengthMultiplier: strengthScale * distFactor * junctionFactor,
+      crossDist,
+      isJunctionSuppressed: isJunction,
+      nearestDegree: nearest.degree,
+    },
+  };
+}
+
+// ============================================================================
+// LEGACY POSITION-BASED MAGNETISM (kept for reference/fallback)
+// ============================================================================
+
+/** Result of legacy position magnetism calculation */
+export interface MagnetismResult {
+  correctionX: number;
+  correctionZ: number;
+  debug: {
+    targetX: number;
+    targetZ: number;
+    isActive: boolean;
+    crossDist: number;
+    strengthMultiplier: number;
+    isJunctionSuppressed: boolean;
+    nearestDegree: number;
+    tangentX: number;
+    tangentZ: number;
+  };
+}
+
+/** Legacy filter state */
+export interface MagnetismFilterState {
+  targetX: number;
+  targetZ: number;
+  initialized: boolean;
+}
+
+/**
+ * Legacy position-based magnetism (deprecated, kept for compatibility)
  */
 export function calculateMagnetism(
   playerX: number,
@@ -318,7 +496,8 @@ export function calculateMagnetism(
   config: MagnetismConfig,
   delta: number
 ): MagnetismResult {
-  const noOpResult: MagnetismResult = {
+  // Return no-op for legacy function
+  return {
     correctionX: 0,
     correctionZ: 0,
     debug: {
@@ -333,160 +512,8 @@ export function calculateMagnetism(
       tangentZ: 0,
     },
   };
-  
-  if (!config.enabled || config.strength <= 0) {
-    return noOpResult;
-  }
-  
-  // Step 1: Find nearest skeleton pixel
-  const nearest = findNearestSkeletonPixel(playerX, playerZ, cache);
-  if (!nearest) {
-    return noOpResult;
-  }
-  
-  // Step 2: Compute tangent at skeleton pixel
-  const { tx, tz } = computeTangent(nearest);
-  
-  // Step 3: Compute cross-track vector
-  // v = playerPos - spinePos
-  let vx = playerX - nearest.wx;
-  let vz = playerZ - nearest.wz;
-  
-  // Phase 2: Use nearest point on segment for degree-2 pixels
-  let targetX = nearest.wx;
-  let targetZ = nearest.wz;
-  
-  if (nearest.degree === 2) {
-    const n1 = nearest.neighbors[0];
-    const n2 = nearest.neighbors[1];
-    
-    // Find nearest point on segment n1->n2
-    const seg = nearestPointOnSegment(playerX, playerZ, n1.wx, n1.wz, n2.wx, n2.wz);
-    targetX = seg.x;
-    targetZ = seg.z;
-    
-    // Update v to point from segment
-    vx = playerX - targetX;
-    vz = playerZ - targetZ;
-  }
-  
-  // along = dot(v, tangent)
-  const along = vx * tx + vz * tz;
-  
-  // cross = v - along * tangent (perpendicular to corridor)
-  const crossX = vx - along * tx;
-  const crossZ = vz - along * tz;
-  const crossDist = Math.sqrt(crossX * crossX + crossZ * crossZ);
-  
-  // Step 4: Check junction suppression (degree >= 3)
-  const isJunctionSuppressed = nearest.degree >= 3;
-  
-  // Step 5: Compute strength based on distance
-  let distStrength = 0;
-  if (crossDist < config.deadzone) {
-    distStrength = 0; // In dead zone
-  } else if (crossDist <= config.fullStrengthDist) {
-    // Full strength zone
-    distStrength = 1;
-  } else if (crossDist < config.fadeOutDist) {
-    // Fade zone: smoothstep from D0 to D1
-    distStrength = 1 - smoothstep(config.fullStrengthDist, config.fadeOutDist, crossDist);
-  } else {
-    distStrength = 0; // Too far
-  }
-  
-  // Step 6: Compute alignment strength
-  // align = abs(dot(inputDir, tangent))
-  const inputLen = Math.sqrt(inputDirX * inputDirX + inputDirZ * inputDirZ);
-  let alignStrength = 1;
-  
-  if (inputLen > 0.01) {
-    const inputNormX = inputDirX / inputLen;
-    const inputNormZ = inputDirZ / inputLen;
-    const align = Math.abs(inputNormX * tx + inputNormZ * tz);
-    alignStrength = smoothstep(config.alignMin, 1, align);
-  }
-  
-  // Step 7: Combine strength factors
-  let totalStrength = distStrength * alignStrength * (config.strength / 10);
-  
-  // Suppress at junctions
-  if (isJunctionSuppressed) {
-    totalStrength *= 0.1; // Strongly reduce, not zero (allows gentle guidance)
-  }
-  
-  // Step 8: Calculate correction velocity
-  // Direction: toward skeleton (opposite of cross vector)
-  if (crossDist < 0.001 || totalStrength < 0.001) {
-    return {
-      correctionX: 0,
-      correctionZ: 0,
-      debug: {
-        targetX,
-        targetZ,
-        isActive: false,
-        crossDist,
-        strengthMultiplier: totalStrength,
-        isJunctionSuppressed,
-        nearestDegree: nearest.degree,
-        tangentX: tx,
-        tangentZ: tz,
-      },
-    };
-  }
-  
-  // Normalized direction toward skeleton
-  const toSkeletonX = -crossX / crossDist;
-  const toSkeletonZ = -crossZ / crossDist;
-  
-  // Correction velocity = K * crossDist * direction (clamped to max)
-  const correctionMag = Math.min(
-    config.springK * crossDist * totalStrength,
-    config.maxPullSpeed
-  );
-  
-  // Scale by delta for frame-rate independence
-  const correctionX = toSkeletonX * correctionMag * delta;
-  const correctionZ = toSkeletonZ * correctionMag * delta;
-  
-  return {
-    correctionX,
-    correctionZ,
-    debug: {
-      targetX,
-      targetZ,
-      isActive: true,
-      crossDist,
-      strengthMultiplier: totalStrength,
-      isJunctionSuppressed,
-      nearestDegree: nearest.degree,
-      tangentX: tx,
-      tangentZ: tz,
-    },
-  };
 }
 
-// ============================================================================
-// LOW-PASS FILTER FOR TARGET POINT (Phase 2 stability)
-// ============================================================================
-
-/** State for low-pass filtering the target point */
-export interface MagnetismFilterState {
-  targetX: number;
-  targetZ: number;
-  initialized: boolean;
-}
-
-/**
- * Apply low-pass filter to target point to reduce jitter.
- * Call this each frame before using the target for correction.
- * 
- * @param raw - Raw target point from magnetism calculation
- * @param state - Filter state (mutated)
- * @param tau - Filter time constant (seconds, ~0.15 recommended)
- * @param delta - Frame time in seconds
- * @returns Filtered target point
- */
 export function filterTargetPoint(
   rawX: number,
   rawZ: number,
@@ -501,9 +528,7 @@ export function filterTargetPoint(
     return { x: rawX, z: rawZ };
   }
   
-  // Exponential smoothing: α = delta / (tau + delta)
   const alpha = delta / (tau + delta);
-  
   state.targetX += (rawX - state.targetX) * alpha;
   state.targetZ += (rawZ - state.targetZ) * alpha;
   
