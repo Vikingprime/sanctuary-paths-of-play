@@ -20,12 +20,11 @@ import { SpurConfig } from '@/game/MedialAxis';
 import { 
   MagnetismConfig, 
   MagnetismCache, 
-  MagnetismResult,
-  MagnetismFilterState,
+  MagnetismTurnResult,
+  MagnetismTurnState,
   DEFAULT_MAGNETISM_CONFIG, 
   buildMagnetismCache, 
-  calculateMagnetism,
-  filterTargetPoint,
+  calculateMagnetismTurn,
 } from '@/game/CorridorMagnetism';
 
 // Re-export for backward compatibility
@@ -108,7 +107,7 @@ interface Maze3DSceneProps {
   onDefaultSpurConfig?: (config: SpurConfig) => void;
   // Magnetism configuration
   magnetismConfig?: MagnetismConfig;
-  magnetismDebugRef?: MutableRefObject<MagnetismResult['debug'] | null>;
+  magnetismDebugRef?: MutableRefObject<MagnetismTurnResult['debug'] | null>;
   showMagnetTarget?: boolean;
   showMagnetVector?: boolean;
 }
@@ -1105,7 +1104,7 @@ const RefBasedPlayer = ({
   showCollisionDebug?: boolean;
   animalRimLight?: number;
   magnetismConfig?: MagnetismConfig;
-  magnetismDebugRef?: MutableRefObject<MagnetismResult['debug'] | null>;
+  magnetismDebugRef?: MutableRefObject<MagnetismTurnResult['debug'] | null>;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
@@ -1119,9 +1118,9 @@ const RefBasedPlayer = ({
   const isTurningRef = useRef(false); // True when turning in place (no forward movement)
   const moveSpeedRef = useRef(0); // Current movement speed 0-1 (for walk vs gallop)
   
-  // Magnetism state
+  // Magnetism state (turn-based)
   const magnetismCacheRef = useRef<MagnetismCache | null>(null);
-  const magnetismFilterRef = useRef<MagnetismFilterState>({ targetX: 0, targetZ: 0, initialized: false });
+  const magnetismTurnStateRef = useRef<MagnetismTurnState>({ currentCorrection: 0, initialized: false });
   
   // Build magnetism cache when maze changes
   useMemo(() => {
@@ -1305,55 +1304,34 @@ const RefBasedPlayer = ({
         moveSpeedRef.current = 0;
       }
       
-      // === MAGNETISM: Apply corridor centerline pull ===
-      // Magnetism is sensed at the animal's head (offset forward from center)
+      // === MAGNETISM: Apply turn-based corridor alignment ===
+      // Uses back/front sensing points to calculate alignment with spine
       if (magnetismConfig?.enabled && magnetismCacheRef.current && isMovingRef.current) {
         const config = magnetismConfig || DEFAULT_MAGNETISM_CONFIG;
         const player = playerStateRef.current;
         
-        // Get movement direction from rotation
-        const inputDirX = Math.sin(player.rotation);
-        const inputDirZ = Math.cos(player.rotation);
-        
-        // Offset sensing point to the animal's head
-        const HEAD_OFFSET = 0.35; // Distance forward from center to head
-        const headX = player.x + inputDirX * HEAD_OFFSET;
-        const headZ = player.y + inputDirZ * HEAD_OFFSET;
-        
-        // Calculate magnetism correction at head position
-        const magnetResult = calculateMagnetism(
-          headX,
-          headZ,
-          inputDirX,
-          inputDirZ,
+        // Calculate turn correction based on alignment with corridor spine
+        const magnetResult = calculateMagnetismTurn(
+          player.x,
+          player.y,
+          player.rotation,
           magnetismCacheRef.current,
           config,
+          magnetismTurnStateRef.current,
           clampedDelta
         );
         
-        // Apply low-pass filter to target for stability
-        const filtered = filterTargetPoint(
-          magnetResult.debug.targetX,
-          magnetResult.debug.targetZ,
-          magnetismFilterRef.current,
-          0.15, // tau = 0.15s
-          clampedDelta
-        );
-        
-        // Apply correction to player position (collision-safe)
-        if (magnetResult.correctionX !== 0 || magnetResult.correctionZ !== 0) {
-          const newX = player.x + magnetResult.correctionX;
-          const newZ = player.y + magnetResult.correctionZ;
+        // Apply turn correction to player rotation
+        if (magnetResult.turnCorrection !== 0) {
+          const newRotation = normalizeAngle(player.rotation + magnetResult.turnCorrection);
+          // Convert to 0-2PI range for consistency
+          let normalizedRotation = newRotation;
+          if (normalizedRotation < 0) normalizedRotation += Math.PI * 2;
           
-          // Only apply if it doesn't cause a wall collision
-          const PLAYER_RADIUS = 0.25;
-          if (!checkCollision(maze, newX, newZ, PLAYER_RADIUS)) {
-            playerStateRef.current = {
-              ...playerStateRef.current,
-              x: newX,
-              y: newZ,
-            };
-          }
+          playerStateRef.current = {
+            ...playerStateRef.current,
+            rotation: normalizedRotation,
+          };
         }
         
         // Update debug ref for visualization

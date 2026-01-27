@@ -48,14 +48,18 @@ export {
   type MedialAxisResult,
 } from './MedialAxis';
 
-// Corridor magnetism system
+// Corridor magnetism system (turn-based alignment)
 export {
-  calculateMagnetism,
+  calculateMagnetismTurn,
   buildMagnetismCache,
   filterTargetPoint,
   DEFAULT_MAGNETISM_CONFIG,
   type MagnetismConfig,
   type MagnetismCache,
+  type MagnetismTurnResult,
+  type MagnetismTurnState,
+  // Legacy exports for compatibility
+  calculateMagnetism,
   type MagnetismResult,
   type MagnetismFilterState,
 } from './CorridorMagnetism';
