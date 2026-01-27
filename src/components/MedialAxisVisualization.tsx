@@ -18,7 +18,7 @@ import { useMemo, MutableRefObject } from 'react';
 import * as THREE from 'three';
 import { Maze } from '@/types/game';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from '@/game/MedialAxis';
-import { MagnetismResult } from '@/game/CorridorMagnetism';
+import { MagnetismTurnResult } from '@/game/CorridorMagnetism';
 import { PlayerState } from '@/game/GameLogic';
 
 // ============================================================================
@@ -48,7 +48,7 @@ interface MedialAxisVisualizationProps {
   /** Magnetism debug: show vector arrow from player to target */
   showMagnetVector?: boolean;
   /** Current magnetism result for debug visualization */
-  magnetismDebugRef?: MutableRefObject<MagnetismResult['debug'] | null>;
+  magnetismDebugRef?: MutableRefObject<MagnetismTurnResult['debug'] | null>;
   /** Player state ref for debug visualization */
   playerStateRef?: MutableRefObject<PlayerState>;
 }
@@ -340,7 +340,7 @@ function SkeletonPoints({
 // ============================================================================
 
 interface MagnetismDebugOverlayProps {
-  magnetismDebugRef: MutableRefObject<MagnetismResult['debug'] | null>;
+  magnetismDebugRef: MutableRefObject<MagnetismTurnResult['debug'] | null>;
   playerStateRef: MutableRefObject<PlayerState>;
   showTarget: boolean;
   showVector: boolean;
@@ -361,17 +361,20 @@ function MagnetismDebugOverlay({
   height,
 }: MagnetismDebugOverlayProps) {
   // Create reusable geometries and materials
-  const { targetGeometry, arrowGeometry, targetMaterials, arrowMaterial, tangentMaterial } = useMemo(() => {
+  const { targetGeometry, sensingGeometry, arrowGeometry, targetMaterials, arrowMaterial, tangentMaterial, backMaterial, frontMaterial } = useMemo(() => {
     return {
-      targetGeometry: new THREE.SphereGeometry(0.12, 8, 6),
+      targetGeometry: new THREE.SphereGeometry(0.15, 12, 8), // Larger, more visible
+      sensingGeometry: new THREE.SphereGeometry(0.08, 8, 6), // Back/front sensing points
       arrowGeometry: new THREE.CylinderGeometry(0.02, 0.04, 1, 6),
       targetMaterials: {
-        active: new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8 }),
-        suppressed: new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 }),
+        active: new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.9 }),
+        suppressed: new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.9 }),
         inactive: new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.5 }),
       },
       arrowMaterial: new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.7 }),
-      tangentMaterial: new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 }),
+      tangentMaterial: new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 }),
+      backMaterial: new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.8 }), // Orange for back
+      frontMaterial: new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8 }), // Yellow for front
     };
   }, []);
 
@@ -388,47 +391,64 @@ function MagnetismDebugOverlay({
       ? targetMaterials.active 
       : targetMaterials.inactive;
   
-  // Calculate vector from player to target
-  const dx = debug.targetX - player.x;
-  const dz = debug.targetZ - player.y;
+  // Calculate vector from back sensing point to spine point
+  const dx = debug.spineX - debug.backX;
+  const dz = debug.spineZ - debug.backZ;
   const dist = Math.sqrt(dx * dx + dz * dz);
   const angle = Math.atan2(dx, dz);
   
   return (
     <group name="magnetism-debug">
-      {/* Target Point Marker */}
+      {/* Back Sensing Point (orange) */}
+      {showTarget && (
+        <mesh
+          geometry={sensingGeometry}
+          material={backMaterial}
+          position={[debug.backX, height + 0.02, debug.backZ]}
+        />
+      )}
+      
+      {/* Front Sensing Point (yellow) */}
+      {showTarget && (
+        <mesh
+          geometry={sensingGeometry}
+          material={frontMaterial}
+          position={[debug.frontX, height + 0.02, debug.frontZ]}
+        />
+      )}
+      
+      {/* Nearest Spine Point Marker (green/red/gray based on state) */}
       {showTarget && (
         <mesh
           geometry={targetGeometry}
           material={targetMaterial}
-          position={[debug.targetX, height, debug.targetZ]}
+          position={[debug.spineX, height, debug.spineZ]}
         />
       )}
       
-      {/* Vector Arrow from player to target */}
-      {showVector && dist > 0.1 && (
-        <group position={[player.x, height, player.y]}>
+      {/* Vector Arrow from back sensing point to nearest spine point */}
+      {showVector && dist > 0.05 && (
+        <group position={[debug.backX, height, debug.backZ]}>
           <mesh
             geometry={arrowGeometry}
             material={arrowMaterial}
-            position={[dx / 2, 0, dz / 2]}
+            position={[(debug.spineX - debug.backX) / 2, 0, (debug.spineZ - debug.backZ) / 2]}
             rotation={[0, 0, Math.PI / 2]}
             scale={[1, dist, 1]}
           >
-            {/* Rotate cylinder to point in right direction */}
             <group rotation={[0, -angle, 0]} />
           </mesh>
         </group>
       )}
       
-      {/* Tangent Direction Indicator (at target) */}
+      {/* Tangent Direction Indicator (at spine point) */}
       {showTarget && debug.isActive && (
-        <group position={[debug.targetX, height + 0.05, debug.targetZ]}>
+        <group position={[debug.spineX, height + 0.08, debug.spineZ]}>
           <mesh
             geometry={arrowGeometry}
             material={tangentMaterial}
             rotation={[Math.PI / 2, 0, Math.atan2(debug.tangentX, debug.tangentZ)]}
-            scale={[0.5, 0.4, 0.5]}
+            scale={[0.6, 0.5, 0.6]}
           />
         </group>
       )}

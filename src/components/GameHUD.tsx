@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, MutableRefObject } from 'react';
 import { AnimalType } from '@/types/game';
 import { animals } from '@/data/animals';
 import { cn } from '@/lib/utils';
 import { PerformanceInfo } from './Maze3DScene';
 import { Volume2, VolumeX, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { SpurConfig } from '@/game/MedialAxis';
-import { MagnetismConfig, DEFAULT_MAGNETISM_CONFIG } from '@/game/CorridorMagnetism';
+import { MagnetismConfig, DEFAULT_MAGNETISM_CONFIG, MagnetismTurnResult } from '@/game/CorridorMagnetism';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +29,145 @@ export const DEFAULT_SENSITIVITY: SensitivityConfig = {
   largeMoveSensitivity: 1.0,  // Reduced from 1.5 - smoother large moves
   maxDragPixels: 60,          // Slightly wider range
 };
+
+// ============================================================================
+// MAGNETISM COMPASS - HUD Debug Visualization
+// ============================================================================
+
+interface MagnetismCompassProps {
+  magnetismDebugRef: MutableRefObject<MagnetismTurnResult['debug'] | null>;
+  playerRotation: number;
+}
+
+/**
+ * Renders a compass showing the animal's alignment with the corridor spine.
+ * - Shows animal facing direction
+ * - Shows spine tangent direction
+ * - Shows angle difference and turn correction
+ * - Highlights nearest spine point info
+ */
+function MagnetismCompass({ magnetismDebugRef, playerRotation }: MagnetismCompassProps) {
+  const debug = magnetismDebugRef.current;
+  
+  if (!debug) {
+    return (
+      <div className="mt-3 p-2 bg-gray-800/60 rounded border border-gray-600">
+        <div className="text-[10px] text-gray-500 text-center">No magnetism data</div>
+      </div>
+    );
+  }
+  
+  // Convert angles to SVG coordinates (0 = up, clockwise positive)
+  const size = 80;
+  const center = size / 2;
+  const radius = 30;
+  
+  // Animal facing direction (from player rotation)
+  const animalAngle = playerRotation;
+  const animalX = center + Math.sin(animalAngle) * radius;
+  const animalY = center - Math.cos(animalAngle) * radius;
+  
+  // Spine tangent direction
+  const spineAngle = Math.atan2(debug.tangentX, debug.tangentZ);
+  // Choose spine direction closer to animal facing
+  let adjustedSpineAngle = spineAngle;
+  const angleDiff = ((spineAngle - animalAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  if (Math.abs(angleDiff) > Math.PI / 2) {
+    adjustedSpineAngle = spineAngle + Math.PI;
+  }
+  const spineX = center + Math.sin(adjustedSpineAngle) * radius;
+  const spineY = center - Math.cos(adjustedSpineAngle) * radius;
+  
+  // Turn correction arc
+  const correctionAngle = debug.rawAngleDiff;
+  const isActive = debug.isActive;
+  const isJunction = debug.isJunctionSuppressed;
+  
+  // Status color
+  const statusColor = isJunction ? '#ff4444' : isActive ? '#44ff44' : '#888888';
+  const statusText = isJunction ? 'JUNCTION' : isActive ? 'ACTIVE' : 'IDLE';
+  
+  return (
+    <div className="mt-3 p-2 bg-gray-800/60 rounded border border-gray-600">
+      <div className="text-[9px] text-gray-400 mb-1 font-bold">TURN VECTOR</div>
+      
+      {/* SVG Compass */}
+      <div className="flex items-center gap-2">
+        <svg width={size} height={size} className="bg-gray-900/50 rounded">
+          {/* Compass ring */}
+          <circle 
+            cx={center} 
+            cy={center} 
+            r={radius + 5} 
+            fill="none" 
+            stroke="#333" 
+            strokeWidth="1"
+          />
+          
+          {/* Grid lines */}
+          <line x1={center} y1={5} x2={center} y2={size-5} stroke="#222" strokeWidth="1" />
+          <line x1={5} y1={center} x2={size-5} y2={center} stroke="#222" strokeWidth="1" />
+          
+          {/* Spine tangent direction (cyan) */}
+          <line 
+            x1={center} 
+            y1={center} 
+            x2={spineX} 
+            y2={spineY} 
+            stroke="#00ffff" 
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <circle cx={spineX} cy={spineY} r={3} fill="#00ffff" />
+          
+          {/* Animal facing direction (yellow) */}
+          <line 
+            x1={center} 
+            y1={center} 
+            x2={animalX} 
+            y2={animalY} 
+            stroke="#ffff00" 
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <polygon 
+            points={`${animalX},${animalY-4} ${animalX-3},${animalY+2} ${animalX+3},${animalY+2}`}
+            fill="#ffff00"
+            transform={`rotate(${(animalAngle * 180 / Math.PI)}, ${animalX}, ${animalY})`}
+          />
+          
+          {/* Center dot */}
+          <circle cx={center} cy={center} r={3} fill={statusColor} />
+        </svg>
+        
+        {/* Stats */}
+        <div className="flex-1 text-[9px] space-y-0.5">
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColor }} />
+            <span style={{ color: statusColor }}>{statusText}</span>
+          </div>
+          <div className="text-gray-400">
+            Angle: <span className="text-white">{(correctionAngle * 180 / Math.PI).toFixed(1)}°</span>
+          </div>
+          <div className="text-gray-400">
+            Dist: <span className="text-white">{debug.crossDist.toFixed(2)}</span>
+          </div>
+          <div className="text-gray-400">
+            Degree: <span className={cn(
+              debug.nearestDegree >= 3 ? 'text-red-400' : 
+              debug.nearestDegree === 2 ? 'text-cyan-400' : 'text-yellow-400'
+            )}>{debug.nearestDegree}</span>
+          </div>
+          <div className="text-[8px] mt-1">
+            <span className="text-yellow-400">━</span> Animal
+            {' '}
+            <span className="text-cyan-400">━</span> Spine
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface GameHUDProps {
   animalType: AnimalType;
@@ -108,6 +247,9 @@ interface GameHUDProps {
   onToggleShowMagnetTarget?: () => void;
   showMagnetVector?: boolean;
   onToggleShowMagnetVector?: () => void;
+  // Magnetism debug data for HUD visualization
+  magnetismDebugRef?: MutableRefObject<MagnetismTurnResult['debug'] | null>;
+  playerRotation?: number;
 }
 
 export const GameHUD = ({
@@ -176,6 +318,8 @@ export const GameHUD = ({
   onToggleShowMagnetTarget,
   showMagnetVector = false,
   onToggleShowMagnetVector,
+  magnetismDebugRef,
+  playerRotation = 0,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -862,6 +1006,14 @@ export const GameHUD = ({
                 <div className="text-[9px] text-gray-500 mt-1">
                   Gently pulls animal toward corridor centerlines
                 </div>
+                
+                {/* Turn Compass Visualization */}
+                {magnetismDebugRef && (
+                  <MagnetismCompass 
+                    magnetismDebugRef={magnetismDebugRef}
+                    playerRotation={playerRotation}
+                  />
+                )}
               </div>
             </div>
           )}

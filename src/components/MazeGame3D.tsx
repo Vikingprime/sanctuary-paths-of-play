@@ -23,6 +23,7 @@ import {
   executeAbility,
   DEFAULT_MAGNETISM_CONFIG,
   MagnetismConfig,
+  MagnetismTurnResult,
 } from '@/game';
 
 // Completion result returned from parent after saving
@@ -118,6 +119,9 @@ export const MazeGame3D = ({
   const [magnetismConfig, setMagnetismConfig] = useState<MagnetismConfig>(DEFAULT_MAGNETISM_CONFIG);
   const [showMagnetTarget, setShowMagnetTarget] = useState(true);
   const [showMagnetVector, setShowMagnetVector] = useState(true);
+  
+  // Magnetism debug ref - shared between canvas and HUD for real-time visualization
+  const magnetismDebugRef = useRef<MagnetismTurnResult['debug'] | null>(null);
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
@@ -872,6 +876,7 @@ export const MazeGame3D = ({
         showPrunedSpurs={showPrunedSpurs}
         spurConfig={spurConfig}
         magnetismConfig={magnetismConfig}
+        magnetismDebugRef={magnetismDebugRef}
         showMagnetTarget={showMagnetTarget}
         showMagnetVector={showMagnetVector}
         onDefaultSpurConfig={(config) => {
@@ -967,6 +972,8 @@ export const MazeGame3D = ({
           onToggleShowMagnetTarget={() => setShowMagnetTarget(prev => !prev)}
           showMagnetVector={showMagnetVector}
           onToggleShowMagnetVector={() => setShowMagnetVector(prev => !prev)}
+          magnetismDebugRef={magnetismDebugRef}
+          playerRotation={playerStateRef.current.rotation}
         />
       )}
 
