@@ -618,6 +618,9 @@ export const MazeGame3D = ({
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore repeated keydown events (key held down)
+      if (e.repeat) return;
+      
       keysPressed.current.add(e.key.toLowerCase());
       
       // Spacebar: Toggle magnetism debug freeze (only in debug mode)
