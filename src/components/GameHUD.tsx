@@ -249,6 +249,7 @@ interface GameHUDProps {
   onToggleShowMagnetVector?: () => void;
   // Magnetism debug data for HUD visualization
   magnetismDebugRef?: MutableRefObject<MagnetismTurnResult['debug'] | null>;
+  magnetismDebugFrozen?: boolean;
   playerRotation?: number;
 }
 
@@ -319,6 +320,7 @@ export const GameHUD = ({
   showMagnetVector = false,
   onToggleShowMagnetVector,
   magnetismDebugRef,
+  magnetismDebugFrozen = false,
   playerRotation = 0,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
@@ -1009,10 +1011,17 @@ export const GameHUD = ({
                 
                 {/* Turn Compass Visualization */}
                 {magnetismDebugRef && (
-                  <MagnetismCompass 
-                    magnetismDebugRef={magnetismDebugRef}
-                    playerRotation={playerRotation}
-                  />
+                  <div className="relative">
+                    <MagnetismCompass 
+                      magnetismDebugRef={magnetismDebugRef}
+                      playerRotation={playerRotation}
+                    />
+                    {magnetismDebugFrozen && (
+                      <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-blue-500 text-white text-[8px] font-bold rounded animate-pulse">
+                        ⏸ FROZEN (Space)
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
