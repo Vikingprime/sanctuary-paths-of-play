@@ -623,22 +623,26 @@ export const MazeGame3D = ({
       
       keysPressed.current.add(e.key.toLowerCase());
       
-      // Spacebar: Toggle magnetism debug freeze (only in debug mode)
-      if (e.key === ' ' && debugMode && skeletonEnabled) {
+      // Spacebar: Toggle magnetism debug freeze (only in debug mode with skeleton enabled)
+      if (e.key === ' ' && debugMode) {
         e.preventDefault();
-        setMagnetismDebugFrozen(prev => {
-          if (!prev) {
-            // Freeze: capture current state
-            frozenMagnetismDebugRef.current = magnetismDebugRef.current 
-              ? { ...magnetismDebugRef.current }
-              : null;
-            return true;
-          } else {
-            // Unfreeze
-            frozenMagnetismDebugRef.current = null;
-            return false;
-          }
-        });
+        console.log('[DEBUG] Spacebar pressed, skeletonEnabled:', skeletonEnabled, 'current frozen:', magnetismDebugFrozen);
+        if (skeletonEnabled) {
+          setMagnetismDebugFrozen(prev => {
+            const newFrozen = !prev;
+            console.log('[DEBUG] Toggling magnetism freeze to:', newFrozen);
+            if (newFrozen) {
+              // Freeze: capture current state with deep copy
+              const current = magnetismDebugRef.current;
+              frozenMagnetismDebugRef.current = current ? JSON.parse(JSON.stringify(current)) : null;
+              console.log('[DEBUG] Captured frozen state:', frozenMagnetismDebugRef.current);
+            } else {
+              // Unfreeze
+              frozenMagnetismDebugRef.current = null;
+            }
+            return newFrozen;
+          });
+        }
       }
     };
 
