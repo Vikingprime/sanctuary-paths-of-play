@@ -431,7 +431,9 @@ export function calculateMagnetismTurn(
   const maxCorrection = Math.PI / 6; // Max 30 degrees
   state.currentCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, state.currentCorrection));
   
-  const isActive = Math.abs(state.currentCorrection) > 0.001;
+  // isActive = system is engaged (nearby and enabled), not just correcting
+  // This shows green when running parallel but still tracking the spine
+  const isActive = distFactor > 0.1 && !isJunction;
   
   return {
     turnCorrection: state.currentCorrection,

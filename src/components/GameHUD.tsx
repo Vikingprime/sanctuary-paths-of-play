@@ -487,7 +487,7 @@ export const GameHUD = ({
       {debugMode && performanceInfo && (
         <div className={cn(
           "block absolute top-20 left-4 bg-black/80 rounded-lg text-xs font-mono text-white pointer-events-auto transition-all",
-          leftPanelCollapsed ? "px-1 py-1" : "px-3 py-2 max-w-[280px]"
+          leftPanelCollapsed ? "px-1 py-1" : "px-3 py-2 max-w-[280px] max-h-[60vh] overflow-y-auto"
         )}>
           {/* Collapse toggle */}
           <button 
