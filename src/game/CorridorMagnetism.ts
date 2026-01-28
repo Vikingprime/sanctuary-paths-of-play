@@ -212,7 +212,7 @@ function findNearestSkeletonPixel(
   x: number,
   z: number,
   cache: MagnetismCache,
-  searchRadius: number = 2.0
+  searchRadius: number = 4.0
 ): SkeletonPixel | null {
   const { skeletonPixels } = cache;
   
@@ -385,7 +385,8 @@ export function calculateMagnetismTurn(
   const crossDist = Math.sqrt(toSpineX * toSpineX + toSpineZ * toSpineZ);
   
   // Distance-based strength gating (stronger when closer to spine)
-  const maxDist = CELL_SIZE * 0.8;
+  // Increased from 0.8 to 1.5 to keep magnetism active over wider corridors
+  const maxDist = CELL_SIZE * 1.5;
   const distFactor = 1 - smoothstep(0, maxDist, crossDist);
   
   // Junction suppression
