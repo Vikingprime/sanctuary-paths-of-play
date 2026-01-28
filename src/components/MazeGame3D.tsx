@@ -126,6 +126,7 @@ export const MazeGame3D = ({
   // Magnetism debug freeze state - for taking screenshots
   const [magnetismDebugFrozen, setMagnetismDebugFrozen] = useState(false);
   const frozenMagnetismDebugRef = useRef<MagnetismTurnResult['debug'] | null>(null);
+  const lastSpacebarTimeRef = useRef<number>(0); // Debounce spacebar to prevent double-firing
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
@@ -624,25 +625,32 @@ export const MazeGame3D = ({
       keysPressed.current.add(e.key.toLowerCase());
       
       // Spacebar: Toggle magnetism debug freeze (only in debug mode with skeleton enabled)
-      if (e.key === ' ' && debugMode) {
+      if (e.key === ' ' && debugMode && skeletonEnabled) {
         e.preventDefault();
-        console.log('[DEBUG] Spacebar pressed, skeletonEnabled:', skeletonEnabled, 'current frozen:', magnetismDebugFrozen);
-        if (skeletonEnabled) {
-          setMagnetismDebugFrozen(prev => {
-            const newFrozen = !prev;
-            console.log('[DEBUG] Toggling magnetism freeze to:', newFrozen);
-            if (newFrozen) {
-              // Freeze: capture current state with deep copy
-              const current = magnetismDebugRef.current;
-              frozenMagnetismDebugRef.current = current ? JSON.parse(JSON.stringify(current)) : null;
-              console.log('[DEBUG] Captured frozen state:', frozenMagnetismDebugRef.current);
-            } else {
-              // Unfreeze
-              frozenMagnetismDebugRef.current = null;
-            }
-            return newFrozen;
-          });
+        e.stopPropagation(); // Prevent any other listeners from receiving this
+        
+        // Use a ref-based debounce to prevent double firing
+        const now = Date.now();
+        if (now - lastSpacebarTimeRef.current < 200) {
+          console.log('[DEBUG] Spacebar debounced (too fast)');
+          return;
         }
+        lastSpacebarTimeRef.current = now;
+        
+        setMagnetismDebugFrozen(prev => {
+          const newFrozen = !prev;
+          console.log('[DEBUG] Toggling magnetism freeze to:', newFrozen);
+          if (newFrozen) {
+            // Freeze: capture current state with deep copy
+            const current = magnetismDebugRef.current;
+            frozenMagnetismDebugRef.current = current ? JSON.parse(JSON.stringify(current)) : null;
+            console.log('[DEBUG] Captured frozen state:', frozenMagnetismDebugRef.current);
+          } else {
+            // Unfreeze
+            frozenMagnetismDebugRef.current = null;
+          }
+          return newFrozen;
+        });
       }
     };
 
