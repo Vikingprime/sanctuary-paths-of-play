@@ -123,6 +123,10 @@ export const MazeGame3D = ({
   // Magnetism debug ref - shared between canvas and HUD for real-time visualization
   const magnetismDebugRef = useRef<MagnetismTurnResult['debug'] | null>(null);
   
+  // Magnetism debug freeze state - for taking screenshots
+  const [magnetismDebugFrozen, setMagnetismDebugFrozen] = useState(false);
+  const frozenMagnetismDebugRef = useRef<MagnetismTurnResult['debug'] | null>(null);
+  
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
   // Per-animal rim light: 0.3 for cow/pig, 0 for chicken (uses defaults in PlayerCube)
@@ -615,6 +619,24 @@ export const MazeGame3D = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       keysPressed.current.add(e.key.toLowerCase());
+      
+      // Spacebar: Toggle magnetism debug freeze (only in debug mode)
+      if (e.key === ' ' && debugMode && skeletonEnabled) {
+        e.preventDefault();
+        setMagnetismDebugFrozen(prev => {
+          if (!prev) {
+            // Freeze: capture current state
+            frozenMagnetismDebugRef.current = magnetismDebugRef.current 
+              ? { ...magnetismDebugRef.current }
+              : null;
+            return true;
+          } else {
+            // Unfreeze
+            frozenMagnetismDebugRef.current = null;
+            return false;
+          }
+        });
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -634,7 +656,7 @@ export const MazeGame3D = ({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, []);
+  }, [debugMode, skeletonEnabled]);
 
   // Mobile controls now handled by MobileControls component with refs
 
@@ -876,7 +898,7 @@ export const MazeGame3D = ({
         showPrunedSpurs={showPrunedSpurs}
         spurConfig={spurConfig}
         magnetismConfig={magnetismConfig}
-        magnetismDebugRef={magnetismDebugRef}
+        magnetismDebugRef={magnetismDebugFrozen ? frozenMagnetismDebugRef : magnetismDebugRef}
         showMagnetTarget={showMagnetTarget}
         showMagnetVector={showMagnetVector}
         onDefaultSpurConfig={(config) => {
@@ -972,7 +994,8 @@ export const MazeGame3D = ({
           onToggleShowMagnetTarget={() => setShowMagnetTarget(prev => !prev)}
           showMagnetVector={showMagnetVector}
           onToggleShowMagnetVector={() => setShowMagnetVector(prev => !prev)}
-          magnetismDebugRef={magnetismDebugRef}
+          magnetismDebugRef={magnetismDebugFrozen ? frozenMagnetismDebugRef : magnetismDebugRef}
+          magnetismDebugFrozen={magnetismDebugFrozen}
           playerRotation={playerStateRef.current.rotation}
         />
       )}
