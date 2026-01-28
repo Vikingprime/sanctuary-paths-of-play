@@ -1311,10 +1311,12 @@ const RefBasedPlayer = ({
         const player = playerStateRef.current;
         
         // Calculate turn correction based on alignment with corridor spine
+        // Use visual rotation (matches mesh rotation) for sensing points
+        const visualRotation = -player.rotation + Math.PI;
         const magnetResult = calculateMagnetismTurn(
           player.x,
           player.y,
-          player.rotation,
+          visualRotation,
           magnetismCacheRef.current,
           config,
           magnetismTurnStateRef.current,
