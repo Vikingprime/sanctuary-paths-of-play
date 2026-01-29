@@ -78,12 +78,13 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation }: MagnetismCompas
   const spineX = center + Math.sin(adjustedSpineAngle) * radius;
   const spineY = center - Math.cos(adjustedSpineAngle) * radius;
   
-  // Applied turn correction - shows where the magnetism is trying to turn the animal
+  // Target direction - where magnetism WANTS the animal to face (animal angle + raw angle diff)
   const appliedCorrection = debug.appliedTurnCorrection ?? 0;
-  const turnVectorAngle = animalAngle + appliedCorrection;
-  const turnVectorRadius = radius * 0.7; // Slightly shorter than main vectors
-  const turnVectorX = center + Math.sin(turnVectorAngle) * turnVectorRadius;
-  const turnVectorY = center - Math.cos(turnVectorAngle) * turnVectorRadius;
+  const rawAngleDiff = debug.rawAngleDiff ?? 0;
+  const targetAngle = animalAngle + rawAngleDiff; // This is the target facing direction
+  const turnVectorRadius = radius * 0.85;
+  const turnVectorX = center + Math.sin(targetAngle) * turnVectorRadius;
+  const turnVectorY = center - Math.cos(targetAngle) * turnVectorRadius;
   
   // Turn correction arc
   const correctionAngle = debug.rawAngleDiff;
@@ -143,8 +144,8 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation }: MagnetismCompas
             transform={`rotate(${(animalAngle * 180 / Math.PI)}, ${animalX}, ${animalY})`}
           />
           
-          {/* Applied Turn Vector (magenta) - shows what correction is being applied */}
-          {Math.abs(appliedCorrection) > 0.001 && (
+          {/* Target Direction Vector (magenta) - where magnetism wants the animal to face */}
+          {Math.abs(rawAngleDiff) > 0.01 && (
             <>
               <line 
                 x1={center} 
@@ -183,7 +184,8 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation }: MagnetismCompas
             )}>{debug.nearestDegree}</span>
           </div>
           <div className="text-gray-400">
-            Turn: <span className="text-fuchsia-400">{(appliedCorrection * 180 / Math.PI).toFixed(1)}°</span>
+            Target: <span className="text-fuchsia-400">{(rawAngleDiff * 180 / Math.PI).toFixed(1)}°</span>
+            <span className="text-gray-500 ml-1">Applied: {(appliedCorrection * 180 / Math.PI).toFixed(1)}°</span>
           </div>
           <div className="text-[8px] mt-1">
             <span className="text-yellow-400">━</span> Animal
