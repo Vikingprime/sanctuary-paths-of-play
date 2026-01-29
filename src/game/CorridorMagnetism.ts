@@ -131,7 +131,7 @@ const CELL_SIZE = GameConfig.CELL_SIZE;
 
 export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
   deadzone: 0.1,                      // ~6 degrees
-  maxStrength: 0.25,                  // 25% of full turn
+  maxStrength: 0.8,                   // 80% of full turn (was 25%, too weak)
   smoothingTau: 0.15,                 // 150ms smoothing
   decayRate: 3.0,                     // Decay over ~0.3s
   backOffset: 0.2,                    // Distance to back sensing point
