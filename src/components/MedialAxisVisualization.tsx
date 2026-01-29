@@ -361,7 +361,7 @@ function MagnetismDebugOverlay({
   height,
 }: MagnetismDebugOverlayProps) {
   // Create reusable geometries and materials
-  const { targetGeometry, sensingGeometry, arrowGeometry, targetMaterials, arrowMaterial, tangentMaterial, backMaterial, frontMaterial } = useMemo(() => {
+  const { targetGeometry, sensingGeometry, arrowGeometry, targetMaterials, arrowMaterial, tangentLineMaterial, backMaterial, frontMaterial } = useMemo(() => {
     return {
       targetGeometry: new THREE.SphereGeometry(0.15, 12, 8), // Larger, more visible
       sensingGeometry: new THREE.SphereGeometry(0.08, 8, 6), // Back/front sensing points
@@ -372,7 +372,7 @@ function MagnetismDebugOverlay({
         inactive: new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.5 }),
       },
       arrowMaterial: new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.7 }),
-      tangentMaterial: new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 }),
+      tangentLineMaterial: new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 3, transparent: true, opacity: 0.9 }),
       backMaterial: new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.8 }), // Orange for back
       frontMaterial: new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8 }), // Yellow for front
     };
@@ -441,16 +441,29 @@ function MagnetismDebugOverlay({
         </group>
       )}
       
-      {/* Tangent Direction Indicator (at spine point) - ALWAYS show when showTarget is true */}
+      {/* Tangent Direction Line (at spine point) - ALWAYS show when showTarget is true */}
       {showTarget && (
-        <group position={[debug.spineX, height + 0.08, debug.spineZ]}>
-          {/* CylinderGeometry is Y-up, so rotate X by 90° to make it horizontal (pointing +Z), then rotate Y to align with tangent */}
-          <mesh
-            geometry={arrowGeometry}
-            material={tangentMaterial}
-            rotation={[Math.PI / 2, Math.atan2(debug.tangentX, debug.tangentZ), 0]}
-            scale={[0.8, 0.6, 0.8]}
-          />
+        <group position={[debug.spineX, height + 0.15, debug.spineZ]}>
+          {/* Draw a line in the tangent direction - 1.0 unit long in each direction */}
+          <line>
+            <bufferGeometry>
+              <bufferAttribute
+                attach="attributes-position"
+                count={2}
+                array={new Float32Array([
+                  -debug.tangentX * 0.8, 0, -debug.tangentZ * 0.8,  // Start point (backwards)
+                  debug.tangentX * 0.8, 0, debug.tangentZ * 0.8,   // End point (forwards)
+                ])}
+                itemSize={3}
+              />
+            </bufferGeometry>
+            <lineBasicMaterial color={0x00ffff} linewidth={3} />
+          </line>
+          {/* Add end sphere to show direction */}
+          <mesh position={[debug.tangentX * 0.8, 0, debug.tangentZ * 0.8]}>
+            <sphereGeometry args={[0.1, 8, 6]} />
+            <meshBasicMaterial color={0x00ffff} />
+          </mesh>
         </group>
       )}
     </group>
