@@ -681,7 +681,7 @@ export const MazeGame3D = ({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [debugMode]);
+  }, [debugMode, magnetismDebugFrozen]);
 
   // Mobile controls now handled by MobileControls component with refs
 
