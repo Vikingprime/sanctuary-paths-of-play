@@ -126,6 +126,7 @@ export const MazeGame3D = ({
   // Magnetism debug freeze state - for taking screenshots
   const [magnetismDebugFrozen, setMagnetismDebugFrozen] = useState(false);
   const frozenMagnetismDebugRef = useRef<MagnetismTurnResult['debug'] | null>(null);
+  const frozenPlayerRotationRef = useRef<number>(0); // Frozen player rotation for debug snapshot
   const lastSpacebarTimeRef = useRef<number>(0); // Debounce spacebar to prevent double-firing
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
@@ -637,9 +638,10 @@ export const MazeGame3D = ({
         }
         lastSpacebarTimeRef.current = now;
         
-        // Always capture current data
+        // Always capture current data including player rotation
         const current = magnetismDebugRef.current;
         frozenMagnetismDebugRef.current = current ? JSON.parse(JSON.stringify(current)) : null;
+        frozenPlayerRotationRef.current = playerStateRef.current.rotation;
         
         // If not already frozen, freeze it. If frozen, just update the snapshot.
         if (!magnetismDebugFrozen) {
@@ -1016,7 +1018,7 @@ export const MazeGame3D = ({
           onToggleShowMagnetVector={() => setShowMagnetVector(prev => !prev)}
           magnetismDebugRef={magnetismDebugFrozen ? frozenMagnetismDebugRef : magnetismDebugRef}
           magnetismDebugFrozen={magnetismDebugFrozen}
-          playerRotation={playerStateRef.current.rotation}
+          playerRotation={magnetismDebugFrozen ? frozenPlayerRotationRef.current : playerStateRef.current.rotation}
         />
       )}
 
