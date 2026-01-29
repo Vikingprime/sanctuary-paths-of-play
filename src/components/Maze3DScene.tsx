@@ -1313,9 +1313,6 @@ const RefBasedPlayer = ({
         // Calculate turn correction based on alignment with corridor spine
         // Use visual rotation (matches mesh rotation) for sensing points
         const visualRotation = -player.rotation + Math.PI;
-        // Pass joystick X as turn intent so magnetism picks the tangent direction
-        // that matches where the user wants to turn
-        const turnIntent = mobileActive ? joyX : 0;
         const magnetResult = calculateMagnetismTurn(
           player.x,
           player.y,
@@ -1323,8 +1320,7 @@ const RefBasedPlayer = ({
           magnetismCacheRef.current,
           config,
           magnetismTurnStateRef.current,
-          clampedDelta,
-          turnIntent
+          clampedDelta
         );
         
         // Apply turn correction to player rotation
