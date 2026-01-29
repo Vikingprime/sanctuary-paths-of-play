@@ -321,7 +321,9 @@ export function calculateMagnetismTurn(
   cache: MagnetismCache,
   config: MagnetismConfig,
   state: MagnetismTurnState,
-  delta: number
+  delta: number,
+  /** User's turn intent from joystick X (-1 = turning left, +1 = turning right, 0 = no preference) */
+  turnIntent: number = 0
 ): MagnetismTurnResult {
   const noOpResult: MagnetismTurnResult = {
     turnCorrection: 0,
@@ -428,21 +430,42 @@ export function calculateMagnetismTurn(
   const spineAngle = Math.atan2(tx, tz);
   
   // The spine tangent has two possible directions (±180°)
-  // Use hysteresis to prevent flip-flopping when near the boundary
+  // We need to pick the one that aligns with where the user WANTS to go
   const angleDiffPositive = normalizeAngle(spineAngle - animalAngle);
   const angleDiffNegative = normalizeAngle(spineAngle + Math.PI - animalAngle);
   
-  // Determine which direction is currently closer
-  const usePositive = Math.abs(angleDiffPositive) <= Math.abs(angleDiffNegative);
+  // Determine which direction to use based on user's turn intent
+  // If user is turning right (turnIntent > 0), prefer direction requiring right turn (positive angleDiff)
+  // If user is turning left (turnIntent < 0), prefer direction requiring left turn (negative angleDiff)
+  let usePositive: boolean;
+  
+  if (Math.abs(turnIntent) > 0.1) {
+    // User has a turning preference - use it to pick tangent direction
+    // turnIntent > 0 means turning right, which matches positive angleDiff
+    // turnIntent < 0 means turning left, which matches negative angleDiff
+    if (turnIntent > 0) {
+      // User wants to turn right - pick the direction that has positive (right turn) angleDiff
+      // or is closer to positive
+      usePositive = angleDiffPositive >= 0 || Math.abs(angleDiffPositive) <= Math.abs(angleDiffNegative);
+    } else {
+      // User wants to turn left - pick the direction that has negative (left turn) angleDiff
+      usePositive = angleDiffPositive < 0 && Math.abs(angleDiffPositive) <= Math.abs(angleDiffNegative);
+    }
+  } else {
+    // No user input - use closest direction (original behavior)
+    usePositive = Math.abs(angleDiffPositive) <= Math.abs(angleDiffNegative);
+  }
+  
   const currentPreferredSign = usePositive ? 1 : -1;
   
   // Hysteresis: only switch committed direction if the difference is significant (>15 degrees)
+  // But if user has clear intent, bypass hysteresis
   const hysteresisThreshold = 0.26; // ~15 degrees
   const currentAngleDiff = usePositive ? angleDiffPositive : angleDiffNegative;
   const committedAngleDiff = state.committedSign > 0 ? angleDiffPositive : angleDiffNegative;
   
-  // Switch only if the new direction is significantly better
-  if (Math.abs(currentAngleDiff) < Math.abs(committedAngleDiff) - hysteresisThreshold) {
+  // Switch if: user has clear intent OR new direction is significantly better
+  if (Math.abs(turnIntent) > 0.3 || Math.abs(currentAngleDiff) < Math.abs(committedAngleDiff) - hysteresisThreshold) {
     state.committedSign = currentPreferredSign;
   }
   
