@@ -1120,7 +1120,7 @@ const RefBasedPlayer = ({
   
   // Magnetism state (turn-based)
   const magnetismCacheRef = useRef<MagnetismCache | null>(null);
-  const magnetismTurnStateRef = useRef<MagnetismTurnState>({ currentCorrection: 0, initialized: false, committedSign: 1 });
+  const magnetismTurnStateRef = useRef<MagnetismTurnState>({ currentCorrection: 0, initialized: false, committedSign: 1, lastNearestFx: -1, lastNearestFy: -1, lockDuration: 0 });
   
   // Build magnetism cache when maze changes
   useMemo(() => {
