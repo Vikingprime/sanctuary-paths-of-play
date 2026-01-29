@@ -1023,6 +1023,10 @@ export const MazeGame3D = ({
           magnetismDebugFrozen={magnetismDebugFrozen}
           frozenMagnetismData={frozenMagnetismData}
           playerRotation={magnetismDebugFrozen ? frozenPlayerRotation : playerStateRef.current.rotation}
+          onUnpauseMagnetism={() => {
+            setMagnetismDebugFrozen(false);
+            setFrozenMagnetismData(null);
+          }}
         />
       )}
 
