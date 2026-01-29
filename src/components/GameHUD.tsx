@@ -293,6 +293,8 @@ interface GameHUDProps {
   /** Frozen snapshot data - used when magnetismDebugFrozen is true */
   frozenMagnetismData?: MagnetismTurnResult['debug'] | null;
   playerRotation?: number;
+  /** Callback to unpause magnetism debug */
+  onUnpauseMagnetism?: () => void;
 }
 
 export const GameHUD = ({
@@ -365,6 +367,7 @@ export const GameHUD = ({
   magnetismDebugFrozen = false,
   frozenMagnetismData,
   playerRotation = 0,
+  onUnpauseMagnetism,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -1061,8 +1064,16 @@ export const GameHUD = ({
                       frozenData={magnetismDebugFrozen ? frozenMagnetismData : undefined}
                     />
                     {magnetismDebugFrozen && (
-                      <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-blue-500 text-white text-[8px] font-bold rounded animate-pulse">
-                        ⏸ PAUSED (Space=refresh, Esc=live)
+                      <div className="absolute top-1 right-1 flex items-center gap-1">
+                        <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[8px] font-bold rounded animate-pulse">
+                          ⏸ PAUSED
+                        </span>
+                        <button
+                          onClick={onUnpauseMagnetism}
+                          className="px-1.5 py-0.5 bg-green-600 hover:bg-green-500 text-white text-[8px] font-bold rounded transition-colors"
+                        >
+                          ▶ Resume
+                        </button>
                       </div>
                     )}
                   </div>
