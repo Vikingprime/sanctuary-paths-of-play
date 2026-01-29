@@ -37,6 +37,8 @@ export const DEFAULT_SENSITIVITY: SensitivityConfig = {
 interface MagnetismCompassProps {
   magnetismDebugRef: MutableRefObject<MagnetismTurnResult['debug'] | null>;
   playerRotation: number;
+  /** When provided, use this frozen snapshot instead of live ref data */
+  frozenData?: MagnetismTurnResult['debug'] | null;
 }
 
 /**
@@ -46,8 +48,9 @@ interface MagnetismCompassProps {
  * - Shows angle difference and turn correction
  * - Highlights nearest spine point info
  */
-function MagnetismCompass({ magnetismDebugRef, playerRotation }: MagnetismCompassProps) {
-  const debug = magnetismDebugRef.current;
+function MagnetismCompass({ magnetismDebugRef, playerRotation, frozenData }: MagnetismCompassProps) {
+  // Use frozen data if provided, otherwise read from live ref
+  const debug = frozenData !== undefined ? frozenData : magnetismDebugRef.current;
   
   if (!debug) {
     return (
@@ -285,6 +288,8 @@ interface GameHUDProps {
   // Magnetism debug data for HUD visualization
   magnetismDebugRef?: MutableRefObject<MagnetismTurnResult['debug'] | null>;
   magnetismDebugFrozen?: boolean;
+  /** Frozen snapshot data - used when magnetismDebugFrozen is true */
+  frozenMagnetismData?: MagnetismTurnResult['debug'] | null;
   playerRotation?: number;
 }
 
@@ -356,6 +361,7 @@ export const GameHUD = ({
   onToggleShowMagnetVector,
   magnetismDebugRef,
   magnetismDebugFrozen = false,
+  frozenMagnetismData,
   playerRotation = 0,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
@@ -1050,6 +1056,7 @@ export const GameHUD = ({
                     <MagnetismCompass 
                       magnetismDebugRef={magnetismDebugRef}
                       playerRotation={playerRotation}
+                      frozenData={magnetismDebugFrozen ? frozenMagnetismData : undefined}
                     />
                     {magnetismDebugFrozen && (
                       <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-blue-500 text-white text-[8px] font-bold rounded animate-pulse">
