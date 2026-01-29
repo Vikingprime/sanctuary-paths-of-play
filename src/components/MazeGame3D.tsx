@@ -624,29 +624,27 @@ export const MazeGame3D = ({
       
       keysPressed.current.add(e.key.toLowerCase());
       
-      // Spacebar: Toggle magnetism debug freeze (only in debug mode with skeleton enabled)
-      if (e.key === ' ' && debugMode && skeletonEnabled) {
+      // Spacebar: Toggle magnetism debug freeze (works in debug mode regardless of skeleton visibility)
+      if (e.key === ' ' && debugMode) {
         e.preventDefault();
-        e.stopPropagation(); // Prevent any other listeners from receiving this
+        e.stopPropagation();
         
-        // Use a ref-based debounce to prevent double firing
+        // Debounce to prevent double firing
         const now = Date.now();
         if (now - lastSpacebarTimeRef.current < 200) {
-          console.log('[DEBUG] Spacebar debounced (too fast)');
           return;
         }
         lastSpacebarTimeRef.current = now;
         
+        console.log('[FREEZE] Spacebar pressed - toggling freeze');
+        
         setMagnetismDebugFrozen(prev => {
           const newFrozen = !prev;
-          console.log('[DEBUG] Toggling magnetism freeze to:', newFrozen);
+          console.log('[FREEZE] Freeze state now:', newFrozen);
           if (newFrozen) {
-            // Freeze: capture current state with deep copy
             const current = magnetismDebugRef.current;
             frozenMagnetismDebugRef.current = current ? JSON.parse(JSON.stringify(current)) : null;
-            console.log('[DEBUG] Captured frozen state:', frozenMagnetismDebugRef.current);
           } else {
-            // Unfreeze
             frozenMagnetismDebugRef.current = null;
           }
           return newFrozen;
@@ -671,7 +669,7 @@ export const MazeGame3D = ({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [debugMode, skeletonEnabled]);
+  }, [debugMode]);
 
   // Mobile controls now handled by MobileControls component with refs
 
