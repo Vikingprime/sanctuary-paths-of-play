@@ -86,11 +86,13 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation, frozenData }: Mag
   const spineX = center + Math.sin(localSpineAngle) * radius;
   const spineY = center - Math.cos(localSpineAngle) * radius;
   
-  // Target direction - where magnetism WANTS the animal to face (relative to current facing)
+  // Target direction - where magnetism WANTS the animal to face
+  // This should be the same direction as the tangent (cyan), just shown as dashed to indicate "target"
   const appliedCorrection = debug.appliedTurnCorrection ?? 0;
   const rawAngleDiff = debug.rawAngleDiff ?? 0;
-  // In animal-relative space, target is just the raw angle diff from forward
-  const localTargetAngle = rawAngleDiff;
+  // Target is the tangent direction (where we want to go), not the turn direction
+  // So we use localSpineAngle which already points toward the tangent
+  const localTargetAngle = localSpineAngle;
   const turnVectorRadius = radius * 0.85;
   const turnVectorX = center + Math.sin(localTargetAngle) * turnVectorRadius;
   const turnVectorY = center - Math.cos(localTargetAngle) * turnVectorRadius;
