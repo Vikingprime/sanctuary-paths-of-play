@@ -1304,9 +1304,9 @@ const RefBasedPlayer = ({
         moveSpeedRef.current = 0;
       }
       
-      // === MAGNETISM: Apply turn-based corridor alignment ===
-      // Uses back/front sensing points to calculate alignment with spine
-      if (magnetismConfig?.enabled && magnetismCacheRef.current && isMovingRef.current) {
+      // === MAGNETISM: Calculate turn-based corridor alignment ===
+      // Always calculate for debug visualization, but only apply correction when moving
+      if (magnetismConfig?.enabled && magnetismCacheRef.current) {
         const config = magnetismConfig || DEFAULT_MAGNETISM_CONFIG;
         const player = playerStateRef.current;
         
@@ -1323,8 +1323,8 @@ const RefBasedPlayer = ({
           clampedDelta
         );
         
-        // Apply turn correction to player rotation
-        if (magnetResult.turnCorrection !== 0) {
+        // Only apply turn correction when actually moving
+        if (isMovingRef.current && magnetResult.turnCorrection !== 0) {
           // Negate the correction because it was calculated in visual space (inverted rotation)
           const newRotation = normalizeAngle(player.rotation - magnetResult.turnCorrection);
           // Convert to 0-2PI range for consistency
@@ -1337,12 +1337,12 @@ const RefBasedPlayer = ({
           };
         }
         
-        // Update debug ref for visualization
+        // Update debug ref for visualization (always, even when stationary)
         if (magnetismDebugRef) {
           magnetismDebugRef.current = magnetResult.debug;
         }
       } else if (magnetismDebugRef) {
-        // Clear debug when not active
+        // Clear debug when magnetism disabled
         magnetismDebugRef.current = null;
       }
       
