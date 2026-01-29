@@ -1325,7 +1325,8 @@ const RefBasedPlayer = ({
         
         // Apply turn correction to player rotation
         if (magnetResult.turnCorrection !== 0) {
-          const newRotation = normalizeAngle(player.rotation + magnetResult.turnCorrection);
+          // Negate the correction because it was calculated in visual space (inverted rotation)
+          const newRotation = normalizeAngle(player.rotation - magnetResult.turnCorrection);
           // Convert to 0-2PI range for consistency
           let normalizedRotation = newRotation;
           if (normalizedRotation < 0) normalizedRotation += Math.PI * 2;
