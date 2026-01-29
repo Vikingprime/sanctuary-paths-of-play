@@ -62,9 +62,15 @@ export interface MagnetismTurnResult {
     /** Target point on spine for visualization */
     targetX: number;
     targetZ: number;
-    /** Spine tangent direction */
+    /** Spine tangent direction (normalized) */
     tangentX: number;
     tangentZ: number;
+    /** Neighbor 1 position (world space) - for visualization */
+    neighbor1X: number;
+    neighbor1Z: number;
+    /** Neighbor 2 position (world space) - for visualization */
+    neighbor2X: number;
+    neighbor2Z: number;
     /** Raw angle difference before smoothing */
     rawAngleDiff: number;
     /** Whether magnetism is active */
@@ -341,6 +347,10 @@ export function calculateMagnetismTurn(
       targetZ: playerZ,
       tangentX: 0,
       tangentZ: 1,
+      neighbor1X: playerX,
+      neighbor1Z: playerZ,
+      neighbor2X: playerX,
+      neighbor2Z: playerZ,
       rawAngleDiff: 0,
       isActive: false,
       strengthMultiplier: 0,
@@ -405,6 +415,10 @@ export function calculateMagnetismTurn(
         targetZ: nearest.wz,
         tangentX: 0,
         tangentZ: 1,
+        neighbor1X: nearest.neighbors[0]?.wx ?? nearest.wx,
+        neighbor1Z: nearest.neighbors[0]?.wz ?? nearest.wz,
+        neighbor2X: nearest.neighbors[1]?.wx ?? nearest.wx,
+        neighbor2Z: nearest.neighbors[1]?.wz ?? nearest.wz,
         rawAngleDiff: 0,
         isActive: false,
         strengthMultiplier: 0,
@@ -498,6 +512,10 @@ export function calculateMagnetismTurn(
       targetZ: nearest.wz,
       tangentX: tx,
       tangentZ: tz,
+      neighbor1X: nearest.neighbors[0]?.wx ?? nearest.wx,
+      neighbor1Z: nearest.neighbors[0]?.wz ?? nearest.wz,
+      neighbor2X: nearest.neighbors[1]?.wx ?? nearest.wx,
+      neighbor2Z: nearest.neighbors[1]?.wz ?? nearest.wz,
       rawAngleDiff,
       isActive,
       strengthMultiplier: strengthScale * distFactor,

@@ -441,28 +441,32 @@ function MagnetismDebugOverlay({
         </group>
       )}
       
-      {/* Tangent Direction Line (at spine point) - ALWAYS show when showTarget is true */}
+      {/* Tangent Line: Draw actual line from neighbor1 to neighbor2 through spine point */}
       {showTarget && (
-        <group position={[debug.spineX, height + 0.15, debug.spineZ]}>
-          {/* Draw a line in the tangent direction - 1.0 unit long in each direction */}
+        <group>
+          {/* Line connecting the two neighbors (this IS the tangent) */}
           <line>
             <bufferGeometry>
               <bufferAttribute
                 attach="attributes-position"
                 count={2}
                 array={new Float32Array([
-                  -debug.tangentX * 0.8, 0, -debug.tangentZ * 0.8,  // Start point (backwards)
-                  debug.tangentX * 0.8, 0, debug.tangentZ * 0.8,   // End point (forwards)
+                  debug.neighbor1X, height + 0.15, debug.neighbor1Z,  // Neighbor 1
+                  debug.neighbor2X, height + 0.15, debug.neighbor2Z,  // Neighbor 2
                 ])}
                 itemSize={3}
               />
             </bufferGeometry>
             <lineBasicMaterial color={0x00ffff} linewidth={3} />
           </line>
-          {/* Add end sphere to show direction */}
-          <mesh position={[debug.tangentX * 0.8, 0, debug.tangentZ * 0.8]}>
-            <sphereGeometry args={[0.1, 8, 6]} />
-            <meshBasicMaterial color={0x00ffff} />
+          {/* Small spheres at neighbor positions */}
+          <mesh position={[debug.neighbor1X, height + 0.15, debug.neighbor1Z]}>
+            <sphereGeometry args={[0.08, 8, 6]} />
+            <meshBasicMaterial color={0xff00ff} />
+          </mesh>
+          <mesh position={[debug.neighbor2X, height + 0.15, debug.neighbor2Z]}>
+            <sphereGeometry args={[0.08, 8, 6]} />
+            <meshBasicMaterial color={0xff00ff} />
           </mesh>
         </group>
       )}
