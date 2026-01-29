@@ -77,6 +77,8 @@ export interface MagnetismTurnResult {
     isJunctionSuppressed: boolean;
     /** Degree of nearest skeleton pixel */
     nearestDegree: number;
+    /** Final smoothed turn correction being applied (radians) */
+    appliedTurnCorrection: number;
   };
 }
 
@@ -341,6 +343,7 @@ export function calculateMagnetismTurn(
       crossDist: 0,
       isJunctionSuppressed: false,
       nearestDegree: 0,
+      appliedTurnCorrection: 0,
     },
   };
   
@@ -455,6 +458,7 @@ export function calculateMagnetismTurn(
       crossDist,
       isJunctionSuppressed: isJunction,
       nearestDegree: nearest.degree,
+      appliedTurnCorrection: state.currentCorrection,
     },
   };
 }
