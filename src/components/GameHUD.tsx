@@ -1047,7 +1047,7 @@ export const GameHUD = ({
                     />
                     {magnetismDebugFrozen && (
                       <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-blue-500 text-white text-[8px] font-bold rounded animate-pulse">
-                        ⏸ FROZEN (Space)
+                        ⏸ PAUSED (Space=refresh, Esc=live)
                       </div>
                     )}
                   </div>
