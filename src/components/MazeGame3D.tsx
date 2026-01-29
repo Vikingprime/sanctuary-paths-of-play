@@ -124,9 +124,10 @@ export const MazeGame3D = ({
   const magnetismDebugRef = useRef<MagnetismTurnResult['debug'] | null>(null);
   
   // Magnetism debug freeze state - for taking screenshots
+  // Using state (not ref) for frozen data so React re-renders when it changes
   const [magnetismDebugFrozen, setMagnetismDebugFrozen] = useState(false);
-  const frozenMagnetismDebugRef = useRef<MagnetismTurnResult['debug'] | null>(null);
-  const frozenPlayerRotationRef = useRef<number>(0); // Frozen player rotation for debug snapshot
+  const [frozenMagnetismData, setFrozenMagnetismData] = useState<MagnetismTurnResult['debug'] | null>(null);
+  const [frozenPlayerRotation, setFrozenPlayerRotation] = useState<number>(0);
   const lastSpacebarTimeRef = useRef<number>(0); // Debounce spacebar to prevent double-firing
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
@@ -638,17 +639,18 @@ export const MazeGame3D = ({
         }
         lastSpacebarTimeRef.current = now;
         
-        // Always capture current data including player rotation
+        // Capture current data as state (triggers re-render)
         const current = magnetismDebugRef.current;
-        frozenMagnetismDebugRef.current = current ? JSON.parse(JSON.stringify(current)) : null;
-        frozenPlayerRotationRef.current = playerStateRef.current.rotation;
+        const snapshot = current ? JSON.parse(JSON.stringify(current)) : null;
+        setFrozenMagnetismData(snapshot);
+        setFrozenPlayerRotation(playerStateRef.current.rotation);
         
         // If not already frozen, freeze it. If frozen, just update the snapshot.
         if (!magnetismDebugFrozen) {
-          console.log('[FREEZE] Spacebar - entering frozen mode');
+          console.log('[FREEZE] Spacebar - entering frozen mode', snapshot);
           setMagnetismDebugFrozen(true);
         } else {
-          console.log('[FREEZE] Spacebar - refreshing frozen snapshot');
+          console.log('[FREEZE] Spacebar - refreshing frozen snapshot', snapshot);
         }
       }
       
@@ -657,7 +659,7 @@ export const MazeGame3D = ({
         e.preventDefault();
         console.log('[FREEZE] Escape - returning to live mode');
         setMagnetismDebugFrozen(false);
-        frozenMagnetismDebugRef.current = null;
+        setFrozenMagnetismData(null);
       }
     };
 
@@ -920,7 +922,7 @@ export const MazeGame3D = ({
         showPrunedSpurs={showPrunedSpurs}
         spurConfig={spurConfig}
         magnetismConfig={magnetismConfig}
-        magnetismDebugRef={magnetismDebugFrozen ? frozenMagnetismDebugRef : magnetismDebugRef}
+        magnetismDebugRef={magnetismDebugRef}
         showMagnetTarget={showMagnetTarget}
         showMagnetVector={showMagnetVector}
         onDefaultSpurConfig={(config) => {
@@ -1016,9 +1018,10 @@ export const MazeGame3D = ({
           onToggleShowMagnetTarget={() => setShowMagnetTarget(prev => !prev)}
           showMagnetVector={showMagnetVector}
           onToggleShowMagnetVector={() => setShowMagnetVector(prev => !prev)}
-          magnetismDebugRef={magnetismDebugFrozen ? frozenMagnetismDebugRef : magnetismDebugRef}
+          magnetismDebugRef={magnetismDebugRef}
           magnetismDebugFrozen={magnetismDebugFrozen}
-          playerRotation={magnetismDebugFrozen ? frozenPlayerRotationRef.current : playerStateRef.current.rotation}
+          frozenMagnetismData={frozenMagnetismData}
+          playerRotation={magnetismDebugFrozen ? frozenPlayerRotation : playerStateRef.current.rotation}
         />
       )}
 
