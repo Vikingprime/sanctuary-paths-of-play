@@ -78,6 +78,13 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation }: MagnetismCompas
   const spineX = center + Math.sin(adjustedSpineAngle) * radius;
   const spineY = center - Math.cos(adjustedSpineAngle) * radius;
   
+  // Applied turn correction - shows where the magnetism is trying to turn the animal
+  const appliedCorrection = debug.appliedTurnCorrection ?? 0;
+  const turnVectorAngle = animalAngle + appliedCorrection;
+  const turnVectorRadius = radius * 0.7; // Slightly shorter than main vectors
+  const turnVectorX = center + Math.sin(turnVectorAngle) * turnVectorRadius;
+  const turnVectorY = center - Math.cos(turnVectorAngle) * turnVectorRadius;
+  
   // Turn correction arc
   const correctionAngle = debug.rawAngleDiff;
   const isActive = debug.isActive;
@@ -136,6 +143,23 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation }: MagnetismCompas
             transform={`rotate(${(animalAngle * 180 / Math.PI)}, ${animalX}, ${animalY})`}
           />
           
+          {/* Applied Turn Vector (magenta) - shows what correction is being applied */}
+          {Math.abs(appliedCorrection) > 0.001 && (
+            <>
+              <line 
+                x1={center} 
+                y1={center} 
+                x2={turnVectorX} 
+                y2={turnVectorY} 
+                stroke="#ff00ff" 
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray="4,2"
+              />
+              <circle cx={turnVectorX} cy={turnVectorY} r={4} fill="#ff00ff" />
+            </>
+          )}
+          
           {/* Center dot */}
           <circle cx={center} cy={center} r={3} fill={statusColor} />
         </svg>
@@ -157,6 +181,9 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation }: MagnetismCompas
               debug.nearestDegree >= 3 ? 'text-red-400' : 
               debug.nearestDegree === 2 ? 'text-cyan-400' : 'text-yellow-400'
             )}>{debug.nearestDegree}</span>
+          </div>
+          <div className="text-gray-400">
+            Turn: <span className="text-fuchsia-400">{(appliedCorrection * 180 / Math.PI).toFixed(1)}°</span>
           </div>
           <div className="text-[8px] mt-1">
             <span className="text-yellow-400">━</span> Animal
