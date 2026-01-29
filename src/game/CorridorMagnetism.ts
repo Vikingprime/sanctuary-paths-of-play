@@ -121,6 +121,11 @@ export interface MagnetismTurnState {
   initialized: boolean;
   /** Committed tangent direction sign (+1 or -1) for hysteresis */
   committedSign: number;
+  /** Last locked skeleton pixel (fine grid coords) for sticky selection */
+  lastNearestFx: number;
+  lastNearestFy: number;
+  /** Time the current point has been locked (for stability) */
+  lockDuration: number;
 }
 
 // ============================================================================
@@ -373,6 +378,9 @@ export function calculateMagnetismTurn(
   if (!state.initialized) {
     state.currentCorrection = 0;
     state.committedSign = 1;
+    state.lastNearestFx = -1;
+    state.lastNearestFy = -1;
+    state.lockDuration = 0;
     state.initialized = true;
   }
   
@@ -387,11 +395,58 @@ export function calculateMagnetismTurn(
   const frontZ = playerZ + facingZ * config.frontOffset;
   
   // Find nearest skeleton pixel to front (head) point for better anticipation
-  const nearest = findNearestSkeletonPixel(frontX, frontZ, cache);
-  if (!nearest) {
+  const candidateNearest = findNearestSkeletonPixel(frontX, frontZ, cache);
+  if (!candidateNearest) {
     // Decay and return
     state.currentCorrection *= Math.exp(-config.decayRate * delta);
+    state.lastNearestFx = -1;
+    state.lastNearestFy = -1;
+    state.lockDuration = 0;
     return { ...noOpResult, turnCorrection: state.currentCorrection };
+  }
+  
+  // Sticky skeleton point selection:
+  // Once locked to a point, only switch if:
+  // 1. The new point is significantly closer (>30% closer), OR
+  // 2. The locked point is no longer valid (outside search radius)
+  let nearest = candidateNearest;
+  const candidateDist = Math.sqrt((frontX - candidateNearest.wx) ** 2 + (frontZ - candidateNearest.wz) ** 2);
+  
+  if (state.lastNearestFx >= 0 && state.lastNearestFy >= 0) {
+    // Try to find the previously locked point
+    const lockedPixel = cache.skeletonPixels.find(
+      p => p.fx === state.lastNearestFx && p.fy === state.lastNearestFy
+    );
+    
+    if (lockedPixel) {
+      const lockedDist = Math.sqrt((frontX - lockedPixel.wx) ** 2 + (frontZ - lockedPixel.wz) ** 2);
+      const maxSearchRadius = 4.0;
+      
+      // Stick to locked point unless candidate is significantly better
+      // Require 30% closer OR locked point is too far
+      const switchThreshold = 0.70; // New point must be 70% of locked distance (30% closer)
+      const shouldSwitch = lockedDist > maxSearchRadius || candidateDist < lockedDist * switchThreshold;
+      
+      if (!shouldSwitch) {
+        nearest = lockedPixel;
+        state.lockDuration += delta;
+      } else {
+        // Switching to new point
+        state.lastNearestFx = candidateNearest.fx;
+        state.lastNearestFy = candidateNearest.fy;
+        state.lockDuration = 0;
+      }
+    } else {
+      // Locked point no longer exists, use candidate
+      state.lastNearestFx = candidateNearest.fx;
+      state.lastNearestFy = candidateNearest.fy;
+      state.lockDuration = 0;
+    }
+  } else {
+    // No locked point, use candidate
+    state.lastNearestFx = candidateNearest.fx;
+    state.lastNearestFy = candidateNearest.fy;
+    state.lockDuration = 0;
   }
   
   // Get tangent at skeleton point - returns null for junctions (no turn correction)
