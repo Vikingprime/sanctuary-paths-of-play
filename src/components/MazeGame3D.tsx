@@ -639,18 +639,19 @@ export const MazeGame3D = ({
         }
         lastSpacebarTimeRef.current = now;
         
-        // Capture current data as state (triggers re-render)
-        const current = magnetismDebugRef.current;
-        const snapshot = current ? JSON.parse(JSON.stringify(current)) : null;
-        setFrozenMagnetismData(snapshot);
-        setFrozenPlayerRotation(playerStateRef.current.rotation);
-        
-        // If not already frozen, freeze it. If frozen, just update the snapshot.
-        if (!magnetismDebugFrozen) {
+        // Toggle frozen state: if frozen, unpause; if live, freeze
+        if (magnetismDebugFrozen) {
+          console.log('[FREEZE] Spacebar - returning to live mode');
+          setMagnetismDebugFrozen(false);
+          setFrozenMagnetismData(null);
+        } else {
+          // Capture current data as state (triggers re-render)
+          const current = magnetismDebugRef.current;
+          const snapshot = current ? JSON.parse(JSON.stringify(current)) : null;
+          setFrozenMagnetismData(snapshot);
+          setFrozenPlayerRotation(playerStateRef.current.rotation);
           console.log('[FREEZE] Spacebar - entering frozen mode', snapshot);
           setMagnetismDebugFrozen(true);
-        } else {
-          console.log('[FREEZE] Spacebar - refreshing frozen snapshot', snapshot);
         }
       }
       

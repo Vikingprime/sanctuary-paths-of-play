@@ -242,43 +242,40 @@ function findNearestSkeletonPixel(
  * Compute corridor tangent at a skeleton pixel.
  * Returns normalized tangent vector in XZ plane.
  */
-function computeTangent(pixel: SkeletonPixel): { tx: number; tz: number } {
+/**
+ * Compute corridor tangent at a skeleton pixel using neighbors.
+ * For degree 2 (normal corridor), uses the vector between the two neighbors (P+1 to P-1).
+ * For junctions (degree >= 3), returns null to indicate no turn correction should apply.
+ */
+function computeTangent(pixel: SkeletonPixel): { tx: number; tz: number } | null {
   const { degree, neighbors, wx, wz } = pixel;
   
+  // No neighbors - can't compute tangent
   if (degree === 0) {
-    return { tx: 1, tz: 0 };
+    return null;
   }
   
+  // Endpoint - use direction from neighbor to this pixel
   if (degree === 1) {
     const n = neighbors[0];
     const dx = wx - n.wx;
     const dz = wz - n.wz;
     const len = Math.sqrt(dx * dx + dz * dz);
-    return len > 0.001 ? { tx: dx / len, tz: dz / len } : { tx: 1, tz: 0 };
+    return len > 0.001 ? { tx: dx / len, tz: dz / len } : null;
   }
   
+  // Normal corridor (degree 2) - compute tangent from neighbor1 to neighbor2 (P-1 to P+1)
   if (degree === 2) {
     const n1 = neighbors[0];
     const n2 = neighbors[1];
     const dx = n2.wx - n1.wx;
     const dz = n2.wz - n1.wz;
     const len = Math.sqrt(dx * dx + dz * dz);
-    return len > 0.001 ? { tx: dx / len, tz: dz / len } : { tx: 1, tz: 0 };
+    return len > 0.001 ? { tx: dx / len, tz: dz / len } : null;
   }
   
-  // Junction (degree >= 3): use average direction
-  let avgDx = 0, avgDz = 0;
-  for (const n of neighbors) {
-    const dx = n.wx - wx;
-    const dz = n.wz - wz;
-    const len = Math.sqrt(dx * dx + dz * dz);
-    if (len > 0.001) {
-      avgDx += dx / len;
-      avgDz += dz / len;
-    }
-  }
-  const len = Math.sqrt(avgDx * avgDx + avgDz * avgDz);
-  return len > 0.001 ? { tx: avgDx / len, tz: avgDz / len } : { tx: 1, tz: 0 };
+  // Junction (degree >= 3): do not apply turn correction
+  return null;
 }
 
 /**
@@ -382,8 +379,39 @@ export function calculateMagnetismTurn(
     return { ...noOpResult, turnCorrection: state.currentCorrection };
   }
   
-  // Get tangent at skeleton point
-  const { tx, tz } = computeTangent(nearest);
+  // Get tangent at skeleton point - returns null for junctions (no turn correction)
+  const tangent = computeTangent(nearest);
+  
+  // If at a junction (tangent is null), skip turn correction entirely
+  const isJunction = tangent === null;
+  if (isJunction) {
+    // Decay existing correction and return with junction flag
+    state.currentCorrection *= Math.exp(-config.decayRate * delta);
+    return {
+      turnCorrection: state.currentCorrection,
+      debug: {
+        backX,
+        backZ,
+        frontX,
+        frontZ,
+        spineX: nearest.wx,
+        spineZ: nearest.wz,
+        targetX: nearest.wx,
+        targetZ: nearest.wz,
+        tangentX: 0,
+        tangentZ: 1,
+        rawAngleDiff: 0,
+        isActive: false,
+        strengthMultiplier: 0,
+        crossDist: Math.sqrt((nearest.wx - frontX) ** 2 + (nearest.wz - frontZ) ** 2),
+        isJunctionSuppressed: true,
+        nearestDegree: nearest.degree,
+        appliedTurnCorrection: state.currentCorrection,
+      },
+    };
+  }
+  
+  const { tx, tz } = tangent;
   
   // Calculate cross-track distance from front point to spine for gating
   const toSpineX = nearest.wx - frontX;
@@ -394,10 +422,6 @@ export function calculateMagnetismTurn(
   // Increased from 0.8 to 1.5 to keep magnetism active over wider corridors
   const maxDist = CELL_SIZE * 1.5;
   const distFactor = 1 - smoothstep(0, maxDist, crossDist);
-  
-  // Junction suppression
-  const isJunction = nearest.degree >= 3;
-  const junctionFactor = isJunction ? 0.1 : 1.0;
   
   // Calculate animal's facing angle and spine tangent angle
   const animalAngle = Math.atan2(facingX, facingZ);
@@ -435,9 +459,9 @@ export function calculateMagnetismTurn(
     angleDiff = sign * (Math.abs(angleDiff) - config.deadzone);
   }
   
-  // Calculate target correction
+  // Calculate target correction (no junctionFactor needed - junctions return early)
   const strengthScale = (config.strength / 10) * config.maxStrength;
-  const targetCorrection = angleDiff * strengthScale * distFactor * junctionFactor;
+  const targetCorrection = angleDiff * strengthScale * distFactor;
   
   // Smooth the correction using exponential moving average
   const alpha = delta / (config.smoothingTau + delta);
@@ -452,9 +476,9 @@ export function calculateMagnetismTurn(
   const maxCorrection = Math.PI / 6; // Max 30 degrees
   state.currentCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, state.currentCorrection));
   
-  // isActive = system is engaged (nearby and enabled), not just correcting
+  // isActive = system is engaged (nearby and enabled)
   // This shows green when running parallel but still tracking the spine
-  const isActive = distFactor > 0.1 && !isJunction;
+  const isActive = distFactor > 0.1;
   
   return {
     turnCorrection: state.currentCorrection,
@@ -471,9 +495,9 @@ export function calculateMagnetismTurn(
       tangentZ: tz,
       rawAngleDiff,
       isActive,
-      strengthMultiplier: strengthScale * distFactor * junctionFactor,
+      strengthMultiplier: strengthScale * distFactor,
       crossDist,
-      isJunctionSuppressed: isJunction,
+      isJunctionSuppressed: false,
       nearestDegree: nearest.degree,
       appliedTurnCorrection: state.currentCorrection,
     },
