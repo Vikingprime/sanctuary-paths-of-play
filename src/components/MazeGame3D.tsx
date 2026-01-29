@@ -624,7 +624,8 @@ export const MazeGame3D = ({
       
       keysPressed.current.add(e.key.toLowerCase());
       
-      // Spacebar: Toggle magnetism debug freeze (works in debug mode regardless of skeleton visibility)
+      // Spacebar: Capture magnetism debug snapshot (works in debug mode regardless of skeleton visibility)
+      // First press: freeze and capture, subsequent presses: update frozen data
       if (e.key === ' ' && debugMode) {
         e.preventDefault();
         e.stopPropagation();
@@ -636,19 +637,25 @@ export const MazeGame3D = ({
         }
         lastSpacebarTimeRef.current = now;
         
-        console.log('[FREEZE] Spacebar pressed - toggling freeze');
+        // Always capture current data
+        const current = magnetismDebugRef.current;
+        frozenMagnetismDebugRef.current = current ? JSON.parse(JSON.stringify(current)) : null;
         
-        setMagnetismDebugFrozen(prev => {
-          const newFrozen = !prev;
-          console.log('[FREEZE] Freeze state now:', newFrozen);
-          if (newFrozen) {
-            const current = magnetismDebugRef.current;
-            frozenMagnetismDebugRef.current = current ? JSON.parse(JSON.stringify(current)) : null;
-          } else {
-            frozenMagnetismDebugRef.current = null;
-          }
-          return newFrozen;
-        });
+        // If not already frozen, freeze it. If frozen, just update the snapshot.
+        if (!magnetismDebugFrozen) {
+          console.log('[FREEZE] Spacebar - entering frozen mode');
+          setMagnetismDebugFrozen(true);
+        } else {
+          console.log('[FREEZE] Spacebar - refreshing frozen snapshot');
+        }
+      }
+      
+      // Escape: Return to live mode (unfreeze)
+      if (e.key === 'Escape' && debugMode && magnetismDebugFrozen) {
+        e.preventDefault();
+        console.log('[FREEZE] Escape - returning to live mode');
+        setMagnetismDebugFrozen(false);
+        frozenMagnetismDebugRef.current = null;
       }
     };
 

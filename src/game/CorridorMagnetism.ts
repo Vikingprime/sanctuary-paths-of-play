@@ -113,6 +113,8 @@ export interface MagnetismTurnState {
   currentCorrection: number;
   /** Whether state has been initialized */
   initialized: boolean;
+  /** Committed tangent direction sign (+1 or -1) for hysteresis */
+  committedSign: number;
 }
 
 // ============================================================================
@@ -358,6 +360,7 @@ export function calculateMagnetismTurn(
   // Initialize state if needed
   if (!state.initialized) {
     state.currentCorrection = 0;
+    state.committedSign = 1;
     state.initialized = true;
   }
   
@@ -401,12 +404,26 @@ export function calculateMagnetismTurn(
   const spineAngle = Math.atan2(tx, tz);
   
   // The spine tangent has two possible directions (±180°)
-  // Choose the one closer to animal's facing direction
-  let angleDiff = normalizeAngle(spineAngle - animalAngle);
-  if (Math.abs(angleDiff) > Math.PI / 2) {
-    // Flip tangent direction
-    angleDiff = normalizeAngle(angleDiff + Math.PI);
+  // Use hysteresis to prevent flip-flopping when near the boundary
+  const angleDiffPositive = normalizeAngle(spineAngle - animalAngle);
+  const angleDiffNegative = normalizeAngle(spineAngle + Math.PI - animalAngle);
+  
+  // Determine which direction is currently closer
+  const usePositive = Math.abs(angleDiffPositive) <= Math.abs(angleDiffNegative);
+  const currentPreferredSign = usePositive ? 1 : -1;
+  
+  // Hysteresis: only switch committed direction if the difference is significant (>15 degrees)
+  const hysteresisThreshold = 0.26; // ~15 degrees
+  const currentAngleDiff = usePositive ? angleDiffPositive : angleDiffNegative;
+  const committedAngleDiff = state.committedSign > 0 ? angleDiffPositive : angleDiffNegative;
+  
+  // Switch only if the new direction is significantly better
+  if (Math.abs(currentAngleDiff) < Math.abs(committedAngleDiff) - hysteresisThreshold) {
+    state.committedSign = currentPreferredSign;
   }
+  
+  // Use the committed direction
+  let angleDiff = state.committedSign > 0 ? angleDiffPositive : angleDiffNegative;
   
   // Apply deadzone
   const rawAngleDiff = angleDiff;
