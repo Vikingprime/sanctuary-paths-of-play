@@ -441,14 +441,15 @@ function MagnetismDebugOverlay({
         </group>
       )}
       
-      {/* Tangent Direction Indicator (at spine point) */}
-      {showTarget && debug.isActive && (
+      {/* Tangent Direction Indicator (at spine point) - ALWAYS show when showTarget is true */}
+      {showTarget && (
         <group position={[debug.spineX, height + 0.08, debug.spineZ]}>
+          {/* CylinderGeometry is Y-up, so rotate X by 90° to make it horizontal (pointing +Z), then rotate Y to align with tangent */}
           <mesh
             geometry={arrowGeometry}
             material={tangentMaterial}
-            rotation={[Math.PI / 2, 0, Math.atan2(debug.tangentX, debug.tangentZ)]}
-            scale={[0.6, 0.5, 0.6]}
+            rotation={[Math.PI / 2, Math.atan2(debug.tangentX, debug.tangentZ), 0]}
+            scale={[0.8, 0.6, 0.8]}
           />
         </group>
       )}

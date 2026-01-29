@@ -271,7 +271,12 @@ function computeTangent(pixel: SkeletonPixel): { tx: number; tz: number } | null
     const dx = n2.wx - n1.wx;
     const dz = n2.wz - n1.wz;
     const len = Math.sqrt(dx * dx + dz * dz);
-    return len > 0.001 ? { tx: dx / len, tz: dz / len } : null;
+    if (len <= 0.001) return null;
+    const tx = dx / len;
+    const tz = dz / len;
+    // Debug: log the tangent calculation to diagnose perpendicular issue
+    // console.log(`[Tangent] n1=(${n1.wx.toFixed(2)},${n1.wz.toFixed(2)}) n2=(${n2.wx.toFixed(2)},${n2.wz.toFixed(2)}) → tangent=(${tx.toFixed(3)},${tz.toFixed(3)}) angle=${(Math.atan2(tx, tz) * 180 / Math.PI).toFixed(1)}°`);
+    return { tx, tz };
   }
   
   // Junction (degree >= 3): do not apply turn correction
@@ -419,8 +424,8 @@ export function calculateMagnetismTurn(
   const crossDist = Math.sqrt(toSpineX * toSpineX + toSpineZ * toSpineZ);
   
   // Distance-based strength gating (stronger when closer to spine)
-  // Increased from 0.8 to 1.5 to keep magnetism active over wider corridors
-  const maxDist = CELL_SIZE * 1.5;
+  // Use 2.5 cells to ensure magnetism works in wider corridors (corridors can be 2-3 cells wide)
+  const maxDist = CELL_SIZE * 2.5;
   const distFactor = 1 - smoothstep(0, maxDist, crossDist);
   
   // Calculate animal's facing angle and spine tangent angle
