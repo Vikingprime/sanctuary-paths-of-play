@@ -58,16 +58,19 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation }: MagnetismCompas
   }
   
   // Convert angles to SVG coordinates (0 = up, clockwise positive)
+  // ANIMAL-RELATIVE: All vectors are shown relative to the animal's facing direction
+  // The animal (yellow) always points UP, other vectors rotate around it
   const size = 80;
   const center = size / 2;
   const radius = 30;
   
-  // Animal facing direction (from player rotation)
+  // Animal facing direction - ALWAYS points up (0 radians in local space)
   const animalAngle = playerRotation;
-  const animalX = center + Math.sin(animalAngle) * radius;
-  const animalY = center - Math.cos(animalAngle) * radius;
+  const localAnimalAngle = 0; // Animal is always "forward" in this view
+  const animalX = center + Math.sin(localAnimalAngle) * radius;
+  const animalY = center - Math.cos(localAnimalAngle) * radius;
   
-  // Spine tangent direction
+  // Spine tangent direction (relative to animal facing)
   const spineAngle = Math.atan2(debug.tangentX, debug.tangentZ);
   // Choose spine direction closer to animal facing
   let adjustedSpineAngle = spineAngle;
@@ -75,16 +78,19 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation }: MagnetismCompas
   if (Math.abs(angleDiff) > Math.PI / 2) {
     adjustedSpineAngle = spineAngle + Math.PI;
   }
-  const spineX = center + Math.sin(adjustedSpineAngle) * radius;
-  const spineY = center - Math.cos(adjustedSpineAngle) * radius;
+  // Convert to animal-relative space
+  const localSpineAngle = adjustedSpineAngle - animalAngle;
+  const spineX = center + Math.sin(localSpineAngle) * radius;
+  const spineY = center - Math.cos(localSpineAngle) * radius;
   
-  // Target direction - where magnetism WANTS the animal to face (animal angle + raw angle diff)
+  // Target direction - where magnetism WANTS the animal to face (relative to current facing)
   const appliedCorrection = debug.appliedTurnCorrection ?? 0;
   const rawAngleDiff = debug.rawAngleDiff ?? 0;
-  const targetAngle = animalAngle + rawAngleDiff; // This is the target facing direction
+  // In animal-relative space, target is just the raw angle diff from forward
+  const localTargetAngle = rawAngleDiff;
   const turnVectorRadius = radius * 0.85;
-  const turnVectorX = center + Math.sin(targetAngle) * turnVectorRadius;
-  const turnVectorY = center - Math.cos(targetAngle) * turnVectorRadius;
+  const turnVectorX = center + Math.sin(localTargetAngle) * turnVectorRadius;
+  const turnVectorY = center - Math.cos(localTargetAngle) * turnVectorRadius;
   
   // Turn correction arc
   const correctionAngle = debug.rawAngleDiff;
@@ -141,7 +147,7 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation }: MagnetismCompas
           <polygon 
             points={`${animalX},${animalY-4} ${animalX-3},${animalY+2} ${animalX+3},${animalY+2}`}
             fill="#ffff00"
-            transform={`rotate(${(animalAngle * 180 / Math.PI)}, ${animalX}, ${animalY})`}
+            transform={`rotate(${(localAnimalAngle * 180 / Math.PI)}, ${animalX}, ${animalY})`}
           />
           
           {/* Target Direction Vector (magenta) - where magnetism wants the animal to face */}
