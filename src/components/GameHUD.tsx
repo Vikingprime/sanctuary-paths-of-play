@@ -125,7 +125,7 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation, frozenData }: Mag
           <line x1={center} y1={5} x2={center} y2={size-5} stroke="#222" strokeWidth="1" />
           <line x1={5} y1={center} x2={size-5} y2={center} stroke="#222" strokeWidth="1" />
           
-          {/* Spine tangent direction (cyan) */}
+          {/* Tangent vector (cyan) - direction between P-1 and P+1 neighbors */}
           <line 
             x1={center} 
             y1={center} 
@@ -199,7 +199,7 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation, frozenData }: Mag
           <div className="text-[8px] mt-1">
             <span className="text-yellow-400">━</span> Animal
             {' '}
-            <span className="text-cyan-400">━</span> Spine
+            <span className="text-cyan-400">━</span> Tangent
           </div>
         </div>
       </div>
