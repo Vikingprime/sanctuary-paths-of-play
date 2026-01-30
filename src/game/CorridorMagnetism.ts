@@ -142,14 +142,14 @@ const CELL_SIZE = GameConfig.CELL_SIZE;
 
 export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
   deadzone: 0.1,                      // ~6 degrees
-  maxStrength: 0.3,                   // 30% of full turn (reduced further for gentler corners)
-  smoothingTau: 0.30,                 // 300ms smoothing (slower ramp-up)
+  maxStrength: 0.5,                   // 50% of full turn (safe now that rate is limited)
+  smoothingTau: 0.30,                 // 300ms smoothing (unused now, kept for API)
   decayRate: 3.0,                     // Decay over ~0.3s
   backOffset: 0.2,                    // Distance to back sensing point
   frontOffset: 0.35,                  // Distance to front sensing point
   strength: 5.0,                      // Default strength (0-10 scale)
   enabled: true,
-  maxTurnRate: 0.5,                   // Max 0.5 radian/second (~29 deg/s) - very gentle
+  maxTurnRate: 1.0,                   // Max 1.0 radian/second (~57 deg/s) - noticeable but smooth
 };
 
 // ============================================================================
@@ -714,30 +714,31 @@ export function calculateMagnetismTurn(
   const strengthScale = (config.strength / 10) * config.maxStrength;
   const targetCorrection = angleDiff * strengthScale * distFactor;
   
-  // Smooth the correction using exponential moving average
-  const alpha = delta / (config.smoothingTau + delta);
-  state.currentCorrection += (targetCorrection - state.currentCorrection) * alpha;
+  // Rate-limit the CHANGE in correction (not just output) to prevent sudden jumps
+  // This is the key fix: internal state can only change by maxTurnRate per second
+  const maxChangeThisFrame = config.maxTurnRate * delta;
+  const desiredChange = targetCorrection - state.currentCorrection;
+  const clampedChange = Math.max(-maxChangeThisFrame, Math.min(maxChangeThisFrame, desiredChange));
+  state.currentCorrection += clampedChange;
   
-  // Also apply decay to prevent buildup
-  if (Math.abs(targetCorrection) < Math.abs(state.currentCorrection)) {
-    state.currentCorrection *= Math.exp(-config.decayRate * delta * 0.5);
+  // Apply decay when target is smaller than current (prevents buildup when leaving corners)
+  if (Math.abs(targetCorrection) < Math.abs(state.currentCorrection) * 0.5) {
+    // Decay toward zero, but also rate-limited
+    const decayTarget = state.currentCorrection * 0.9;
+    const decayChange = decayTarget - state.currentCorrection;
+    state.currentCorrection += Math.max(-maxChangeThisFrame, Math.min(maxChangeThisFrame, decayChange));
   }
   
-  // Clamp final correction magnitude
+  // Clamp final correction magnitude (safety limit)
   const maxCorrection = Math.PI / 6; // Max 30 degrees
   state.currentCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, state.currentCorrection));
-  
-  // Apply turn rate limiting - cap the OUTPUT turn correction per frame
-  // This is the actual rotation applied, so limit it directly
-  const maxTurnThisFrame = config.maxTurnRate * delta;
-  const rateLimitedCorrection = Math.max(-maxTurnThisFrame, Math.min(maxTurnThisFrame, state.currentCorrection));
   
   // isActive = system is engaged (nearby and enabled)
   // This shows green when running parallel but still tracking the spine
   const isActive = distFactor > 0.1;
   
   return {
-    turnCorrection: rateLimitedCorrection,  // Use rate-limited value, not raw smoothed
+    turnCorrection: state.currentCorrection,  // Already rate-limited internally
     debug: {
       backX,
       backZ,
@@ -760,7 +761,7 @@ export function calculateMagnetismTurn(
       crossDist,
       isJunctionSuppressed: false,
       nearestDegree: nearest.degree,
-      appliedTurnCorrection: rateLimitedCorrection,  // Show actual applied value
+      appliedTurnCorrection: state.currentCorrection,
     },
   };
 }
