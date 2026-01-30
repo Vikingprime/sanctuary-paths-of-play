@@ -142,14 +142,14 @@ const CELL_SIZE = GameConfig.CELL_SIZE;
 
 export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
   deadzone: 0.1,                      // ~6 degrees
-  maxStrength: 0.5,                   // 50% of full turn (reduced for gentler corrections)
+  maxStrength: 0.3,                   // 30% of full turn (reduced further for gentler corners)
   smoothingTau: 0.30,                 // 300ms smoothing (slower ramp-up)
   decayRate: 3.0,                     // Decay over ~0.3s
   backOffset: 0.2,                    // Distance to back sensing point
   frontOffset: 0.35,                  // Distance to front sensing point
   strength: 5.0,                      // Default strength (0-10 scale)
   enabled: true,
-  maxTurnRate: 1.0,                   // Max 1 radian/second (~57 deg/s) turn rate limit
+  maxTurnRate: 0.5,                   // Max 0.5 radian/second (~29 deg/s) - very gentle
 };
 
 // ============================================================================
