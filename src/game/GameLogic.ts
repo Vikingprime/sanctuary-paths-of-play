@@ -693,6 +693,16 @@ function resolveOverlap(
 }
 
 /**
+ * Result from calculateMovement including collision state
+ */
+export interface MovementResult extends PlayerState {
+  /** True if movement was blocked by a collision this frame */
+  blocked: boolean;
+  /** 0-1 representing how "stuck" the player is (for magnetism weakening) */
+  collisionIntensity: number;
+}
+
+/**
  * MAIN MOVEMENT FUNCTION - Collision-Safe Motion Solver
  * 
  * All motion goes through this solver. Guarantees:
@@ -714,7 +724,11 @@ export function calculateMovement(
   rocks: RockPosition[] = [],
   animalType?: AnimalType,
   characters: CharacterPosition[] = []
-): PlayerState {
+): MovementResult {
+  // Track collision state for this frame
+  let wasBlocked = false;
+  let blockedFrameCount = slideBlockedCounter; // Use existing counter
+  
   // Update cooldown
   if (unstuckCooldown > 0) {
     unstuckCooldown -= deltaTime;
@@ -821,6 +835,7 @@ export function calculateMovement(
       // Blocked - move to safe contact point
       newX = sweepResult.x;
       newY = sweepResult.y;
+      wasBlocked = true; // Track that we hit something
       
       // TRUE PER-FRAME SLIDING (no jerks, no discrete corrections)
       if (sweepResult.normal) {
@@ -1041,7 +1056,19 @@ export function calculateMovement(
     lastSafeTransform = { x: newX, y: newY, rotation: newRotation };
   }
 
-  return { x: newX, y: newY, rotation: newRotation };
+  // Calculate collision intensity (0 = no collision, 1 = fully stuck)
+  // Uses slideBlockedCounter to ramp up intensity the longer we're stuck
+  const collisionIntensity = wasBlocked 
+    ? Math.min(1.0, 0.3 + (slideBlockedCounter / 15) * 0.7) // Start at 0.3, ramp to 1.0 over ~15 frames
+    : 0;
+
+  return { 
+    x: newX, 
+    y: newY, 
+    rotation: newRotation,
+    blocked: wasBlocked,
+    collisionIntensity
+  };
 }
 // ============================================
 // CELL INTERACTIONS

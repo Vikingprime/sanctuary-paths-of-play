@@ -33,6 +33,7 @@ export {
   type GameStateData,
   type CellInteractionResult,
   type AbilityResult,
+  type MovementResult,
   // Functions
   checkCollision,
   calculateMovement,

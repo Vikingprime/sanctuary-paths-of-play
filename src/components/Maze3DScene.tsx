@@ -1122,6 +1122,9 @@ const RefBasedPlayer = ({
   const magnetismCacheRef = useRef<MagnetismCache | null>(null);
   const magnetismTurnStateRef = useRef<MagnetismTurnState>({ currentCorrection: 0, initialized: false, committedSign: 1, lastNearestFx: -1, lastNearestFy: -1, lockDuration: 0 });
   
+  // Collision state for magnetism weakening
+  const collisionIntensityRef = useRef(0);
+  
   // Build magnetism cache when maze changes
   useMemo(() => {
     if (magnetismConfig?.enabled) {
@@ -1185,7 +1188,8 @@ const RefBasedPlayer = ({
         // Calculate movement with clamped delta
         const prev = playerStateRef.current;
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-        playerStateRef.current = newState;
+        playerStateRef.current = { x: newState.x, y: newState.y, rotation: newState.rotation };
+        collisionIntensityRef.current = newState.collisionIntensity;
       } else if (mobileActive) {
         // MOBILE JOYSTICK MODE: Summer Afternoon style camera-relative movement
         // Camera orbits based on joystick X
@@ -1254,7 +1258,8 @@ const RefBasedPlayer = ({
           // Calculate movement
           const prev = playerStateRef.current;
           const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-          playerStateRef.current = newState;
+          playerStateRef.current = { x: newState.x, y: newState.y, rotation: newState.rotation };
+          collisionIntensityRef.current = newState.collisionIntensity;
           
           // Update animation refs
           isMovingRef.current = true;
@@ -1296,12 +1301,14 @@ const RefBasedPlayer = ({
           isMovingRef.current = false;
           isTurningRef.current = false;
           moveSpeedRef.current = 0;
+          collisionIntensityRef.current = 0; // Reset collision state when idle
         }
       } else {
         // No input - no movement
         isMovingRef.current = false;
         isTurningRef.current = false;
         moveSpeedRef.current = 0;
+        collisionIntensityRef.current = 0; // Reset collision state when idle
       }
       
       // === MAGNETISM: Calculate turn-based corridor alignment ===
@@ -1323,18 +1330,25 @@ const RefBasedPlayer = ({
           clampedDelta
         );
         
-        // Only apply turn correction when actually moving
+        // Apply turn correction when moving, but WEAKEN during collisions
+        // This allows the player to turn more freely when stuck against walls
         if (isMovingRef.current && magnetResult.turnCorrection !== 0) {
-          // Negate the correction because it was calculated in visual space (inverted rotation)
-          const newRotation = normalizeAngle(player.rotation - magnetResult.turnCorrection);
-          // Convert to 0-2PI range for consistency
-          let normalizedRotation = newRotation;
-          if (normalizedRotation < 0) normalizedRotation += Math.PI * 2;
+          // Weaken magnetism based on collision intensity (0 = full magnetism, 1 = no magnetism)
+          const collisionWeakening = 1 - collisionIntensityRef.current;
+          const weakenedCorrection = magnetResult.turnCorrection * collisionWeakening;
           
-          playerStateRef.current = {
-            ...playerStateRef.current,
-            rotation: normalizedRotation,
-          };
+          if (Math.abs(weakenedCorrection) > 0.001) {
+            // Negate the correction because it was calculated in visual space (inverted rotation)
+            const newRotation = normalizeAngle(player.rotation - weakenedCorrection);
+            // Convert to 0-2PI range for consistency
+            let normalizedRotation = newRotation;
+            if (normalizedRotation < 0) normalizedRotation += Math.PI * 2;
+            
+            playerStateRef.current = {
+              ...playerStateRef.current,
+              rotation: normalizedRotation,
+            };
+          }
         }
         
         // Update debug ref for visualization (always, even when stationary)
