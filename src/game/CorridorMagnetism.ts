@@ -96,6 +96,8 @@ interface SkeletonPixel {
   wz: number;  // World Z
   degree: number;  // Number of skeleton neighbors
   neighbors: Array<{ fx: number; fy: number; wx: number; wz: number }>;
+  /** True if within suppression radius of junction or endpoint */
+  isSuppressed: boolean;
 }
 
 /** Cached skeleton data for fast lookups */
@@ -111,6 +113,8 @@ export interface MagnetismCache {
   /** Grid dimensions */
   fineWidth: number;
   fineHeight: number;
+  /** Suppression radius in skeleton steps */
+  suppressionRadius: number;
 }
 
 /** State for smoothing turn corrections */
@@ -162,12 +166,18 @@ export function buildMagnetismCache(
   const fineHeight = fineGrid.length;
   const fineWidth = fineGrid[0]?.length ?? 0;
   
+  // Suppression radius: 2 × scale (20 skeleton steps for scale=10)
+  const suppressionRadius = 2 * scale;
+  
   // Build indexed skeleton pixels with neighbor info
   const skeletonPixels: SkeletonPixel[] = [];
   
   // 8-connected neighbor offsets
   const dx8 = [-1, 0, 1, -1, 1, -1, 0, 1];
   const dy8 = [-1, -1, -1, 0, 0, 1, 1, 1];
+  
+  // First pass: create all pixels with basic info
+  const pixelMap = new Map<string, SkeletonPixel>();
   
   for (let fy = 0; fy < fineHeight; fy++) {
     for (let fx = 0; fx < fineWidth; fx++) {
@@ -193,18 +203,60 @@ export function buildMagnetismCache(
         }
       }
       
-      skeletonPixels.push({
+      const pixel: SkeletonPixel = {
         fx,
         fy,
         wx,
         wz,
         degree: neighbors.length,
         neighbors,
-      });
+        isSuppressed: false, // Will be set in second pass
+      };
+      
+      pixelMap.set(`${fx},${fy}`, pixel);
+      skeletonPixels.push(pixel);
     }
   }
   
-  console.log(`[Magnetism] Built cache with ${skeletonPixels.length} skeleton pixels`);
+  // Second pass: mark pixels within suppressionRadius of junctions (degree >= 3) or endpoints (degree == 1)
+  // Find all junctions and endpoints first
+  const seedPixels = skeletonPixels.filter(p => p.degree >= 3 || p.degree === 1);
+  
+  // BFS from each seed to mark suppression zones
+  for (const seed of seedPixels) {
+    // BFS to find all pixels within suppressionRadius steps
+    const visited = new Set<string>();
+    const queue: Array<{ fx: number; fy: number; steps: number }> = [
+      { fx: seed.fx, fy: seed.fy, steps: 0 }
+    ];
+    
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const key = `${current.fx},${current.fy}`;
+      
+      if (visited.has(key)) continue;
+      visited.add(key);
+      
+      const pixel = pixelMap.get(key);
+      if (!pixel) continue;
+      
+      // Mark as suppressed
+      pixel.isSuppressed = true;
+      
+      // Continue BFS if we haven't reached the radius limit
+      if (current.steps < suppressionRadius) {
+        for (const neighbor of pixel.neighbors) {
+          const nKey = `${neighbor.fx},${neighbor.fy}`;
+          if (!visited.has(nKey)) {
+            queue.push({ fx: neighbor.fx, fy: neighbor.fy, steps: current.steps + 1 });
+          }
+        }
+      }
+    }
+  }
+  
+  const suppressedCount = skeletonPixels.filter(p => p.isSuppressed).length;
+  console.log(`[Magnetism] Built cache with ${skeletonPixels.length} skeleton pixels, ${suppressedCount} suppressed (${seedPixels.length} seeds, radius=${suppressionRadius})`);
   
   return {
     fineGrid,
@@ -213,6 +265,7 @@ export function buildMagnetismCache(
     skeletonPixels,
     fineWidth,
     fineHeight,
+    suppressionRadius,
   };
 }
 
@@ -527,13 +580,13 @@ export function calculateMagnetismTurn(
     state.lockDuration = 0;
   }
   
-  // Get tangent at skeleton point using extended neighbors (±3 steps) for stability
-  const tangent = computeTangentExtended(nearest, cache, 3);
+  // Get tangent at skeleton point using extended neighbors (±1 steps) for localized assistance
+  const tangent = computeTangentExtended(nearest, cache, 1);
   
-  // If at a junction (tangent is null), skip turn correction entirely
-  const isJunction = tangent === null;
-  if (isJunction) {
-    // Decay existing correction and return with junction flag
+  // If at a junction (tangent is null) OR in suppression zone, skip turn correction entirely
+  const isSuppressed = tangent === null || nearest.isSuppressed;
+  if (isSuppressed) {
+    // Decay existing correction and return with suppression flag
     state.currentCorrection *= Math.exp(-config.decayRate * delta);
     return {
       turnCorrection: state.currentCorrection,
