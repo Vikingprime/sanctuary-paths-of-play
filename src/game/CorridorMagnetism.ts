@@ -141,9 +141,9 @@ export interface MagnetismTurnState {
 const CELL_SIZE = GameConfig.CELL_SIZE;
 
 export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
-  deadzone: 0.05,                     // ~3 degrees (smaller deadzone)
+  deadzone: 0.08,                     // ~4.5 degrees (wider deadzone to prevent micro-wobble)
   maxStrength: 1.0,                   // 100% of angle diff (full strength)
-  smoothingTau: 0.10,                 // 100ms smoothing (faster response)
+  smoothingTau: 0.10,                 // 100ms base (multiplied by 2.5 in calculation for 250ms effective)
   decayRate: 5.0,                     // Faster decay
   backOffset: 0.2,                    // Distance to back sensing point
   frontOffset: 0.35,                  // Distance to front sensing point
@@ -169,7 +169,8 @@ export function buildMagnetismCache(
   const fineHeight = fineGrid.length;
   const fineWidth = fineGrid[0]?.length ?? 0;
   
-  // Suppression radius: 1 × scale (skeleton steps equal to one maze cell width)
+  // Suppression radius: 1 × scale (i.e., 1 real-world maze cell width in skeleton steps)
+  // At scale=100, this is 100 steps. DO NOT change this - scale IS 1 cell by definition.
   const suppressionRadius = scale;
   
   // Build indexed skeleton pixels with neighbor info
@@ -596,8 +597,9 @@ export function calculateMagnetismTurn(
     state.committedSign = 0; // Reset to neutral
   }
   
-  // Get tangent at skeleton point using extended neighbors (±10 steps) for smoother, more stable direction
-  const tangent = computeTangentExtended(nearest, cache, 10);
+  // Get tangent at skeleton point using extended neighbors (±20 steps) for maximum stability
+  // At scale=100, ±20 steps = 0.4 cell widths - smooth yet responsive to curves
+  const tangent = computeTangentExtended(nearest, cache, 20);
   
   // If at a junction (tangent is null) OR in suppression zone, skip turn correction entirely
   const isSuppressed = tangent === null || nearest.isSuppressed;
@@ -726,10 +728,21 @@ export function calculateMagnetismTurn(
   
   // Note: delta validation is done at function entry, so delta is guaranteed valid here
   
-  // Smooth the correction using exponential moving average
-  // With tau=0.30s at 60fps, alpha ≈ 0.05, so we move ~5% toward target per frame
-  const alpha = delta / (config.smoothingTau + delta);
-  const smoothedCorrection = state.currentCorrection + (targetCorrection - state.currentCorrection) * alpha;
+  // Smooth the correction using exponential moving average with increased time constant
+  // Multiply base tau by 2.5 for smoother, less jerky response (0.10 → 0.25 effective)
+  const effectiveTau = config.smoothingTau * 2.5;
+  const alpha = delta / (effectiveTau + delta);
+  let smoothedCorrection = state.currentCorrection + (targetCorrection - state.currentCorrection) * alpha;
+  
+  // Wobble prevention: suppress small sign changes that cause oscillation
+  // When correction oscillates between tiny +/- values, decay instead of flip
+  const wobbleThreshold = 0.02; // ~1.2 degrees
+  if (state.currentCorrection !== 0 && 
+      Math.sign(smoothedCorrection) !== Math.sign(state.currentCorrection) &&
+      Math.abs(smoothedCorrection) < wobbleThreshold) {
+    // Sign is flipping with tiny magnitude - decay instead of flip
+    smoothedCorrection = state.currentCorrection * 0.8;
+  }
   
   // Apply decay when target is smaller than current (prevents buildup)
   let finalCorrection = smoothedCorrection;
@@ -737,8 +750,8 @@ export function calculateMagnetismTurn(
     finalCorrection = smoothedCorrection * Math.exp(-config.decayRate * delta);
   }
   
-  // Clamp correction magnitude (safety limit) - reduced for smoother turns
-  const maxCorrection = Math.PI / 12; // Max 15 degrees (reduced from 30)
+  // Clamp correction magnitude - max 10 degrees to prevent sudden flips
+  const maxCorrection = Math.PI / 18; // Max 10 degrees (reduced from 15)
   finalCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, finalCorrection));
   
   // Safety net: Reset state if somehow still NaN (shouldn't happen with early guard)

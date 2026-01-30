@@ -927,12 +927,15 @@ export const MazeGame3D = ({
         showMagnetTarget={showMagnetTarget}
         showMagnetVector={showMagnetVector}
         onDefaultSpurConfig={(config) => {
-          if (!defaultSpurConfig) {
-            setDefaultSpurConfig(config);
-            // Initialize spurConfig to defaults on first load
-            if (!spurConfig) {
-              setSpurConfig(config);
-            }
+          // Always update the defaults
+          setDefaultSpurConfig(config);
+          
+          // Reset spurConfig to match new defaults if:
+          // 1. spurConfig was never set, OR
+          // 2. The defaults changed significantly (scale changed)
+          if (!spurConfig || 
+              Math.abs(spurConfig.maxSpurLen - config.maxSpurLen) > 10) {
+            setSpurConfig(config);
           }
         }}
       />
