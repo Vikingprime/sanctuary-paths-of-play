@@ -562,22 +562,25 @@ export function calculateMagnetismTurn(
         nearest = lockedPixel;
         state.lockDuration += delta;
       } else {
-        // Switching to new point
+        // Switching to new point - ALSO reset the tangent direction commitment
         state.lastNearestFx = candidateNearest.fx;
         state.lastNearestFy = candidateNearest.fy;
         state.lockDuration = 0;
+        state.committedSign = 0; // Reset to neutral - will be set based on current facing
       }
     } else {
       // Locked point no longer exists, use candidate
       state.lastNearestFx = candidateNearest.fx;
       state.lastNearestFy = candidateNearest.fy;
       state.lockDuration = 0;
+      state.committedSign = 0; // Reset to neutral
     }
   } else {
     // No locked point, use candidate
     state.lastNearestFx = candidateNearest.fx;
     state.lastNearestFy = candidateNearest.fy;
     state.lockDuration = 0;
+    state.committedSign = 0; // Reset to neutral
   }
   
   // Get tangent at skeleton point using extended neighbors (±1 steps) for localized assistance
@@ -643,6 +646,12 @@ export function calculateMagnetismTurn(
   
   // Hysteresis: only switch committed direction if the difference is significant (>15 degrees)
   const hysteresisThreshold = 0.26; // ~15 degrees
+  
+  // If committedSign is neutral (just switched points), immediately adopt the preferred direction
+  if (state.committedSign === 0) {
+    state.committedSign = currentPreferredSign;
+  }
+  
   const currentAngleDiff = usePositive ? angleDiffPositive : angleDiffNegative;
   const committedAngleDiff = state.committedSign > 0 ? angleDiffPositive : angleDiffNegative;
   
