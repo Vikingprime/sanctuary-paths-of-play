@@ -627,8 +627,9 @@ export function calculateMagnetismTurn(
   const crossDist = Math.sqrt(toSpineX * toSpineX + toSpineZ * toSpineZ);
   
   // Distance-based strength gating (stronger when closer to spine)
-  // Use 2.5 cells to ensure magnetism works in wider corridors (corridors can be 2-3 cells wide)
-  const maxDist = CELL_SIZE * 2.5;
+  // Use 4.0 cells to ensure magnetism works in wider corridors (corridors can be 2-3 cells wide)
+  // With CELL_SIZE=1.0, corridors are typically 2-3 units wide, so max distance should be ~4
+  const maxDist = CELL_SIZE * 4.0;
   const distFactor = 1 - smoothstep(0, maxDist, crossDist);
   
   // ============================================================================
