@@ -1348,6 +1348,14 @@ const RefBasedPlayer = ({
               ...playerStateRef.current,
               rotation: normalizedRotation,
             };
+            
+            // CRITICAL: Also adjust cameraYaw so the next frame's movement calculation
+            // uses the corrected direction. Without this, the joystick recalculates
+            // targetMoveAngle from cameraYaw and immediately overwrites our rotation fix.
+            if (cameraYawRef) {
+              cameraYawRef.current = normalizeAngle(cameraYawRef.current - weakenedCorrection);
+              if (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+            }
           }
         }
         
