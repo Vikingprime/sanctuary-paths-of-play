@@ -166,8 +166,8 @@ export function buildMagnetismCache(
   const fineHeight = fineGrid.length;
   const fineWidth = fineGrid[0]?.length ?? 0;
   
-  // Suppression radius: 2 × scale (20 skeleton steps for scale=10)
-  const suppressionRadius = 2 * scale;
+  // Suppression radius: 1 × scale (skeleton steps equal to one maze cell width)
+  const suppressionRadius = scale;
   
   // Build indexed skeleton pixels with neighbor info
   const skeletonPixels: SkeletonPixel[] = [];
