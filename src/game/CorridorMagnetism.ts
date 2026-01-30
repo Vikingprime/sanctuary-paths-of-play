@@ -714,19 +714,50 @@ export function calculateMagnetismTurn(
   const strengthScale = (config.strength / 10) * config.maxStrength;
   const targetCorrection = angleDiff * strengthScale * distFactor;
   
+  // Guard against NaN inputs - if delta is 0 or invalid, skip smoothing
+  if (!Number.isFinite(delta) || delta <= 0) {
+    // Return existing state without modification
+    return {
+      turnCorrection: Number.isFinite(state.currentCorrection) ? state.currentCorrection : 0,
+      debug: {
+        backX, backZ, frontX, frontZ,
+        spineX: nearest.wx, spineZ: nearest.wz,
+        targetX: nearest.wx, targetZ: nearest.wz,
+        tangentX: alignedTx, tangentZ: alignedTz,
+        neighbor1X: endpoint1.wx, neighbor1Z: endpoint1.wz,
+        neighbor2X: endpoint2.wx, neighbor2Z: endpoint2.wz,
+        rawAngleDiff, isActive: distFactor > 0.1,
+        strengthMultiplier: strengthScale * distFactor,
+        crossDist, isJunctionSuppressed: false,
+        nearestDegree: nearest.degree,
+        appliedTurnCorrection: state.currentCorrection,
+      },
+    };
+  }
+  
   // Smooth the correction using exponential moving average
   // With tau=0.30s at 60fps, alpha ≈ 0.05, so we move ~5% toward target per frame
   const alpha = delta / (config.smoothingTau + delta);
-  state.currentCorrection += (targetCorrection - state.currentCorrection) * alpha;
+  const smoothedCorrection = state.currentCorrection + (targetCorrection - state.currentCorrection) * alpha;
   
   // Apply decay when target is smaller than current (prevents buildup)
-  if (Math.abs(targetCorrection) < Math.abs(state.currentCorrection)) {
-    state.currentCorrection *= Math.exp(-config.decayRate * delta);
+  let finalCorrection = smoothedCorrection;
+  if (Math.abs(targetCorrection) < Math.abs(smoothedCorrection)) {
+    finalCorrection = smoothedCorrection * Math.exp(-config.decayRate * delta);
   }
   
   // Clamp correction magnitude (safety limit)
   const maxCorrection = Math.PI / 6; // Max 30 degrees
-  state.currentCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, state.currentCorrection));
+  finalCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, finalCorrection));
+  
+  // CRITICAL: Protect state from NaN corruption
+  if (Number.isFinite(finalCorrection)) {
+    state.currentCorrection = finalCorrection;
+  } else {
+    // Reset to 0 if somehow became NaN
+    console.warn('[Magnetism] NaN correction detected, resetting state');
+    state.currentCorrection = 0;
+  }
   
   // isActive = system is engaged (nearby and enabled)
   const isActive = distFactor > 0.1;
