@@ -1332,6 +1332,21 @@ const RefBasedPlayer = ({
         
         // Apply turn correction when moving, but WEAKEN during collisions
         // This allows the player to turn more freely when stuck against walls
+        
+        // DEBUG: Log magnetism values every 60 frames
+        if (Math.random() < 0.016) { // ~once per second at 60fps
+          console.log('[Magnetism Debug]', {
+            isMoving: isMovingRef.current,
+            turnCorrection: magnetResult.turnCorrection.toFixed(4),
+            collisionIntensity: collisionIntensityRef.current.toFixed(2),
+            rawAngleDiff: magnetResult.debug.rawAngleDiff.toFixed(4),
+            isActive: magnetResult.debug.isActive,
+            isSuppressed: magnetResult.debug.isJunctionSuppressed,
+            crossDist: magnetResult.debug.crossDist.toFixed(2),
+            strengthMultiplier: magnetResult.debug.strengthMultiplier.toFixed(3),
+          });
+        }
+        
         if (isMovingRef.current && magnetResult.turnCorrection !== 0) {
           // Weaken magnetism based on collision intensity (0 = full magnetism, 1 = no magnetism)
           const collisionWeakening = 1 - collisionIntensityRef.current;
