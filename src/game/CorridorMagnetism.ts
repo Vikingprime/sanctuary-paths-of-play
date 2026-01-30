@@ -249,45 +249,123 @@ function findNearestSkeletonPixel(
   return nearest;
 }
 
+/** Neighbor reference type (subset of SkeletonPixel) */
+type NeighborRef = { fx: number; fy: number; wx: number; wz: number };
+
 /**
- * Compute corridor tangent at a skeleton pixel.
- * Returns normalized tangent vector in XZ plane.
+ * Look up full SkeletonPixel by fine grid coords.
  */
+function lookupPixel(cache: MagnetismCache, fx: number, fy: number): SkeletonPixel | null {
+  return cache.skeletonPixels.find(p => p.fx === fx && p.fy === fy) ?? null;
+}
+
 /**
- * Compute corridor tangent at a skeleton pixel using neighbors.
- * For degree 2 (normal corridor), uses the vector between the two neighbors (P+1 to P-1).
+ * Walk along skeleton from a starting position in one direction for N steps.
+ * Returns the world position N steps away, or the furthest reachable (endpoint/junction).
+ * Requires cache for full pixel lookups.
+ */
+function walkSkeletonFromNeighbor(
+  cache: MagnetismCache,
+  startNeighbor: NeighborRef, 
+  steps: number, 
+  cameFromFx: number,
+  cameFromFy: number
+): { wx: number; wz: number } {
+  let currentFx = startNeighbor.fx;
+  let currentFy = startNeighbor.fy;
+  let currentWx = startNeighbor.wx;
+  let currentWz = startNeighbor.wz;
+  let prevFx = cameFromFx;
+  let prevFy = cameFromFy;
+  
+  for (let i = 0; i < steps; i++) {
+    const pixel = lookupPixel(cache, currentFx, currentFy);
+    if (!pixel) {
+      // Can't find pixel, return current position
+      return { wx: currentWx, wz: currentWz };
+    }
+    
+    // Stop at junctions to avoid crossing into other corridors
+    if (pixel.degree >= 3) {
+      return { wx: currentWx, wz: currentWz };
+    }
+    
+    // Find next neighbor that isn't where we came from
+    const nextNeighbor = pixel.neighbors.find(n => n.fx !== prevFx || n.fy !== prevFy);
+    if (!nextNeighbor) {
+      // Hit an endpoint, return current
+      return { wx: currentWx, wz: currentWz };
+    }
+    
+    prevFx = currentFx;
+    prevFy = currentFy;
+    currentFx = nextNeighbor.fx;
+    currentFy = nextNeighbor.fy;
+    currentWx = nextNeighbor.wx;
+    currentWz = nextNeighbor.wz;
+  }
+  
+  return { wx: currentWx, wz: currentWz };
+}
+
+/**
+ * Compute corridor tangent at a skeleton pixel using extended neighbors.
+ * Walks 3 steps in each direction along the skeleton to get a longer, more stable tangent.
  * For junctions (degree >= 3), returns null to indicate no turn correction should apply.
+ * 
+ * Returns both the tangent and the two endpoint positions used for debug visualization.
  */
-function computeTangent(pixel: SkeletonPixel): { tx: number; tz: number } | null {
-  const { degree, neighbors, wx, wz } = pixel;
+function computeTangentExtended(
+  pixel: SkeletonPixel, 
+  cache: MagnetismCache,
+  lookAhead: number = 3
+): { 
+  tx: number; 
+  tz: number; 
+  endpoint1: { wx: number; wz: number };
+  endpoint2: { wx: number; wz: number };
+} | null {
+  const { degree, neighbors, fx, fy, wx, wz } = pixel;
   
   // No neighbors - can't compute tangent
   if (degree === 0) {
     return null;
   }
   
-  // Endpoint - use direction from neighbor to this pixel
+  // Endpoint - use direction from neighbor to this pixel, but still try to extend
   if (degree === 1) {
     const n = neighbors[0];
-    const dx = wx - n.wx;
-    const dz = wz - n.wz;
+    // Walk further from the single neighbor
+    const farPoint = walkSkeletonFromNeighbor(cache, n, lookAhead - 1, fx, fy);
+    const dx = wx - farPoint.wx;
+    const dz = wz - farPoint.wz;
     const len = Math.sqrt(dx * dx + dz * dz);
-    return len > 0.001 ? { tx: dx / len, tz: dz / len } : null;
+    if (len <= 0.001) return null;
+    return { 
+      tx: dx / len, 
+      tz: dz / len, 
+      endpoint1: { wx, wz }, 
+      endpoint2: farPoint 
+    };
   }
   
-  // Normal corridor (degree 2) - compute tangent from neighbor1 to neighbor2 (P-1 to P+1)
+  // Normal corridor (degree 2) - walk 3 steps in each direction
   if (degree === 2) {
     const n1 = neighbors[0];
     const n2 = neighbors[1];
-    const dx = n2.wx - n1.wx;
-    const dz = n2.wz - n1.wz;
+    
+    // Walk from n1 away from pixel (lookAhead-1 more steps since n1 is already 1 step away)
+    const endpoint1 = walkSkeletonFromNeighbor(cache, n1, lookAhead - 1, fx, fy);
+    // Walk from n2 away from pixel
+    const endpoint2 = walkSkeletonFromNeighbor(cache, n2, lookAhead - 1, fx, fy);
+    
+    const dx = endpoint2.wx - endpoint1.wx;
+    const dz = endpoint2.wz - endpoint1.wz;
     const len = Math.sqrt(dx * dx + dz * dz);
     if (len <= 0.001) return null;
     const tx = dx / len;
     const tz = dz / len;
-    // Debug: log the tangent calculation to diagnose perpendicular issue
-    // console.log(`[Tangent] n1=(${n1.wx.toFixed(2)},${n1.wz.toFixed(2)}) n2=(${n2.wx.toFixed(2)},${n2.wz.toFixed(2)}) → tangent=(${tx.toFixed(3)},${tz.toFixed(3)}) angle=${(Math.atan2(tx, tz) * 180 / Math.PI).toFixed(1)}°`);
-    return { tx, tz };
+    return { tx, tz, endpoint1, endpoint2 };
   }
   
   // Junction (degree >= 3): do not apply turn correction
@@ -449,8 +527,8 @@ export function calculateMagnetismTurn(
     state.lockDuration = 0;
   }
   
-  // Get tangent at skeleton point - returns null for junctions (no turn correction)
-  const tangent = computeTangent(nearest);
+  // Get tangent at skeleton point using extended neighbors (±3 steps) for stability
+  const tangent = computeTangentExtended(nearest, cache, 3);
   
   // If at a junction (tangent is null), skip turn correction entirely
   const isJunction = tangent === null;
@@ -470,10 +548,10 @@ export function calculateMagnetismTurn(
         targetZ: nearest.wz,
         tangentX: 0,
         tangentZ: 1,
-        neighbor1X: nearest.neighbors[0]?.wx ?? nearest.wx,
-        neighbor1Z: nearest.neighbors[0]?.wz ?? nearest.wz,
-        neighbor2X: nearest.neighbors[1]?.wx ?? nearest.wx,
-        neighbor2Z: nearest.neighbors[1]?.wz ?? nearest.wz,
+        neighbor1X: nearest.wx,
+        neighbor1Z: nearest.wz,
+        neighbor2X: nearest.wx,
+        neighbor2Z: nearest.wz,
         rawAngleDiff: 0,
         isActive: false,
         strengthMultiplier: 0,
@@ -485,7 +563,7 @@ export function calculateMagnetismTurn(
     };
   }
   
-  const { tx, tz } = tangent;
+  const { tx, tz, endpoint1, endpoint2 } = tangent;
   
   // Calculate cross-track distance from front point to spine for gating
   const toSpineX = nearest.wx - frontX;
@@ -567,10 +645,10 @@ export function calculateMagnetismTurn(
       targetZ: nearest.wz,
       tangentX: tx,
       tangentZ: tz,
-      neighbor1X: nearest.neighbors[0]?.wx ?? nearest.wx,
-      neighbor1Z: nearest.neighbors[0]?.wz ?? nearest.wz,
-      neighbor2X: nearest.neighbors[1]?.wx ?? nearest.wx,
-      neighbor2Z: nearest.neighbors[1]?.wz ?? nearest.wz,
+      neighbor1X: endpoint1.wx,
+      neighbor1Z: endpoint1.wz,
+      neighbor2X: endpoint2.wx,
+      neighbor2Z: endpoint2.wz,
       rawAngleDiff,
       isActive,
       strengthMultiplier: strengthScale * distFactor,
