@@ -149,7 +149,7 @@ export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
   frontOffset: 0.35,                  // Distance to front sensing point
   strength: 5.0,                      // Default strength (0-10 scale)
   enabled: true,
-  maxTurnRate: 1.0,                   // Max 1.0 radian/second (~57 deg/s) - noticeable but smooth
+  maxTurnRate: 3.0,                   // Max 3.0 radian/second (~172 deg/s) - testing if rate is bottleneck
 };
 
 // ============================================================================
