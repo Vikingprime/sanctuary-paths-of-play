@@ -42,6 +42,8 @@ export interface MagnetismConfig {
   strength: number;
   /** Enable/disable magnetism entirely */
   enabled: boolean;
+  /** Maximum turn rate limit (radians per second) - caps how fast correction can change */
+  maxTurnRate: number;
 }
 
 /** Result of magnetism turn calculation */
@@ -147,6 +149,7 @@ export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
   frontOffset: 0.35,                  // Distance to front sensing point
   strength: 5.0,                      // Default strength (0-10 scale)
   enabled: true,
+  maxTurnRate: 1.0,                   // Max 1 radian/second (~57 deg/s) turn rate limit
 };
 
 // ============================================================================
@@ -713,7 +716,16 @@ export function calculateMagnetismTurn(
   
   // Smooth the correction using exponential moving average
   const alpha = delta / (config.smoothingTau + delta);
-  state.currentCorrection += (targetCorrection - state.currentCorrection) * alpha;
+  let newCorrection = state.currentCorrection + (targetCorrection - state.currentCorrection) * alpha;
+  
+  // Apply turn rate limiting - cap how fast the correction can change per frame
+  const maxDelta = config.maxTurnRate * delta;
+  const correctionChange = newCorrection - state.currentCorrection;
+  if (Math.abs(correctionChange) > maxDelta) {
+    newCorrection = state.currentCorrection + Math.sign(correctionChange) * maxDelta;
+  }
+  
+  state.currentCorrection = newCorrection;
   
   // Also apply decay to prevent buildup
   if (Math.abs(targetCorrection) < Math.abs(state.currentCorrection)) {
