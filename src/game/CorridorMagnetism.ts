@@ -714,31 +714,28 @@ export function calculateMagnetismTurn(
   const strengthScale = (config.strength / 10) * config.maxStrength;
   const targetCorrection = angleDiff * strengthScale * distFactor;
   
-  // Rate-limit the CHANGE in correction (not just output) to prevent sudden jumps
-  // This is the key fix: internal state can only change by maxTurnRate per second
-  const maxChangeThisFrame = config.maxTurnRate * delta;
-  const desiredChange = targetCorrection - state.currentCorrection;
-  const clampedChange = Math.max(-maxChangeThisFrame, Math.min(maxChangeThisFrame, desiredChange));
-  state.currentCorrection += clampedChange;
+  // Smooth the correction using exponential moving average (responsive tracking)
+  const alpha = delta / (config.smoothingTau + delta);
+  state.currentCorrection += (targetCorrection - state.currentCorrection) * alpha;
   
-  // Apply decay when target is smaller than current (prevents buildup when leaving corners)
-  if (Math.abs(targetCorrection) < Math.abs(state.currentCorrection) * 0.5) {
-    // Decay toward zero, but also rate-limited
-    const decayTarget = state.currentCorrection * 0.9;
-    const decayChange = decayTarget - state.currentCorrection;
-    state.currentCorrection += Math.max(-maxChangeThisFrame, Math.min(maxChangeThisFrame, decayChange));
+  // Apply decay when target is smaller than current (prevents buildup)
+  if (Math.abs(targetCorrection) < Math.abs(state.currentCorrection)) {
+    state.currentCorrection *= Math.exp(-config.decayRate * delta);
   }
   
-  // Clamp final correction magnitude (safety limit)
+  // Clamp internal state magnitude
   const maxCorrection = Math.PI / 6; // Max 30 degrees
   state.currentCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, state.currentCorrection));
   
+  // Rate-limit the OUTPUT only (allows internal state to track target responsively)
+  const maxTurnThisFrame = config.maxTurnRate * delta;
+  const rateLimitedCorrection = Math.max(-maxTurnThisFrame, Math.min(maxTurnThisFrame, state.currentCorrection));
+  
   // isActive = system is engaged (nearby and enabled)
-  // This shows green when running parallel but still tracking the spine
   const isActive = distFactor > 0.1;
   
   return {
-    turnCorrection: state.currentCorrection,  // Already rate-limited internally
+    turnCorrection: rateLimitedCorrection,  // Rate-limited output
     debug: {
       backX,
       backZ,
@@ -761,7 +758,7 @@ export function calculateMagnetismTurn(
       crossDist,
       isJunctionSuppressed: false,
       nearestDegree: nearest.degree,
-      appliedTurnCorrection: state.currentCorrection,
+      appliedTurnCorrection: rateLimitedCorrection,
     },
   };
 }
