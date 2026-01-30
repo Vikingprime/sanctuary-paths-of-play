@@ -1,88 +1,82 @@
 
 
-# Smoother Magnetism: Higher Resolution + Wider Tangent + Gentler Corrections
+# Fix: NaN Corruption Root Cause in Corridor Magnetism
 
-## Overview
+## Problem Summary
 
-Three changes to make magnetism corrections feel smooth and gradual instead of jerky:
+The magnetism system has a NaN corruption issue that wasn't properly fixed - we only added a band-aid guard. The user correctly identified that we should fix the root cause, not just patch the symptoms.
 
-1. **Increase skeleton resolution from 10 to 30** - More skeleton points means smaller steps between them, reducing jumps
-2. **Widen tangent sampling window from 1 to 3 steps** - Averages direction over a longer section for stability  
-3. **Reduce correction strength and increase smoothing time** - Gentler, slower corrections
+## Root Cause Analysis
+
+The NaN values originate from **unguarded decay calculations** when `delta` is negative or zero.
+
+### The Corruption Path
+
+1. In certain browser timing edge cases, `delta` can be 0 or negative (tab switching, requestAnimationFrame quirks, etc.)
+2. The code at lines 506 and 535 does: `state.currentCorrection *= Math.exp(-config.decayRate * delta)`
+3. With negative `delta`:
+   - `Math.exp(-5.0 * -0.001) = Math.exp(0.005) = 1.005` (small values are fine)
+   - `Math.exp(-5.0 * -1.0) = Math.exp(5.0) = 148.4` (large negative delta causes explosion)
+4. More critically, if `state.currentCorrection` is exactly 0 and delta becomes very negative:
+   - `Math.exp(large_positive) = Infinity`
+   - `0 * Infinity = NaN` (JavaScript behavior)
+5. Once `state.currentCorrection` is NaN, it stays NaN forever and propagates through all subsequent calculations
+
+### Unprotected Code Paths
+
+```text
+Line 506: state.currentCorrection *= Math.exp(-config.decayRate * delta);
+Line 535: state.currentCorrection *= Math.exp(-config.decayRate * delta);
+Line 596: state.currentCorrection *= Math.exp(-config.decayRate * delta);
+```
+
+These three locations perform decay on the state without checking if `delta` is valid. The guard we added at line 718 only protects the *main calculation* path, not these early-return decay paths.
 
 ---
 
-## Changes Summary
+## Solution
 
-| Setting | Before | After | Effect |
-|---------|--------|-------|--------|
-| Skeleton scale | 10×10 subcells/cell | 30×30 subcells/cell | 9× more skeleton points, smaller position jumps |
-| Tangent lookAhead | ±1 step | ±3 steps | Smoother tangent direction, less jitter |
-| maxStrength | 0.8 (80%) | 0.5 (50%) | Smaller individual corrections |
-| smoothingTau | 0.15s (150ms) | 0.30s (300ms) | Slower ramp-up, gentler feel |
-
----
-
-## Technical Details
+Add `delta` validation at the **start** of the function, before any state mutation occurs. This ensures all code paths are protected with a single guard.
 
 ### File: `src/game/CorridorMagnetism.ts`
 
-**Change 1: Increase skeleton resolution (line 163)**
-```typescript
-// Before:
-const result = computeMedialAxis(maze, 10, spurConfig);
+**Change 1**: Move the delta guard to the very beginning of the function (after the noOpResult definition, around line 502)
 
-// After:
-const result = computeMedialAxis(maze, 30, spurConfig);
+```typescript
+// EARLY GUARD: Validate delta before any calculations or state mutations
+// This prevents NaN corruption from negative/zero/non-finite delta values
+if (!Number.isFinite(delta) || delta <= 0) {
+  // Return existing state unchanged - don't mutate anything
+  return {
+    turnCorrection: Number.isFinite(state.currentCorrection) ? state.currentCorrection : 0,
+    debug: { ...noOpResult.debug },
+  };
+}
 ```
 
-**Change 2: Widen tangent sampling window (line 587)**
+**Change 2**: Remove the duplicate guard at lines 717-736 (since we now handle it at the start)
+
+**Change 3**: Simplify the later NaN check to just be a safety net, not the primary protection:
+
 ```typescript
-// Before:
-const tangent = computeTangentExtended(nearest, cache, 1);
-
-// After:
-const tangent = computeTangentExtended(nearest, cache, 3);
-```
-
-**Change 3: Reduce strength and increase smoothing (lines 143-144)**
-```typescript
-// Before:
-maxStrength: 0.8,
-smoothingTau: 0.15,
-
-// After:
-maxStrength: 0.5,
-smoothingTau: 0.30,
+// Safety net: Reset state if somehow still NaN (shouldn't happen with early guard)
+if (!Number.isFinite(finalCorrection)) {
+  console.warn('[Magnetism] Unexpected NaN - resetting state');
+  state.currentCorrection = 0;
+  return { turnCorrection: 0, debug: { ...debugData } };
+}
+state.currentCorrection = finalCorrection;
 ```
 
 ---
 
-## How Each Change Helps
+## Why This Properly Fixes the Issue
 
-**Higher Resolution (30×30)**
-- Currently there are ~10 skeleton points per maze cell width
-- Increasing to 30 means skeleton points are 3× closer together
-- When the "nearest point" switches, the tangent direction changes less dramatically
-- Result: Smoother transitions when moving along corridors
+| Before | After |
+|--------|-------|
+| 3 unprotected decay paths could corrupt state | Single guard at function entry protects all paths |
+| NaN detection was reactive (after corruption) | Prevention before any state mutation |
+| Band-aid reset losing valid state | Early return preserving existing state |
 
-**Wider Tangent Window (±3 steps)**  
-- Currently the tangent is computed from 2 skeleton points (±1 step from current)
-- Widening to ±3 steps averages direction over 6 skeleton points
-- Local geometry variations get smoothed out
-- Result: More stable tangent that doesn't jump as the nearest point changes
-
-**Reduced Strength + Slower Smoothing**
-- 50% max strength means each correction is smaller
-- 300ms smoothing time means corrections ramp up over twice as long
-- Result: Gentle nudges instead of sudden jerks
-
----
-
-## Expected Behavior After Changes
-
-- Magnetism cache will have ~9× more skeleton pixels (may slightly increase initialization time)
-- Turn corrections will feel like subtle guidance rather than forceful steering
-- The animal will smoothly align with corridor curves over several frames
-- Suppression zones near junctions will also scale appropriately (radius = 30 steps instead of 10)
+The key insight is that by validating `delta` at the very start of the function, we prevent any code path from executing with invalid timing data. This eliminates the source of NaN rather than just detecting it after the fact.
 
