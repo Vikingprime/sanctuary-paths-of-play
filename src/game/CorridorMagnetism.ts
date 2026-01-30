@@ -716,32 +716,28 @@ export function calculateMagnetismTurn(
   
   // Smooth the correction using exponential moving average
   const alpha = delta / (config.smoothingTau + delta);
-  let newCorrection = state.currentCorrection + (targetCorrection - state.currentCorrection) * alpha;
-  
-  // Apply turn rate limiting - cap how fast the correction can change per frame
-  const maxDelta = config.maxTurnRate * delta;
-  const correctionChange = newCorrection - state.currentCorrection;
-  if (Math.abs(correctionChange) > maxDelta) {
-    newCorrection = state.currentCorrection + Math.sign(correctionChange) * maxDelta;
-  }
-  
-  state.currentCorrection = newCorrection;
+  state.currentCorrection += (targetCorrection - state.currentCorrection) * alpha;
   
   // Also apply decay to prevent buildup
   if (Math.abs(targetCorrection) < Math.abs(state.currentCorrection)) {
     state.currentCorrection *= Math.exp(-config.decayRate * delta * 0.5);
   }
   
-  // Clamp final correction
+  // Clamp final correction magnitude
   const maxCorrection = Math.PI / 6; // Max 30 degrees
   state.currentCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, state.currentCorrection));
+  
+  // Apply turn rate limiting - cap the OUTPUT turn correction per frame
+  // This is the actual rotation applied, so limit it directly
+  const maxTurnThisFrame = config.maxTurnRate * delta;
+  const rateLimitedCorrection = Math.max(-maxTurnThisFrame, Math.min(maxTurnThisFrame, state.currentCorrection));
   
   // isActive = system is engaged (nearby and enabled)
   // This shows green when running parallel but still tracking the spine
   const isActive = distFactor > 0.1;
   
   return {
-    turnCorrection: state.currentCorrection,
+    turnCorrection: rateLimitedCorrection,  // Use rate-limited value, not raw smoothed
     debug: {
       backX,
       backZ,
@@ -764,7 +760,7 @@ export function calculateMagnetismTurn(
       crossDist,
       isJunctionSuppressed: false,
       nearestDegree: nearest.degree,
-      appliedTurnCorrection: state.currentCorrection,
+      appliedTurnCorrection: rateLimitedCorrection,  // Show actual applied value
     },
   };
 }
