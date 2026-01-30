@@ -141,15 +141,15 @@ export interface MagnetismTurnState {
 const CELL_SIZE = GameConfig.CELL_SIZE;
 
 export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
-  deadzone: 0.1,                      // ~6 degrees
-  maxStrength: 0.5,                   // 50% of full turn (safe now that rate is limited)
-  smoothingTau: 0.30,                 // 300ms smoothing (unused now, kept for API)
-  decayRate: 3.0,                     // Decay over ~0.3s
+  deadzone: 0.05,                     // ~3 degrees (smaller deadzone)
+  maxStrength: 1.0,                   // 100% of angle diff (full strength)
+  smoothingTau: 0.10,                 // 100ms smoothing (faster response)
+  decayRate: 5.0,                     // Faster decay
   backOffset: 0.2,                    // Distance to back sensing point
   frontOffset: 0.35,                  // Distance to front sensing point
-  strength: 5.0,                      // Default strength (0-10 scale)
+  strength: 8.0,                      // Higher default strength (0-10 scale)
   enabled: true,
-  maxTurnRate: 3.0,                   // Max 3.0 radian/second (~172 deg/s) - testing if rate is bottleneck
+  maxTurnRate: 5.0,                   // Unused now but kept for API
 };
 
 // ============================================================================
