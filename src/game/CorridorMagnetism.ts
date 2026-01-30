@@ -632,29 +632,48 @@ export function calculateMagnetismTurn(
   const distFactor = 1 - smoothstep(0, maxDist, crossDist);
   
   // ============================================================================
-  // CROSS-PRODUCT BASED TURN DIRECTION
+  // CROSS-PRODUCT BASED TURN DIRECTION WITH HYSTERESIS
   // ============================================================================
   // 
   // Step 1: Align tangent to point "forward" (same general direction as animal facing)
-  //         Use dot product to determine which of the two tangent directions to use
+  //         Use dot product + hysteresis to prevent flip-flopping near 90°
   //
   // Step 2: Use cross product to determine if aligned tangent is left or right of animal
   //         Cross product sign directly tells us which way to turn
   //
-  // This replaces the previous angle-comparison approach which could pick the wrong direction
+  // The hysteresis prevents the tangent from flipping back and forth when the
+  // animal is nearly perpendicular to the corridor (dot product near zero)
   // ============================================================================
   
-  // Step 1: Choose tangent direction that points "more forward" (smaller angle to animal facing)
+  // Step 1: Choose tangent direction with hysteresis
   // Dot product: positive means vectors point in same general direction
   const dotPositive = facingX * tx + facingZ * tz;
   
-  // If dotPositive >= 0, the tangent roughly points in our direction; otherwise flip it
-  let alignedTx = tx;
-  let alignedTz = tz;
-  if (dotPositive < 0) {
-    alignedTx = -tx;
-    alignedTz = -tz;
+  // Determine which tangent direction is currently preferred
+  // +1 means use (tx, tz), -1 means use (-tx, -tz)
+  const currentPreferredSign = dotPositive >= 0 ? 1 : -1;
+  
+  // Hysteresis: only switch committed direction if the dot product clearly favors the other
+  // This prevents flip-flopping when near 90° (dot product near zero)
+  const hysteresisThreshold = 0.15; // ~8.6 degrees from perpendicular
+  
+  // Initialize committedSign if neutral
+  if (state.committedSign === 0) {
+    state.committedSign = currentPreferredSign;
   }
+  
+  // Only switch if the new direction is significantly better
+  // If currently committed to +1, only switch to -1 if dotPositive is clearly negative
+  // If currently committed to -1, only switch to +1 if dotPositive is clearly positive
+  if (state.committedSign > 0 && dotPositive < -hysteresisThreshold) {
+    state.committedSign = -1;
+  } else if (state.committedSign < 0 && dotPositive > hysteresisThreshold) {
+    state.committedSign = 1;
+  }
+  
+  // Use the committed direction for alignment
+  let alignedTx = state.committedSign > 0 ? tx : -tx;
+  let alignedTz = state.committedSign > 0 ? tz : -tz;
   
   // Step 2: Use cross product to determine turn direction
   // 2D cross product: A × T = Ax*Tz - Az*Tx
