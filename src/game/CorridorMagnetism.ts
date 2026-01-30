@@ -597,9 +597,9 @@ export function calculateMagnetismTurn(
     state.committedSign = 0; // Reset to neutral
   }
   
-  // Get tangent at skeleton point using extended neighbors (±20 steps) for maximum stability
-  // At scale=100, ±20 steps = 0.4 cell widths - smooth yet responsive to curves
-  const tangent = computeTangentExtended(nearest, cache, 20);
+  // Get tangent at skeleton point using extended neighbors (±100 steps) for maximum stability
+  // At scale=100, ±100 steps = 2 cell widths - very smooth, averages over full corridor sections
+  const tangent = computeTangentExtended(nearest, cache, 100);
   
   // If at a junction (tangent is null) OR in suppression zone, skip turn correction entirely
   const isSuppressed = tangent === null || nearest.isSuppressed;
