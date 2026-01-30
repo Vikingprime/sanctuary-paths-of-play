@@ -68,11 +68,14 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation, frozenData }: Mag
   const radius = 30;
   
   // Animal facing direction - ALWAYS points up (0 radians in local space)
-  const animalAngle = playerRotation;
+  // IMPORTANT: Convert to visual rotation space to match tangent calculation
+  // The magnetism uses visualRotation = -player.rotation + Math.PI for sensing
+  const visualRotation = -playerRotation + Math.PI;
+  const animalAngle = visualRotation;
   const localAnimalAngle = 0; // Animal is always "forward" in this view
   const animalX = center + Math.sin(localAnimalAngle) * radius;
   const animalY = center - Math.cos(localAnimalAngle) * radius;
-  
+
   // Spine tangent direction (relative to animal facing)
   const spineAngle = Math.atan2(debug.tangentX, debug.tangentZ);
   // Choose spine direction closer to animal facing
