@@ -156,7 +156,7 @@ export function buildMagnetismCache(
   maze: Maze,
   spurConfig?: SpurConfig
 ): MagnetismCache {
-  const result = computeMedialAxis(maze, 5, spurConfig);
+  const result = computeMedialAxis(maze, 10, spurConfig);
   const { fineGrid, scale, fineCellSize } = result;
   
   const fineHeight = fineGrid.length;
@@ -318,7 +318,7 @@ function walkSkeletonFromNeighbor(
 function computeTangentExtended(
   pixel: SkeletonPixel, 
   cache: MagnetismCache,
-  lookAhead: number = 3
+  lookAhead: number = 1
 ): { 
   tx: number; 
   tz: number; 

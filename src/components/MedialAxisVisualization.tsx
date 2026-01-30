@@ -88,8 +88,8 @@ export function MedialAxisVisualization({
   // Compute medial axis when maze changes, visibility toggles on, or spurConfig changes
   const axisResult = useMemo<MedialAxisResult | null>(() => {
     if (!visible) return null;
-    console.log('[MedialAxis] Computing skeleton with scale=5, spurConfig=', spurConfig);
-    const result = computeMedialAxis(maze, 5, spurConfig ?? undefined);
+    console.log('[MedialAxis] Computing skeleton with scale=10, spurConfig=', spurConfig);
+    const result = computeMedialAxis(maze, 10, spurConfig ?? undefined);
     console.log(`[MedialAxis] Found ${result.skeletonPoints.length} skeleton points, ${result.ridgePoints.length} ridge points, ${result.prunedSpurPoints.length} pruned, maxDist=${result.maxDistance}`);
     return result;
   }, [maze, visible, spurConfig]);
