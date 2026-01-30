@@ -500,8 +500,18 @@ export function calculateMagnetismTurn(
     },
   };
   
+  // EARLY GUARD: Validate delta before any calculations or state mutations
+  // This prevents NaN corruption from negative/zero/non-finite delta values
+  // (Browser timing edge cases like tab switching can produce invalid deltas)
+  if (!Number.isFinite(delta) || delta <= 0) {
+    return {
+      turnCorrection: Number.isFinite(state.currentCorrection) ? state.currentCorrection : 0,
+      debug: { ...noOpResult.debug },
+    };
+  }
+  
   if (!config.enabled || config.strength <= 0) {
-    // Decay existing correction
+    // Decay existing correction (delta is now guaranteed valid)
     if (state.initialized && Math.abs(state.currentCorrection) > 0.001) {
       state.currentCorrection *= Math.exp(-config.decayRate * delta);
     }
@@ -714,26 +724,7 @@ export function calculateMagnetismTurn(
   const strengthScale = (config.strength / 10) * config.maxStrength;
   const targetCorrection = angleDiff * strengthScale * distFactor;
   
-  // Guard against NaN inputs - if delta is 0 or invalid, skip smoothing
-  if (!Number.isFinite(delta) || delta <= 0) {
-    // Return existing state without modification
-    return {
-      turnCorrection: Number.isFinite(state.currentCorrection) ? state.currentCorrection : 0,
-      debug: {
-        backX, backZ, frontX, frontZ,
-        spineX: nearest.wx, spineZ: nearest.wz,
-        targetX: nearest.wx, targetZ: nearest.wz,
-        tangentX: alignedTx, tangentZ: alignedTz,
-        neighbor1X: endpoint1.wx, neighbor1Z: endpoint1.wz,
-        neighbor2X: endpoint2.wx, neighbor2Z: endpoint2.wz,
-        rawAngleDiff, isActive: distFactor > 0.1,
-        strengthMultiplier: strengthScale * distFactor,
-        crossDist, isJunctionSuppressed: false,
-        nearestDegree: nearest.degree,
-        appliedTurnCorrection: state.currentCorrection,
-      },
-    };
-  }
+  // Note: delta validation is done at function entry, so delta is guaranteed valid here
   
   // Smooth the correction using exponential moving average
   // With tau=0.30s at 60fps, alpha ≈ 0.05, so we move ~5% toward target per frame
@@ -750,14 +741,28 @@ export function calculateMagnetismTurn(
   const maxCorrection = Math.PI / 6; // Max 30 degrees
   finalCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, finalCorrection));
   
-  // CRITICAL: Protect state from NaN corruption
-  if (Number.isFinite(finalCorrection)) {
-    state.currentCorrection = finalCorrection;
-  } else {
-    // Reset to 0 if somehow became NaN
-    console.warn('[Magnetism] NaN correction detected, resetting state');
+  // Safety net: Reset state if somehow still NaN (shouldn't happen with early guard)
+  if (!Number.isFinite(finalCorrection)) {
+    console.warn('[Magnetism] Unexpected NaN - resetting state');
     state.currentCorrection = 0;
+    return { 
+      turnCorrection: 0, 
+      debug: {
+        backX, backZ, frontX, frontZ,
+        spineX: nearest.wx, spineZ: nearest.wz,
+        targetX: nearest.wx, targetZ: nearest.wz,
+        tangentX: alignedTx, tangentZ: alignedTz,
+        neighbor1X: endpoint1.wx, neighbor1Z: endpoint1.wz,
+        neighbor2X: endpoint2.wx, neighbor2Z: endpoint2.wz,
+        rawAngleDiff, isActive: false,
+        strengthMultiplier: 0, crossDist,
+        isJunctionSuppressed: false,
+        nearestDegree: nearest.degree,
+        appliedTurnCorrection: 0,
+      },
+    };
   }
+  state.currentCorrection = finalCorrection;
   
   // isActive = system is engaged (nearby and enabled)
   const isActive = distFactor > 0.1;
