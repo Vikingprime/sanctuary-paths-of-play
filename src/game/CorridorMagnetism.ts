@@ -714,7 +714,8 @@ export function calculateMagnetismTurn(
   const strengthScale = (config.strength / 10) * config.maxStrength;
   const targetCorrection = angleDiff * strengthScale * distFactor;
   
-  // Smooth the correction using exponential moving average (responsive tracking)
+  // Smooth the correction using exponential moving average
+  // With tau=0.30s at 60fps, alpha ≈ 0.05, so we move ~5% toward target per frame
   const alpha = delta / (config.smoothingTau + delta);
   state.currentCorrection += (targetCorrection - state.currentCorrection) * alpha;
   
@@ -723,19 +724,16 @@ export function calculateMagnetismTurn(
     state.currentCorrection *= Math.exp(-config.decayRate * delta);
   }
   
-  // Clamp internal state magnitude
+  // Clamp correction magnitude (safety limit)
   const maxCorrection = Math.PI / 6; // Max 30 degrees
   state.currentCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, state.currentCorrection));
-  
-  // Rate-limit the OUTPUT only (allows internal state to track target responsively)
-  const maxTurnThisFrame = config.maxTurnRate * delta;
-  const rateLimitedCorrection = Math.max(-maxTurnThisFrame, Math.min(maxTurnThisFrame, state.currentCorrection));
   
   // isActive = system is engaged (nearby and enabled)
   const isActive = distFactor > 0.1;
   
+  // Output the smoothed correction directly - smoothing already prevents sudden jumps
   return {
-    turnCorrection: rateLimitedCorrection,  // Rate-limited output
+    turnCorrection: state.currentCorrection,
     debug: {
       backX,
       backZ,
@@ -758,7 +756,7 @@ export function calculateMagnetismTurn(
       crossDist,
       isJunctionSuppressed: false,
       nearestDegree: nearest.degree,
-      appliedTurnCorrection: rateLimitedCorrection,
+      appliedTurnCorrection: state.currentCorrection,
     },
   };
 }
