@@ -538,7 +538,7 @@ export function calculateMagnetismTurn(
   
   // Sticky skeleton point selection:
   // Once locked to a point, only switch if:
-  // 1. The new point is significantly closer (>30% closer), OR
+  // 1. The new point is significantly closer (>15% closer), OR
   // 2. The locked point is no longer valid (outside search radius)
   let nearest = candidateNearest;
   const candidateDist = Math.sqrt((frontX - candidateNearest.wx) ** 2 + (frontZ - candidateNearest.wz) ** 2);
@@ -551,11 +551,11 @@ export function calculateMagnetismTurn(
     
     if (lockedPixel) {
       const lockedDist = Math.sqrt((frontX - lockedPixel.wx) ** 2 + (frontZ - lockedPixel.wz) ** 2);
-      const maxSearchRadius = 4.0;
+      const maxSearchRadius = 2.5; // Reduced from 4.0 - don't hold onto distant points
       
       // Stick to locked point unless candidate is significantly better
-      // Require 30% closer OR locked point is too far
-      const switchThreshold = 0.70; // New point must be 70% of locked distance (30% closer)
+      // Require 15% closer OR locked point is too far (reduced from 30% for more responsive switching)
+      const switchThreshold = 0.85; // New point must be 85% of locked distance (15% closer)
       const shouldSwitch = lockedDist > maxSearchRadius || candidateDist < lockedDist * switchThreshold;
       
       if (!shouldSwitch) {
