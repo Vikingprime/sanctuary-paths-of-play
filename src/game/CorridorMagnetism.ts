@@ -149,7 +149,7 @@ export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
   frontOffset: 0.35,                  // Distance to front sensing point
   strength: 8.0,                      // Higher default strength (0-10 scale)
   enabled: true,
-  maxTurnRate: 5.0,                   // Unused now but kept for API
+  maxTurnRate: 2.0,                   // Reduced for smoother turns
 };
 
 // ============================================================================
@@ -163,7 +163,7 @@ export function buildMagnetismCache(
   maze: Maze,
   spurConfig?: SpurConfig
 ): MagnetismCache {
-  const result = computeMedialAxis(maze, 30, spurConfig);
+  const result = computeMedialAxis(maze, 100, spurConfig);
   const { fineGrid, scale, fineCellSize } = result;
   
   const fineHeight = fineGrid.length;
@@ -596,8 +596,8 @@ export function calculateMagnetismTurn(
     state.committedSign = 0; // Reset to neutral
   }
   
-  // Get tangent at skeleton point using extended neighbors (±3 steps) for smoother, more stable direction
-  const tangent = computeTangentExtended(nearest, cache, 3);
+  // Get tangent at skeleton point using extended neighbors (±10 steps) for smoother, more stable direction
+  const tangent = computeTangentExtended(nearest, cache, 10);
   
   // If at a junction (tangent is null) OR in suppression zone, skip turn correction entirely
   const isSuppressed = tangent === null || nearest.isSuppressed;
@@ -737,8 +737,8 @@ export function calculateMagnetismTurn(
     finalCorrection = smoothedCorrection * Math.exp(-config.decayRate * delta);
   }
   
-  // Clamp correction magnitude (safety limit)
-  const maxCorrection = Math.PI / 6; // Max 30 degrees
+  // Clamp correction magnitude (safety limit) - reduced for smoother turns
+  const maxCorrection = Math.PI / 12; // Max 15 degrees (reduced from 30)
   finalCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, finalCorrection));
   
   // Safety net: Reset state if somehow still NaN (shouldn't happen with early guard)
