@@ -678,8 +678,12 @@ export function calculateMagnetismTurn(
   // Step 2: Use cross product to determine turn direction
   // 2D cross product: A × T = Ax*Tz - Az*Tx
   // In our coordinate system (X-right, Z-forward):
-  //   Positive cross = tangent is clockwise from facing = turn RIGHT
-  //   Negative cross = tangent is counter-clockwise from facing = turn LEFT
+  //   Positive cross = tangent is to the LEFT of facing (counter-clockwise)
+  //   Negative cross = tangent is to the RIGHT of facing (clockwise)
+  // 
+  // To ALIGN with the tangent:
+  //   If tangent is left (cross > 0), turn LEFT (negative angleDiff)
+  //   If tangent is right (cross < 0), turn RIGHT (positive angleDiff)
   const crossProduct = facingX * alignedTz - facingZ * alignedTx;
   
   // Step 3: Calculate the angle magnitude between them
@@ -687,9 +691,10 @@ export function calculateMagnetismTurn(
   const dotAligned = facingX * alignedTx + facingZ * alignedTz;
   const angleMagnitude = Math.acos(Math.max(-1, Math.min(1, dotAligned)));
   
-  // Step 4: Signed angle - cross product sign determines turn direction
-  // Positive angleDiff = turn right, Negative = turn left
-  let angleDiff = crossProduct > 0 ? angleMagnitude : -angleMagnitude;
+  // Step 4: Signed angle - INVERT cross product sign for correct turn direction
+  // Positive angleDiff = turn right (to align with tangent on right)
+  // Negative angleDiff = turn left (to align with tangent on left)
+  let angleDiff = crossProduct < 0 ? angleMagnitude : -angleMagnitude;
   
   // Apply deadzone
   const rawAngleDiff = angleDiff;
