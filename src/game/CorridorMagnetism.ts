@@ -631,37 +631,46 @@ export function calculateMagnetismTurn(
   const maxDist = CELL_SIZE * 2.5;
   const distFactor = 1 - smoothstep(0, maxDist, crossDist);
   
-  // Calculate animal's facing angle and spine tangent angle
-  const animalAngle = Math.atan2(facingX, facingZ);
-  const spineAngle = Math.atan2(tx, tz);
+  // ============================================================================
+  // CROSS-PRODUCT BASED TURN DIRECTION
+  // ============================================================================
+  // 
+  // Step 1: Align tangent to point "forward" (same general direction as animal facing)
+  //         Use dot product to determine which of the two tangent directions to use
+  //
+  // Step 2: Use cross product to determine if aligned tangent is left or right of animal
+  //         Cross product sign directly tells us which way to turn
+  //
+  // This replaces the previous angle-comparison approach which could pick the wrong direction
+  // ============================================================================
   
-  // The spine tangent has two possible directions (±180°)
-  // Use hysteresis to prevent flip-flopping when near the boundary
-  const angleDiffPositive = normalizeAngle(spineAngle - animalAngle);
-  const angleDiffNegative = normalizeAngle(spineAngle + Math.PI - animalAngle);
+  // Step 1: Choose tangent direction that points "more forward" (smaller angle to animal facing)
+  // Dot product: positive means vectors point in same general direction
+  const dotPositive = facingX * tx + facingZ * tz;
   
-  // Determine which direction is currently closer
-  const usePositive = Math.abs(angleDiffPositive) <= Math.abs(angleDiffNegative);
-  const currentPreferredSign = usePositive ? 1 : -1;
-  
-  // Hysteresis: only switch committed direction if the difference is significant (>15 degrees)
-  const hysteresisThreshold = 0.26; // ~15 degrees
-  
-  // If committedSign is neutral (just switched points), immediately adopt the preferred direction
-  if (state.committedSign === 0) {
-    state.committedSign = currentPreferredSign;
+  // If dotPositive >= 0, the tangent roughly points in our direction; otherwise flip it
+  let alignedTx = tx;
+  let alignedTz = tz;
+  if (dotPositive < 0) {
+    alignedTx = -tx;
+    alignedTz = -tz;
   }
   
-  const currentAngleDiff = usePositive ? angleDiffPositive : angleDiffNegative;
-  const committedAngleDiff = state.committedSign > 0 ? angleDiffPositive : angleDiffNegative;
+  // Step 2: Use cross product to determine turn direction
+  // 2D cross product: A × T = Ax*Tz - Az*Tx
+  // In our coordinate system (X-right, Z-forward):
+  //   Positive cross = tangent is clockwise from facing = turn RIGHT
+  //   Negative cross = tangent is counter-clockwise from facing = turn LEFT
+  const crossProduct = facingX * alignedTz - facingZ * alignedTx;
   
-  // Switch only if the new direction is significantly better
-  if (Math.abs(currentAngleDiff) < Math.abs(committedAngleDiff) - hysteresisThreshold) {
-    state.committedSign = currentPreferredSign;
-  }
+  // Step 3: Calculate the angle magnitude between them
+  // Since we aligned the tangent to point forward, angle will be <= 90°
+  const dotAligned = facingX * alignedTx + facingZ * alignedTz;
+  const angleMagnitude = Math.acos(Math.max(-1, Math.min(1, dotAligned)));
   
-  // Use the committed direction
-  let angleDiff = state.committedSign > 0 ? angleDiffPositive : angleDiffNegative;
+  // Step 4: Signed angle - cross product sign determines turn direction
+  // Positive angleDiff = turn right, Negative = turn left
+  let angleDiff = crossProduct > 0 ? angleMagnitude : -angleMagnitude;
   
   // Apply deadzone
   const rawAngleDiff = angleDiff;
@@ -705,8 +714,9 @@ export function calculateMagnetismTurn(
       spineZ: nearest.wz,
       targetX: nearest.wx,
       targetZ: nearest.wz,
-      tangentX: tx,
-      tangentZ: tz,
+      // Pass the ALIGNED tangent to debug so compass shows correct direction
+      tangentX: alignedTx,
+      tangentZ: alignedTz,
       neighbor1X: endpoint1.wx,
       neighbor1Z: endpoint1.wz,
       neighbor2X: endpoint2.wx,
