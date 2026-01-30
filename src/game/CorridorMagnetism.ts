@@ -140,8 +140,8 @@ const CELL_SIZE = GameConfig.CELL_SIZE;
 
 export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
   deadzone: 0.1,                      // ~6 degrees
-  maxStrength: 0.8,                   // 80% of full turn (was 25%, too weak)
-  smoothingTau: 0.15,                 // 150ms smoothing
+  maxStrength: 0.5,                   // 50% of full turn (reduced for gentler corrections)
+  smoothingTau: 0.30,                 // 300ms smoothing (slower ramp-up)
   decayRate: 3.0,                     // Decay over ~0.3s
   backOffset: 0.2,                    // Distance to back sensing point
   frontOffset: 0.35,                  // Distance to front sensing point
@@ -160,7 +160,7 @@ export function buildMagnetismCache(
   maze: Maze,
   spurConfig?: SpurConfig
 ): MagnetismCache {
-  const result = computeMedialAxis(maze, 10, spurConfig);
+  const result = computeMedialAxis(maze, 30, spurConfig);
   const { fineGrid, scale, fineCellSize } = result;
   
   const fineHeight = fineGrid.length;
@@ -583,8 +583,8 @@ export function calculateMagnetismTurn(
     state.committedSign = 0; // Reset to neutral
   }
   
-  // Get tangent at skeleton point using extended neighbors (±1 steps) for localized assistance
-  const tangent = computeTangentExtended(nearest, cache, 1);
+  // Get tangent at skeleton point using extended neighbors (±3 steps) for smoother, more stable direction
+  const tangent = computeTangentExtended(nearest, cache, 3);
   
   // If at a junction (tangent is null) OR in suppression zone, skip turn correction entirely
   const isSuppressed = tangent === null || nearest.isSuppressed;
