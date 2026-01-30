@@ -1,82 +1,135 @@
 
 
-# Fix: NaN Corruption Root Cause in Corridor Magnetism
+# Fix: Spur Trimming, Turn Smoothness, and Wobble
 
-## Problem Summary
+## Problems Identified
 
-The magnetism system has a NaN corruption issue that wasn't properly fixed - we only added a band-aid guard. The user correctly identified that we should fix the root cause, not just patch the symptoms.
+### 1. Spurs Not Being Trimmed (Visualization Only)
+The visualization shows unpruned spurs because the UI slider values (e.g., `maxSpurLen: 5`) override the scale-dependent defaults. At scale=100:
+- **Expected**: `maxSpurLen = 100` (1 cell of skeleton steps)
+- **Actual**: UI passes `maxSpurLen = 5` (0.05 cells - way too small to catch any spurs)
 
-## Root Cause Analysis
+The magnetism cache itself is fine because `buildMagnetismCache` is called **without** spurConfig, using correct scale defaults. The issue is only in the debug visualization.
 
-The NaN values originate from **unguarded decay calculations** when `delta` is negative or zero.
+**Fix**: Don't pass spurConfig to visualization when it equals the scale defaults (or reset the stored spurConfig when scale changes).
 
-### The Corruption Path
+### 2. Turn Related Issues (Already Addressed in Last Edit)
+The max correction was reduced to 15° and tangent extended to ±10. User wants:
+- Tangent extended to ±20 (for even smoother direction calculation)
+- Further reduce max correction magnitude
 
-1. In certain browser timing edge cases, `delta` can be 0 or negative (tab switching, requestAnimationFrame quirks, etc.)
-2. The code at lines 506 and 535 does: `state.currentCorrection *= Math.exp(-config.decayRate * delta)`
-3. With negative `delta`:
-   - `Math.exp(-5.0 * -0.001) = Math.exp(0.005) = 1.005` (small values are fine)
-   - `Math.exp(-5.0 * -1.0) = Math.exp(5.0) = 148.4` (large negative delta causes explosion)
-4. More critically, if `state.currentCorrection` is exactly 0 and delta becomes very negative:
-   - `Math.exp(large_positive) = Infinity`
-   - `0 * Infinity = NaN` (JavaScript behavior)
-5. Once `state.currentCorrection` is NaN, it stays NaN forever and propagates through all subsequent calculations
-
-### Unprotected Code Paths
-
-```text
-Line 506: state.currentCorrection *= Math.exp(-config.decayRate * delta);
-Line 535: state.currentCorrection *= Math.exp(-config.decayRate * delta);
-Line 596: state.currentCorrection *= Math.exp(-config.decayRate * delta);
-```
-
-These three locations perform decay on the state without checking if `delta` is valid. The guard we added at line 718 only protects the *main calculation* path, not these early-return decay paths.
+### 3. Additional Smoothing Suggestions
+To reduce jerkiness and wobble:
+- Increase smoothing time constant
+- Add deadzone to prevent micro-corrections
+- Add wobble suppression for small sign-flip oscillations
 
 ---
 
 ## Solution
 
-Add `delta` validation at the **start** of the function, before any state mutation occurs. This ensures all code paths are protected with a single guard.
-
 ### File: `src/game/CorridorMagnetism.ts`
 
-**Change 1**: Move the delta guard to the very beginning of the function (after the noOpResult definition, around line 502)
-
+**Change 1**: Add comment clarifying suppression radius = scale = 1 cell (line 172-173)
 ```typescript
-// EARLY GUARD: Validate delta before any calculations or state mutations
-// This prevents NaN corruption from negative/zero/non-finite delta values
-if (!Number.isFinite(delta) || delta <= 0) {
-  // Return existing state unchanged - don't mutate anything
-  return {
-    turnCorrection: Number.isFinite(state.currentCorrection) ? state.currentCorrection : 0,
-    debug: { ...noOpResult.debug },
-  };
+// Suppression radius: 1 × scale (i.e., 1 real-world maze cell width in skeleton steps)
+// At scale=100, this is 100 steps. DO NOT change this - scale IS 1 cell by definition.
+const suppressionRadius = scale;
+```
+
+**Change 2**: Increase tangent look-ahead from 10 to 20 (line 600)
+```typescript
+// Get tangent at skeleton point using extended neighbors (±20 steps) for maximum stability
+const tangent = computeTangentExtended(nearest, cache, 20);
+```
+
+**Change 3**: Reduce max correction from 15° to 10° (line 737)
+```typescript
+// Clamp correction magnitude - max 10 degrees to prevent sudden flips
+const maxCorrection = Math.PI / 18; // 10 degrees (was 15)
+```
+
+**Change 4**: Increase smoothing and add wobble prevention (around line 720-730)
+```typescript
+// Increase smoothing time constant for less jerky response
+const effectiveTau = config.smoothingTau * 2.5; // 0.10 → 0.25 effective
+
+// Calculate smoothing factor
+const alpha = delta / (effectiveTau + delta);
+let smoothedCorrection = state.currentCorrection + (targetCorrection - state.currentCorrection) * alpha;
+
+// Wobble prevention: suppress small sign changes that cause oscillation
+const wobbleThreshold = 0.02; // ~1.2 degrees
+if (state.currentCorrection !== 0 && 
+    Math.sign(smoothedCorrection) !== Math.sign(state.currentCorrection) &&
+    Math.abs(smoothedCorrection) < wobbleThreshold) {
+  // Sign is flipping with tiny magnitude - decay instead of flip
+  smoothedCorrection = state.currentCorrection * 0.8;
 }
 ```
 
-**Change 2**: Remove the duplicate guard at lines 717-736 (since we now handle it at the start)
-
-**Change 3**: Simplify the later NaN check to just be a safety net, not the primary protection:
-
+**Change 5**: Add wider deadzone in config (lines around 144-148)
 ```typescript
-// Safety net: Reset state if somehow still NaN (shouldn't happen with early guard)
-if (!Number.isFinite(finalCorrection)) {
-  console.warn('[Magnetism] Unexpected NaN - resetting state');
-  state.currentCorrection = 0;
-  return { turnCorrection: 0, debug: { ...debugData } };
-}
-state.currentCorrection = finalCorrection;
+export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
+  // ... existing config
+  deadzone: 0.08, // Increase from 0.05 to 0.08 (~4.5 degrees)
+};
 ```
 
 ---
 
-## Why This Properly Fixes the Issue
+### File: `src/components/MedialAxisVisualization.tsx`
 
-| Before | After |
-|--------|-------|
-| 3 unprotected decay paths could corrupt state | Single guard at function entry protects all paths |
-| NaN detection was reactive (after corruption) | Prevention before any state mutation |
-| Band-aid reset losing valid state | Early return preserving existing state |
+**Change 6**: Don't pass spurConfig if it's null, let computeMedialAxis use scale defaults (line 92)
+This is already correct - the issue is the stored state. We need to invalidate stored spurConfig when defaults change.
 
-The key insight is that by validating `delta` at the very start of the function, we prevent any code path from executing with invalid timing data. This eliminates the source of NaN rather than just detecting it after the fact.
+---
+
+### File: `src/components/MazeGame3D.tsx`
+
+**Change 7**: Reset spurConfig when defaultSpurConfig changes significantly (lines 929-937)
+```typescript
+onDefaultSpurConfig={(config) => {
+  // Always update the defaults
+  setDefaultSpurConfig(config);
+  
+  // Reset spurConfig to match new defaults if:
+  // 1. spurConfig was never set, OR
+  // 2. The defaults changed significantly (scale changed)
+  if (!spurConfig || 
+      Math.abs(spurConfig.maxSpurLen - config.maxSpurLen) > 10) {
+    setSpurConfig(config);
+  }
+}}
+```
+
+---
+
+## Summary of Changes
+
+| Issue | Fix | File |
+|-------|-----|------|
+| Spurs not trimmed | Reset spurConfig when scale defaults change | MazeGame3D.tsx |
+| Clarify suppression radius | Add comment: scale = 1 cell, don't change | CorridorMagnetism.ts |
+| Extend tangent for stability | ±10 → ±20 skeleton steps | CorridorMagnetism.ts |
+| Reduce max turn magnitude | 15° → 10° | CorridorMagnetism.ts |
+| Reduce jerkiness | Increase smoothing tau (×2.5) | CorridorMagnetism.ts |
+| Prevent wobble oscillation | Add sign-flip suppression for small values | CorridorMagnetism.ts |
+| Wider deadzone | 0.05 → 0.08 radians (~4.5°) | CorridorMagnetism.ts |
+
+---
+
+## Why These Changes Work
+
+### Tangent ±20 Steps
+At scale=100, ±20 steps means we're averaging direction over 40 skeleton pixels, which equals 0.4 cell widths of corridor. This provides excellent smoothness while still responding to curves within ~half a cell.
+
+### Max Correction 10°
+This prevents the jarring 180° flip scenario. Even if the system "wants" to flip the player around, it can only do so at 10° per frame maximum, giving the player time to react and the smoothing time to catch up.
+
+### Wobble Prevention
+When the correction oscillates between small positive and negative values (e.g., +0.01, -0.01, +0.01...), the sign-flip suppression catches these and decays toward zero instead, eliminating the visible wobble.
+
+### Suppression Radius Comment
+Adding a clear comment prevents future confusion: scale=100 means 100 skeleton steps per cell, so `suppressionRadius = scale` is exactly 1 cell - which is intentional.
 
