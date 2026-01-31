@@ -1,93 +1,131 @@
 
-# Smooth Curve Movement for Full Magnetism Lock
+# Fix Vibration in Full Lock Mode: Smooth the Spine Anchor Point
 
 ## Problem Analysis
 
-When magnetism is at full strength (10), the animal's front point is locked to the tangent line through the nearest skeleton node. However, the skeleton is computed on a discrete 20x20 subcell grid, creating **stair-step patterns at curves** instead of smooth arcs.
+The "Full Lock" constraint (magnetism strength 10) projects the animal's front point onto a tangent line through the nearest spine node. While the tangent direction is now smoothed (via lookAhead=5), the **spine point itself is discrete** - it jumps from one grid node to the next as the animal moves.
 
-The current tangent calculation uses `lookAhead = 1`, meaning it only looks at the immediate 8-connected neighbors. This causes the tangent direction to abruptly change at each skeleton node, following the jagged grid pattern.
-
-```text
-Current skeleton at a curve (discrete grid):
-        . . . . . . 
-        . . . . X X    <-- stair-step pattern
-        . . . X X .
-        . . X X . .
-        X X X . . .
-        X . . . . .
-```
-
-## Solution: Smooth Tangent via Extended Neighbor Walk
-
-Increase the `lookAhead` parameter in `computeTangentExtended()` to walk further along the skeleton (e.g., 5-10 steps in each direction). This averages out the local stair-steps by computing the tangent from points further apart, creating a smoother effective curve.
+When the nearest spine node changes, the tangent line shifts laterally by one grid cell (0.05 world units at scale 20), causing the animal to "snap" to the new line position. This creates the visible vibration effect at curves.
 
 ```text
-With lookAhead = 5:
-        Start point (5 steps back) ─────────► End point (5 steps ahead)
-                                   ↑
-                       Tangent computed from these distant points
+Frame N:   Animal front → projected to tangent through SpineNode_A
+Frame N+1: Nearest node switches to SpineNode_B (one grid cell away)
+           Animal front → projected to tangent through SpineNode_B (jumps!)
+Frame N+2: Nearest node switches back to SpineNode_A 
+           Animal front → jumps again...
 ```
 
-### Why This Works
+## Solution: Smooth the Spine Anchor Position
 
-Instead of computing direction from immediate neighbors (which are offset by single grid cells), we compute direction from points 5-10 steps apart. The stair-stepping between individual nodes is averaged out in the final direction vector.
+Instead of using the raw discrete spine point (`nearest.wx/wz`) directly, apply exponential smoothing to create a stable anchor position that moves continuously along the skeleton.
 
-## Implementation
+### Implementation Steps
 
-### File: `src/game/CorridorMagnetism.ts`
+### 1. Add Smoothed Spine State to MagnetismTurnState
 
-**Change 1: Increase lookAhead for tangent calculation (line ~601)**
+**File: `src/game/CorridorMagnetism.ts`** (interface around line 123)
+
+Add two new fields to track the smoothed spine position:
 ```typescript
-// Current:
-const tangent = computeTangentExtended(nearest, cache, 1);
-
-// New:
-const tangent = computeTangentExtended(nearest, cache, 5);
+export interface MagnetismTurnState {
+  // ... existing fields ...
+  
+  /** Smoothed spine X position (for stable tangent line anchor) */
+  smoothedSpineX: number;
+  /** Smoothed spine Z position (for stable tangent line anchor) */
+  smoothedSpineZ: number;
+}
 ```
 
-This single-line change walks 5 steps in each direction along the skeleton (total span of ~10 skeleton nodes), smoothing out short-range stair-stepping while still responding to actual corridor direction changes.
+### 2. Initialize Smoothed Spine in createMagnetismTurnState
 
-### Additional Enhancement: Configurable lookAhead
+**File: `src/game/CorridorMagnetism.ts`** (around line 476)
 
-Add a `tangentLookAhead` parameter to `MagnetismConfig` so this can be tuned via the debug UI:
-
+Initialize the new fields to 0:
 ```typescript
-// In MagnetismConfig interface:
-tangentLookAhead: number;  // Steps to walk for tangent smoothing (1-10)
-
-// In DEFAULT_MAGNETISM_CONFIG:
-tangentLookAhead: 5,
-
-// At call site:
-const tangent = computeTangentExtended(nearest, cache, config.tangentLookAhead);
+export function createMagnetismTurnState(): MagnetismTurnState {
+  return {
+    currentCorrection: 0,
+    initialized: false,
+    committedSign: 0,
+    lastNearestFx: -1,
+    lastNearestFy: -1,
+    lockDuration: 0,
+    smoothedSpineX: 0,
+    smoothedSpineZ: 0,
+  };
+}
 ```
 
-## Expected Behavior
+### 3. Update Smoothed Spine in calculateMagnetismTurn
 
-| LookAhead | Movement Character |
-|-----------|-------------------|
-| 1 | Jagged - follows every stair-step in skeleton |
-| 3 | Slightly smoother - minor jitter on tight curves |
-| 5 | Smooth curves - good balance of responsiveness and smoothness |
-| 10 | Very smooth - may feel sluggish to respond to direction changes |
+**File: `src/game/CorridorMagnetism.ts`** (in the main calculation function, around line 635)
 
-## Technical Details
+After finding the nearest skeleton pixel, apply exponential smoothing to the spine position:
+```typescript
+// After: const { tx, tz, endpoint1, endpoint2 } = tangent;
 
-- At scale 20, each skeleton node is 0.0333 world units apart
-- With `lookAhead = 5`, tangent spans ~0.33 world units (half a maze cell)
-- This is enough to smooth out 45° stair-steps while still responding to actual corridor bends
+// Smooth the spine anchor point to prevent vibration at curves
+// Use a fast tau (0.05s) so it tracks quickly but eliminates single-frame jumps
+const spineSmoothingTau = 0.05;
+const spineAlpha = delta / (spineSmoothingTau + delta);
 
-## Alternative Approach (Not Recommended for Initial Fix)
+if (!state.initialized) {
+  state.smoothedSpineX = nearest.wx;
+  state.smoothedSpineZ = nearest.wz;
+} else {
+  state.smoothedSpineX += (nearest.wx - state.smoothedSpineX) * spineAlpha;
+  state.smoothedSpineZ += (nearest.wz - state.smoothedSpineZ) * spineAlpha;
+}
 
-A more complex solution would be to compute **spline interpolation** through the skeleton points, generating actual smooth curves. This would require:
-- Catmull-Rom or Bezier spline fitting
-- Storing smoothed positions as a separate data structure
-- Finding nearest point on the curve (more complex than grid lookup)
+// Use smoothedSpine for debug output instead of raw nearest.wx/wz
+```
 
-The `lookAhead` increase achieves similar results with minimal code change.
+### 4. Update Debug Output to Use Smoothed Spine
 
-## Summary
+**File: `src/game/CorridorMagnetism.ts`** (in the return statement around line 780)
 
-1. Change `lookAhead` from 1 to 5 in the tangent calculation call
-2. Optionally add `tangentLookAhead` to config for debug tuning
-3. Test full lock movement on curved corridors
+Change the debug output to use the smoothed values:
+```typescript
+debug: {
+  // ... other fields ...
+  spineX: state.smoothedSpineX,  // Was: nearest.wx
+  spineZ: state.smoothedSpineZ,  // Was: nearest.wz
+  // ... other fields ...
+}
+```
+
+### 5. constrainMovementToTangent Now Uses Smooth Data
+
+No changes needed to `constrainMovementToTangent` itself - it receives `magnetismDebug.spineX/Z` which will now be the smoothed values.
+
+## How It Works
+
+With these changes:
+
+1. **Raw skeleton lookup** still finds the nearest discrete grid node
+2. **Smoothed spine position** interpolates toward the raw position with tau=0.05s
+3. **Tangent line** is anchored at the smooth position instead of the jumping discrete point
+4. **Front point projection** snaps to this stable, smoothly-moving line
+5. **No more vibration** - the anchor point moves continuously, not in discrete jumps
+
+```text
+With smoothing:
+Frame N:   smoothedSpine ≈ (1.00, 2.00)
+Frame N+1: Nearest jumps to (1.05, 2.05), but smoothedSpine → (1.01, 2.01)
+Frame N+2: smoothedSpine → (1.02, 2.02)
+...
+           Smooth transition, no snapping!
+```
+
+## Technical Notes
+
+- **Tau = 0.05s** is fast enough to track actual movement (animal moves ~3 units/sec max) but slow enough to filter out single-frame grid jumps
+- The smoothed position naturally follows the skeleton path since raw positions are always on the skeleton
+- At junctions, smoothing is irrelevant since magnetism is disabled there anyway
+
+## Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/game/CorridorMagnetism.ts` | Add smoothedSpineX/Z to state, apply exponential smoothing, output smooth values to debug |
