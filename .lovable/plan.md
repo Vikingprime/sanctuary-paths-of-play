@@ -1,107 +1,159 @@
 
-# Fix Tangent Constraint: Clamp to Segment Instead of Infinite Line
 
-## Problem
+# Debug Logging Plan: Diagnose Bounceback on Lock-On
 
-The current `constrainMovementToTangent` treats the tangent as an **infinite line**:
+## Problem Summary
 
-```typescript
-// Current code (line 996-1000):
-const dot = toFrontX * tx + toFrontZ * tz;  // UNCLAMPED - can be any value!
-const projectedFrontX = spineX + dot * tx;  // Can project WAY off the segment
-const projectedFrontZ = spineZ + dot * tz;
-```
+When magnetism locks on (strength ~10), the animal experiences a "bounceback" where it gets pulled in the opposite direction briefly before being pulled into the correct line. This causes camera shake and bouncing motion.
 
-When the animal is off-axis, `dot` can be large, projecting the front point far along the corridor in either direction. This causes the animal to slide sideways into a wall before being pulled to the centerline.
+## Suspected Root Causes
 
-```text
-Wall ════════════════════════════════════════════
+Based on code analysis, there are several potential causes:
 
-  n1 ●━━━━━━━━━━● S (spine) ━━━━━━━━━━● n2     ← actual segment (±5 steps)
-                      │
-                      │ tangent extends infinitely...
-                      │
-      P ●─────────────┘  ← projected point (way outside segment!)
-        ↑
-        │ offset pushes diagonally!
-        │
-        F (front point of animal)
-```
+1. **1-Frame Lag in Constraint Data**: `constrainMovementToTangent` (line 1266-1275) uses `magnetismDebugRef.current` which contains the *previous frame's* spine/tangent data. The current frame's data isn't updated until line 1390, AFTER the constraint is applied.
 
-## Solution
+2. **Tangent Direction Flip**: The `committedSign` hysteresis (lines 689-713) may flip when transitioning from non-locked to locked mode, causing the tangent to point the opposite direction for a frame.
 
-We already have the segment endpoints in `magnetismDebug.neighbor1X/Z` and `neighbor2X/Z`. We should:
+3. **Smoothed Spine Jump**: The smoothed spine anchor (`state.smoothedSpineX/Z`) may jump when the nearest skeleton pixel changes, causing the perpendicular offset to swing wildly.
 
-1. Project the front point onto the **finite segment** between neighbor1 and neighbor2
-2. Clamp the projection to stay within segment bounds
-3. This keeps the animal within the local corridor section
+4. **Perpendicular Offset Sign**: The sign of `perpDist` and its application (`-perpDist * perpX`) may behave unexpectedly when the animal approaches the corridor from certain angles.
 
-### Implementation
+## Debug Logging Strategy
 
-**File: `src/game/CorridorMagnetism.ts`** (lines 986-1004)
+Add targeted logging at key decision points to capture the exact moment of bounceback:
 
-Replace the infinite line projection with clamped segment projection:
+### Location 1: `constrainMovementToTangent` Entry (CorridorMagnetism.ts ~955-960)
+
+Log when constraint activates and with what data:
 
 ```typescript
-// Get segment endpoints from debug data (these are ±5 steps along skeleton)
-const n1x = magnetismDebug.neighbor1X;
-const n1z = magnetismDebug.neighbor1Z;
-const n2x = magnetismDebug.neighbor2X;
-const n2z = magnetismDebug.neighbor2Z;
+// After line 956 (early exit check)
+console.log('[TANGENT-LOCK] Entry:', {
+  isActive: magnetismDebug.isActive,
+  strength,
+  willApply: !(!magnetismDebug || !magnetismDebug.isActive || strength < 9.9),
+});
+```
 
-// Segment vector (neighbor1 to neighbor2)
-const segX = n2x - n1x;
-const segZ = n2z - n1z;
-const segLenSq = segX * segX + segZ * segZ;
+### Location 2: Spine and Tangent Data (CorridorMagnetism.ts ~986-997)
 
-// Early exit if segment is degenerate
-if (segLenSq < 0.0001) {
-  return { x: newX, z: newZ };
+Log the spine anchor and tangent being used for constraint:
+
+```typescript
+// After line 997 (perpZ assignment)
+console.log('[TANGENT-LOCK] Geometry:', {
+  spineX: spineX.toFixed(3),
+  spineZ: spineZ.toFixed(3),
+  tangentAngle: (Math.atan2(tx, tz) * 180 / Math.PI).toFixed(1),
+  frontX: frontX.toFixed(3),
+  frontZ: frontZ.toFixed(3),
+  perpDist: perpDist.toFixed(4),
+});
+```
+
+### Location 3: Offset Application (CorridorMagnetism.ts ~1003-1008)
+
+Log the actual offset being applied:
+
+```typescript
+// After line 1008 (constrainedZ)
+console.log('[TANGENT-LOCK] Offset:', {
+  offsetX: offsetX.toFixed(4),
+  offsetZ: offsetZ.toFixed(4),
+  offsetMag: Math.sqrt(offsetX*offsetX + offsetZ*offsetZ).toFixed(4),
+  lockBlend: lockBlend.toFixed(3),
+  deltaX: (constrained.x - newX).toFixed(4),
+  deltaZ: (constrained.z - newZ).toFixed(4),
+});
+```
+
+### Location 4: Committed Sign Changes (CorridorMagnetism.ts ~702-713)
+
+Log when tangent direction commitment changes:
+
+```typescript
+// Before line 709 (committedSign switch logic)
+const prevSign = state.committedSign;
+
+// After line 713 (after switch logic)
+if (state.committedSign !== prevSign) {
+  console.log('[TANGENT-LOCK] SIGN FLIP:', {
+    prevSign,
+    newSign: state.committedSign,
+    dotPositive: dotPositive.toFixed(3),
+    threshold: hysteresisThreshold,
+  });
 }
-
-// Vector from segment start (neighbor1) to front point
-const toFrontX = frontX - n1x;
-const toFrontZ = frontZ - n1z;
-
-// Project front onto segment: t = dot(toFront, seg) / |seg|²
-// Clamp t to [0, 1] to stay within the segment
-const t = Math.max(0, Math.min(1, (toFrontX * segX + toFrontZ * segZ) / segLenSq));
-
-// Closest point on segment
-const closestX = n1x + t * segX;
-const closestZ = n1z + t * segZ;
-
-// Offset to move front point onto the segment
-const offsetX = closestX - frontX;
-const offsetZ = closestZ - frontZ;
 ```
 
-## Visual Result
+### Location 5: Smoothed Spine Jump Detection (CorridorMagnetism.ts ~660-662)
 
-```text
-Wall ════════════════════════════════════════════
+Log when the raw spine vs smoothed spine differs significantly:
 
-  n1 ●━━━━━━━━━━● S (spine) ━━━━━━━━━━● n2     ← segment
-             ↑
-             │ perpendicular pull (clamped to segment)
-             │
-             F (front point)
-
-Result: Animal moves directly toward centerline within the local segment
+```typescript
+// After line 662 (smoothing update)
+const spineDelta = Math.sqrt(
+  (nearest.wx - state.smoothedSpineX) ** 2 + 
+  (nearest.wz - state.smoothedSpineZ) ** 2
+);
+if (spineDelta > 0.1) { // Threshold for "significant" jump
+  console.log('[TANGENT-LOCK] SPINE JUMP:', {
+    rawX: nearest.wx.toFixed(3),
+    rawZ: nearest.wz.toFixed(3),
+    smoothedX: state.smoothedSpineX.toFixed(3),
+    smoothedZ: state.smoothedSpineZ.toFixed(3),
+    delta: spineDelta.toFixed(4),
+  });
+}
 ```
 
-## Why This Works
+### Location 6: Movement Loop Frame Comparison (Maze3DScene.tsx ~1277)
 
-| Case | Before (infinite line) | After (clamped segment) |
-|------|------------------------|-------------------------|
-| Animal aligned with tangent | Projects correctly | Projects correctly |
-| Animal off-axis, near segment | Projects off segment, diagonal push | Clamps to segment, perpendicular pull |
-| Animal at curve entry | Can project into next corridor | Stays within current ±5 step window |
+Log position delta to detect bounceback:
 
-The clamping ensures the projection target is always within the local corridor section defined by the ±5 skeleton steps. This prevents the diagonal "slide into wall first" behavior.
+```typescript
+// After line 1277 (constrained applied)
+const positionDelta = {
+  dx: constrained.x - prev.x,
+  dz: constrained.z - prev.y,
+};
+const deltaMag = Math.sqrt(positionDelta.dx ** 2 + positionDelta.dz ** 2);
+if (deltaMag > 0.01 && magnetStrength >= 9.9) {
+  console.log('[TANGENT-LOCK] MOVE:', {
+    prevX: prev.x.toFixed(3),
+    prevZ: prev.y.toFixed(3),
+    newX: newState.x.toFixed(3),
+    newZ: newState.y.toFixed(3),
+    constrainedX: constrained.x.toFixed(3),
+    constrainedZ: constrained.z.toFixed(3),
+    deltaMag: deltaMag.toFixed(4),
+  });
+}
+```
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/game/CorridorMagnetism.ts` | Replace infinite line projection (lines 986-1004) with clamped segment projection using neighbor1/neighbor2 endpoints |
+| `src/game/CorridorMagnetism.ts` | Add debug logging in `constrainMovementToTangent` (entry, geometry, offset), committed sign flip detection, and spine jump detection |
+| `src/components/Maze3DScene.tsx` | Add frame-by-frame position delta logging when lock is active |
+
+## How to Use the Logs
+
+1. Enable full magnetism (strength 10) in debug settings
+2. Move the animal into a corridor from an angle (not aligned)
+3. Watch console for `[TANGENT-LOCK]` prefixed logs
+4. Look for:
+   - **SIGN FLIP** logs indicating tangent direction reversal
+   - **SPINE JUMP** logs indicating the anchor moved suddenly
+   - **Offset** logs showing large magnitude changes frame-to-frame
+   - **MOVE** logs showing position jumping backward
+
+## Expected Findings
+
+The logs should reveal one of:
+- A `SIGN FLIP` happening exactly when the bounceback occurs (tangent direction bug)
+- A `SPINE JUMP` with high delta correlating with bounceback (smoothing insufficient)
+- Large `perpDist` swings in `Geometry` logs (perpendicular calculation issue)
+- `MOVE` showing `constrained` position going backward then forward (1-frame lag bug)
+
