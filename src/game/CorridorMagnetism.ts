@@ -1016,10 +1016,10 @@ export function constrainMovementToTangent(
   const rawOffsetZ = closestZ - frontZ;
   
   // Extract ONLY the perpendicular component to avoid along-path acceleration
-  // Perpendicular to segment direction is (-segZ, segX) normalized
-  const segLen = Math.sqrt(segLenSq);
-  const perpX = -segZ / segLen;
-  const perpZ = segX / segLen;
+  // Use the SMOOTHED tangent (tx, tz) for perpendicular, not raw segment direction
+  // Perpendicular to tangent is (-tz, tx)
+  const perpX = -tz;
+  const perpZ = tx;
   
   // Project raw offset onto perpendicular direction
   const perpDist = rawOffsetX * perpX + rawOffsetZ * perpZ;
