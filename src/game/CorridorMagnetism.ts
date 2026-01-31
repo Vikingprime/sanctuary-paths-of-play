@@ -732,9 +732,10 @@ export function calculateMagnetismTurn(
   
   let finalCorrection: number;
   
-  if (isFullLock && distFactor > 0.5) {
+  if (isFullLock) {
     // FULL LOCK MODE: Apply the entire angle difference immediately
     // The animal's front point is locked to the tangent direction
+    // No distFactor gating - lock applies everywhere magnetism is active
     finalCorrection = angleDiff;
     state.currentCorrection = finalCorrection;
   } else {
