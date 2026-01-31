@@ -54,6 +54,7 @@ export {
   calculateMagnetismTurn,
   buildMagnetismCache,
   filterTargetPoint,
+  constrainMovementToTangent,
   DEFAULT_MAGNETISM_CONFIG,
   type MagnetismConfig,
   type MagnetismCache,

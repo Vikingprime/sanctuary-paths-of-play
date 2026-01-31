@@ -902,3 +902,67 @@ export function filterTargetPoint(
   
   return { x: state.targetX, z: state.targetZ };
 }
+
+/**
+ * Constrain movement to the tangent direction when at full lock strength.
+ * Projects the movement vector onto the tangent line, preventing lateral drift.
+ * 
+ * @param prevX Previous X position
+ * @param prevZ Previous Z position  
+ * @param newX New X position (after movement calculation)
+ * @param newZ New Z position (after movement calculation)
+ * @param magnetismDebug Debug info from magnetism calculation (contains tangent)
+ * @param strength Magnetism strength (0-10, where 10 = full lock)
+ * @returns Constrained position { x, z }
+ */
+export function constrainMovementToTangent(
+  prevX: number,
+  prevZ: number,
+  newX: number,
+  newZ: number,
+  magnetismDebug: MagnetismTurnResult['debug'] | null,
+  strength: number
+): { x: number; z: number } {
+  // Only apply constraint at high strength and when magnetism is active
+  if (!magnetismDebug || !magnetismDebug.isActive || strength < 9.9) {
+    return { x: newX, z: newZ };
+  }
+  
+  // Skip if at junction (let player move freely at intersections)
+  if (magnetismDebug.isJunctionSuppressed) {
+    return { x: newX, z: newZ };
+  }
+  
+  const tangentX = magnetismDebug.tangentX;
+  const tangentZ = magnetismDebug.tangentZ;
+  
+  // Tangent must be valid (normalized)
+  const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ);
+  if (tangentLen < 0.01) {
+    return { x: newX, z: newZ };
+  }
+  
+  // Normalize tangent
+  const tx = tangentX / tangentLen;
+  const tz = tangentZ / tangentLen;
+  
+  // Calculate movement delta
+  const deltaX = newX - prevX;
+  const deltaZ = newZ - prevZ;
+  
+  // Project movement onto tangent direction
+  // dot = how much of the movement is along the tangent
+  const dot = deltaX * tx + deltaZ * tz;
+  
+  // Constrained movement = only the tangent component
+  const constrainedX = prevX + dot * tx;
+  const constrainedZ = prevZ + dot * tz;
+  
+  // Blend based on how close to full strength (9.9-10 = full lock)
+  const lockBlend = Math.min(1, (strength - 9.9) / 0.1);
+  
+  return {
+    x: newX + (constrainedX - newX) * lockBlend,
+    z: newZ + (constrainedZ - newZ) * lockBlend,
+  };
+}

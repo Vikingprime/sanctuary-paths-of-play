@@ -25,6 +25,7 @@ import {
   DEFAULT_MAGNETISM_CONFIG, 
   buildMagnetismCache, 
   calculateMagnetismTurn,
+  constrainMovementToTangent,
 } from '@/game/CorridorMagnetism';
 
 // Re-export for backward compatibility
@@ -1258,7 +1259,20 @@ const RefBasedPlayer = ({
           // Calculate movement
           const prev = playerStateRef.current;
           const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-          playerStateRef.current = { x: newState.x, y: newState.y, rotation: newState.rotation };
+          
+          // Apply tangent constraint at high magnetism strength (locks movement to corridor direction)
+          // Uses previous frame's magnetism data since current frame hasn't calculated yet
+          const magnetStrength = magnetismConfig?.enabled ? (magnetismConfig.strength ?? 5) : 0;
+          const constrained = constrainMovementToTangent(
+            prev.x,
+            prev.y,
+            newState.x,
+            newState.y,
+            magnetismDebugRef?.current ?? null,
+            magnetStrength
+          );
+          
+          playerStateRef.current = { x: constrained.x, y: constrained.z, rotation: newState.rotation };
           collisionIntensityRef.current = newState.collisionIntensity;
           
           // Update animation refs
