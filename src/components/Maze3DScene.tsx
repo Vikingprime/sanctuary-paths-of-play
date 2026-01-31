@@ -1274,6 +1274,27 @@ const RefBasedPlayer = ({
             DEFAULT_MAGNETISM_CONFIG.frontOffset    // Pass front offset (0.35)
           );
           
+          // Location 6: Log position delta when locked to detect bounceback
+          const magnetStrengthForLog = magnetismConfig?.enabled ? (magnetismConfig.strength ?? 5) : 0;
+          if (magnetStrengthForLog >= 9.9) {
+            const positionDelta = {
+              dx: constrained.x - prev.x,
+              dz: constrained.z - prev.y,
+            };
+            const deltaMag = Math.sqrt(positionDelta.dx ** 2 + positionDelta.dz ** 2);
+            if (deltaMag > 0.01) {
+              console.log('[TANGENT-LOCK] MOVE:', {
+                prevX: prev.x.toFixed(3),
+                prevZ: prev.y.toFixed(3),
+                newX: newState.x.toFixed(3),
+                newZ: newState.y.toFixed(3),
+                constrainedX: constrained.x.toFixed(3),
+                constrainedZ: constrained.z.toFixed(3),
+                deltaMag: deltaMag.toFixed(4),
+              });
+            }
+          }
+          
           playerStateRef.current = { x: constrained.x, y: constrained.z, rotation: newState.rotation };
           collisionIntensityRef.current = newState.collisionIntensity;
           
