@@ -117,8 +117,8 @@ export const MazeGame3D = ({
   
   // Magnetism configuration state
   const [magnetismConfig, setMagnetismConfig] = useState<MagnetismConfig>(DEFAULT_MAGNETISM_CONFIG);
-  const [showMagnetTarget, setShowMagnetTarget] = useState(true);
-  const [showMagnetVector, setShowMagnetVector] = useState(true);
+  const [showMagnetTarget, setShowMagnetTarget] = useState(false);
+  const [showMagnetVector, setShowMagnetVector] = useState(false);
   
   // Magnetism debug ref - shared between canvas and HUD for real-time visualization
   const magnetismDebugRef = useRef<MagnetismTurnResult['debug'] | null>(null);
