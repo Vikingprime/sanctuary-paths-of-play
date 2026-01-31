@@ -983,50 +983,25 @@ export function constrainMovementToTangent(
   const frontX = newX + facingX * frontOffset;
   const frontZ = newZ + facingZ * frontOffset;
   
-  // Get segment endpoints from debug data (these are ±5 steps along skeleton)
-  const n1x = magnetismDebug.neighbor1X;
-  const n1z = magnetismDebug.neighbor1Z;
-  const n2x = magnetismDebug.neighbor2X;
-  const n2z = magnetismDebug.neighbor2Z;
+  // Use SMOOTHED spine point as anchor (already in magnetismDebug)
+  const spineX = magnetismDebug.spineX;
+  const spineZ = magnetismDebug.spineZ;
   
-  // Segment vector (neighbor1 to neighbor2)
-  const segX = n2x - n1x;
-  const segZ = n2z - n1z;
-  const segLenSq = segX * segX + segZ * segZ;
+  // Vector from smoothed spine to front point
+  const toFrontX = frontX - spineX;
+  const toFrontZ = frontZ - spineZ;
   
-  // Early exit if segment is degenerate
-  if (segLenSq < 0.0001) {
-    return { x: newX, z: newZ };
-  }
-  
-  // Vector from segment start (neighbor1) to front point
-  const toFrontX = frontX - n1x;
-  const toFrontZ = frontZ - n1z;
-  
-  // Project front onto segment: t = dot(toFront, seg) / |seg|²
-  // Clamp t to [0, 1] to stay within the segment
-  const t = Math.max(0, Math.min(1, (toFrontX * segX + toFrontZ * segZ) / segLenSq));
-  
-  // Closest point on segment
-  const closestX = n1x + t * segX;
-  const closestZ = n1z + t * segZ;
-  
-  // Raw offset to closest point (may include along-segment component when clamped)
-  const rawOffsetX = closestX - frontX;
-  const rawOffsetZ = closestZ - frontZ;
-  
-  // Extract ONLY the perpendicular component to avoid along-path acceleration
-  // Use the SMOOTHED tangent (tx, tz) for perpendicular, not raw segment direction
-  // Perpendicular to tangent is (-tz, tx)
+  // Perpendicular to smoothed tangent is (-tz, tx)
   const perpX = -tz;
   const perpZ = tx;
   
-  // Project raw offset onto perpendicular direction
-  const perpDist = rawOffsetX * perpX + rawOffsetZ * perpZ;
+  // Signed perpendicular distance from front to tangent line through spine
+  const perpDist = toFrontX * perpX + toFrontZ * perpZ;
   
-  // Final offset is purely perpendicular (no along-path push)
-  const offsetX = perpDist * perpX;
-  const offsetZ = perpDist * perpZ;
+  // Offset is PURELY perpendicular (no along-tangent component)
+  // This pulls the animal directly toward the centerline without sliding along it
+  const offsetX = -perpDist * perpX;
+  const offsetZ = -perpDist * perpZ;
   
   // Apply offset to animal center
   const constrainedX = newX + offsetX;
