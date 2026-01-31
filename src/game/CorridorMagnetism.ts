@@ -948,7 +948,9 @@ export function constrainMovementToTangent(
   newX: number,
   newZ: number,
   magnetismDebug: MagnetismTurnResult['debug'] | null,
-  strength: number
+  strength: number,
+  playerRotation: number,    // Current player rotation (to calculate fresh front point)
+  frontOffset: number        // Distance from center to front sensing point
 ): { x: number; z: number } {
   // Only apply constraint at high strength and when magnetism is active
   if (!magnetismDebug || !magnetismDebug.isActive || strength < 9.9) {
@@ -974,13 +976,18 @@ export function constrainMovementToTangent(
   const tx = tangentX / tangentLen;
   const tz = tangentZ / tangentLen;
   
-  // Current front point position and spine point
-  const frontX = magnetismDebug.frontX;
-  const frontZ = magnetismDebug.frontZ;
+  // Calculate CURRENT front point from the NEW position (not stale debug data)
+  // This fixes the issue where the front point was computed from the previous frame's position
+  const facingX = Math.sin(playerRotation);
+  const facingZ = Math.cos(playerRotation);
+  const frontX = newX + facingX * frontOffset;
+  const frontZ = newZ + facingZ * frontOffset;
+  
+  // Spine point is already smoothed in the debug data
   const spineX = magnetismDebug.spineX;
   const spineZ = magnetismDebug.spineZ;
   
-  // Vector from spine point to front point
+  // Vector from spine point to CURRENT front point
   const toFrontX = frontX - spineX;
   const toFrontZ = frontZ - spineZ;
   

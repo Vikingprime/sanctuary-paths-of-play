@@ -1269,7 +1269,9 @@ const RefBasedPlayer = ({
             newState.x,
             newState.y,
             magnetismDebugRef?.current ?? null,
-            magnetStrength
+            magnetStrength,
+            newState.rotation,                      // Pass current rotation
+            DEFAULT_MAGNETISM_CONFIG.frontOffset    // Pass front offset (0.35)
           );
           
           playerStateRef.current = { x: constrained.x, y: constrained.z, rotation: newState.rotation };
