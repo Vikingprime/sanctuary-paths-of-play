@@ -68,24 +68,21 @@ function MagnetismCompass({ magnetismDebugRef, playerRotation, frozenData }: Mag
   const radius = 30;
   
   // Animal facing direction - ALWAYS points up (0 radians in local space)
-  // IMPORTANT: Convert to visual rotation space to match tangent calculation
-  // The magnetism uses visualRotation = -player.rotation + Math.PI for sensing
-  const visualRotation = -playerRotation + Math.PI;
-  const animalAngle = visualRotation;
+  // The animal is always shown pointing up in the compass, vectors rotate around it
   const localAnimalAngle = 0; // Animal is always "forward" in this view
   const animalX = center + Math.sin(localAnimalAngle) * radius;
   const animalY = center - Math.cos(localAnimalAngle) * radius;
 
-  // Spine tangent direction (relative to animal facing)
-  const spineAngle = Math.atan2(debug.tangentX, debug.tangentZ);
-  // Choose spine direction closer to animal facing
-  let adjustedSpineAngle = spineAngle;
-  const angleDiff = ((spineAngle - animalAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-  if (Math.abs(angleDiff) > Math.PI / 2) {
-    adjustedSpineAngle = spineAngle + Math.PI;
-  }
-  // Convert to animal-relative space
-  const localSpineAngle = adjustedSpineAngle - animalAngle;
+  // Spine tangent direction (in world space)
+  // The tangent comes from magnetism as (alignedTx, alignedTz) in world coords
+  // World: +X = right, +Z = forward (into screen), rotation 0 = facing +Z
+  // atan2(x, z) gives angle from +Z toward +X
+  const tangentWorldAngle = Math.atan2(debug.tangentX, debug.tangentZ);
+  
+  // Convert tangent to animal-relative space
+  // playerRotation is the animal's world rotation (0 = facing +Z)
+  // To show tangent relative to animal: subtract animal's world angle
+  const localSpineAngle = tangentWorldAngle - playerRotation;
   const spineX = center + Math.sin(localSpineAngle) * radius;
   const spineY = center - Math.cos(localSpineAngle) * radius;
   
