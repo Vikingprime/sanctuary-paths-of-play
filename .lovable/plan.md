@@ -1,83 +1,52 @@
 
-# Fix: Use Raw Spine Anchor to Eliminate Lateral Overshoot
 
-## Problem Confirmed
+# Remove Debug Logs & Fix FPS Drops
 
-The logs showed the root cause clearly:
+## Root Cause
 
-```
-SPINE JUMP: { rawZ: "4.075", smoothedZ: "4.209" }
-```
+The FPS drops are caused by **unconditional `console.log` statements in hot paths** that execute every frame:
 
-The **smoothed spine** (used as the anchor for perpendicular correction) lags behind the **raw spine** (actual nearest skeleton point). When the animal moves laterally, the smoothed anchor "overshoots" the animal's position, causing the perpendicular distance calculation to flip signs and pull the animal back the other way.
+1. **`src/game/CorridorMagnetism.ts`** - 5 logging locations inside the magnetism calculation loop
+2. **`src/components/Maze3DScene.tsx`** - 2 logging locations in the movement/render loop
 
-## Solution
-
-Use the **raw** nearest skeleton point as the anchor for the perpendicular projection, not the smoothed one. The smoothing is still valuable for the **tangent direction** (to prevent angle jitter), but the **anchor position** should be instantaneous.
+Each `console.log` with object serialization (`.toFixed()` calls, object creation) triggers garbage collection pressure and blocks the main thread for ~0.5-2ms per call. With 5+ logs per frame at 60fps, this adds up to significant frame drops.
 
 ## Changes
 
-### File: `src/game/CorridorMagnetism.ts`
+### File 1: `src/game/CorridorMagnetism.ts`
 
-**Change 1: Add raw spine to debug output** (lines 854-877)
+Remove all `[TANGENT-LOCK]` debug logging:
 
-Add `rawSpineX` and `rawSpineZ` fields to the debug object returned from `calculateMagnetismTurn`:
+| Lines | Log Type | Action |
+|-------|----------|--------|
+| 672-680 | SPINE JUMP detection | Remove the `if` block and its log statement |
+| 740-748 | SIGN FLIP detection | Remove the `if` block and its log statement |
+| 993-998 | Entry conditions | Remove the log statement |
+| 1046-1054 | Geometry data | Remove the log statement |
+| 1068-1076 | Offset application | Remove the log statement |
 
-```typescript
-return {
-  turnCorrection: state.currentCorrection,
-  debug: {
-    backX,
-    backZ,
-    frontX,
-    frontZ,
-    spineX: state.smoothedSpineX,
-    spineZ: state.smoothedSpineZ,
-    rawSpineX: nearest.wx,     // ADD THIS
-    rawSpineZ: nearest.wz,     // ADD THIS
-    targetX: state.smoothedSpineX,
-    // ... rest unchanged
-  },
-};
-```
+### File 2: `src/components/Maze3DScene.tsx`
 
-**Change 2: Update type definition** (lines 50-91)
+Remove all movement-related debug logging:
 
-Add the new fields to the `MagnetismTurnResult['debug']` interface:
+| Lines | Log Type | Action |
+|-------|----------|--------|
+| 1277-1296 | MOVE delta tracking | Remove the entire `if` block (lines 1277-1296) that calculates and logs position deltas |
+| 1373-1385 | Periodic magnetism debug | Remove the `if (Math.random() < 0.016)` block and its log statement |
 
-```typescript
-debug: {
-  // ... existing fields ...
-  spineX: number;
-  spineZ: number;
-  rawSpineX: number;  // ADD
-  rawSpineZ: number;  // ADD
-  // ...
-};
-```
+## Technical Details
 
-**Change 3: Use raw spine in constraint function** (lines 1021-1023)
+The removed logs were added specifically for debugging the lateral overshoot issue (now fixed with raw spine anchor). Since that issue is resolved, these diagnostic logs are no longer needed.
 
-```typescript
-// OLD (uses lagging smoothed spine):
-const spineX = magnetismDebug.spineX;
-const spineZ = magnetismDebug.spineZ;
+**What stays:**
+- The `console.warn('[Magnetism] Unexpected NaN...')` at line 834 stays - it's a safety warning that should rarely trigger and is important for catching edge cases
+- All the actual magnetism logic remains unchanged
+- The `debugLog`/`verboseLog` utilities in `src/lib/debug.ts` remain for future use (they're already gated behind debug flags)
 
-// NEW (uses instantaneous raw spine):
-const spineX = magnetismDebug.rawSpineX ?? magnetismDebug.spineX;
-const spineZ = magnetismDebug.rawSpineZ ?? magnetismDebug.spineZ;
-```
+## Expected Impact
 
-## Why This Fixes the Overshoot
+Removing ~7 console.log calls per frame should:
+- Eliminate random 10-50ms frame spikes
+- Reduce garbage collection pressure
+- Restore consistent frame timing
 
-| Before | After |
-|--------|-------|
-| Smoothed spine lags behind animal movement | Raw spine is always at nearest grid point |
-| Perpendicular anchor overshoots, flipping `perpDist` sign | Anchor stays put, `perpDist` remains stable |
-| Animal pulled right, then left (overshoot bounce) | Animal pulled directly toward centerline |
-
-## What Stays the Same
-
-- Tangent direction still uses smoothed calculation (prevents angle jitter)
-- All other magnetism logic unchanged
-- Debug visualization continues to work (now shows both raw and smoothed)
