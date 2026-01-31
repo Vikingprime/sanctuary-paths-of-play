@@ -163,7 +163,7 @@ export function buildMagnetismCache(
   maze: Maze,
   spurConfig?: SpurConfig
 ): MagnetismCache {
-  const result = computeMedialAxis(maze, 100, spurConfig);
+  const result = computeMedialAxis(maze, 20, spurConfig);
   const { fineGrid, scale, fineCellSize } = result;
   
   const fineHeight = fineGrid.length;
@@ -597,9 +597,8 @@ export function calculateMagnetismTurn(
     state.committedSign = 0; // Reset to neutral
   }
   
-  // Get tangent at skeleton point using extended neighbors (±100 steps) for maximum stability
-  // At scale=100, ±100 steps = 2 cell widths - very smooth, averages over full corridor sections
-  const tangent = computeTangentExtended(nearest, cache, 100);
+  // Get tangent at skeleton point using extended neighbors (±1 step)
+  const tangent = computeTangentExtended(nearest, cache, 1);
   
   // If at a junction (tangent is null) OR in suppression zone, skip turn correction entirely
   const isSuppressed = tangent === null || nearest.isSuppressed;
