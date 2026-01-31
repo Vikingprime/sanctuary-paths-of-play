@@ -132,6 +132,10 @@ export interface MagnetismTurnState {
   lastNearestFy: number;
   /** Time the current point has been locked (for stability) */
   lockDuration: number;
+  /** Smoothed spine X position (for stable tangent line anchor) */
+  smoothedSpineX: number;
+  /** Smoothed spine Z position (for stable tangent line anchor) */
+  smoothedSpineZ: number;
 }
 
 // ============================================================================
@@ -526,6 +530,8 @@ export function calculateMagnetismTurn(
     state.lastNearestFx = -1;
     state.lastNearestFy = -1;
     state.lockDuration = 0;
+    state.smoothedSpineX = 0;
+    state.smoothedSpineZ = 0;
     state.initialized = true;
   }
   
@@ -634,6 +640,26 @@ export function calculateMagnetismTurn(
   }
   
   const { tx, tz, endpoint1, endpoint2 } = tangent;
+  
+  // ============================================================================
+  // SMOOTH THE SPINE ANCHOR POINT TO PREVENT VIBRATION AT CURVES
+  // ============================================================================
+  // The raw spine point is discrete (jumps between grid nodes as animal moves).
+  // When the nearest spine node changes, the tangent line shifts by one grid cell,
+  // causing visible vibration. Apply exponential smoothing to create a stable anchor.
+  // Tau = 0.05s: fast enough to track movement but eliminates single-frame jumps.
+  // ============================================================================
+  const spineSmoothingTau = 0.05;
+  const spineAlpha = delta / (spineSmoothingTau + delta);
+  
+  if (state.smoothedSpineX === 0 && state.smoothedSpineZ === 0) {
+    // Initialize smoothed spine to current position on first use
+    state.smoothedSpineX = nearest.wx;
+    state.smoothedSpineZ = nearest.wz;
+  } else {
+    state.smoothedSpineX += (nearest.wx - state.smoothedSpineX) * spineAlpha;
+    state.smoothedSpineZ += (nearest.wz - state.smoothedSpineZ) * spineAlpha;
+  }
   
   // Calculate cross-track distance from front point to spine for gating
   const toSpineX = nearest.wx - frontX;
@@ -802,10 +828,10 @@ export function calculateMagnetismTurn(
       backZ,
       frontX,
       frontZ,
-      spineX: nearest.wx,
-      spineZ: nearest.wz,
-      targetX: nearest.wx,
-      targetZ: nearest.wz,
+      spineX: state.smoothedSpineX,
+      spineZ: state.smoothedSpineZ,
+      targetX: state.smoothedSpineX,
+      targetZ: state.smoothedSpineZ,
       // Pass the ALIGNED tangent to debug so compass shows correct direction
       tangentX: alignedTx,
       tangentZ: alignedTz,
