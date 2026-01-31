@@ -904,15 +904,16 @@ export function filterTargetPoint(
 }
 
 /**
- * Constrain the animal's position so the front sensing point stays on the spine line.
- * At full magnetism strength, the front point is snapped directly onto the nearest spine point.
+ * Constrain the animal's position so the front sensing point stays on the tangent line.
+ * At full magnetism strength, the front point is projected onto the tangent line through the spine.
+ * This allows movement along the corridor while preventing lateral drift.
  * 
  * @param prevX Previous X position (animal center)
  * @param prevZ Previous Z position (animal center)
  * @param newX New X position (after movement calculation)
  * @param newZ New Z position (after movement calculation)
- * @param magnetismDebug Debug info from magnetism calculation (contains front point and spine)
- * @param strength Magnetism strength (0-10, where 10 = full lock to spine)
+ * @param magnetismDebug Debug info from magnetism calculation (contains front point, spine, and tangent)
+ * @param strength Magnetism strength (0-10, where 10 = full lock to tangent line)
  * @returns Constrained position { x, z }
  */
 export function constrainMovementToTangent(
@@ -933,20 +934,43 @@ export function constrainMovementToTangent(
     return { x: newX, z: newZ };
   }
   
-  // The front sensing point should be on the spine
-  // Current front point position (from debug)
+  // Get tangent direction
+  const tangentX = magnetismDebug.tangentX;
+  const tangentZ = magnetismDebug.tangentZ;
+  
+  // Tangent must be valid
+  const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ);
+  if (tangentLen < 0.01) {
+    return { x: newX, z: newZ };
+  }
+  
+  // Normalize tangent
+  const tx = tangentX / tangentLen;
+  const tz = tangentZ / tangentLen;
+  
+  // Current front point position and spine point
   const frontX = magnetismDebug.frontX;
   const frontZ = magnetismDebug.frontZ;
-  
-  // Nearest spine point (where front SHOULD be)
   const spineX = magnetismDebug.spineX;
   const spineZ = magnetismDebug.spineZ;
   
-  // Calculate how far the front point is from the spine
-  const offsetX = spineX - frontX;
-  const offsetZ = spineZ - frontZ;
+  // Vector from spine point to front point
+  const toFrontX = frontX - spineX;
+  const toFrontZ = frontZ - spineZ;
   
-  // To put the front point on the spine, we need to move the animal center by the same offset
+  // Project front point onto tangent line through spine
+  // dot = distance along tangent from spine to projected front
+  const dot = toFrontX * tx + toFrontZ * tz;
+  
+  // Where front point SHOULD be (on the tangent line)
+  const projectedFrontX = spineX + dot * tx;
+  const projectedFrontZ = spineZ + dot * tz;
+  
+  // Offset needed to move front point onto the tangent line
+  const offsetX = projectedFrontX - frontX;
+  const offsetZ = projectedFrontZ - frontZ;
+  
+  // Apply offset to animal center
   const constrainedX = newX + offsetX;
   const constrainedZ = newZ + offsetZ;
   
