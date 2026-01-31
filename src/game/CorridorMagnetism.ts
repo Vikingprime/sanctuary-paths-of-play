@@ -657,6 +657,21 @@ export function calculateMagnetismTurn(
     state.smoothedSpineX = nearest.wx;
     state.smoothedSpineZ = nearest.wz;
   } else {
+    // Location 5: Spine Jump Detection - log before smoothing updates
+    const spineDelta = Math.sqrt(
+      (nearest.wx - state.smoothedSpineX) ** 2 + 
+      (nearest.wz - state.smoothedSpineZ) ** 2
+    );
+    if (spineDelta > 0.1) { // Threshold for "significant" jump
+      console.log('[TANGENT-LOCK] SPINE JUMP:', {
+        rawX: nearest.wx.toFixed(3),
+        rawZ: nearest.wz.toFixed(3),
+        smoothedX: state.smoothedSpineX.toFixed(3),
+        smoothedZ: state.smoothedSpineZ.toFixed(3),
+        delta: spineDelta.toFixed(4),
+      });
+    }
+    
     state.smoothedSpineX += (nearest.wx - state.smoothedSpineX) * spineAlpha;
     state.smoothedSpineZ += (nearest.wz - state.smoothedSpineZ) * spineAlpha;
   }
@@ -703,6 +718,9 @@ export function calculateMagnetismTurn(
     state.committedSign = currentPreferredSign;
   }
   
+  // Location 4: Track sign before potential flip
+  const prevSign = state.committedSign;
+  
   // Only switch if the new direction is significantly better
   // If currently committed to +1, only switch to -1 if dotPositive is clearly negative
   // If currently committed to -1, only switch to +1 if dotPositive is clearly positive
@@ -710,6 +728,16 @@ export function calculateMagnetismTurn(
     state.committedSign = -1;
   } else if (state.committedSign < 0 && dotPositive > hysteresisThreshold) {
     state.committedSign = 1;
+  }
+  
+  // Location 4: Log when committed sign changes
+  if (state.committedSign !== prevSign) {
+    console.log('[TANGENT-LOCK] SIGN FLIP:', {
+      prevSign,
+      newSign: state.committedSign,
+      dotPositive: dotPositive.toFixed(3),
+      threshold: hysteresisThreshold,
+    });
   }
   
   // Use the committed direction for alignment
@@ -952,6 +980,13 @@ export function constrainMovementToTangent(
   playerRotation: number,    // Current player rotation (to calculate fresh front point)
   frontOffset: number        // Distance from center to front sensing point
 ): { x: number; z: number } {
+  // Location 1: Log entry conditions
+  console.log('[TANGENT-LOCK] Entry:', {
+    isActive: magnetismDebug?.isActive ?? false,
+    strength: strength.toFixed(1),
+    willApply: !(!magnetismDebug || !magnetismDebug.isActive || strength < 9.9),
+  });
+  
   // Only apply constraint at high strength and when magnetism is active
   if (!magnetismDebug || !magnetismDebug.isActive || strength < 9.9) {
     return { x: newX, z: newZ };
@@ -998,6 +1033,16 @@ export function constrainMovementToTangent(
   // Signed perpendicular distance from front to tangent line through spine
   const perpDist = toFrontX * perpX + toFrontZ * perpZ;
   
+  // Location 2: Log geometry data
+  console.log('[TANGENT-LOCK] Geometry:', {
+    spineX: spineX.toFixed(3),
+    spineZ: spineZ.toFixed(3),
+    tangentAngle: (Math.atan2(tx, tz) * 180 / Math.PI).toFixed(1),
+    frontX: frontX.toFixed(3),
+    frontZ: frontZ.toFixed(3),
+    perpDist: perpDist.toFixed(4),
+  });
+  
   // Offset is PURELY perpendicular (no along-tangent component)
   // This pulls the animal directly toward the centerline without sliding along it
   const offsetX = -perpDist * perpX;
@@ -1009,6 +1054,16 @@ export function constrainMovementToTangent(
   
   // Blend based on how close to full strength (9.9-10 = full lock)
   const lockBlend = Math.min(1, (strength - 9.9) / 0.1);
+  
+  // Location 3: Log offset application
+  console.log('[TANGENT-LOCK] Offset:', {
+    offsetX: offsetX.toFixed(4),
+    offsetZ: offsetZ.toFixed(4),
+    offsetMag: Math.sqrt(offsetX*offsetX + offsetZ*offsetZ).toFixed(4),
+    lockBlend: lockBlend.toFixed(3),
+    deltaX: (constrainedX - newX).toFixed(4),
+    deltaZ: (constrainedZ - newZ).toFixed(4),
+  });
   
   return {
     x: newX + (constrainedX - newX) * lockBlend,
