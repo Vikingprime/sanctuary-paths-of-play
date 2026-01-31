@@ -1274,26 +1274,6 @@ const RefBasedPlayer = ({
             DEFAULT_MAGNETISM_CONFIG.frontOffset    // Pass front offset (0.35)
           );
           
-          // Location 6: Log position delta when locked to detect bounceback
-          const magnetStrengthForLog = magnetismConfig?.enabled ? (magnetismConfig.strength ?? 5) : 0;
-          if (magnetStrengthForLog >= 9.9) {
-            const positionDelta = {
-              dx: constrained.x - prev.x,
-              dz: constrained.z - prev.y,
-            };
-            const deltaMag = Math.sqrt(positionDelta.dx ** 2 + positionDelta.dz ** 2);
-            if (deltaMag > 0.01) {
-              console.log('[TANGENT-LOCK] MOVE:', {
-                prevX: prev.x.toFixed(3),
-                prevZ: prev.y.toFixed(3),
-                newX: newState.x.toFixed(3),
-                newZ: newState.y.toFixed(3),
-                constrainedX: constrained.x.toFixed(3),
-                constrainedZ: constrained.z.toFixed(3),
-                deltaMag: deltaMag.toFixed(4),
-              });
-            }
-          }
           
           playerStateRef.current = { x: constrained.x, y: constrained.z, rotation: newState.rotation };
           collisionIntensityRef.current = newState.collisionIntensity;
@@ -1370,19 +1350,6 @@ const RefBasedPlayer = ({
         // Apply turn correction when moving, but WEAKEN during collisions
         // This allows the player to turn more freely when stuck against walls
         
-        // DEBUG: Log magnetism values every 60 frames
-        if (Math.random() < 0.016) { // ~once per second at 60fps
-          console.log('[Magnetism Debug]', {
-            isMoving: isMovingRef.current,
-            turnCorrection: magnetResult.turnCorrection.toFixed(4),
-            collisionIntensity: collisionIntensityRef.current.toFixed(2),
-            rawAngleDiff: magnetResult.debug.rawAngleDiff.toFixed(4),
-            isActive: magnetResult.debug.isActive,
-            isSuppressed: magnetResult.debug.isJunctionSuppressed,
-            crossDist: magnetResult.debug.crossDist.toFixed(2),
-            strengthMultiplier: magnetResult.debug.strengthMultiplier.toFixed(3),
-          });
-        }
         
         if (isMovingRef.current && magnetResult.turnCorrection !== 0) {
           // Weaken magnetism based on collision intensity (0 = full magnetism, 1 = no magnetism)
