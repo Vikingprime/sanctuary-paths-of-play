@@ -125,6 +125,8 @@ export interface MagnetismTurnState {
   currentCorrection: number;
   /** Whether state has been initialized */
   initialized: boolean;
+  /** Committed tangent direction sign (+1 or -1) for hysteresis */
+  committedSign: number;
   /** Last locked skeleton pixel (fine grid coords) for sticky selection */
   lastNearestFx: number;
   lastNearestFy: number;
@@ -520,6 +522,7 @@ export function calculateMagnetismTurn(
   // Initialize state if needed
   if (!state.initialized) {
     state.currentCorrection = 0;
+    state.committedSign = 1;
     state.lastNearestFx = -1;
     state.lastNearestFy = -1;
     state.lockDuration = 0;
@@ -573,22 +576,25 @@ export function calculateMagnetismTurn(
         nearest = lockedPixel;
         state.lockDuration += delta;
       } else {
-        // Switching to new point
+        // Switching to new point - ALSO reset the tangent direction commitment
         state.lastNearestFx = candidateNearest.fx;
         state.lastNearestFy = candidateNearest.fy;
         state.lockDuration = 0;
+        state.committedSign = 0; // Reset to neutral - will be set based on current facing
       }
     } else {
       // Locked point no longer exists, use candidate
       state.lastNearestFx = candidateNearest.fx;
       state.lastNearestFy = candidateNearest.fy;
       state.lockDuration = 0;
+      state.committedSign = 0; // Reset to neutral
     }
   } else {
     // No locked point, use candidate
     state.lastNearestFx = candidateNearest.fx;
     state.lastNearestFy = candidateNearest.fy;
     state.lockDuration = 0;
+    state.committedSign = 0; // Reset to neutral
   }
   
   // Get tangent at skeleton point using extended neighbors (±100 steps) for maximum stability
@@ -642,18 +648,48 @@ export function calculateMagnetismTurn(
   const distFactor = 1 - smoothstep(0, maxDist, crossDist);
   
   // ============================================================================
-  // TANGENT ALIGNMENT USING DOT PRODUCT
+  // CROSS-PRODUCT BASED TURN DIRECTION WITH HYSTERESIS
   // ============================================================================
   // 
-  // Simple rule: choose the tangent direction that makes the smaller angle
-  // with the animal's facing direction. No state, no hysteresis.
+  // Step 1: Align tangent to point "forward" (same general direction as animal facing)
+  //         Use dot product + hysteresis to prevent flip-flopping near 90°
   //
-  // Dot product < 0 means angle > 90°, so flip the tangent.
+  // Step 2: Use cross product to determine if aligned tangent is left or right of animal
+  //         Cross product sign directly tells us which way to turn
+  //
+  // The hysteresis prevents the tangent from flipping back and forth when the
+  // animal is nearly perpendicular to the corridor (dot product near zero)
   // ============================================================================
   
-  const dot = facingX * tx + facingZ * tz;
-  const alignedTx = dot >= 0 ? tx : -tx;
-  const alignedTz = dot >= 0 ? tz : -tz;
+  // Step 1: Choose tangent direction with hysteresis
+  // Dot product: positive means vectors point in same general direction
+  const dotPositive = facingX * tx + facingZ * tz;
+  
+  // Determine which tangent direction is currently preferred
+  // +1 means use (tx, tz), -1 means use (-tx, -tz)
+  const currentPreferredSign = dotPositive >= 0 ? 1 : -1;
+  
+  // Hysteresis: only switch committed direction if the dot product clearly favors the other
+  // This prevents flip-flopping when near 90° (dot product near zero)
+  const hysteresisThreshold = 0.15; // ~8.6 degrees from perpendicular
+  
+  // Initialize committedSign if neutral
+  if (state.committedSign === 0) {
+    state.committedSign = currentPreferredSign;
+  }
+  
+  // Only switch if the new direction is significantly better
+  // If currently committed to +1, only switch to -1 if dotPositive is clearly negative
+  // If currently committed to -1, only switch to +1 if dotPositive is clearly positive
+  if (state.committedSign > 0 && dotPositive < -hysteresisThreshold) {
+    state.committedSign = -1;
+  } else if (state.committedSign < 0 && dotPositive > hysteresisThreshold) {
+    state.committedSign = 1;
+  }
+  
+  // Use the committed direction for alignment
+  let alignedTx = state.committedSign > 0 ? tx : -tx;
+  let alignedTz = state.committedSign > 0 ? tz : -tz;
   
   // Step 2: Use cross product to determine turn direction
   // 2D cross product: A × T = Ax*Tz - Az*Tx
@@ -759,10 +795,9 @@ export function calculateMagnetismTurn(
       // Pass the ALIGNED tangent to debug so compass shows correct direction
       tangentX: alignedTx,
       tangentZ: alignedTz,
-      // Export neighbors aligned with tangent direction (neighbor1=behind, neighbor2=ahead)
-      neighbor1X: dot >= 0 ? endpoint1.wx : endpoint2.wx,
-      neighbor1Z: dot >= 0 ? endpoint1.wz : endpoint2.wz,
-      neighbor2X: dot >= 0 ? endpoint2.wx : endpoint1.wx,
+      neighbor1X: endpoint1.wx,
+      neighbor1Z: endpoint1.wz,
+      neighbor2X: endpoint2.wx,
       neighbor2Z: endpoint2.wz,
       rawAngleDiff,
       isActive,
