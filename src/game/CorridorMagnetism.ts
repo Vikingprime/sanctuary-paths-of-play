@@ -58,9 +58,12 @@ export interface MagnetismTurnResult {
     /** Front sensing point (world space) */
     frontX: number;
     frontZ: number;
-    /** Nearest spine point (world space) */
+    /** Nearest spine point (world space, smoothed) */
     spineX: number;
     spineZ: number;
+    /** Raw nearest spine point (world space, no smoothing) */
+    rawSpineX: number;
+    rawSpineZ: number;
     /** Target point on spine for visualization */
     targetX: number;
     targetZ: number;
@@ -487,6 +490,8 @@ export function calculateMagnetismTurn(
       frontZ: playerZ,
       spineX: playerX,
       spineZ: playerZ,
+      rawSpineX: playerX,
+      rawSpineZ: playerZ,
       targetX: playerX,
       targetZ: playerZ,
       tangentX: 0,
@@ -620,6 +625,8 @@ export function calculateMagnetismTurn(
         frontZ,
         spineX: nearest.wx,
         spineZ: nearest.wz,
+        rawSpineX: nearest.wx,
+        rawSpineZ: nearest.wz,
         targetX: nearest.wx,
         targetZ: nearest.wz,
         tangentX: 0,
@@ -831,6 +838,7 @@ export function calculateMagnetismTurn(
       debug: {
         backX, backZ, frontX, frontZ,
         spineX: nearest.wx, spineZ: nearest.wz,
+        rawSpineX: nearest.wx, rawSpineZ: nearest.wz,
         targetX: nearest.wx, targetZ: nearest.wz,
         tangentX: alignedTx, tangentZ: alignedTz,
         neighbor1X: endpoint1.wx, neighbor1Z: endpoint1.wz,
@@ -858,6 +866,8 @@ export function calculateMagnetismTurn(
       frontZ,
       spineX: state.smoothedSpineX,
       spineZ: state.smoothedSpineZ,
+      rawSpineX: nearest.wx,
+      rawSpineZ: nearest.wz,
       targetX: state.smoothedSpineX,
       targetZ: state.smoothedSpineZ,
       // Pass the ALIGNED tangent to debug so compass shows correct direction
@@ -1018,9 +1028,9 @@ export function constrainMovementToTangent(
   const frontX = newX + facingX * frontOffset;
   const frontZ = newZ + facingZ * frontOffset;
   
-  // Use SMOOTHED spine point as anchor (already in magnetismDebug)
-  const spineX = magnetismDebug.spineX;
-  const spineZ = magnetismDebug.spineZ;
+  // Use RAW spine point as anchor to prevent overshoot from smoothing lag
+  const spineX = magnetismDebug.rawSpineX ?? magnetismDebug.spineX;
+  const spineZ = magnetismDebug.rawSpineZ ?? magnetismDebug.spineZ;
   
   // Vector from smoothed spine to front point
   const toFrontX = frontX - spineX;
