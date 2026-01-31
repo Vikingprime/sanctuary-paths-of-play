@@ -1011,9 +1011,22 @@ export function constrainMovementToTangent(
   const closestX = n1x + t * segX;
   const closestZ = n1z + t * segZ;
   
-  // Offset to move front point onto the segment
-  const offsetX = closestX - frontX;
-  const offsetZ = closestZ - frontZ;
+  // Raw offset to closest point (may include along-segment component when clamped)
+  const rawOffsetX = closestX - frontX;
+  const rawOffsetZ = closestZ - frontZ;
+  
+  // Extract ONLY the perpendicular component to avoid along-path acceleration
+  // Perpendicular to segment direction is (-segZ, segX) normalized
+  const segLen = Math.sqrt(segLenSq);
+  const perpX = -segZ / segLen;
+  const perpZ = segX / segLen;
+  
+  // Project raw offset onto perpendicular direction
+  const perpDist = rawOffsetX * perpX + rawOffsetZ * perpZ;
+  
+  // Final offset is purely perpendicular (no along-path push)
+  const offsetX = perpDist * perpX;
+  const offsetZ = perpDist * perpZ;
   
   // Apply offset to animal center
   const constrainedX = newX + offsetX;
