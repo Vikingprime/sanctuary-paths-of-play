@@ -722,39 +722,50 @@ export function calculateMagnetismTurn(
   }
   
   // Calculate target correction (no junctionFactor needed - junctions return early)
-  // At strength 10, target full alignment with tangent (angleDiff * 1.0)
-  // At strength 0, no magnetism. Linear interpolation between.
-  // distFactor ensures magnetism only applies near the spine.
+  // At strength 10, the animal is LOCKED to the tangent - full angleDiff is applied
+  // At lower strengths, partial correction with smoothing
   const strengthScale = config.strength / 10; // 0-1 range where 10 = full lock
-  const targetCorrection = angleDiff * strengthScale * distFactor;
   
-  // Note: delta validation is done at function entry, so delta is guaranteed valid here
+  // For full lock (strength 10), bypass smoothing and apply full correction
+  // This makes the animal unable to deviate from the tangent line
+  const isFullLock = strengthScale >= 0.99;
   
-  // Smooth the correction using exponential moving average with increased time constant
-  // Multiply base tau by 2.5 for smoother, less jerky response (0.10 → 0.25 effective)
-  const effectiveTau = config.smoothingTau * 2.5;
-  const alpha = delta / (effectiveTau + delta);
-  let smoothedCorrection = state.currentCorrection + (targetCorrection - state.currentCorrection) * alpha;
+  let finalCorrection: number;
   
-  // Wobble prevention: suppress small sign changes that cause oscillation
-  // When correction oscillates between tiny +/- values, decay instead of flip
-  const wobbleThreshold = 0.02; // ~1.2 degrees
-  if (state.currentCorrection !== 0 && 
-      Math.sign(smoothedCorrection) !== Math.sign(state.currentCorrection) &&
-      Math.abs(smoothedCorrection) < wobbleThreshold) {
-    // Sign is flipping with tiny magnitude - decay instead of flip
-    smoothedCorrection = state.currentCorrection * 0.8;
+  if (isFullLock && distFactor > 0.5) {
+    // FULL LOCK MODE: Apply the entire angle difference immediately
+    // The animal's front point is locked to the tangent direction
+    finalCorrection = angleDiff;
+    state.currentCorrection = finalCorrection;
+  } else {
+    // NORMAL MODE: Gradual correction with smoothing
+    const targetCorrection = angleDiff * strengthScale * distFactor;
+    
+    // Smooth the correction using exponential moving average with increased time constant
+    const effectiveTau = config.smoothingTau * 2.5;
+    const alpha = delta / (effectiveTau + delta);
+    let smoothedCorrection = state.currentCorrection + (targetCorrection - state.currentCorrection) * alpha;
+    
+    // Wobble prevention: suppress small sign changes that cause oscillation
+    const wobbleThreshold = 0.02; // ~1.2 degrees
+    if (state.currentCorrection !== 0 && 
+        Math.sign(smoothedCorrection) !== Math.sign(state.currentCorrection) &&
+        Math.abs(smoothedCorrection) < wobbleThreshold) {
+      smoothedCorrection = state.currentCorrection * 0.8;
+    }
+    
+    // Apply decay when target is smaller than current (prevents buildup)
+    finalCorrection = smoothedCorrection;
+    if (Math.abs(targetCorrection) < Math.abs(smoothedCorrection)) {
+      finalCorrection = smoothedCorrection * Math.exp(-config.decayRate * delta);
+    }
+    
+    // Clamp correction magnitude - max 10 degrees per frame to prevent sudden flips
+    const maxCorrection = Math.PI / 18; // Max 10 degrees
+    finalCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, finalCorrection));
+    
+    state.currentCorrection = finalCorrection;
   }
-  
-  // Apply decay when target is smaller than current (prevents buildup)
-  let finalCorrection = smoothedCorrection;
-  if (Math.abs(targetCorrection) < Math.abs(smoothedCorrection)) {
-    finalCorrection = smoothedCorrection * Math.exp(-config.decayRate * delta);
-  }
-  
-  // Clamp correction magnitude - max 10 degrees to prevent sudden flips
-  const maxCorrection = Math.PI / 18; // Max 10 degrees (reduced from 15)
-  finalCorrection = Math.max(-maxCorrection, Math.min(maxCorrection, finalCorrection));
   
   // Safety net: Reset state if somehow still NaN (shouldn't happen with early guard)
   if (!Number.isFinite(finalCorrection)) {
