@@ -983,25 +983,37 @@ export function constrainMovementToTangent(
   const frontX = newX + facingX * frontOffset;
   const frontZ = newZ + facingZ * frontOffset;
   
-  // Spine point is already smoothed in the debug data
-  const spineX = magnetismDebug.spineX;
-  const spineZ = magnetismDebug.spineZ;
+  // Get segment endpoints from debug data (these are ±5 steps along skeleton)
+  const n1x = magnetismDebug.neighbor1X;
+  const n1z = magnetismDebug.neighbor1Z;
+  const n2x = magnetismDebug.neighbor2X;
+  const n2z = magnetismDebug.neighbor2Z;
   
-  // Vector from spine point to CURRENT front point
-  const toFrontX = frontX - spineX;
-  const toFrontZ = frontZ - spineZ;
+  // Segment vector (neighbor1 to neighbor2)
+  const segX = n2x - n1x;
+  const segZ = n2z - n1z;
+  const segLenSq = segX * segX + segZ * segZ;
   
-  // Project front point onto tangent line through spine
-  // dot = distance along tangent from spine to projected front
-  const dot = toFrontX * tx + toFrontZ * tz;
+  // Early exit if segment is degenerate
+  if (segLenSq < 0.0001) {
+    return { x: newX, z: newZ };
+  }
   
-  // Where front point SHOULD be (on the tangent line)
-  const projectedFrontX = spineX + dot * tx;
-  const projectedFrontZ = spineZ + dot * tz;
+  // Vector from segment start (neighbor1) to front point
+  const toFrontX = frontX - n1x;
+  const toFrontZ = frontZ - n1z;
   
-  // Offset needed to move front point onto the tangent line
-  const offsetX = projectedFrontX - frontX;
-  const offsetZ = projectedFrontZ - frontZ;
+  // Project front onto segment: t = dot(toFront, seg) / |seg|²
+  // Clamp t to [0, 1] to stay within the segment
+  const t = Math.max(0, Math.min(1, (toFrontX * segX + toFrontZ * segZ) / segLenSq));
+  
+  // Closest point on segment
+  const closestX = n1x + t * segX;
+  const closestZ = n1z + t * segZ;
+  
+  // Offset to move front point onto the segment
+  const offsetX = closestX - frontX;
+  const offsetZ = closestZ - frontZ;
   
   // Apply offset to animal center
   const constrainedX = newX + offsetX;
