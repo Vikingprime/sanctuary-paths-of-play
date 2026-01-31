@@ -597,8 +597,8 @@ export function calculateMagnetismTurn(
     state.committedSign = 0; // Reset to neutral
   }
   
-  // Get tangent at skeleton point using extended neighbors (±1 step)
-  const tangent = computeTangentExtended(nearest, cache, 1);
+  // Get tangent at skeleton point using extended neighbors (±5 steps for smooth curves)
+  const tangent = computeTangentExtended(nearest, cache, 5);
   
   // If at a junction (tangent is null) OR in suppression zone, skip turn correction entirely
   const isSuppressed = tangent === null || nearest.isSuppressed;
