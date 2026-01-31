@@ -904,15 +904,15 @@ export function filterTargetPoint(
 }
 
 /**
- * Constrain movement to the tangent direction when at full lock strength.
- * Projects the movement vector onto the tangent line, preventing lateral drift.
+ * Constrain the animal's position so the front sensing point stays on the spine line.
+ * At full magnetism strength, the front point is snapped directly onto the nearest spine point.
  * 
- * @param prevX Previous X position
- * @param prevZ Previous Z position  
+ * @param prevX Previous X position (animal center)
+ * @param prevZ Previous Z position (animal center)
  * @param newX New X position (after movement calculation)
  * @param newZ New Z position (after movement calculation)
- * @param magnetismDebug Debug info from magnetism calculation (contains tangent)
- * @param strength Magnetism strength (0-10, where 10 = full lock)
+ * @param magnetismDebug Debug info from magnetism calculation (contains front point and spine)
+ * @param strength Magnetism strength (0-10, where 10 = full lock to spine)
  * @returns Constrained position { x, z }
  */
 export function constrainMovementToTangent(
@@ -933,30 +933,22 @@ export function constrainMovementToTangent(
     return { x: newX, z: newZ };
   }
   
-  const tangentX = magnetismDebug.tangentX;
-  const tangentZ = magnetismDebug.tangentZ;
+  // The front sensing point should be on the spine
+  // Current front point position (from debug)
+  const frontX = magnetismDebug.frontX;
+  const frontZ = magnetismDebug.frontZ;
   
-  // Tangent must be valid (normalized)
-  const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ);
-  if (tangentLen < 0.01) {
-    return { x: newX, z: newZ };
-  }
+  // Nearest spine point (where front SHOULD be)
+  const spineX = magnetismDebug.spineX;
+  const spineZ = magnetismDebug.spineZ;
   
-  // Normalize tangent
-  const tx = tangentX / tangentLen;
-  const tz = tangentZ / tangentLen;
+  // Calculate how far the front point is from the spine
+  const offsetX = spineX - frontX;
+  const offsetZ = spineZ - frontZ;
   
-  // Calculate movement delta
-  const deltaX = newX - prevX;
-  const deltaZ = newZ - prevZ;
-  
-  // Project movement onto tangent direction
-  // dot = how much of the movement is along the tangent
-  const dot = deltaX * tx + deltaZ * tz;
-  
-  // Constrained movement = only the tangent component
-  const constrainedX = prevX + dot * tx;
-  const constrainedZ = prevZ + dot * tz;
+  // To put the front point on the spine, we need to move the animal center by the same offset
+  const constrainedX = newX + offsetX;
+  const constrainedZ = newZ + offsetZ;
   
   // Blend based on how close to full strength (9.9-10 = full lock)
   const lockBlend = Math.min(1, (strength - 9.9) / 0.1);
