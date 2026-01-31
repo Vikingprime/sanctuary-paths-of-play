@@ -722,7 +722,10 @@ export function calculateMagnetismTurn(
   }
   
   // Calculate target correction (no junctionFactor needed - junctions return early)
-  const strengthScale = (config.strength / 10) * config.maxStrength;
+  // At strength 10, target full alignment with tangent (angleDiff * 1.0)
+  // At strength 0, no magnetism. Linear interpolation between.
+  // distFactor ensures magnetism only applies near the spine.
+  const strengthScale = config.strength / 10; // 0-1 range where 10 = full lock
   const targetCorrection = angleDiff * strengthScale * distFactor;
   
   // Note: delta validation is done at function entry, so delta is guaranteed valid here
