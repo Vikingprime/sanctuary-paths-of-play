@@ -730,15 +730,20 @@ export function buildSmoothedPolylines(
     return null;
   };
   
-  // Steps 3-7: Simplify, smooth, junction-pull, wall-push, resample
+  // Steps 3-7: Simplify, wall-push, junction-pull, smooth, resample
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
     // Step 3: RDP simplification - AGGRESSIVE to get corner structure
     let points = cfg.rdpEpsilon > 0 
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
     
-    // Step 4: Chaikin smoothing - rounds the sharp corners
-    points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
+    // Step 4: Wall distance enforcement - push points away from walls FIRST
+    // This establishes safe control points before smoothing
+    if (cfg.minWallDistance > 0) {
+      for (let i = 0; i < cfg.wallPushIterations; i++) {
+        points = enforceWallDistance(points, fineGrid, fineCellSize, cfg.minWallDistance);
+      }
+    }
     
     // Step 5: Junction pull - bias toward junction centers (not inside corners)
     if (cfg.junctionPullStrength > 0 && points.length >= 3) {
@@ -756,20 +761,14 @@ export function buildSmoothedPolylines(
       }
     }
     
-    // Step 6: Catmull-Rom resampling - creates smooth interpolated curve
+    // Step 6: Chaikin smoothing - rounds the sharp corners on safe control points
+    points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
+    
+    // Step 7: Catmull-Rom resampling - creates smooth interpolated curve
     if (cfg.useCatmullRom && points.length >= 2) {
       points = resampleCatmullRom(points, cfg.catmullRomSamplesPerPoint);
     } else if (cfg.resampleSpacing > 0) {
       points = resampleLinear(points, cfg.resampleSpacing);
-    }
-    
-    // Step 7: Wall distance enforcement - push points away from walls
-    // Applied AFTER resampling to ensure final curve stays safe distance from walls
-    // Run multiple iterations to converge on safe distance
-    if (cfg.minWallDistance > 0) {
-      for (let i = 0; i < cfg.wallPushIterations; i++) {
-        points = enforceWallDistance(points, fineGrid, fineCellSize, cfg.minWallDistance);
-      }
     }
     
     return {
