@@ -1097,11 +1097,11 @@ export function constrainMovementToTangent(
   const frontX = newX + facingX * frontOffset;
   const frontZ = newZ + facingZ * frontOffset;
   
-  // Use SMOOTHED spine point as anchor to prevent discrete jumps at corners
-  // The raw spine jumps between grid cells, causing vibration when the nearest point changes
-  // Smoothed spine provides continuous tracking of the centerline
-  const spineX = magnetismDebug.spineX;
-  const spineZ = magnetismDebug.spineZ;
+  // Use RAW spine point as anchor for position constraint
+  // The smoothed spine lags behind actual position, causing overshoot/vibration
+  // Raw spine provides immediate response to player position changes
+  const spineX = magnetismDebug.rawSpineX ?? magnetismDebug.spineX;
+  const spineZ = magnetismDebug.rawSpineZ ?? magnetismDebug.spineZ;
   
   // Vector from smoothed spine to front point
   const toFrontX = frontX - spineX;
