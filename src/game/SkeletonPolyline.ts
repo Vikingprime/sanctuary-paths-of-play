@@ -792,9 +792,9 @@ export function buildSmoothedPolylines(
     return null;
   };
   
-  // Steps 3-6: Simplify, junction-pull, smooth, resample, then constrained relaxation
+  // Steps 3-6: Simplify, junction-pull, smooth, resample, then gentle wall-push
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
-    // Step 3: RDP simplification - AGGRESSIVE to get corner structure
+    // Step 3: RDP simplification - get corner structure
     let points = cfg.rdpEpsilon > 0 
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
@@ -825,17 +825,10 @@ export function buildSmoothedPolylines(
       points = resampleLinear(points, cfg.resampleSpacing);
     }
     
-    // Step 7: Constrained relaxation - simultaneously smooths AND pushes from walls
-    // This maintains curve smoothness while ensuring wall distance
+    // Step 7: Single gentle wall-push - just nudge points that are too close
+    // Don't iterate, just do one pass to avoid oscillation
     if (cfg.minWallDistance > 0) {
-      points = constrainedRelaxation(
-        points,
-        fineGrid,
-        fineCellSize,
-        cfg.minWallDistance,
-        cfg.wallPushIterations * 3, // More iterations for gentle convergence
-        0.25 // Smooth weight - keeps curve smooth while pushing
-      );
+      points = enforceWallDistance(points, fineGrid, fineCellSize, cfg.minWallDistance * 0.6);
     }
     
     return {
