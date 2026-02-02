@@ -1126,8 +1126,10 @@ export function constrainMovementToTangent(
   
   // Offset is PURELY perpendicular (no along-tangent component)
   // This pulls the animal directly toward the centerline without sliding along it
-  const offsetX = -perpDist * perpX;
-  const offsetZ = -perpDist * perpZ;
+  // Weaken constraint during collisions so the collision system can take priority
+  const collisionWeakening = 1 - collisionIntensity;
+  const offsetX = -perpDist * perpX * collisionWeakening;
+  const offsetZ = -perpDist * perpZ * collisionWeakening;
   
   // Apply offset to animal center
   const constrainedX = newX + offsetX;
