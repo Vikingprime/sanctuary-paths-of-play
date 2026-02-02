@@ -661,11 +661,15 @@ function constraintStep(
     return current; // Already safe
   }
   
+  let stuckCount = 0;
+  const maxStuck = 2; // Allow a few stuck iterations before giving up
+  
   for (let step = 0; step < maxSteps; step++) {
     const gradient = estimateDistanceGradient(current, distField);
     
     if (!gradient) {
-      break; // Can't determine gradient direction
+      // Try a larger sampling radius for gradient
+      break;
     }
     
     // Move in gradient direction
@@ -676,13 +680,20 @@ function constraintStep(
     
     const nextDist = sampleDistance(next, distField);
     
-    // Stop if not making progress
+    // If not making progress, count stuck iterations but continue trying
     if (nextDist <= currentDist) {
-      break;
+      stuckCount++;
+      if (stuckCount >= maxStuck) {
+        break;
+      }
+      // Still apply the step (might escape local minimum)
+      current = next;
+      currentDist = nextDist;
+    } else {
+      stuckCount = 0; // Reset stuck counter on progress
+      current = next;
+      currentDist = nextDist;
     }
-    
-    current = next;
-    currentDist = nextDist;
     
     // Stop once we've reached safe clearance
     if (currentDist >= dMin) {
@@ -737,7 +748,11 @@ function enforceWallClearanceConstrained(
   }
   
   const dMin = calculateDmin(animalRadius, marginWorld, distField.fineCellSize);
-  const stepWorld = 0.25 * distField.fineCellSize;
+  // Step size: use larger world-space step for meaningful movement
+  // Fine cell is ~0.033, but we need to move ~0.1-0.2 world units to escape corners
+  const stepWorld = 0.02; // Fixed ~2cm step in world units
+  
+  console.log(`[ConstrainedSmooth] Dmin=${dMin} cells, margin=${marginWorld.toFixed(3)}, radius=${animalRadius}, stepWorld=${stepWorld}, iterations=${outerIterations}x${constraintSteps}`);
   
   // Working copy of points
   let current: Point2D[] = points.map(p => ({ ...p }));
