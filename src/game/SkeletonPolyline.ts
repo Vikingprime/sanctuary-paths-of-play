@@ -68,6 +68,10 @@ export interface PolylineConfig {
   junctionPullRadius: number;
   /** Strength of junction center pull (0-1, default: 0.4) */
   junctionPullStrength: number;
+  /** Minimum distance from walls to maintain (default: 0.4 * corridorWidth) */
+  minWallDistance: number;
+  /** Number of wall-push iterations (default: 3) */
+  wallPushIterations: number;
 }
 
 // ============================================================================
@@ -573,6 +577,98 @@ function applyJunctionPull(
   return result;
 }
 
+// ============================================================================
+// WALL DISTANCE ENFORCEMENT
+// ============================================================================
+
+/**
+ * Push points away from walls to maintain minimum distance.
+ * 
+ * Uses the distance field from the fine grid to detect proximity to walls
+ * and push points toward the corridor center.
+ * 
+ * @param points - The polyline points
+ * @param fineGrid - Fine grid with distance field
+ * @param fineCellSize - Size of each fine cell
+ * @param minDistance - Minimum distance from walls (world units)
+ * @returns Points with wall distance enforced
+ */
+function enforceWallDistance(
+  points: Point2D[],
+  fineGrid: Array<Array<{ walkable?: boolean; distance?: number; isSkeleton?: boolean }>>,
+  fineCellSize: number,
+  minDistance: number
+): Point2D[] {
+  const fineHeight = fineGrid.length;
+  const fineWidth = fineGrid[0]?.length || 0;
+  
+  // Convert min distance to fine grid units
+  const minDistFine = minDistance / fineCellSize;
+  
+  return points.map((p, i) => {
+    // Convert world coords to fine grid coords
+    const fx = p.x / fineCellSize - 0.5;
+    const fy = p.z / fineCellSize - 0.5;
+    
+    // Get integer coords
+    const fxi = Math.floor(fx);
+    const fyi = Math.floor(fy);
+    
+    if (fxi < 0 || fxi >= fineWidth - 1 || fyi < 0 || fyi >= fineHeight - 1) {
+      return p; // Out of bounds, keep as is
+    }
+    
+    // Sample distance at this point (bilinear interpolation)
+    const cell00 = fineGrid[fyi]?.[fxi];
+    const cell10 = fineGrid[fyi]?.[fxi + 1];
+    const cell01 = fineGrid[fyi + 1]?.[fxi];
+    const cell11 = fineGrid[fyi + 1]?.[fxi + 1];
+    
+    // Check if cells have distance data (they should from MedialAxis)
+    if (!cell00 || !cell10 || !cell01 || !cell11 ||
+        cell00.distance === undefined || cell10.distance === undefined ||
+        cell01.distance === undefined || cell11.distance === undefined) {
+      return p; // Missing distance data
+    }
+    
+    const tx = fx - fxi;
+    const ty = fy - fyi;
+    
+    const dist = 
+      cell00.distance * (1 - tx) * (1 - ty) +
+      cell10.distance * tx * (1 - ty) +
+      cell01.distance * (1 - tx) * ty +
+      cell11.distance * tx * ty;
+    
+    // If already far enough from walls, keep as is
+    if (dist >= minDistFine) {
+      return p;
+    }
+    
+    // Need to push away from walls - compute gradient to find direction
+    // Use central differences for gradient
+    const gradX = (cell10.distance - cell00.distance + cell11.distance - cell01.distance) / 2;
+    const gradY = (cell01.distance - cell00.distance + cell11.distance - cell10.distance) / 2;
+    
+    const gradLen = Math.sqrt(gradX * gradX + gradY * gradY);
+    if (gradLen < 0.001) {
+      return p; // No gradient, can't determine push direction
+    }
+    
+    // Normalize gradient (points toward higher distance = away from walls)
+    const pushDirX = gradX / gradLen;
+    const pushDirY = gradY / gradLen;
+    
+    // Push amount: how much we need to move to reach minDistance
+    const pushAmount = (minDistFine - dist) * fineCellSize;
+    
+    return {
+      x: p.x + pushDirX * pushAmount,
+      z: p.z + pushDirY * pushAmount,
+    };
+  });
+}
+
 /**
  * Process skeleton pixels into smooth polylines.
  * 
@@ -584,7 +680,7 @@ function applyJunctionPull(
  * @returns PolylineGraph with smoothed segments
  */
 export function buildSmoothedPolylines(
-  fineGrid: Array<Array<{ isSkeleton: boolean; isSpur?: boolean }>>,
+  fineGrid: Array<Array<{ isSkeleton: boolean; isSpur?: boolean; distance?: number; walkable?: boolean }>>,
   fineWidth: number,
   fineHeight: number,
   fineCellSize: number,
@@ -612,6 +708,9 @@ export function buildSmoothedPolylines(
     // Junction pull: bias curves toward junction centers
     junctionPullRadius: config?.junctionPullRadius ?? (1.5 * corridorWidth), // ~3.0 world units
     junctionPullStrength: config?.junctionPullStrength ?? 0.5, // 50% pull toward center
+    // Wall distance enforcement: keep polyline safely centered in corridors
+    minWallDistance: config?.minWallDistance ?? (0.40 * corridorWidth), // ~0.8 world units (40% of corridor width from each side)
+    wallPushIterations: config?.wallPushIterations ?? 5, // More iterations for better convergence
   };
   
   // Step 1: Build skeleton graph
@@ -631,7 +730,7 @@ export function buildSmoothedPolylines(
     return null;
   };
   
-  // Steps 3, 4, 5, 6: Simplify, smooth, junction-pull, and resample each segment
+  // Steps 3-7: Simplify, smooth, junction-pull, wall-push, resample
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
     // Step 3: RDP simplification - AGGRESSIVE to get corner structure
     let points = cfg.rdpEpsilon > 0 
@@ -662,6 +761,15 @@ export function buildSmoothedPolylines(
       points = resampleCatmullRom(points, cfg.catmullRomSamplesPerPoint);
     } else if (cfg.resampleSpacing > 0) {
       points = resampleLinear(points, cfg.resampleSpacing);
+    }
+    
+    // Step 7: Wall distance enforcement - push points away from walls
+    // Applied AFTER resampling to ensure final curve stays safe distance from walls
+    // Run multiple iterations to converge on safe distance
+    if (cfg.minWallDistance > 0) {
+      for (let i = 0; i < cfg.wallPushIterations; i++) {
+        points = enforceWallDistance(points, fineGrid, fineCellSize, cfg.minWallDistance);
+      }
     }
     
     return {
