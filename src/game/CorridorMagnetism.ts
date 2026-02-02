@@ -599,25 +599,27 @@ export function calculateMagnetismTurn(
         nearest = lockedPixel;
         state.lockDuration += delta;
       } else {
-        // Switching to new point - ALSO reset the tangent direction commitment
+        // Switching to new point - keep committedSign to prevent oscillation at corners
+        // The hysteresis logic will handle direction changes naturally
         state.lastNearestFx = candidateNearest.fx;
         state.lastNearestFy = candidateNearest.fy;
         state.lockDuration = 0;
-        state.committedSign = 0; // Reset to neutral - will be set based on current facing
+        // NOTE: DO NOT reset committedSign here - resetting causes vibration at corners
+        // because the tangent direction flips back and forth as skeleton points change
       }
     } else {
       // Locked point no longer exists, use candidate
       state.lastNearestFx = candidateNearest.fx;
       state.lastNearestFy = candidateNearest.fy;
       state.lockDuration = 0;
-      state.committedSign = 0; // Reset to neutral
+      // Keep committedSign - hysteresis will update it if needed
     }
   } else {
     // No locked point, use candidate
     state.lastNearestFx = candidateNearest.fx;
     state.lastNearestFy = candidateNearest.fy;
     state.lockDuration = 0;
-    state.committedSign = 0; // Reset to neutral
+    // Keep committedSign - only reset on initialization, let hysteresis handle updates
   }
   
   // Get tangent at skeleton point using extended neighbors (±5 steps for smooth curves)
