@@ -789,13 +789,28 @@ function enforceWallClearanceConstrained(
     current[current.length - 1] = { ...lastPoint };
   }
   
-  // Final smoothing pass: Catmull-Rom to round the constrained corners
-  // This creates smooth curves through the pushed-out points
+  // Final smoothing: Chaikin corner-cutting to round the jagged corners
+  // This replaces sharp corners with smoother arcs
   if (current.length >= 3) {
-    current = resampleCatmullRom(current, 4); // 4 samples per segment for smoothness
+    // Apply 2 iterations of Chaikin to round corners (preserving endpoints)
+    current = chaikinSmooth(current, 2, 1);
   }
   
-  // After Catmull-Rom, run one more constraint pass to ensure new interpolated points are safe
+  // After Chaikin, run constraint pass on ALL interior points to ensure clearance
+  // This fixes any points that got pulled toward walls by the smoothing
+  for (let i = 1; i < current.length - 1; i++) {
+    const dist = sampleDistance(current[i], distField);
+    if (dist < dMin) {
+      current[i] = constraintStep(current[i], dMin, distField, constraintSteps, stepWorld);
+    }
+  }
+  
+  // Second round: light Chaikin to smooth out any new kinks from constraint
+  if (current.length >= 3) {
+    current = chaikinSmooth(current, 1, 1);
+  }
+  
+  // Final constraint check
   for (let i = 1; i < current.length - 1; i++) {
     const dist = sampleDistance(current[i], distField);
     if (dist < dMin) {
