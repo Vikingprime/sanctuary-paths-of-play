@@ -97,11 +97,12 @@ function buildSkeletonGraph(
   const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
   const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
   
-  // First pass: create nodes for all skeleton pixels
+  // First pass: create nodes for all skeleton pixels (including spurs for better corner curves)
   for (let fy = 0; fy < fineHeight; fy++) {
     for (let fx = 0; fx < fineWidth; fx++) {
       const cell = fineGrid[fy]?.[fx];
-      if (cell?.isSkeleton && !cell?.isSpur) {
+      // Include ALL skeleton pixels - spurs help pull curves outward at corners
+      if (cell?.isSkeleton) {
         graph.set(`${fx},${fy}`, {
           fx,
           fy,
