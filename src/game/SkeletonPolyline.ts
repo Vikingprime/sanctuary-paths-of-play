@@ -709,8 +709,9 @@ export function buildSmoothedPolylines(
     junctionPullRadius: config?.junctionPullRadius ?? (1.5 * corridorWidth), // ~3.0 world units
     junctionPullStrength: config?.junctionPullStrength ?? 0.5, // 50% pull toward center
     // Wall distance enforcement: keep polyline safely centered in corridors
-    minWallDistance: config?.minWallDistance ?? (0.40 * corridorWidth), // ~0.8 world units (40% of corridor width from each side)
-    wallPushIterations: config?.wallPushIterations ?? 5, // More iterations for better convergence
+    // Use 50% of corridor width so smoothing has room to curve inward without hitting walls
+    minWallDistance: config?.minWallDistance ?? (0.50 * corridorWidth), // ~1.0 world units (center of corridor)
+    wallPushIterations: config?.wallPushIterations ?? 8, // More iterations for better convergence
   };
   
   // Step 1: Build skeleton graph
