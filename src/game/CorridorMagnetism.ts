@@ -703,6 +703,15 @@ export function calculateMagnetismTurn(
   if (tangentDivergence > 0.1) {
     verboseLog('MAGNETISM', `Tangent divergence: ${tangentDivergence.toFixed(3)}, raw=(${tx.toFixed(2)},${tz.toFixed(2)}), smoothed=(${smoothedTx.toFixed(2)},${smoothedTz.toFixed(2)})`);
   }
+  
+  // TEMPORARY DEBUG: Log every 500ms to diagnose corner vibration
+  const now = performance.now();
+  if (!((globalThis as any).__lastMagnetismLog) || now - (globalThis as any).__lastMagnetismLog > 500) {
+    (globalThis as any).__lastMagnetismLog = now;
+    const rawAlignedTx = state.committedSign > 0 ? tx : -tx;
+    const rawAlignedTz = state.committedSign > 0 ? tz : -tz;
+    console.log(`[MAGNETISM DEBUG] div=${tangentDivergence.toFixed(3)}, committedSign=${state.committedSign}, raw=(${rawAlignedTx.toFixed(2)},${rawAlignedTz.toFixed(2)}), smoothed=(${smoothedTx.toFixed(2)},${smoothedTz.toFixed(2)}), lockDur=${state.lockDuration.toFixed(2)}`);
+  }
   // SMOOTH THE SPINE ANCHOR POINT TO PREVENT VIBRATION AT CURVES
   // ============================================================================
   // The raw spine point is discrete (jumps between grid nodes as animal moves).
