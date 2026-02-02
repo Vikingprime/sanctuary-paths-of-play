@@ -1121,7 +1121,7 @@ const RefBasedPlayer = ({
   
   // Magnetism state (turn-based)
   const magnetismCacheRef = useRef<MagnetismCache | null>(null);
-  const magnetismTurnStateRef = useRef<MagnetismTurnState>({ currentCorrection: 0, initialized: false, committedSign: 1, lastNearestFx: -1, lastNearestFy: -1, lockDuration: 0, smoothedSpineX: 0, smoothedSpineZ: 0, smoothedTangentX: 0, smoothedTangentZ: 0 });
+  const magnetismTurnStateRef = useRef<MagnetismTurnState>({ currentCorrection: 0, initialized: false, committedSign: 1, lastNearestFx: -1, lastNearestFy: -1, lockDuration: 0, smoothedSpineX: 0, smoothedSpineZ: 0 });
   
   // Collision state for magnetism weakening
   const collisionIntensityRef = useRef(0);
@@ -1271,8 +1271,7 @@ const RefBasedPlayer = ({
             magnetismDebugRef?.current ?? null,
             magnetStrength,
             newState.rotation,                      // Pass current rotation
-            DEFAULT_MAGNETISM_CONFIG.frontOffset,   // Pass front offset (0.35)
-            newState.collisionIntensity             // Pass collision intensity for debug
+            DEFAULT_MAGNETISM_CONFIG.frontOffset    // Pass front offset (0.35)
           );
           
           

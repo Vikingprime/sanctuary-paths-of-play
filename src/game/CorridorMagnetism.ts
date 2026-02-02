@@ -19,7 +19,6 @@
 import { Maze } from '@/types/game';
 import { GameConfig } from './GameConfig';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from './MedialAxis';
-import { verboseLog } from '@/lib/debug';
 
 // ============================================================================
 // TYPES
@@ -68,12 +67,9 @@ export interface MagnetismTurnResult {
     /** Target point on spine for visualization */
     targetX: number;
     targetZ: number;
-    /** Spine tangent direction (normalized, smoothed - for rotation alignment) */
+    /** Spine tangent direction (normalized) */
     tangentX: number;
     tangentZ: number;
-    /** Raw tangent from skeleton (for position constraint - instant response) */
-    rawTangentX: number;
-    rawTangentZ: number;
     /** Neighbor 1 position (world space) - for visualization */
     neighbor1X: number;
     neighbor1Z: number;
@@ -143,10 +139,6 @@ export interface MagnetismTurnState {
   smoothedSpineX: number;
   /** Smoothed spine Z position (for stable tangent line anchor) */
   smoothedSpineZ: number;
-  /** Smoothed tangent X component (for stable corner navigation) */
-  smoothedTangentX: number;
-  /** Smoothed tangent Z component (for stable corner navigation) */
-  smoothedTangentZ: number;
 }
 
 // ============================================================================
@@ -504,8 +496,6 @@ export function calculateMagnetismTurn(
       targetZ: playerZ,
       tangentX: 0,
       tangentZ: 1,
-      rawTangentX: 0,
-      rawTangentZ: 1,
       neighbor1X: playerX,
       neighbor1Z: playerZ,
       neighbor2X: playerX,
@@ -547,8 +537,6 @@ export function calculateMagnetismTurn(
     state.lockDuration = 0;
     state.smoothedSpineX = 0;
     state.smoothedSpineZ = 0;
-    state.smoothedTangentX = 0;
-    state.smoothedTangentZ = 0;
     state.initialized = true;
   }
   
@@ -593,44 +581,31 @@ export function calculateMagnetismTurn(
       // Stick to locked point unless candidate is significantly better
       // Require 15% closer OR locked point is too far (reduced from 30% for more responsive switching)
       const switchThreshold = 0.85; // New point must be 85% of locked distance (15% closer)
-      // Force switch if candidate is a junction/suppressed pixel (priority over sticky locking)
-      const candidateIsJunction = candidateNearest.degree >= 3 || candidateNearest.isSuppressed;
-      const shouldSwitch = candidateIsJunction || lockedDist > maxSearchRadius || candidateDist < lockedDist * switchThreshold;
+      const shouldSwitch = lockedDist > maxSearchRadius || candidateDist < lockedDist * switchThreshold;
       
       if (!shouldSwitch) {
         nearest = lockedPixel;
         state.lockDuration += delta;
-        
-        // Log when we COULD have switched to a junction but didn't (should no longer happen with candidateIsJunction)
-        if (candidateNearest.degree >= 3 || candidateNearest.isSuppressed) {
-          const now = performance.now();
-          if (!((globalThis as any).__lastStickyLockLog) || now - (globalThis as any).__lastStickyLockLog > 500) {
-            (globalThis as any).__lastStickyLockLog = now;
-            console.log(`[STICKY LOCK] Rejected junction switch: lockedDist=${lockedDist.toFixed(2)}, candidateDist=${candidateDist.toFixed(2)}, candidateDegree=${candidateNearest.degree}`);
-          }
-        }
       } else {
-        // Switching to new point - keep committedSign to prevent oscillation at corners
-        // The hysteresis logic will handle direction changes naturally
+        // Switching to new point - ALSO reset the tangent direction commitment
         state.lastNearestFx = candidateNearest.fx;
         state.lastNearestFy = candidateNearest.fy;
         state.lockDuration = 0;
-        // NOTE: DO NOT reset committedSign here - resetting causes vibration at corners
-        // because the tangent direction flips back and forth as skeleton points change
+        state.committedSign = 0; // Reset to neutral - will be set based on current facing
       }
     } else {
       // Locked point no longer exists, use candidate
       state.lastNearestFx = candidateNearest.fx;
       state.lastNearestFy = candidateNearest.fy;
       state.lockDuration = 0;
-      // Keep committedSign - hysteresis will update it if needed
+      state.committedSign = 0; // Reset to neutral
     }
   } else {
     // No locked point, use candidate
     state.lastNearestFx = candidateNearest.fx;
     state.lastNearestFy = candidateNearest.fy;
     state.lockDuration = 0;
-    // Keep committedSign - only reset on initialization, let hysteresis handle updates
+    state.committedSign = 0; // Reset to neutral
   }
   
   // Get tangent at skeleton point using extended neighbors (±5 steps for smooth curves)
@@ -638,15 +613,6 @@ export function calculateMagnetismTurn(
   
   // If at a junction (tangent is null) OR in suppression zone, skip turn correction entirely
   const isSuppressed = tangent === null || nearest.isSuppressed;
-  
-  // Track junction state transitions for debugging
-  const wasJunction = (globalThis as any).__wasAtJunction ?? false;
-  const isJunctionNow = isSuppressed;
-  if (isJunctionNow !== wasJunction) {
-    console.log(`[JUNCTION TRANSITION] ${wasJunction ? 'LEAVING' : 'ENTERING'} junction, degree=${nearest.degree}, isSuppressed=${nearest.isSuppressed}, lockDur=${state.lockDuration.toFixed(2)}`);
-    (globalThis as any).__wasAtJunction = isJunctionNow;
-  }
-  
   if (isSuppressed) {
     // Decay existing correction and return with suppression flag
     state.currentCorrection *= Math.exp(-config.decayRate * delta);
@@ -665,8 +631,6 @@ export function calculateMagnetismTurn(
         targetZ: nearest.wz,
         tangentX: 0,
         tangentZ: 1,
-        rawTangentX: 0,
-        rawTangentZ: 1,
         neighbor1X: nearest.wx,
         neighbor1Z: nearest.wz,
         neighbor2X: nearest.wx,
@@ -685,58 +649,6 @@ export function calculateMagnetismTurn(
   const { tx, tz, endpoint1, endpoint2 } = tangent;
   
   // ============================================================================
-  // SMOOTH THE TANGENT DIRECTION TO ELIMINATE CORNER VIBRATION
-  // ============================================================================
-  // The raw tangent from discrete grid endpoints creates jagged angle changes at corners.
-  // Apply exponential smoothing to the tangent direction for stable curve navigation.
-  // Use a slightly longer tau (0.08s) than spine smoothing to prioritize stability.
-  // ============================================================================
-  const tangentSmoothingTau = 0.08;
-  const tangentAlpha = delta / (tangentSmoothingTau + delta);
-  
-  let smoothedTx: number;
-  let smoothedTz: number;
-  
-  if (state.smoothedTangentX === 0 && state.smoothedTangentZ === 0) {
-    // Initialize to current raw tangent
-    state.smoothedTangentX = tx;
-    state.smoothedTangentZ = tz;
-    smoothedTx = tx;
-    smoothedTz = tz;
-  } else {
-    // Exponential smoothing on the tangent components
-    state.smoothedTangentX += (tx - state.smoothedTangentX) * tangentAlpha;
-    state.smoothedTangentZ += (tz - state.smoothedTangentZ) * tangentAlpha;
-    
-    // Re-normalize after smoothing (important to maintain unit vector)
-    const len = Math.sqrt(state.smoothedTangentX ** 2 + state.smoothedTangentZ ** 2);
-    if (len > 0.001) {
-      smoothedTx = state.smoothedTangentX / len;
-      smoothedTz = state.smoothedTangentZ / len;
-    } else {
-      smoothedTx = tx;
-      smoothedTz = tz;
-    }
-  }
-  
-  // Debug: Log tangent divergence at corners for diagnostics
-  // Only fires when verbose logging is enabled AND divergence is significant
-  const tangentDivergence = 1 - (tx * smoothedTx + tz * smoothedTz); // 0 = same, 2 = opposite
-  if (tangentDivergence > 0.1) {
-    verboseLog('MAGNETISM', `Tangent divergence: ${tangentDivergence.toFixed(3)}, raw=(${tx.toFixed(2)},${tz.toFixed(2)}), smoothed=(${smoothedTx.toFixed(2)},${smoothedTz.toFixed(2)})`);
-  }
-  
-  // TEMPORARY DEBUG: Log every 500ms to diagnose corner vibration
-  // Use alignedTx/Tz (smoothed+aligned) vs rawAlignedTx/Tz (raw+aligned) for comparison
-  const rawAlignedTx_dbg = state.committedSign > 0 ? tx : -tx;
-  const rawAlignedTz_dbg = state.committedSign > 0 ? tz : -tz;
-  const alignedSmoothedTx_dbg = state.committedSign > 0 ? smoothedTx : -smoothedTx;
-  const alignedSmoothedTz_dbg = state.committedSign > 0 ? smoothedTz : -smoothedTz;
-  const now = performance.now();
-  if (!((globalThis as any).__lastMagnetismLog) || now - (globalThis as any).__lastMagnetismLog > 500) {
-    (globalThis as any).__lastMagnetismLog = now;
-    console.log(`[MAGNETISM DEBUG] div=${tangentDivergence.toFixed(3)}, committedSign=${state.committedSign}, deg=${nearest.degree}, suppressed=${nearest.isSuppressed}, rawAligned=(${rawAlignedTx_dbg.toFixed(2)},${rawAlignedTz_dbg.toFixed(2)}), lockDur=${state.lockDuration.toFixed(2)}`);
-  }
   // SMOOTH THE SPINE ANCHOR POINT TO PREVENT VIBRATION AT CURVES
   // ============================================================================
   // The raw spine point is discrete (jumps between grid nodes as animal moves).
@@ -785,11 +697,10 @@ export function calculateMagnetismTurn(
   
   // Step 1: Choose tangent direction with hysteresis
   // Dot product: positive means vectors point in same general direction
-  // USE SMOOTHED TANGENT for stable corner navigation
-  const dotPositive = facingX * smoothedTx + facingZ * smoothedTz;
+  const dotPositive = facingX * tx + facingZ * tz;
   
   // Determine which tangent direction is currently preferred
-  // +1 means use (smoothedTx, smoothedTz), -1 means use (-smoothedTx, -smoothedTz)
+  // +1 means use (tx, tz), -1 means use (-tx, -tz)
   const currentPreferredSign = dotPositive >= 0 ? 1 : -1;
   
   // Hysteresis: only switch committed direction if the dot product clearly favors the other
@@ -810,14 +721,9 @@ export function calculateMagnetismTurn(
     state.committedSign = 1;
   }
   
-  // Use the committed direction for alignment (USE SMOOTHED TANGENT)
-  let alignedTx = state.committedSign > 0 ? smoothedTx : -smoothedTx;
-  let alignedTz = state.committedSign > 0 ? smoothedTz : -smoothedTz;
-  
-  // ALSO align the raw tangent - use same committedSign for consistency
-  // The raw tangent is used for position constraints to avoid smoothing lag
-  const rawAlignedTx = state.committedSign > 0 ? tx : -tx;
-  const rawAlignedTz = state.committedSign > 0 ? tz : -tz;
+  // Use the committed direction for alignment
+  let alignedTx = state.committedSign > 0 ? tx : -tx;
+  let alignedTz = state.committedSign > 0 ? tz : -tz;
   
   // Step 2: Use cross product to determine turn direction
   // 2D cross product: A × T = Ax*Tz - Az*Tx
@@ -909,8 +815,6 @@ export function calculateMagnetismTurn(
         rawSpineX: nearest.wx, rawSpineZ: nearest.wz,
         targetX: nearest.wx, targetZ: nearest.wz,
         tangentX: alignedTx, tangentZ: alignedTz,
-        rawTangentX: rawAlignedTx,
-        rawTangentZ: rawAlignedTz,
         neighbor1X: endpoint1.wx, neighbor1Z: endpoint1.wz,
         neighbor2X: endpoint2.wx, neighbor2Z: endpoint2.wz,
         rawAngleDiff, isActive: false,
@@ -940,12 +844,9 @@ export function calculateMagnetismTurn(
       rawSpineZ: nearest.wz,
       targetX: state.smoothedSpineX,
       targetZ: state.smoothedSpineZ,
-      // Pass the ALIGNED SMOOTHED tangent to debug so compass shows correct direction
+      // Pass the ALIGNED tangent to debug so compass shows correct direction
       tangentX: alignedTx,
       tangentZ: alignedTz,
-      // Pass RAW ALIGNED tangent for position constraint (prevents lag-induced vibration at corners)
-      rawTangentX: rawAlignedTx,
-      rawTangentZ: rawAlignedTz,
       neighbor1X: endpoint1.wx,
       neighbor1Z: endpoint1.wz,
       neighbor2X: endpoint2.wx,
@@ -1061,8 +962,7 @@ export function constrainMovementToTangent(
   magnetismDebug: MagnetismTurnResult['debug'] | null,
   strength: number,
   playerRotation: number,    // Current player rotation (to calculate fresh front point)
-  frontOffset: number,       // Distance from center to front sensing point
-  collisionIntensity: number = 0  // Collision intensity for debug logging (0-1)
+  frontOffset: number        // Distance from center to front sensing point
 ): { x: number; z: number } {
   
   // Only apply constraint at high strength and when magnetism is active
@@ -1075,10 +975,9 @@ export function constrainMovementToTangent(
     return { x: newX, z: newZ };
   }
   
-  // Use RAW tangent for position constraint (prevents lag-induced vibration at corners)
-  // The smoothed tangent is good for rotation alignment, but position needs instant direction
-  const tangentX = magnetismDebug.rawTangentX ?? magnetismDebug.tangentX;
-  const tangentZ = magnetismDebug.rawTangentZ ?? magnetismDebug.tangentZ;
+  // Get tangent direction
+  const tangentX = magnetismDebug.tangentX;
+  const tangentZ = magnetismDebug.tangentZ;
   
   // Tangent must be valid
   const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ);
@@ -1097,9 +996,7 @@ export function constrainMovementToTangent(
   const frontX = newX + facingX * frontOffset;
   const frontZ = newZ + facingZ * frontOffset;
   
-  // Use RAW spine point as anchor for position constraint
-  // The smoothed spine lags behind actual position, causing overshoot/vibration
-  // Raw spine provides immediate response to player position changes
+  // Use RAW spine point as anchor to prevent overshoot from smoothing lag
   const spineX = magnetismDebug.rawSpineX ?? magnetismDebug.spineX;
   const spineZ = magnetismDebug.rawSpineZ ?? magnetismDebug.spineZ;
   
@@ -1114,22 +1011,11 @@ export function constrainMovementToTangent(
   // Signed perpendicular distance from front to tangent line through spine
   const perpDist = toFrontX * perpX + toFrontZ * perpZ;
   
-  // DEBUG: Log when constraint applies during collision (to diagnose tower vibration)
-  if (collisionIntensity > 0.01) {
-    const now = performance.now();
-    if (!((globalThis as any).__lastConstraintCollisionLog) || 
-        now - (globalThis as any).__lastConstraintCollisionLog > 500) {
-      (globalThis as any).__lastConstraintCollisionLog = now;
-      console.log(`[CONSTRAINT COLLISION] intensity=${collisionIntensity.toFixed(2)}, perpDist=${perpDist.toFixed(3)}, isJunction=${magnetismDebug.isJunctionSuppressed}`);
-    }
-  }
   
   // Offset is PURELY perpendicular (no along-tangent component)
   // This pulls the animal directly toward the centerline without sliding along it
-  // Weaken constraint during collisions so the collision system can take priority
-  const collisionWeakening = 1 - collisionIntensity;
-  const offsetX = -perpDist * perpX * collisionWeakening;
-  const offsetZ = -perpDist * perpZ * collisionWeakening;
+  const offsetX = -perpDist * perpX;
+  const offsetZ = -perpDist * perpZ;
   
   // Apply offset to animal center
   const constrainedX = newX + offsetX;
