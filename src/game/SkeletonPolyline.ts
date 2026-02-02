@@ -521,15 +521,22 @@ export function buildSmoothedPolylines(
   fineCellSize: number,
   config?: Partial<PolylineConfig>
 ): PolylineGraph {
+  // fineCellSize is the size of each fine grid cell (~0.033 world units)
+  // We need RDP epsilon relative to CORRIDOR width, not fine cell size
+  // Corridor width is ~2.0 world units, so scale = 20 means fineCellSize * scale ≈ cellSize
+  // Use a fraction of corridor width for meaningful simplification
+  const cellSize = fineCellSize * 20; // Approximate original cell size (0.667)
+  const corridorWidth = cellSize * 3; // ~2.0 world units
+  
   // Default configuration
   // KEY INSIGHT: We need aggressive RDP first to get corner points,
   // then Chaikin rounds those corners, then Catmull-Rom makes it smooth
   const cfg: PolylineConfig = {
-    // Aggressive RDP to extract true corner points (not micro-zigzags)
-    rdpEpsilon: config?.rdpEpsilon ?? (0.15 * fineCellSize), // Increased to get corner structure
-    chaikinIterations: config?.chaikinIterations ?? 3, // 3 iterations for good rounding
+    // RDP epsilon: 15% of corridor width to extract true corner points
+    rdpEpsilon: config?.rdpEpsilon ?? (0.15 * corridorWidth), // ~0.3 world units
+    chaikinIterations: config?.chaikinIterations ?? 4, // 4 iterations for good rounding
     preserveEndpoints: config?.preserveEndpoints ?? 1,
-    resampleSpacing: config?.resampleSpacing ?? (0.1 * fineCellSize),
+    resampleSpacing: config?.resampleSpacing ?? (0.05 * corridorWidth), // ~0.1 world units
     useCatmullRom: config?.useCatmullRom ?? true,
     catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 8,
   };
@@ -603,8 +610,10 @@ export function buildSmoothedControlPoints(
   fineCellSize: number,
   config?: Partial<PolylineConfig>
 ): PolylineGraph {
-  // Use same RDP epsilon as main function
-  const rdpEpsilon = config?.rdpEpsilon ?? (0.15 * fineCellSize);
+  // Use same scale-relative epsilon as main function
+  const cellSize = fineCellSize * 20;
+  const corridorWidth = cellSize * 3;
+  const rdpEpsilon = config?.rdpEpsilon ?? (0.15 * corridorWidth);
   
   const graph = buildSkeletonGraph(fineGrid, fineWidth, fineHeight);
   const { segments: rawSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
