@@ -52,12 +52,18 @@ export interface PolylineGraph {
 
 /** Configuration for polyline processing */
 export interface PolylineConfig {
-  /** Epsilon for RDP simplification (world units, default: 0.1 * fineCellSize) */
+  /** Epsilon for RDP simplification (world units, default: 0.02 * fineCellSize). Set to 0 to disable. */
   rdpEpsilon: number;
-  /** Number of Chaikin smoothing iterations (default: 2) */
+  /** Number of Chaikin smoothing iterations (default: 4) */
   chaikinIterations: number;
   /** Preserve N points at each end of segment from smoothing (default: 1) */
   preserveEndpoints: number;
+  /** Resample spacing after smoothing (world units, 0 = disable, default: 0.1 * fineCellSize) */
+  resampleSpacing: number;
+  /** Use Catmull-Rom spline resampling instead of linear (default: true) */
+  useCatmullRom: boolean;
+  /** Number of samples per original point for Catmull-Rom (default: 10) */
+  catmullRomSamplesPerPoint: number;
 }
 
 // ============================================================================
@@ -286,6 +292,156 @@ function rdpSimplify(points: Point2D[], epsilon: number): Point2D[] {
 }
 
 // ============================================================================
+// CATMULL-ROM SPLINE RESAMPLING
+// ============================================================================
+
+/**
+ * Evaluate a Catmull-Rom spline at parameter t.
+ * 
+ * @param p0 - Control point before the segment
+ * @param p1 - Start of segment
+ * @param p2 - End of segment
+ * @param p3 - Control point after the segment
+ * @param t - Parameter in [0, 1]
+ * @returns Interpolated point
+ */
+function catmullRomPoint(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, t: number): Point2D {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  
+  // Catmull-Rom basis matrix coefficients
+  const x = 0.5 * (
+    (2 * p1.x) +
+    (-p0.x + p2.x) * t +
+    (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+    (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3
+  );
+  
+  const z = 0.5 * (
+    (2 * p1.z) +
+    (-p0.z + p2.z) * t +
+    (2 * p0.z - 5 * p1.z + 4 * p2.z - p3.z) * t2 +
+    (-p0.z + 3 * p1.z - 3 * p2.z + p3.z) * t3
+  );
+  
+  return { x, z };
+}
+
+/**
+ * Resample a polyline using Catmull-Rom spline interpolation.
+ * 
+ * This produces smooth curves through the original points.
+ * 
+ * @param points - Input polyline (at least 2 points)
+ * @param samplesPerSegment - Number of samples per original segment
+ * @returns Densely sampled smooth curve
+ */
+function resampleCatmullRom(points: Point2D[], samplesPerSegment: number): Point2D[] {
+  if (points.length < 2) return [...points];
+  if (points.length === 2) {
+    // For just 2 points, do linear interpolation
+    const result: Point2D[] = [points[0]];
+    for (let i = 1; i < samplesPerSegment; i++) {
+      const t = i / samplesPerSegment;
+      result.push({
+        x: points[0].x + (points[1].x - points[0].x) * t,
+        z: points[0].z + (points[1].z - points[0].z) * t,
+      });
+    }
+    result.push(points[points.length - 1]);
+    return result;
+  }
+  
+  const result: Point2D[] = [];
+  
+  // For each segment between points[i] and points[i+1]
+  for (let i = 0; i < points.length - 1; i++) {
+    // Get the 4 control points for this segment
+    // Clamp indices for endpoints
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+    
+    // Sample this segment
+    const isLastSegment = i === points.length - 2;
+    const samples = isLastSegment ? samplesPerSegment + 1 : samplesPerSegment;
+    
+    for (let s = 0; s < samples; s++) {
+      const t = s / samplesPerSegment;
+      result.push(catmullRomPoint(p0, p1, p2, p3, t));
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Resample a polyline at fixed world-space intervals using linear interpolation.
+ * 
+ * @param points - Input polyline
+ * @param spacing - Distance between output points
+ * @returns Evenly spaced points along the polyline
+ */
+function resampleLinear(points: Point2D[], spacing: number): Point2D[] {
+  if (points.length < 2 || spacing <= 0) return [...points];
+  
+  const result: Point2D[] = [points[0]];
+  let accumulated = 0;
+  
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const dx = curr.x - prev.x;
+    const dz = curr.z - prev.z;
+    const segmentLen = Math.sqrt(dx * dx + dz * dz);
+    
+    if (segmentLen < 1e-6) continue;
+    
+    const dirX = dx / segmentLen;
+    const dirZ = dz / segmentLen;
+    
+    let remaining = segmentLen;
+    let startX = prev.x;
+    let startZ = prev.z;
+    
+    // First, use up any accumulated distance from previous segment
+    if (accumulated > 0) {
+      const needed = spacing - accumulated;
+      if (remaining >= needed) {
+        startX += dirX * needed;
+        startZ += dirZ * needed;
+        result.push({ x: startX, z: startZ });
+        remaining -= needed;
+        accumulated = 0;
+      } else {
+        accumulated += remaining;
+        continue;
+      }
+    }
+    
+    // Emit points at regular intervals
+    while (remaining >= spacing) {
+      startX += dirX * spacing;
+      startZ += dirZ * spacing;
+      result.push({ x: startX, z: startZ });
+      remaining -= spacing;
+    }
+    
+    accumulated = remaining;
+  }
+  
+  // Always include the final point
+  const last = points[points.length - 1];
+  const resultLast = result[result.length - 1];
+  if (!resultLast || Math.abs(resultLast.x - last.x) > 1e-6 || Math.abs(resultLast.z - last.z) > 1e-6) {
+    result.push(last);
+  }
+  
+  return result;
+}
+
+// ============================================================================
 // CHAIKIN CORNER-CUTTING SMOOTHING
 // ============================================================================
 
@@ -300,7 +456,7 @@ function rdpSimplify(points: Point2D[], epsilon: number): Point2D[] {
  * @param preserveEnds - Number of points at each end to preserve (default: 1)
  * @returns Smoothed polyline
  */
-function chaikinSmooth(points: Point2D[], iterations: number = 2, preserveEnds: number = 1): Point2D[] {
+function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: number = 1): Point2D[] {
   if (points.length <= 2) return [...points];
   
   let current = [...points];
@@ -310,34 +466,33 @@ function chaikinSmooth(points: Point2D[], iterations: number = 2, preserveEnds: 
     
     const smoothed: Point2D[] = [];
     
-    // Preserve start points
-    for (let i = 0; i < Math.min(preserveEnds, current.length); i++) {
-      smoothed.push(current[i]);
-    }
+    // Always preserve the first point (endpoint/junction)
+    smoothed.push(current[0]);
     
-    // Smooth the middle section
-    const startIdx = preserveEnds;
-    const endIdx = current.length - preserveEnds;
-    
-    for (let i = startIdx; i < endIdx - 1; i++) {
+    // Smooth ALL intermediate edges (only skip first and last point)
+    for (let i = 0; i < current.length - 1; i++) {
       const p0 = current[i];
       const p1 = current[i + 1];
       
-      // Generate two points at 1/4 and 3/4 positions
-      smoothed.push({
-        x: 0.75 * p0.x + 0.25 * p1.x,
-        z: 0.75 * p0.z + 0.25 * p1.z,
-      });
-      smoothed.push({
-        x: 0.25 * p0.x + 0.75 * p1.x,
-        z: 0.25 * p0.z + 0.75 * p1.z,
-      });
+      // Skip the very first edge's first subdivision (we already added point 0)
+      if (i > 0) {
+        smoothed.push({
+          x: 0.75 * p0.x + 0.25 * p1.x,
+          z: 0.75 * p0.z + 0.25 * p1.z,
+        });
+      }
+      
+      // Skip the very last edge's second subdivision (we'll add the last point after)
+      if (i < current.length - 2) {
+        smoothed.push({
+          x: 0.25 * p0.x + 0.75 * p1.x,
+          z: 0.25 * p0.z + 0.75 * p1.z,
+        });
+      }
     }
     
-    // Preserve end points
-    for (let i = Math.max(0, current.length - preserveEnds); i < current.length; i++) {
-      smoothed.push(current[i]);
-    }
+    // Always preserve the last point (endpoint/junction)
+    smoothed.push(current[current.length - 1]);
     
     current = smoothed;
   }
@@ -366,11 +521,14 @@ export function buildSmoothedPolylines(
   fineCellSize: number,
   config?: Partial<PolylineConfig>
 ): PolylineGraph {
-  // Default configuration
+  // Default configuration - now with Catmull-Rom resampling
   const cfg: PolylineConfig = {
-    rdpEpsilon: config?.rdpEpsilon ?? (0.1 * fineCellSize),
-    chaikinIterations: config?.chaikinIterations ?? 2,
+    rdpEpsilon: config?.rdpEpsilon ?? (0.02 * fineCellSize), // Reduced from 0.1 to preserve more detail
+    chaikinIterations: config?.chaikinIterations ?? 4, // Increased from 2 for smoother curves
     preserveEndpoints: config?.preserveEndpoints ?? 1,
+    resampleSpacing: config?.resampleSpacing ?? (0.1 * fineCellSize),
+    useCatmullRom: config?.useCatmullRom ?? true,
+    catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 10,
   };
   
   // Step 1: Build skeleton graph
@@ -379,13 +537,22 @@ export function buildSmoothedPolylines(
   // Step 2: Extract polyline segments
   const { segments: rawSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
   
-  // Steps 3 & 4: Simplify and smooth each segment
+  // Steps 3, 4, 5: Simplify, smooth, and resample each segment
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
-    // RDP simplification
-    let points = rdpSimplify(segment.points, cfg.rdpEpsilon);
+    // RDP simplification (skip if epsilon is 0)
+    let points = cfg.rdpEpsilon > 0 
+      ? rdpSimplify(segment.points, cfg.rdpEpsilon)
+      : [...segment.points];
     
     // Chaikin smoothing
     points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
+    
+    // Catmull-Rom or linear resampling for dense output
+    if (cfg.useCatmullRom && points.length >= 2) {
+      points = resampleCatmullRom(points, cfg.catmullRomSamplesPerPoint);
+    } else if (cfg.resampleSpacing > 0) {
+      points = resampleLinear(points, cfg.resampleSpacing);
+    }
     
     return {
       ...segment,
@@ -393,7 +560,8 @@ export function buildSmoothedPolylines(
     };
   });
   
-  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments, ${junctions.length} junctions, ${endpoints.length} endpoints`);
+  const totalPoints = smoothedSegments.reduce((sum, s) => sum + s.points.length, 0);
+  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} total points), ${junctions.length} junctions, ${endpoints.length} endpoints`);
   
   return {
     segments: smoothedSegments,
@@ -415,4 +583,40 @@ export function buildRawPolylines(
   const { segments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
   
   return { segments, junctions, endpoints };
+}
+
+/**
+ * Build intermediate polylines (RDP + Chaikin, but no resampling) for debug visualization.
+ * Shows the control points before Catmull-Rom interpolation.
+ */
+export function buildSmoothedControlPoints(
+  fineGrid: Array<Array<{ isSkeleton: boolean; isSpur?: boolean }>>,
+  fineWidth: number,
+  fineHeight: number,
+  fineCellSize: number,
+  config?: Partial<PolylineConfig>
+): PolylineGraph {
+  const cfg: PolylineConfig = {
+    rdpEpsilon: config?.rdpEpsilon ?? (0.02 * fineCellSize),
+    chaikinIterations: config?.chaikinIterations ?? 4,
+    preserveEndpoints: config?.preserveEndpoints ?? 1,
+    resampleSpacing: 0,
+    useCatmullRom: false,
+    catmullRomSamplesPerPoint: 10,
+  };
+  
+  const graph = buildSkeletonGraph(fineGrid, fineWidth, fineHeight);
+  const { segments: rawSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
+  
+  const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
+    let points = cfg.rdpEpsilon > 0 
+      ? rdpSimplify(segment.points, cfg.rdpEpsilon)
+      : [...segment.points];
+    
+    points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
+    
+    return { ...segment, points };
+  });
+  
+  return { segments: smoothedSegments, junctions, endpoints };
 }
