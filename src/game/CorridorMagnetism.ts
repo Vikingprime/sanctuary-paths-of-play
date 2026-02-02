@@ -1041,7 +1041,8 @@ export function constrainMovementToTangent(
   magnetismDebug: MagnetismTurnResult['debug'] | null,
   strength: number,
   playerRotation: number,    // Current player rotation (to calculate fresh front point)
-  frontOffset: number        // Distance from center to front sensing point
+  frontOffset: number,       // Distance from center to front sensing point
+  collisionIntensity: number = 0  // Collision intensity for debug logging (0-1)
 ): { x: number; z: number } {
   
   // Only apply constraint at high strength and when magnetism is active
@@ -1093,6 +1094,15 @@ export function constrainMovementToTangent(
   // Signed perpendicular distance from front to tangent line through spine
   const perpDist = toFrontX * perpX + toFrontZ * perpZ;
   
+  // DEBUG: Log when constraint applies during collision (to diagnose tower vibration)
+  if (collisionIntensity > 0.01) {
+    const now = performance.now();
+    if (!((globalThis as any).__lastConstraintCollisionLog) || 
+        now - (globalThis as any).__lastConstraintCollisionLog > 500) {
+      (globalThis as any).__lastConstraintCollisionLog = now;
+      console.log(`[CONSTRAINT COLLISION] intensity=${collisionIntensity.toFixed(2)}, perpDist=${perpDist.toFixed(3)}, isJunction=${magnetismDebug.isJunctionSuppressed}`);
+    }
+  }
   
   // Offset is PURELY perpendicular (no along-tangent component)
   // This pulls the animal directly toward the centerline without sliding along it
