@@ -462,9 +462,16 @@ function resampleLinear(points: Point2D[], spacing: number): Point2D[] {
  * @param points - Input polyline
  * @param iterations - Number of smoothing passes (default: 2)
  * @param preserveEnds - Number of points at each end to preserve (default: 1)
+ * @param smoothStartEnd - If true, also smooths the first/last points (for junctions)
  * @returns Smoothed polyline
  */
-function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: number = 1): Point2D[] {
+function chaikinSmooth(
+  points: Point2D[], 
+  iterations: number = 4, 
+  preserveEnds: number = 1,
+  smoothStart: boolean = false,
+  smoothEnd: boolean = false
+): Point2D[] {
   if (points.length <= 2) return [...points];
   
   let current = [...points];
@@ -474,33 +481,56 @@ function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: 
     
     const smoothed: Point2D[] = [];
     
-    // Always preserve the first point (endpoint/junction)
-    smoothed.push(current[0]);
+    // Handle first point - either preserve or smooth
+    if (smoothStart && current.length >= 2) {
+      // Smooth the first point toward second point
+      const p0 = current[0];
+      const p1 = current[1];
+      smoothed.push({
+        x: 0.75 * p0.x + 0.25 * p1.x,
+        z: 0.75 * p0.z + 0.25 * p1.z,
+      });
+    } else {
+      smoothed.push(current[0]);
+    }
     
-    // Smooth ALL intermediate edges (only skip first and last point)
+    // Smooth intermediate edges
     for (let i = 0; i < current.length - 1; i++) {
       const p0 = current[i];
       const p1 = current[i + 1];
       
-      // Skip the very first edge's first subdivision (we already added point 0)
-      if (i > 0) {
-        smoothed.push({
-          x: 0.75 * p0.x + 0.25 * p1.x,
-          z: 0.75 * p0.z + 0.25 * p1.z,
-        });
+      // Skip first edge's first subdivision if we preserved point 0
+      if (i > 0 || smoothStart) {
+        if (i > 0) {
+          smoothed.push({
+            x: 0.75 * p0.x + 0.25 * p1.x,
+            z: 0.75 * p0.z + 0.25 * p1.z,
+          });
+        }
       }
       
-      // Skip the very last edge's second subdivision (we'll add the last point after)
-      if (i < current.length - 2) {
-        smoothed.push({
-          x: 0.25 * p0.x + 0.75 * p1.x,
-          z: 0.25 * p0.z + 0.75 * p1.z,
-        });
+      // Skip last edge's second subdivision if we'll preserve last point
+      if (i < current.length - 2 || smoothEnd) {
+        if (i < current.length - 2) {
+          smoothed.push({
+            x: 0.25 * p0.x + 0.75 * p1.x,
+            z: 0.25 * p0.z + 0.75 * p1.z,
+          });
+        }
       }
     }
     
-    // Always preserve the last point (endpoint/junction)
-    smoothed.push(current[current.length - 1]);
+    // Handle last point - either preserve or smooth
+    if (smoothEnd && current.length >= 2) {
+      const pN = current[current.length - 1];
+      const pN1 = current[current.length - 2];
+      smoothed.push({
+        x: 0.75 * pN.x + 0.25 * pN1.x,
+        z: 0.75 * pN.z + 0.25 * pN1.z,
+      });
+    } else {
+      smoothed.push(current[current.length - 1]);
+    }
     
     current = smoothed;
   }
@@ -897,15 +927,11 @@ export function buildSmoothedPolylines(
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
     
-    // Step 4: Round junction corners BEFORE smoothing
-    // This replaces the sharp junction point with a mini-curve
+    // Identify if start/end are junctions (not dead ends)
     const isStartJunction = !segment.startIsEndpoint;
     const isEndJunction = !segment.endIsEndpoint;
-    if (isStartJunction || isEndJunction) {
-      points = roundJunctionCorner(points, isStartJunction, isEndJunction, corridorWidth * 0.5);
-    }
     
-    // Step 5: Junction pull - bias toward junction centers (not inside corners)
+    // Step 4: Junction pull - bias toward junction centers (not inside corners)
     if (cfg.junctionPullStrength > 0 && points.length >= 3) {
       const startJunction = segment.startIsEndpoint ? null : findJunction(segment.points[0]);
       const endJunction = segment.endIsEndpoint ? null : findJunction(segment.points[segment.points.length - 1]);
@@ -921,8 +947,14 @@ export function buildSmoothedPolylines(
       }
     }
     
-    // Step 6: Chaikin smoothing - rounds the sharp corners
-    points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
+    // Step 5: Chaikin smoothing - smooth junction endpoints too (not just middle)
+    points = chaikinSmooth(
+      points, 
+      cfg.chaikinIterations, 
+      cfg.preserveEndpoints,
+      isStartJunction, // Smooth start if it's a junction
+      isEndJunction    // Smooth end if it's a junction
+    );
     
     // Step 7: Catmull-Rom resampling - creates smooth interpolated curve
     if (cfg.useCatmullRom && points.length >= 2) {
