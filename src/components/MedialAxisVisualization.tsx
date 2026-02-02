@@ -20,7 +20,7 @@ import { Line } from '@react-three/drei';
 import { Maze } from '@/types/game';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from '@/game/MedialAxis';
 import { MagnetismTurnResult } from '@/game/CorridorMagnetism';
-import { buildSmoothedPolylines, buildRawPolylines, buildSmoothedControlPoints, PolylineGraph, Point2D } from '@/game/SkeletonPolyline';
+import { buildSmoothedPolylines, buildRawPolylines, buildSmoothedControlPoints, PolylineGraph, Point2D, PolylineConfig } from '@/game/SkeletonPolyline';
 import { PlayerState } from '@/game/GameLogic';
 
 // ============================================================================
@@ -51,6 +51,8 @@ interface MedialAxisVisualizationProps {
   spurConfig?: SpurConfig | null;
   /** Callback to report default spur config (from scale constants) */
   onDefaultSpurConfig?: (config: SpurConfig) => void;
+  /** Custom polyline config for tuning smoothing */
+  polylineConfig?: Partial<PolylineConfig> | null;
   /** Magnetism debug: show target point marker */
   showMagnetTarget?: boolean;
   /** Magnetism debug: show vector arrow from player to target */
@@ -91,6 +93,7 @@ export function MedialAxisVisualization({
   pointSize = 0.08,
   spurConfig,
   onDefaultSpurConfig,
+  polylineConfig,
   showMagnetTarget = false,
   showMagnetVector = false,
   magnetismDebugRef,
@@ -114,9 +117,10 @@ export function MedialAxisVisualization({
       axisResult.fineGrid,
       fineWidth,
       fineHeight,
-      axisResult.fineCellSize
+      axisResult.fineCellSize,
+      polylineConfig ?? undefined
     );
-  }, [axisResult, maze, visible]);
+  }, [axisResult, maze, visible, polylineConfig]);
   
   // Build raw polylines for debug comparison (original pixel-based)
   const rawPolylineGraph = useMemo<PolylineGraph | null>(() => {
