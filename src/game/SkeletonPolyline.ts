@@ -235,6 +235,159 @@ function extractPolylineSegments(
 }
 
 // ============================================================================
+// SEGMENT MERGING AT JUNCTIONS
+// ============================================================================
+
+/**
+ * Merge segments at junctions to create longer continuous paths.
+ * 
+ * This allows smoothing algorithms to curve across junctions instead of
+ * treating them as fixed pivot points. Two segments meeting at a junction
+ * are merged if they form a reasonably smooth continuation (angle < 120°).
+ * 
+ * @param segments - Raw polyline segments
+ * @param junctions - Junction positions
+ * @param maxMergeAngle - Maximum angle (radians) between segments to merge (default: 2π/3 = 120°)
+ * @returns Merged segments (some may span multiple original segments)
+ */
+function mergeSegmentsAtJunctions(
+  segments: PolylineSegment[],
+  junctions: Point2D[],
+  maxMergeAngle: number = (2 * Math.PI) / 3 // 120 degrees
+): PolylineSegment[] {
+  if (segments.length === 0) return [];
+  
+  // Build a map of junction -> segments that touch it
+  const junctionMap = new Map<string, Array<{ segment: PolylineSegment; atStart: boolean; idx: number }>>();
+  
+  const ptKey = (p: Point2D) => `${p.x.toFixed(4)},${p.z.toFixed(4)}`;
+  
+  // Find which junction each segment endpoint touches
+  const findJunctionAt = (p: Point2D): Point2D | null => {
+    for (const j of junctions) {
+      const dist = Math.sqrt((p.x - j.x) ** 2 + (p.z - j.z) ** 2);
+      if (dist < 0.1) return j;
+    }
+    return null;
+  };
+  
+  segments.forEach((seg, idx) => {
+    const startPt = seg.points[0];
+    const endPt = seg.points[seg.points.length - 1];
+    
+    const startJunc = findJunctionAt(startPt);
+    const endJunc = findJunctionAt(endPt);
+    
+    if (startJunc && !seg.startIsEndpoint) {
+      const key = ptKey(startJunc);
+      if (!junctionMap.has(key)) junctionMap.set(key, []);
+      junctionMap.get(key)!.push({ segment: seg, atStart: true, idx });
+    }
+    if (endJunc && !seg.endIsEndpoint) {
+      const key = ptKey(endJunc);
+      if (!junctionMap.has(key)) junctionMap.set(key, []);
+      junctionMap.get(key)!.push({ segment: seg, atStart: false, idx });
+    }
+  });
+  
+  // Track which segments have been merged
+  const merged = new Set<number>();
+  const result: PolylineSegment[] = [];
+  
+  // Get the direction vector at a segment's junction end
+  const getDirectionAtEnd = (seg: PolylineSegment, atStart: boolean): { dx: number; dz: number } => {
+    const pts = seg.points;
+    if (atStart) {
+      // Direction FROM junction INTO segment (look a few points in)
+      const lookAhead = Math.min(3, pts.length - 1);
+      return {
+        dx: pts[lookAhead].x - pts[0].x,
+        dz: pts[lookAhead].z - pts[0].z,
+      };
+    } else {
+      // Direction FROM junction INTO segment (looking backward)
+      const lookBack = Math.max(0, pts.length - 1 - 3);
+      return {
+        dx: pts[lookBack].x - pts[pts.length - 1].x,
+        dz: pts[lookBack].z - pts[pts.length - 1].z,
+      };
+    }
+  };
+  
+  // Compute angle between two direction vectors
+  const angleBetween = (d1: { dx: number; dz: number }, d2: { dx: number; dz: number }): number => {
+    const len1 = Math.sqrt(d1.dx ** 2 + d1.dz ** 2);
+    const len2 = Math.sqrt(d2.dx ** 2 + d2.dz ** 2);
+    if (len1 < 0.001 || len2 < 0.001) return Math.PI; // Degenerate case
+    const dot = (d1.dx * d2.dx + d1.dz * d2.dz) / (len1 * len2);
+    return Math.acos(Math.max(-1, Math.min(1, dot)));
+  };
+  
+  // Try to merge segments at each junction
+  for (const [juncKey, segsAtJunc] of junctionMap.entries()) {
+    if (segsAtJunc.length !== 2) continue; // Only merge at degree-2 connections through the junction
+    
+    const [s1Info, s2Info] = segsAtJunc;
+    if (merged.has(s1Info.idx) || merged.has(s2Info.idx)) continue;
+    
+    // Check if they form a smooth continuation
+    const dir1 = getDirectionAtEnd(s1Info.segment, s1Info.atStart);
+    const dir2 = getDirectionAtEnd(s2Info.segment, s2Info.atStart);
+    
+    const angle = angleBetween(dir1, dir2);
+    
+    // Only merge if they're roughly opposite directions (angle close to π) 
+    // which means continuing through the junction smoothly
+    if (angle < maxMergeAngle) continue; // They're turning too sharply
+    
+    // Merge the two segments
+    merged.add(s1Info.idx);
+    merged.add(s2Info.idx);
+    
+    // Build the merged points list
+    // Need to orient both segments so they connect at the junction
+    let points1 = [...s1Info.segment.points];
+    let points2 = [...s2Info.segment.points];
+    
+    // If segment 1's junction is at start, reverse it so junction is at end
+    if (s1Info.atStart) points1.reverse();
+    // If segment 2's junction is at end, reverse it so junction is at start  
+    if (!s2Info.atStart) points2.reverse();
+    
+    // Now points1 ends at junction, points2 starts at junction
+    // Skip the duplicate junction point in points2
+    const mergedPoints = [...points1, ...points2.slice(1)];
+    
+    // Determine new endpoint flags
+    // points1's original start is now our start
+    // points2's original end is now our end
+    const newStartIsEndpoint = s1Info.atStart 
+      ? s1Info.segment.endIsEndpoint 
+      : s1Info.segment.startIsEndpoint;
+    const newEndIsEndpoint = s2Info.atStart 
+      ? s2Info.segment.startIsEndpoint 
+      : s2Info.segment.endIsEndpoint;
+    
+    result.push({
+      points: mergedPoints,
+      startIsEndpoint: newStartIsEndpoint,
+      endIsEndpoint: newEndIsEndpoint,
+    });
+  }
+  
+  // Add unmerged segments
+  segments.forEach((seg, idx) => {
+    if (!merged.has(idx)) {
+      result.push(seg);
+    }
+  });
+  
+  console.log(`[SkeletonPolyline] Merged ${merged.size / 2} junction pairs, ${result.length} segments (was ${segments.length})`);
+  
+  return result;
+}
+
+// ============================================================================
 // RAMER-DOUGLAS-PEUCKER SIMPLIFICATION
 // ============================================================================
 
@@ -907,7 +1060,10 @@ export function buildSmoothedPolylines(
   const graph = buildSkeletonGraph(fineGrid, fineWidth, fineHeight);
   
   // Step 2: Extract polyline segments
-  const { segments: rawSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
+  const { segments: extractedSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
+  
+  // Step 2b: Merge segments at junctions to allow smoothing across intersections
+  const rawSegments = mergeSegmentsAtJunctions(extractedSegments, junctions);
   
   // Create a lookup for junction positions
   const junctionSet = new Set(junctions.map(j => `${j.x.toFixed(4)},${j.z.toFixed(4)}`));
