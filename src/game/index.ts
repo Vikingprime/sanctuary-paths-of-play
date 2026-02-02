@@ -49,6 +49,16 @@ export {
   type MedialAxisResult,
 } from './MedialAxis';
 
+// Skeleton polyline smoothing
+export {
+  buildSmoothedPolylines,
+  buildRawPolylines,
+  type PolylineGraph,
+  type PolylineSegment,
+  type Point2D,
+  type PolylineConfig,
+} from './SkeletonPolyline';
+
 // Corridor magnetism system (turn-based alignment)
 export {
   calculateMagnetismTurn,
