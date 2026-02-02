@@ -139,6 +139,10 @@ export interface MagnetismTurnState {
   smoothedSpineX: number;
   /** Smoothed spine Z position (for stable tangent line anchor) */
   smoothedSpineZ: number;
+  /** Smoothed tangent X component (for stable corner navigation) */
+  smoothedTangentX: number;
+  /** Smoothed tangent Z component (for stable corner navigation) */
+  smoothedTangentZ: number;
 }
 
 // ============================================================================
@@ -537,6 +541,8 @@ export function calculateMagnetismTurn(
     state.lockDuration = 0;
     state.smoothedSpineX = 0;
     state.smoothedSpineZ = 0;
+    state.smoothedTangentX = 0;
+    state.smoothedTangentZ = 0;
     state.initialized = true;
   }
   
@@ -649,6 +655,41 @@ export function calculateMagnetismTurn(
   const { tx, tz, endpoint1, endpoint2 } = tangent;
   
   // ============================================================================
+  // SMOOTH THE TANGENT DIRECTION TO ELIMINATE CORNER VIBRATION
+  // ============================================================================
+  // The raw tangent from discrete grid endpoints creates jagged angle changes at corners.
+  // Apply exponential smoothing to the tangent direction for stable curve navigation.
+  // Use a slightly longer tau (0.08s) than spine smoothing to prioritize stability.
+  // ============================================================================
+  const tangentSmoothingTau = 0.08;
+  const tangentAlpha = delta / (tangentSmoothingTau + delta);
+  
+  let smoothedTx: number;
+  let smoothedTz: number;
+  
+  if (state.smoothedTangentX === 0 && state.smoothedTangentZ === 0) {
+    // Initialize to current raw tangent
+    state.smoothedTangentX = tx;
+    state.smoothedTangentZ = tz;
+    smoothedTx = tx;
+    smoothedTz = tz;
+  } else {
+    // Exponential smoothing on the tangent components
+    state.smoothedTangentX += (tx - state.smoothedTangentX) * tangentAlpha;
+    state.smoothedTangentZ += (tz - state.smoothedTangentZ) * tangentAlpha;
+    
+    // Re-normalize after smoothing (important to maintain unit vector)
+    const len = Math.sqrt(state.smoothedTangentX ** 2 + state.smoothedTangentZ ** 2);
+    if (len > 0.001) {
+      smoothedTx = state.smoothedTangentX / len;
+      smoothedTz = state.smoothedTangentZ / len;
+    } else {
+      smoothedTx = tx;
+      smoothedTz = tz;
+    }
+  }
+  
+  // ============================================================================
   // SMOOTH THE SPINE ANCHOR POINT TO PREVENT VIBRATION AT CURVES
   // ============================================================================
   // The raw spine point is discrete (jumps between grid nodes as animal moves).
@@ -697,10 +738,11 @@ export function calculateMagnetismTurn(
   
   // Step 1: Choose tangent direction with hysteresis
   // Dot product: positive means vectors point in same general direction
-  const dotPositive = facingX * tx + facingZ * tz;
+  // USE SMOOTHED TANGENT for stable corner navigation
+  const dotPositive = facingX * smoothedTx + facingZ * smoothedTz;
   
   // Determine which tangent direction is currently preferred
-  // +1 means use (tx, tz), -1 means use (-tx, -tz)
+  // +1 means use (smoothedTx, smoothedTz), -1 means use (-smoothedTx, -smoothedTz)
   const currentPreferredSign = dotPositive >= 0 ? 1 : -1;
   
   // Hysteresis: only switch committed direction if the dot product clearly favors the other
@@ -721,9 +763,9 @@ export function calculateMagnetismTurn(
     state.committedSign = 1;
   }
   
-  // Use the committed direction for alignment
-  let alignedTx = state.committedSign > 0 ? tx : -tx;
-  let alignedTz = state.committedSign > 0 ? tz : -tz;
+  // Use the committed direction for alignment (USE SMOOTHED TANGENT)
+  let alignedTx = state.committedSign > 0 ? smoothedTx : -smoothedTx;
+  let alignedTz = state.committedSign > 0 ? smoothedTz : -smoothedTz;
   
   // Step 2: Use cross product to determine turn direction
   // 2D cross product: A × T = Ax*Tz - Az*Tx
