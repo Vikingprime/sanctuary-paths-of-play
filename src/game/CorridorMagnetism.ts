@@ -705,12 +705,15 @@ export function calculateMagnetismTurn(
   }
   
   // TEMPORARY DEBUG: Log every 500ms to diagnose corner vibration
+  // Use alignedTx/Tz (smoothed+aligned) vs rawAlignedTx/Tz (raw+aligned) for comparison
+  const rawAlignedTx_dbg = state.committedSign > 0 ? tx : -tx;
+  const rawAlignedTz_dbg = state.committedSign > 0 ? tz : -tz;
+  const alignedSmoothedTx_dbg = state.committedSign > 0 ? smoothedTx : -smoothedTx;
+  const alignedSmoothedTz_dbg = state.committedSign > 0 ? smoothedTz : -smoothedTz;
   const now = performance.now();
   if (!((globalThis as any).__lastMagnetismLog) || now - (globalThis as any).__lastMagnetismLog > 500) {
     (globalThis as any).__lastMagnetismLog = now;
-    const rawAlignedTx = state.committedSign > 0 ? tx : -tx;
-    const rawAlignedTz = state.committedSign > 0 ? tz : -tz;
-    console.log(`[MAGNETISM DEBUG] div=${tangentDivergence.toFixed(3)}, committedSign=${state.committedSign}, raw=(${rawAlignedTx.toFixed(2)},${rawAlignedTz.toFixed(2)}), smoothed=(${smoothedTx.toFixed(2)},${smoothedTz.toFixed(2)}), lockDur=${state.lockDuration.toFixed(2)}`);
+    console.log(`[MAGNETISM DEBUG] div=${tangentDivergence.toFixed(3)}, committedSign=${state.committedSign}, rawAligned=(${rawAlignedTx_dbg.toFixed(2)},${rawAlignedTz_dbg.toFixed(2)}), smoothedAligned=(${alignedSmoothedTx_dbg.toFixed(2)},${alignedSmoothedTz_dbg.toFixed(2)}), lockDur=${state.lockDuration.toFixed(2)}`);
   }
   // SMOOTH THE SPINE ANCHOR POINT TO PREVENT VIBRATION AT CURVES
   // ============================================================================
@@ -788,6 +791,11 @@ export function calculateMagnetismTurn(
   // Use the committed direction for alignment (USE SMOOTHED TANGENT)
   let alignedTx = state.committedSign > 0 ? smoothedTx : -smoothedTx;
   let alignedTz = state.committedSign > 0 ? smoothedTz : -smoothedTz;
+  
+  // ALSO align the raw tangent - use same committedSign for consistency
+  // The raw tangent is used for position constraints to avoid smoothing lag
+  const rawAlignedTx = state.committedSign > 0 ? tx : -tx;
+  const rawAlignedTz = state.committedSign > 0 ? tz : -tz;
   
   // Step 2: Use cross product to determine turn direction
   // 2D cross product: A × T = Ax*Tz - Az*Tx
@@ -879,8 +887,8 @@ export function calculateMagnetismTurn(
         rawSpineX: nearest.wx, rawSpineZ: nearest.wz,
         targetX: nearest.wx, targetZ: nearest.wz,
         tangentX: alignedTx, tangentZ: alignedTz,
-        rawTangentX: state.committedSign > 0 ? tx : -tx,
-        rawTangentZ: state.committedSign > 0 ? tz : -tz,
+        rawTangentX: rawAlignedTx,
+        rawTangentZ: rawAlignedTz,
         neighbor1X: endpoint1.wx, neighbor1Z: endpoint1.wz,
         neighbor2X: endpoint2.wx, neighbor2Z: endpoint2.wz,
         rawAngleDiff, isActive: false,
@@ -913,9 +921,9 @@ export function calculateMagnetismTurn(
       // Pass the ALIGNED SMOOTHED tangent to debug so compass shows correct direction
       tangentX: alignedTx,
       tangentZ: alignedTz,
-      // Pass RAW tangent for position constraint (prevents lag-induced vibration at corners)
-      rawTangentX: state.committedSign > 0 ? tx : -tx,
-      rawTangentZ: state.committedSign > 0 ? tz : -tz,
+      // Pass RAW ALIGNED tangent for position constraint (prevents lag-induced vibration at corners)
+      rawTangentX: rawAlignedTx,
+      rawTangentZ: rawAlignedTz,
       neighbor1X: endpoint1.wx,
       neighbor1Z: endpoint1.wz,
       neighbor2X: endpoint2.wx,
