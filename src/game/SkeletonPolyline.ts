@@ -521,14 +521,17 @@ export function buildSmoothedPolylines(
   fineCellSize: number,
   config?: Partial<PolylineConfig>
 ): PolylineGraph {
-  // Default configuration - now with Catmull-Rom resampling
+  // Default configuration
+  // KEY INSIGHT: We need aggressive RDP first to get corner points,
+  // then Chaikin rounds those corners, then Catmull-Rom makes it smooth
   const cfg: PolylineConfig = {
-    rdpEpsilon: config?.rdpEpsilon ?? (0.02 * fineCellSize), // Reduced from 0.1 to preserve more detail
-    chaikinIterations: config?.chaikinIterations ?? 4, // Increased from 2 for smoother curves
+    // Aggressive RDP to extract true corner points (not micro-zigzags)
+    rdpEpsilon: config?.rdpEpsilon ?? (0.15 * fineCellSize), // Increased to get corner structure
+    chaikinIterations: config?.chaikinIterations ?? 3, // 3 iterations for good rounding
     preserveEndpoints: config?.preserveEndpoints ?? 1,
     resampleSpacing: config?.resampleSpacing ?? (0.1 * fineCellSize),
     useCatmullRom: config?.useCatmullRom ?? true,
-    catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 10,
+    catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 8,
   };
   
   // Step 1: Build skeleton graph
@@ -539,15 +542,19 @@ export function buildSmoothedPolylines(
   
   // Steps 3, 4, 5: Simplify, smooth, and resample each segment
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
-    // RDP simplification (skip if epsilon is 0)
+    // Step 3: RDP simplification - AGGRESSIVE to get corner structure
+    // This removes the micro-zigzags and leaves only true corners
     let points = cfg.rdpEpsilon > 0 
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
     
-    // Chaikin smoothing
+    // Debug: log before/after RDP
+    const beforeChaikin = points.length;
+    
+    // Step 4: Chaikin smoothing - rounds the sharp corners
     points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
     
-    // Catmull-Rom or linear resampling for dense output
+    // Step 5: Catmull-Rom resampling - creates smooth interpolated curve
     if (cfg.useCatmullRom && points.length >= 2) {
       points = resampleCatmullRom(points, cfg.catmullRomSamplesPerPoint);
     } else if (cfg.resampleSpacing > 0) {
@@ -561,7 +568,7 @@ export function buildSmoothedPolylines(
   });
   
   const totalPoints = smoothedSegments.reduce((sum, s) => sum + s.points.length, 0);
-  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} total points), ${junctions.length} junctions, ${endpoints.length} endpoints`);
+  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} total points), ${junctions.length} junctions, ${endpoints.length} endpoints, RDP epsilon=${cfg.rdpEpsilon.toFixed(3)}, Chaikin=${cfg.chaikinIterations}`);
   
   return {
     segments: smoothedSegments,
@@ -586,8 +593,8 @@ export function buildRawPolylines(
 }
 
 /**
- * Build intermediate polylines (RDP + Chaikin, but no resampling) for debug visualization.
- * Shows the control points before Catmull-Rom interpolation.
+ * Build intermediate polylines (RDP only, no smoothing) for debug visualization.
+ * Shows the simplified corner points before Chaikin smoothing.
  */
 export function buildSmoothedControlPoints(
   fineGrid: Array<Array<{ isSkeleton: boolean; isSpur?: boolean }>>,
@@ -596,27 +603,20 @@ export function buildSmoothedControlPoints(
   fineCellSize: number,
   config?: Partial<PolylineConfig>
 ): PolylineGraph {
-  const cfg: PolylineConfig = {
-    rdpEpsilon: config?.rdpEpsilon ?? (0.02 * fineCellSize),
-    chaikinIterations: config?.chaikinIterations ?? 4,
-    preserveEndpoints: config?.preserveEndpoints ?? 1,
-    resampleSpacing: 0,
-    useCatmullRom: false,
-    catmullRomSamplesPerPoint: 10,
-  };
+  // Use same RDP epsilon as main function
+  const rdpEpsilon = config?.rdpEpsilon ?? (0.15 * fineCellSize);
   
   const graph = buildSkeletonGraph(fineGrid, fineWidth, fineHeight);
   const { segments: rawSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
   
-  const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
-    let points = cfg.rdpEpsilon > 0 
-      ? rdpSimplify(segment.points, cfg.rdpEpsilon)
+  // Only apply RDP to show the corner structure
+  const simplifiedSegments: PolylineSegment[] = rawSegments.map(segment => {
+    const points = rdpEpsilon > 0 
+      ? rdpSimplify(segment.points, rdpEpsilon)
       : [...segment.points];
-    
-    points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
     
     return { ...segment, points };
   });
   
-  return { segments: smoothedSegments, junctions, endpoints };
+  return { segments: simplifiedSegments, junctions, endpoints };
 }
