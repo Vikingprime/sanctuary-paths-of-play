@@ -64,6 +64,10 @@ export interface PolylineConfig {
   useCatmullRom: boolean;
   /** Number of samples per original point for Catmull-Rom (default: 10) */
   catmullRomSamplesPerPoint: number;
+  /** Radius around junctions to apply center-pull effect (default: 1.0 * corridorWidth) */
+  junctionPullRadius: number;
+  /** Strength of junction center pull (0-1, default: 0.4) */
+  junctionPullStrength: number;
 }
 
 // ============================================================================
@@ -501,8 +505,73 @@ function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: 
 }
 
 // ============================================================================
-// MAIN ENTRY POINT
+// JUNCTION CENTER PULL
 // ============================================================================
+
+/**
+ * Pull points near segment endpoints toward junction centers.
+ * 
+ * This prevents the curve from hugging inside corners at intersections.
+ * Points within `pullRadius` of a junction endpoint are interpolated
+ * toward the junction center.
+ * 
+ * @param points - The polyline points
+ * @param startJunction - Junction point at segment start (or null if endpoint)
+ * @param endJunction - Junction point at segment end (or null if endpoint)
+ * @param pullRadius - Distance from junction to apply pull effect
+ * @param pullStrength - How strongly to pull toward center (0-1)
+ * @returns Points with junction-pull applied
+ */
+function applyJunctionPull(
+  points: Point2D[],
+  startJunction: Point2D | null,
+  endJunction: Point2D | null,
+  pullRadius: number,
+  pullStrength: number
+): Point2D[] {
+  if (points.length < 3) return [...points];
+  
+  const result: Point2D[] = [];
+  const segmentStart = points[0];
+  const segmentEnd = points[points.length - 1];
+  
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    let newX = p.x;
+    let newZ = p.z;
+    
+    // Check proximity to start junction
+    if (startJunction && i > 0) {
+      const distFromStart = Math.sqrt(
+        (p.x - segmentStart.x) ** 2 + (p.z - segmentStart.z) ** 2
+      );
+      if (distFromStart < pullRadius) {
+        // Interpolate toward junction center based on proximity
+        const t = 1 - (distFromStart / pullRadius); // 1 at junction, 0 at radius edge
+        const pullAmount = t * t * pullStrength; // Quadratic falloff
+        newX += (startJunction.x - p.x) * pullAmount;
+        newZ += (startJunction.z - p.z) * pullAmount;
+      }
+    }
+    
+    // Check proximity to end junction
+    if (endJunction && i < points.length - 1) {
+      const distFromEnd = Math.sqrt(
+        (p.x - segmentEnd.x) ** 2 + (p.z - segmentEnd.z) ** 2
+      );
+      if (distFromEnd < pullRadius) {
+        const t = 1 - (distFromEnd / pullRadius);
+        const pullAmount = t * t * pullStrength;
+        newX += (endJunction.x - p.x) * pullAmount;
+        newZ += (endJunction.z - p.z) * pullAmount;
+      }
+    }
+    
+    result.push({ x: newX, z: newZ });
+  }
+  
+  return result;
+}
 
 /**
  * Process skeleton pixels into smooth polylines.
@@ -530,7 +599,8 @@ export function buildSmoothedPolylines(
   
   // Default configuration
   // KEY INSIGHT: We need aggressive RDP first to get corner points,
-  // then Chaikin rounds those corners, then Catmull-Rom makes it smooth
+  // then Chaikin rounds those corners, then junction-pull centers them,
+  // then Catmull-Rom makes it smooth
   const cfg: PolylineConfig = {
     // RDP epsilon: 15% of corridor width to extract true corner points
     rdpEpsilon: config?.rdpEpsilon ?? (0.15 * corridorWidth), // ~0.3 world units
@@ -539,6 +609,9 @@ export function buildSmoothedPolylines(
     resampleSpacing: config?.resampleSpacing ?? (0.05 * corridorWidth), // ~0.1 world units
     useCatmullRom: config?.useCatmullRom ?? true,
     catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 8,
+    // Junction pull: bias curves toward junction centers
+    junctionPullRadius: config?.junctionPullRadius ?? (1.5 * corridorWidth), // ~3.0 world units
+    junctionPullStrength: config?.junctionPullStrength ?? 0.5, // 50% pull toward center
   };
   
   // Step 1: Build skeleton graph
@@ -547,21 +620,44 @@ export function buildSmoothedPolylines(
   // Step 2: Extract polyline segments
   const { segments: rawSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
   
-  // Steps 3, 4, 5: Simplify, smooth, and resample each segment
+  // Create a lookup for junction positions
+  const junctionSet = new Set(junctions.map(j => `${j.x.toFixed(4)},${j.z.toFixed(4)}`));
+  const findJunction = (p: Point2D): Point2D | null => {
+    // Find if a point is near a junction (within fineCellSize)
+    for (const j of junctions) {
+      const dist = Math.sqrt((p.x - j.x) ** 2 + (p.z - j.z) ** 2);
+      if (dist < fineCellSize * 2) return j;
+    }
+    return null;
+  };
+  
+  // Steps 3, 4, 5, 6: Simplify, smooth, junction-pull, and resample each segment
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
     // Step 3: RDP simplification - AGGRESSIVE to get corner structure
-    // This removes the micro-zigzags and leaves only true corners
     let points = cfg.rdpEpsilon > 0 
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
     
-    // Debug: log before/after RDP
-    const beforeChaikin = points.length;
-    
     // Step 4: Chaikin smoothing - rounds the sharp corners
     points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
     
-    // Step 5: Catmull-Rom resampling - creates smooth interpolated curve
+    // Step 5: Junction pull - bias toward junction centers (not inside corners)
+    if (cfg.junctionPullStrength > 0 && points.length >= 3) {
+      const startJunction = segment.startIsEndpoint ? null : findJunction(segment.points[0]);
+      const endJunction = segment.endIsEndpoint ? null : findJunction(segment.points[segment.points.length - 1]);
+      
+      if (startJunction || endJunction) {
+        points = applyJunctionPull(
+          points,
+          startJunction,
+          endJunction,
+          cfg.junctionPullRadius,
+          cfg.junctionPullStrength
+        );
+      }
+    }
+    
+    // Step 6: Catmull-Rom resampling - creates smooth interpolated curve
     if (cfg.useCatmullRom && points.length >= 2) {
       points = resampleCatmullRom(points, cfg.catmullRomSamplesPerPoint);
     } else if (cfg.resampleSpacing > 0) {
