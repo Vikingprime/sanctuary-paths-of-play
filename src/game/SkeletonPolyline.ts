@@ -839,7 +839,7 @@ export function buildSmoothedPolylines(
     catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 8,
     enforceWallClearance: config?.enforceWallClearance ?? true,
     animalRadius: config?.animalRadius ?? 0.3, // Player capsule radius
-    marginFactor: config?.marginFactor ?? 0.15, // 15% of cell size margin
+    marginFactor: config?.marginFactor ?? 0.35, // 35% of cell size margin (increased from 15%)
     cellSize: config?.cellSize ?? cellSize, // Maze cell size
   };
   
@@ -887,9 +887,9 @@ export function buildSmoothedPolylines(
         effectiveDistField,
         cfg.animalRadius,
         marginWorld,
-        8,  // outerIterations
-        0.3, // lambda (Laplacian strength)
-        6,   // constraintSteps (gradient ascent per iteration)
+        12,  // outerIterations (increased from 8 for tighter corners)
+        0.25, // lambda (reduced from 0.3 to let constraint dominate)
+        10,   // constraintSteps (increased from 6 for stronger push)
         cfg.resampleSpacing // resample spacing
       );
       points = clearancePoints;
