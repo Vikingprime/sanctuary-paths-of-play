@@ -60,6 +60,7 @@ export {
   type PolylineConfig,
   type DistanceField,
   type ClearancePoint,
+  type ClearanceState,
 } from './SkeletonPolyline';
 
 // Corridor magnetism system (turn-based alignment)

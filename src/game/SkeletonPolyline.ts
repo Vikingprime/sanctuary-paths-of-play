@@ -64,12 +64,14 @@ export interface PolylineConfig {
   useCatmullRom: boolean;
   /** Number of samples per original point for Catmull-Rom (default: 10) */
   catmullRomSamplesPerPoint: number;
-  /** Wall clearance alpha: minClearance = alpha * localMaxDistance (default: 0.75) */
-  wallClearanceAlpha: number;
   /** Enable wall distance enforcement (default: true) */
   enforceWallClearance: boolean;
-  /** Light smoothing iterations after projection (default: 1) */
-  postProjectionSmoothing: number;
+  /** Animal capsule radius in world units (default: 0.3) */
+  animalRadius: number;
+  /** Safety margin as fraction of cell size (default: 0.15) */
+  marginFactor: number;
+  /** Maze cell size in world units (default: 0.667) */
+  cellSize: number;
 }
 
 /** Distance field interface for wall clearance */
@@ -84,8 +86,8 @@ export interface DistanceField {
   fineCellSize: number;
 }
 
-/** Point with clearance violation info for debug */
-export interface ClearancePoint extends Point2D {
+/** Point with clearance violation info for debug - extended by ClearancePoint in enforcement section */
+export interface ClearancePointBasic extends Point2D {
   /** True if this point violated clearance before projection */
   hadViolation?: boolean;
 }
@@ -525,8 +527,19 @@ function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: 
 }
 
 // ============================================================================
-// WALL DISTANCE ENFORCEMENT
+// WALL DISTANCE ENFORCEMENT (Gradient Ascent Method)
 // ============================================================================
+
+/** Clearance state for debug visualization */
+export type ClearanceState = 'safe' | 'marginal' | 'violation';
+
+/** Point with clearance state for debug coloring */
+export interface ClearancePoint extends Point2D {
+  /** Clearance state before projection */
+  clearanceState?: ClearanceState;
+  /** Distance value at this point (fine grid units) */
+  distanceValue?: number;
+}
 
 /**
  * Sample the distance-to-wall value at a world position from the fine grid.
@@ -549,189 +562,215 @@ function sampleDistance(p: Point2D, distField: DistanceField): number {
 }
 
 /**
- * Find the local maximum distance within a radius around a point.
+ * Sample distance at fine grid coordinates (integer).
+ */
+function sampleDistanceAt(fx: number, fz: number, distField: DistanceField): number {
+  if (fz < 0 || fz >= distField.fineHeight || fx < 0 || fx >= distField.fineWidth) {
+    return 0;
+  }
+  const cell = distField.fineGrid[fz]?.[fx];
+  return cell?.walkable ? cell.distance : 0;
+}
+
+/**
+ * Calculate the minimum distance requirement based on animal radius.
+ * 
+ * @param animalRadius - Animal capsule radius in world units (default: 0.3)
+ * @param marginFactor - Margin as fraction of cell size (default: 0.15)
+ * @param cellSize - Maze cell size in world units (default: 0.667)
+ * @param fineCellSize - Fine grid cell size in world units
+ * @returns Minimum distance in fine grid units (Dmin)
+ */
+function calculateDmin(
+  animalRadius: number,
+  marginFactor: number,
+  cellSize: number,
+  fineCellSize: number
+): number {
+  const marginWorld = marginFactor * cellSize;
+  const requiredClearanceWorld = animalRadius + marginWorld;
+  // Convert world units to fine grid units and round up
+  return Math.ceil(requiredClearanceWorld / fineCellSize);
+}
+
+/**
+ * Get clearance state for a point based on its distance value.
+ */
+function getClearanceState(distance: number, dMin: number): ClearanceState {
+  if (distance < dMin) return 'violation';
+  if (distance < dMin + 1) return 'marginal';
+  return 'safe';
+}
+
+/**
+ * Estimate the gradient of the distance field at a point using finite differences.
  * 
  * @param p - Point in world space
- * @param radius - Search radius in fine cells
  * @param distField - Distance field
- * @returns Maximum distance found in the neighborhood
+ * @returns Normalized gradient vector in world space, or null if gradient is ~zero
  */
-function findLocalMaxDistance(p: Point2D, radius: number, distField: DistanceField): number {
-  const centerFx = Math.floor(p.x / distField.fineCellSize);
-  const centerFz = Math.floor(p.z / distField.fineCellSize);
+function estimateDistanceGradient(
+  p: Point2D,
+  distField: DistanceField
+): Point2D | null {
+  const fx = Math.floor(p.x / distField.fineCellSize);
+  const fz = Math.floor(p.z / distField.fineCellSize);
   
-  let maxDist = 0;
+  // Sample distance at neighboring cells for gradient estimation
+  const dxPlus = sampleDistanceAt(fx + 1, fz, distField);
+  const dxMinus = sampleDistanceAt(fx - 1, fz, distField);
+  const dzPlus = sampleDistanceAt(fx, fz + 1, distField);
+  const dzMinus = sampleDistanceAt(fx, fz - 1, distField);
   
-  for (let dz = -radius; dz <= radius; dz++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      const fx = centerFx + dx;
-      const fz = centerFz + dz;
-      
-      if (fz < 0 || fz >= distField.fineHeight || fx < 0 || fx >= distField.fineWidth) {
-        continue;
-      }
-      
-      const cell = distField.fineGrid[fz]?.[fx];
-      if (cell?.walkable && cell.distance > maxDist) {
-        maxDist = cell.distance;
-      }
-    }
+  // Finite difference gradient (in fine grid coordinates)
+  const gx = dxPlus - dxMinus;
+  const gz = dzPlus - dzMinus;
+  
+  const magnitude = Math.sqrt(gx * gx + gz * gz);
+  
+  // If gradient is too small, can't determine direction
+  if (magnitude < 0.01) {
+    return null;
   }
   
-  return maxDist;
+  // Normalize and convert to world space direction
+  // Note: gradient direction is in fine grid coords, but we return normalized direction
+  return {
+    x: gx / magnitude,
+    z: gz / magnitude,
+  };
 }
 
 /**
- * Project a point back into the safe medial band if it's too close to walls.
+ * Push a point toward higher-distance areas using gradient ascent.
  * 
- * Searches nearby cells for a walkable cell with sufficient clearance.
- * Uses distance field gradient to push point toward higher-distance areas.
+ * This method iteratively moves the point in the direction of increasing
+ * distance-to-wall until it reaches the minimum clearance threshold.
  * 
- * @param p - Point to project
- * @param minClearance - Minimum required distance value
+ * @param p - Point to push
+ * @param dMin - Minimum required distance (fine grid units)
  * @param distField - Distance field
- * @param maxSearchRadius - Maximum search radius in fine cells
- * @returns Projected point (or original if no better position found)
+ * @param maxSteps - Maximum gradient ascent steps (default: 10)
+ * @param stepFactor - Step size as fraction of fine cell size (default: 0.25)
+ * @returns Pushed point with clearance state
  */
-function projectToSafeBand(
-  p: Point2D, 
-  minClearance: number, 
+function gradientAscentPush(
+  p: Point2D,
+  dMin: number,
   distField: DistanceField,
-  maxSearchRadius: number = 5
+  maxSteps: number = 10,
+  stepFactor: number = 0.25
 ): ClearancePoint {
   const currentDist = sampleDistance(p, distField);
+  const initialState = getClearanceState(currentDist, dMin);
   
-  // Already safe
-  if (currentDist >= minClearance) {
-    return { ...p, hadViolation: false };
+  // Already safe - no push needed
+  if (currentDist >= dMin) {
+    return {
+      ...p,
+      clearanceState: initialState,
+      distanceValue: currentDist,
+    };
   }
   
-  const centerFx = Math.floor(p.x / distField.fineCellSize);
-  const centerFz = Math.floor(p.z / distField.fineCellSize);
+  // Step size in world units
+  const stepWorld = stepFactor * distField.fineCellSize;
   
-  // Search in expanding radius for cells with sufficient clearance
-  for (let radius = 2; radius <= maxSearchRadius; radius += 2) {
-    let bestCandidate: { fx: number; fz: number; dist: number } | null = null;
-    let bestDistToOriginal = Infinity;
+  let currentPoint = { ...p };
+  let currentDistValue = currentDist;
+  
+  for (let step = 0; step < maxSteps; step++) {
+    // Estimate gradient at current position
+    const gradient = estimateDistanceGradient(currentPoint, distField);
     
-    for (let dz = -radius; dz <= radius; dz++) {
-      for (let dx = -radius; dx <= radius; dx++) {
-        const fx = centerFx + dx;
-        const fz = centerFz + dz;
-        
-        if (fz < 0 || fz >= distField.fineHeight || fx < 0 || fx >= distField.fineWidth) {
-          continue;
-        }
-        
-        const cell = distField.fineGrid[fz]?.[fx];
-        if (!cell?.walkable || cell.distance < minClearance) {
-          continue;
-        }
-        
-        // Calculate world distance to original point
-        const worldX = (fx + 0.5) * distField.fineCellSize;
-        const worldZ = (fz + 0.5) * distField.fineCellSize;
-        const distToOrig = (worldX - p.x) ** 2 + (worldZ - p.z) ** 2;
-        
-        // Prefer closest cell with sufficient clearance
-        if (distToOrig < bestDistToOriginal) {
-          bestDistToOriginal = distToOrig;
-          bestCandidate = { fx, fz, dist: cell.distance };
-        }
-      }
+    // If gradient is ~zero or undefined, can't push further
+    if (!gradient) {
+      break;
     }
     
-    if (bestCandidate) {
-      return {
-        x: (bestCandidate.fx + 0.5) * distField.fineCellSize,
-        z: (bestCandidate.fz + 0.5) * distField.fineCellSize,
-        hadViolation: true,
-      };
+    // Move in gradient direction
+    const newPoint = {
+      x: currentPoint.x + stepWorld * gradient.x,
+      z: currentPoint.z + stepWorld * gradient.z,
+    };
+    
+    // Sample distance at new position
+    const newDist = sampleDistance(newPoint, distField);
+    
+    // If we're not making progress (stuck or going backward), stop
+    if (newDist <= currentDistValue) {
+      break;
+    }
+    
+    currentPoint = newPoint;
+    currentDistValue = newDist;
+    
+    // Stop once we've reached safe clearance
+    if (currentDistValue >= dMin) {
+      break;
     }
   }
   
-  // No suitable cell found - keep original
-  return { ...p, hadViolation: true };
+  return {
+    ...currentPoint,
+    clearanceState: initialState, // Record ORIGINAL state for debug coloring
+    distanceValue: currentDistValue,
+  };
 }
 
 /**
- * Enforce wall clearance on a polyline by projecting points away from walls.
+ * Enforce wall clearance on a polyline using gradient ascent.
  * 
- * Pipeline:
- * 1. For each point, calculate local max distance and min clearance threshold
- * 2. Project points below threshold toward the medial band
- * 3. Apply light smoothing to remove snapping artifacts
+ * For each point below the minimum clearance threshold:
+ * - Estimate the local gradient of the distance field
+ * - Step toward higher-distance areas until threshold is met
+ * 
+ * IMPORTANT: No Laplacian smoothing is applied after this - it causes drift.
  * 
  * @param points - Input polyline
  * @param distField - Distance field for clearance lookup
- * @param alpha - Clearance factor: minClearance = alpha * localMaxDistance
- * @param postSmoothingIterations - Light smoothing passes after projection
- * @param scale - Scale factor for local max search radius
- * @returns Points with clearance info for debug visualization
+ * @param animalRadius - Animal capsule radius in world units
+ * @param marginFactor - Safety margin as fraction of cell size
+ * @param cellSize - Maze cell size in world units
+ * @param endpointStrengthFactor - Strength factor for endpoints (0.5 = half push)
+ * @returns Points with clearance state for debug visualization
  */
-function enforceWallClearance(
+function enforceWallClearanceGradient(
   points: Point2D[],
   distField: DistanceField,
-  alpha: number = 0.75,
-  postSmoothingIterations: number = 1,
-  scale: number = 20
+  animalRadius: number = 0.3,
+  marginFactor: number = 0.15,
+  cellSize: number = 0.667,
+  endpointStrengthFactor: number = 0.5
 ): ClearancePoint[] {
-  if (points.length < 2) return points.map(p => ({ ...p, hadViolation: false }));
+  if (points.length < 2) {
+    return points.map(p => ({
+      ...p,
+      clearanceState: 'safe' as ClearanceState,
+      distanceValue: sampleDistance(p, distField),
+    }));
+  }
   
-  // Local max search radius = scale fine cells (approx 1 maze cell)
-  const localMaxRadius = scale;
+  const dMin = calculateDmin(animalRadius, marginFactor, cellSize, distField.fineCellSize);
   
-  // Step 1 & 2: Project each point if needed
-  const projected: ClearancePoint[] = points.map((p, idx) => {
-    // Always preserve endpoints (first and last)
-    if (idx === 0 || idx === points.length - 1) {
-      return { ...p, hadViolation: false };
+  return points.map((p, idx) => {
+    const isEndpoint = idx === 0 || idx === points.length - 1;
+    
+    // Push the point using gradient ascent
+    const pushed = gradientAscentPush(p, dMin, distField);
+    
+    // For endpoints, apply with reduced strength (blend original and pushed)
+    if (isEndpoint && endpointStrengthFactor < 1.0) {
+      return {
+        x: p.x + (pushed.x - p.x) * endpointStrengthFactor,
+        z: p.z + (pushed.z - p.z) * endpointStrengthFactor,
+        clearanceState: pushed.clearanceState,
+        distanceValue: pushed.distanceValue,
+      };
     }
     
-    // Find local max distance around this point
-    const localMax = findLocalMaxDistance(p, localMaxRadius, distField);
-    
-    // Calculate minimum clearance (ceil to be conservative)
-    const minClearance = Math.ceil(alpha * localMax);
-    
-    // Project if below threshold
-    return projectToSafeBand(p, minClearance, distField);
+    return pushed;
   });
-  
-  // Step 3: Light smoothing to remove snapping kinks
-  if (postSmoothingIterations > 0 && projected.length > 2) {
-    return laplacianSmooth(projected, postSmoothingIterations);
-  }
-  
-  return projected;
-}
-
-/**
- * Laplacian smoothing (average of neighbors) - preserves endpoints.
- */
-function laplacianSmooth(points: ClearancePoint[], iterations: number): ClearancePoint[] {
-  let current = [...points];
-  
-  for (let iter = 0; iter < iterations; iter++) {
-    const smoothed: ClearancePoint[] = [current[0]]; // Keep first
-    
-    for (let i = 1; i < current.length - 1; i++) {
-      const prev = current[i - 1];
-      const curr = current[i];
-      const next = current[i + 1];
-      
-      smoothed.push({
-        x: (prev.x + curr.x + next.x) / 3,
-        z: (prev.z + curr.z + next.z) / 3,
-        hadViolation: curr.hadViolation,
-      });
-    }
-    
-    smoothed.push(current[current.length - 1]); // Keep last
-    current = smoothed;
-  }
-  
-  return current;
 }
 
 // ============================================================================
@@ -775,9 +814,10 @@ export function buildSmoothedPolylines(
     resampleSpacing: config?.resampleSpacing ?? (0.05 * corridorWidth), // ~0.1 world units
     useCatmullRom: config?.useCatmullRom ?? true,
     catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 8,
-    wallClearanceAlpha: config?.wallClearanceAlpha ?? 0.75,
     enforceWallClearance: config?.enforceWallClearance ?? true,
-    postProjectionSmoothing: config?.postProjectionSmoothing ?? 1,
+    animalRadius: config?.animalRadius ?? 0.3, // Player capsule radius
+    marginFactor: config?.marginFactor ?? 0.15, // 15% of cell size margin
+    cellSize: config?.cellSize ?? cellSize, // Maze cell size
   };
   
   // Build distance field if not provided but we need clearance enforcement
@@ -814,14 +854,16 @@ export function buildSmoothedPolylines(
       points = resampleLinear(points, cfg.resampleSpacing);
     }
     
-    // Step 6: Wall clearance enforcement - push points away from walls
+    // Step 6: Wall clearance enforcement via gradient ascent
+    // Push points away from walls toward higher-distance areas
+    // NO Laplacian smoothing after - it causes drift through walls
     if (cfg.enforceWallClearance && effectiveDistField) {
-      const clearancePoints = enforceWallClearance(
+      const clearancePoints = enforceWallClearanceGradient(
         points,
         effectiveDistField,
-        cfg.wallClearanceAlpha,
-        cfg.postProjectionSmoothing,
-        scale
+        cfg.animalRadius,
+        cfg.marginFactor,
+        cfg.cellSize
       );
       points = clearancePoints;
     }
@@ -832,8 +874,12 @@ export function buildSmoothedPolylines(
     };
   });
   
+  // Calculate Dmin for logging
+  const dMin = cfg.enforceWallClearance && effectiveDistField
+    ? calculateDmin(cfg.animalRadius, cfg.marginFactor, cfg.cellSize, fineCellSize)
+    : 0;
   const totalPoints = smoothedSegments.reduce((sum, s) => sum + s.points.length, 0);
-  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} total points), clearance=${cfg.enforceWallClearance ? 'ON' : 'OFF'} alpha=${cfg.wallClearanceAlpha}`);
+  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} points), clearance=${cfg.enforceWallClearance ? 'ON' : 'OFF'}, Dmin=${dMin} (R=${cfg.animalRadius}, margin=${cfg.marginFactor}*${cfg.cellSize.toFixed(3)})`);
   
   return {
     segments: smoothedSegments,
