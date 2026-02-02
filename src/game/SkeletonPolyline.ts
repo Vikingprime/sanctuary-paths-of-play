@@ -64,32 +64,6 @@ export interface PolylineConfig {
   useCatmullRom: boolean;
   /** Number of samples per original point for Catmull-Rom (default: 10) */
   catmullRomSamplesPerPoint: number;
-  /** Enable wall distance enforcement (default: true) */
-  enforceWallClearance: boolean;
-  /** Animal capsule radius in world units (default: 0.3) */
-  animalRadius: number;
-  /** Safety margin as fraction of cell size (default: 0.15) */
-  marginFactor: number;
-  /** Maze cell size in world units (default: 0.667) */
-  cellSize: number;
-}
-
-/** Distance field interface for wall clearance */
-export interface DistanceField {
-  /** Fine grid with distance values */
-  fineGrid: Array<Array<{ distance: number; walkable: boolean }>>;
-  /** Fine grid width */
-  fineWidth: number;
-  /** Fine grid height */
-  fineHeight: number;
-  /** Size of each fine cell in world units */
-  fineCellSize: number;
-}
-
-/** Point with clearance violation info for debug - extended by ClearancePoint in enforcement section */
-export interface ClearancePointBasic extends Point2D {
-  /** True if this point violated clearance before projection */
-  hadViolation?: boolean;
 }
 
 // ============================================================================
@@ -527,315 +501,6 @@ function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: 
 }
 
 // ============================================================================
-// WALL DISTANCE ENFORCEMENT (Constrained Smoothing Method)
-// ============================================================================
-
-/** Clearance state for debug visualization */
-export type ClearanceState = 'safe' | 'marginal' | 'violation';
-
-/** Point with clearance state for debug coloring */
-export interface ClearancePoint extends Point2D {
-  /** Clearance state AFTER final constraint (for final visualization) */
-  clearanceState?: ClearanceState;
-  /** Distance value at this point (fine grid units) */
-  distanceValue?: number;
-}
-
-/**
- * Sample the distance-to-wall value at a world position from the fine grid.
- * Uses nearest-cell lookup.
- * 
- * @param p - Point in world space
- * @param distField - Distance field from medial axis computation
- * @returns Distance value (in fine cell units), or 0 if out of bounds/not walkable
- */
-function sampleDistance(p: Point2D, distField: DistanceField): number {
-  const fx = Math.floor(p.x / distField.fineCellSize);
-  const fz = Math.floor(p.z / distField.fineCellSize);
-  
-  if (fz < 0 || fz >= distField.fineHeight || fx < 0 || fx >= distField.fineWidth) {
-    return 0;
-  }
-  
-  const cell = distField.fineGrid[fz]?.[fx];
-  return cell?.walkable ? cell.distance : 0;
-}
-
-/**
- * Sample distance at fine grid coordinates (integer).
- */
-function sampleDistanceAt(fx: number, fz: number, distField: DistanceField): number {
-  if (fz < 0 || fz >= distField.fineHeight || fx < 0 || fx >= distField.fineWidth) {
-    return 0;
-  }
-  const cell = distField.fineGrid[fz]?.[fx];
-  return cell?.walkable ? cell.distance : 0;
-}
-
-/**
- * Calculate the minimum distance requirement based on animal radius.
- * 
- * @param animalRadius - Animal capsule radius in world units (default: 0.3)
- * @param marginWorld - Margin in world units (default: 0.1)
- * @param fineCellSize - Fine grid cell size in world units
- * @returns Minimum distance in fine grid units (Dmin)
- */
-function calculateDmin(
-  animalRadius: number,
-  marginWorld: number,
-  fineCellSize: number
-): number {
-  const requiredClearanceWorld = animalRadius + marginWorld;
-  // Convert world units to fine grid units and round up
-  return Math.ceil(requiredClearanceWorld / fineCellSize);
-}
-
-/**
- * Get clearance state for a point based on its distance value.
- */
-function getClearanceState(distance: number, dMin: number): ClearanceState {
-  if (distance < dMin) return 'violation';
-  if (distance < dMin + 1) return 'marginal';
-  return 'safe';
-}
-
-/**
- * Estimate the gradient of the distance field at a point using finite differences.
- * 
- * @param p - Point in world space
- * @param distField - Distance field
- * @returns Normalized gradient vector in world space, or null if gradient is ~zero
- */
-function estimateDistanceGradient(
-  p: Point2D,
-  distField: DistanceField
-): Point2D | null {
-  const fx = Math.floor(p.x / distField.fineCellSize);
-  const fz = Math.floor(p.z / distField.fineCellSize);
-  
-  // Sample distance at neighboring cells for gradient estimation
-  const dxPlus = sampleDistanceAt(fx + 1, fz, distField);
-  const dxMinus = sampleDistanceAt(fx - 1, fz, distField);
-  const dzPlus = sampleDistanceAt(fx, fz + 1, distField);
-  const dzMinus = sampleDistanceAt(fx, fz - 1, distField);
-  
-  // Finite difference gradient (in fine grid coordinates)
-  const gx = dxPlus - dxMinus;
-  const gz = dzPlus - dzMinus;
-  
-  const magnitude = Math.sqrt(gx * gx + gz * gz);
-  
-  // If gradient is too small, can't determine direction
-  if (magnitude < 0.01) {
-    return null;
-  }
-  
-  // Normalize and convert to world space direction
-  return {
-    x: gx / magnitude,
-    z: gz / magnitude,
-  };
-}
-
-/**
- * Apply a single constraint step: if D(p) < Dmin, do gradient ascent steps.
- * 
- * @param p - Current point position
- * @param dMin - Minimum required distance (fine grid units)
- * @param distField - Distance field
- * @param maxSteps - Maximum gradient ascent steps (default: 6)
- * @param stepWorld - Step size in world units
- * @returns Constrained point position
- */
-function constraintStep(
-  p: Point2D,
-  dMin: number,
-  distField: DistanceField,
-  maxSteps: number,
-  stepWorld: number
-): Point2D {
-  let current = { ...p };
-  let currentDist = sampleDistance(current, distField);
-  
-  if (currentDist >= dMin) {
-    return current; // Already safe
-  }
-  
-  let stuckCount = 0;
-  const maxStuck = 2; // Allow a few stuck iterations before giving up
-  
-  for (let step = 0; step < maxSteps; step++) {
-    const gradient = estimateDistanceGradient(current, distField);
-    
-    if (!gradient) {
-      // Try a larger sampling radius for gradient
-      break;
-    }
-    
-    // Move in gradient direction
-    const next = {
-      x: current.x + stepWorld * gradient.x,
-      z: current.z + stepWorld * gradient.z,
-    };
-    
-    const nextDist = sampleDistance(next, distField);
-    
-    // If not making progress, count stuck iterations but continue trying
-    if (nextDist <= currentDist) {
-      stuckCount++;
-      if (stuckCount >= maxStuck) {
-        break;
-      }
-      // Still apply the step (might escape local minimum)
-      current = next;
-      currentDist = nextDist;
-    } else {
-      stuckCount = 0; // Reset stuck counter on progress
-      current = next;
-      currentDist = nextDist;
-    }
-    
-    // Stop once we've reached safe clearance
-    if (currentDist >= dMin) {
-      break;
-    }
-  }
-  
-  return current;
-}
-
-/**
- * Enforce wall clearance using CONSTRAINED SMOOTHING.
- * 
- * This method alternates between:
- * 1. Laplacian smoothing (averaging neighbors)
- * 2. Gradient-ascent constraint (pushing toward higher distance)
- * 
- * The combination produces a smooth curve that maintains wall clearance.
- * After the outer loop, we resample to restore uniform density.
- * 
- * @param points - Input polyline
- * @param distField - Distance field for clearance lookup
- * @param animalRadius - Animal capsule radius in world units
- * @param marginWorld - Safety margin in world units
- * @param outerIterations - Number of smooth+constraint iterations (default: 8)
- * @param lambda - Laplacian smoothing strength (default: 0.3)
- * @param constraintSteps - Gradient ascent steps per constraint (default: 6)
- * @param resampleSpacing - Final resampling spacing in world units (default: 0.1)
- * @returns Points with clearance state for debug visualization
- */
-function enforceWallClearanceConstrained(
-  points: Point2D[],
-  distField: DistanceField,
-  animalRadius: number = 0.3,
-  marginWorld: number = 0.1,
-  outerIterations: number = 8,
-  lambda: number = 0.3,
-  constraintSteps: number = 6,
-  resampleSpacing: number = 0.1
-): ClearancePoint[] {
-  if (points.length < 3) {
-    // Too few points to smooth
-    const dMin = calculateDmin(animalRadius, marginWorld, distField.fineCellSize);
-    return points.map(p => {
-      const dist = sampleDistance(p, distField);
-      return {
-        ...p,
-        clearanceState: getClearanceState(dist, dMin),
-        distanceValue: dist,
-      };
-    });
-  }
-  
-  const dMin = calculateDmin(animalRadius, marginWorld, distField.fineCellSize);
-  // Step size: use larger world-space step for meaningful movement
-  // Fine cell is ~0.033, but we need to move ~0.1-0.2 world units to escape corners
-  const stepWorld = 0.02; // Fixed ~2cm step in world units
-  
-  console.log(`[ConstrainedSmooth] Dmin=${dMin} cells, margin=${marginWorld.toFixed(3)}, radius=${animalRadius}, stepWorld=${stepWorld}, iterations=${outerIterations}x${constraintSteps}`);
-  
-  // Working copy of points
-  let current: Point2D[] = points.map(p => ({ ...p }));
-  
-  // Store original endpoints (fixed positions)
-  const firstPoint = { ...current[0] };
-  const lastPoint = { ...current[current.length - 1] };
-  
-  // Outer loop: alternate smoothing and constraint
-  for (let iter = 0; iter < outerIterations; iter++) {
-    // For each interior point (exclude endpoints)
-    for (let i = 1; i < current.length - 1; i++) {
-      const prev = current[i - 1];
-      const curr = current[i];
-      const next = current[i + 1];
-      
-      // Step a: Laplacian smoothing
-      // p = p + lambda * (midpoint - p)
-      const midX = 0.5 * (prev.x + next.x);
-      const midZ = 0.5 * (prev.z + next.z);
-      const smoothed = {
-        x: curr.x + lambda * (midX - curr.x),
-        z: curr.z + lambda * (midZ - curr.z),
-      };
-      
-      // Step b: Constraint step (gradient ascent if below Dmin)
-      const constrained = constraintStep(smoothed, dMin, distField, constraintSteps, stepWorld);
-      
-      current[i] = constrained;
-    }
-    
-    // Restore endpoints (keep them fixed)
-    current[0] = { ...firstPoint };
-    current[current.length - 1] = { ...lastPoint };
-  }
-  
-  // Final smoothing: Chaikin corner-cutting to round the jagged corners
-  // This replaces sharp corners with smoother arcs
-  if (current.length >= 3) {
-    // Apply 2 iterations of Chaikin to round corners (preserving endpoints)
-    current = chaikinSmooth(current, 2, 1);
-  }
-  
-  // After Chaikin, run constraint pass on ALL interior points to ensure clearance
-  // This fixes any points that got pulled toward walls by the smoothing
-  for (let i = 1; i < current.length - 1; i++) {
-    const dist = sampleDistance(current[i], distField);
-    if (dist < dMin) {
-      current[i] = constraintStep(current[i], dMin, distField, constraintSteps, stepWorld);
-    }
-  }
-  
-  // Second round: light Chaikin to smooth out any new kinks from constraint
-  if (current.length >= 3) {
-    current = chaikinSmooth(current, 1, 1);
-  }
-  
-  // Final constraint check
-  for (let i = 1; i < current.length - 1; i++) {
-    const dist = sampleDistance(current[i], distField);
-    if (dist < dMin) {
-      current[i] = constraintStep(current[i], dMin, distField, constraintSteps, stepWorld);
-    }
-  }
-  
-  // Ensure endpoints are exact
-  if (current.length > 0) {
-    current[0] = { ...firstPoint };
-    current[current.length - 1] = { ...lastPoint };
-  }
-  
-  // Add clearance state for debug visualization (FINAL state after constraint)
-  return current.map(p => {
-    const dist = sampleDistance(p, distField);
-    return {
-      ...p,
-      clearanceState: getClearanceState(dist, dMin),
-      distanceValue: dist,
-    };
-  });
-}
-
-// ============================================================================
 // MAIN ENTRY POINT
 // ============================================================================
 
@@ -850,12 +515,11 @@ function enforceWallClearanceConstrained(
  * @returns PolylineGraph with smoothed segments
  */
 export function buildSmoothedPolylines(
-  fineGrid: Array<Array<{ isSkeleton: boolean; isSpur?: boolean; distance?: number; walkable?: boolean }>>,
+  fineGrid: Array<Array<{ isSkeleton: boolean; isSpur?: boolean }>>,
   fineWidth: number,
   fineHeight: number,
   fineCellSize: number,
-  config?: Partial<PolylineConfig>,
-  distanceField?: DistanceField
+  config?: Partial<PolylineConfig>
 ): PolylineGraph {
   // fineCellSize is the size of each fine grid cell (~0.033 world units)
   // We need RDP epsilon relative to CORRIDOR width, not fine cell size
@@ -863,7 +527,6 @@ export function buildSmoothedPolylines(
   // Use a fraction of corridor width for meaningful simplification
   const cellSize = fineCellSize * 20; // Approximate original cell size (0.667)
   const corridorWidth = cellSize * 3; // ~2.0 world units
-  const scale = 20; // Fine cells per maze cell
   
   // Default configuration
   // KEY INSIGHT: We need aggressive RDP first to get corner points,
@@ -876,21 +539,7 @@ export function buildSmoothedPolylines(
     resampleSpacing: config?.resampleSpacing ?? (0.05 * corridorWidth), // ~0.1 world units
     useCatmullRom: config?.useCatmullRom ?? true,
     catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 8,
-    enforceWallClearance: config?.enforceWallClearance ?? true,
-    animalRadius: config?.animalRadius ?? 0.3, // Player capsule radius
-    marginFactor: config?.marginFactor ?? 0.35, // 35% of cell size margin (increased from 15%)
-    cellSize: config?.cellSize ?? cellSize, // Maze cell size
   };
-  
-  // Build distance field if not provided but we need clearance enforcement
-  const effectiveDistField: DistanceField | undefined = distanceField ?? (
-    cfg.enforceWallClearance ? {
-      fineGrid: fineGrid as Array<Array<{ distance: number; walkable: boolean }>>,
-      fineWidth,
-      fineHeight,
-      fineCellSize,
-    } : undefined
-  );
   
   // Step 1: Build skeleton graph
   const graph = buildSkeletonGraph(fineGrid, fineWidth, fineHeight);
@@ -898,13 +547,16 @@ export function buildSmoothedPolylines(
   // Step 2: Extract polyline segments
   const { segments: rawSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
   
-  // Steps 3, 4, 5, 6: Simplify, smooth, resample, and enforce clearance
+  // Steps 3, 4, 5: Simplify, smooth, and resample each segment
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
     // Step 3: RDP simplification - AGGRESSIVE to get corner structure
     // This removes the micro-zigzags and leaves only true corners
-    let points: Point2D[] = cfg.rdpEpsilon > 0 
+    let points = cfg.rdpEpsilon > 0 
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
+    
+    // Debug: log before/after RDP
+    const beforeChaikin = points.length;
     
     // Step 4: Chaikin smoothing - rounds the sharp corners
     points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
@@ -916,38 +568,15 @@ export function buildSmoothedPolylines(
       points = resampleLinear(points, cfg.resampleSpacing);
     }
     
-    // Step 6: Wall clearance enforcement via CONSTRAINED SMOOTHING
-    // Alternates Laplacian smoothing with gradient-ascent constraint steps
-    // Then resamples to restore uniform density
-    if (cfg.enforceWallClearance && effectiveDistField) {
-      const marginWorld = cfg.marginFactor * cfg.cellSize;
-      const clearancePoints = enforceWallClearanceConstrained(
-        points,
-        effectiveDistField,
-        cfg.animalRadius,
-        marginWorld,
-        12,  // outerIterations (increased from 8 for tighter corners)
-        0.25, // lambda (reduced from 0.3 to let constraint dominate)
-        10,   // constraintSteps (increased from 6 for stronger push)
-        cfg.resampleSpacing // resample spacing
-      );
-      points = clearancePoints;
-    }
-    
     return {
       ...segment,
       points,
     };
   });
   
-  // Calculate Dmin for logging
-  const marginWorld = cfg.marginFactor * cfg.cellSize;
-  const dMin = cfg.enforceWallClearance && effectiveDistField
-    ? calculateDmin(cfg.animalRadius, marginWorld, fineCellSize)
-    : 0;
   const totalPoints = smoothedSegments.reduce((sum, s) => sum + s.points.length, 0);
-  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} points), clearance=${cfg.enforceWallClearance ? 'ON' : 'OFF'}, Dmin=${dMin} (R=${cfg.animalRadius}, margin=${marginWorld.toFixed(3)})`);
-
+  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} total points), ${junctions.length} junctions, ${endpoints.length} endpoints, RDP epsilon=${cfg.rdpEpsilon.toFixed(3)}, Chaikin=${cfg.chaikinIterations}`);
+  
   return {
     segments: smoothedSegments,
     junctions,
