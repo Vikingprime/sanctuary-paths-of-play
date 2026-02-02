@@ -1158,7 +1158,7 @@ export const GameHUD = ({
                   </div>
                   <input
                     type="range"
-                    min="-0.5"
+                    min="-1.5"
                     max="0.5"
                     step="0.02"
                     value={polylineConfig.cornerPushStrength}
