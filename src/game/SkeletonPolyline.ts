@@ -731,15 +731,15 @@ export function buildSmoothedPolylines(
     return null;
   };
   
-  // Steps 3-7: Simplify, wall-push, junction-pull, smooth, resample
+  // Steps 3-8: Simplify, wall-push, junction-pull, smooth, resample, final wall-push
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
     // Step 3: RDP simplification - AGGRESSIVE to get corner structure
     let points = cfg.rdpEpsilon > 0 
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
     
-    // Step 4: Wall distance enforcement - push points away from walls FIRST
-    // This establishes safe control points before smoothing
+    // Step 4: Wall distance enforcement - push control points away FIRST
+    // Use extra buffer since smoothing will pull inward
     if (cfg.minWallDistance > 0) {
       for (let i = 0; i < cfg.wallPushIterations; i++) {
         points = enforceWallDistance(points, fineGrid, fineCellSize, cfg.minWallDistance);
@@ -770,6 +770,16 @@ export function buildSmoothedPolylines(
       points = resampleCatmullRom(points, cfg.catmullRomSamplesPerPoint);
     } else if (cfg.resampleSpacing > 0) {
       points = resampleLinear(points, cfg.resampleSpacing);
+    }
+    
+    // Step 8: Final wall distance enforcement AFTER smoothing
+    // Corrects any points that smoothing pulled too close to walls
+    // Uses a smaller minimum distance for the final pass to avoid jaggedness
+    if (cfg.minWallDistance > 0) {
+      const finalMinDist = cfg.minWallDistance * 0.7; // 70% of original buffer
+      for (let i = 0; i < 3; i++) {
+        points = enforceWallDistance(points, fineGrid, fineCellSize, finalMinDist);
+      }
     }
     
     return {
