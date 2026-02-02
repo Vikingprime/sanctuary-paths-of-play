@@ -64,14 +64,6 @@ export interface PolylineConfig {
   useCatmullRom: boolean;
   /** Number of samples per original point for Catmull-Rom (default: 10) */
   catmullRomSamplesPerPoint: number;
-  /** Radius around junctions to apply center-pull effect (default: 1.0 * corridorWidth) */
-  junctionPullRadius: number;
-  /** Strength of junction center pull (0-1, default: 0.4) */
-  junctionPullStrength: number;
-  /** Minimum distance from walls to maintain (default: 0.4 * corridorWidth) */
-  minWallDistance: number;
-  /** Number of wall-push iterations (default: 3) */
-  wallPushIterations: number;
 }
 
 // ============================================================================
@@ -232,159 +224,6 @@ function extractPolylineSegments(
   }
   
   return { segments, junctions, endpoints };
-}
-
-// ============================================================================
-// SEGMENT MERGING AT JUNCTIONS
-// ============================================================================
-
-/**
- * Merge segments at junctions to create longer continuous paths.
- * 
- * This allows smoothing algorithms to curve across junctions instead of
- * treating them as fixed pivot points. Two segments meeting at a junction
- * are merged if they form a reasonably smooth continuation (angle < 120°).
- * 
- * @param segments - Raw polyline segments
- * @param junctions - Junction positions
- * @param maxMergeAngle - Maximum angle (radians) between segments to merge (default: 2π/3 = 120°)
- * @returns Merged segments (some may span multiple original segments)
- */
-function mergeSegmentsAtJunctions(
-  segments: PolylineSegment[],
-  junctions: Point2D[],
-  maxMergeAngle: number = (2 * Math.PI) / 3 // 120 degrees
-): PolylineSegment[] {
-  if (segments.length === 0) return [];
-  
-  // Build a map of junction -> segments that touch it
-  const junctionMap = new Map<string, Array<{ segment: PolylineSegment; atStart: boolean; idx: number }>>();
-  
-  const ptKey = (p: Point2D) => `${p.x.toFixed(4)},${p.z.toFixed(4)}`;
-  
-  // Find which junction each segment endpoint touches
-  const findJunctionAt = (p: Point2D): Point2D | null => {
-    for (const j of junctions) {
-      const dist = Math.sqrt((p.x - j.x) ** 2 + (p.z - j.z) ** 2);
-      if (dist < 0.1) return j;
-    }
-    return null;
-  };
-  
-  segments.forEach((seg, idx) => {
-    const startPt = seg.points[0];
-    const endPt = seg.points[seg.points.length - 1];
-    
-    const startJunc = findJunctionAt(startPt);
-    const endJunc = findJunctionAt(endPt);
-    
-    if (startJunc && !seg.startIsEndpoint) {
-      const key = ptKey(startJunc);
-      if (!junctionMap.has(key)) junctionMap.set(key, []);
-      junctionMap.get(key)!.push({ segment: seg, atStart: true, idx });
-    }
-    if (endJunc && !seg.endIsEndpoint) {
-      const key = ptKey(endJunc);
-      if (!junctionMap.has(key)) junctionMap.set(key, []);
-      junctionMap.get(key)!.push({ segment: seg, atStart: false, idx });
-    }
-  });
-  
-  // Track which segments have been merged
-  const merged = new Set<number>();
-  const result: PolylineSegment[] = [];
-  
-  // Get the direction vector at a segment's junction end
-  const getDirectionAtEnd = (seg: PolylineSegment, atStart: boolean): { dx: number; dz: number } => {
-    const pts = seg.points;
-    if (atStart) {
-      // Direction FROM junction INTO segment (look a few points in)
-      const lookAhead = Math.min(3, pts.length - 1);
-      return {
-        dx: pts[lookAhead].x - pts[0].x,
-        dz: pts[lookAhead].z - pts[0].z,
-      };
-    } else {
-      // Direction FROM junction INTO segment (looking backward)
-      const lookBack = Math.max(0, pts.length - 1 - 3);
-      return {
-        dx: pts[lookBack].x - pts[pts.length - 1].x,
-        dz: pts[lookBack].z - pts[pts.length - 1].z,
-      };
-    }
-  };
-  
-  // Compute angle between two direction vectors
-  const angleBetween = (d1: { dx: number; dz: number }, d2: { dx: number; dz: number }): number => {
-    const len1 = Math.sqrt(d1.dx ** 2 + d1.dz ** 2);
-    const len2 = Math.sqrt(d2.dx ** 2 + d2.dz ** 2);
-    if (len1 < 0.001 || len2 < 0.001) return Math.PI; // Degenerate case
-    const dot = (d1.dx * d2.dx + d1.dz * d2.dz) / (len1 * len2);
-    return Math.acos(Math.max(-1, Math.min(1, dot)));
-  };
-  
-  // Try to merge segments at each junction
-  for (const [juncKey, segsAtJunc] of junctionMap.entries()) {
-    if (segsAtJunc.length !== 2) continue; // Only merge at degree-2 connections through the junction
-    
-    const [s1Info, s2Info] = segsAtJunc;
-    if (merged.has(s1Info.idx) || merged.has(s2Info.idx)) continue;
-    
-    // Check if they form a smooth continuation
-    const dir1 = getDirectionAtEnd(s1Info.segment, s1Info.atStart);
-    const dir2 = getDirectionAtEnd(s2Info.segment, s2Info.atStart);
-    
-    const angle = angleBetween(dir1, dir2);
-    
-    // Only merge if they're roughly opposite directions (angle close to π) 
-    // which means continuing through the junction smoothly
-    if (angle < maxMergeAngle) continue; // They're turning too sharply
-    
-    // Merge the two segments
-    merged.add(s1Info.idx);
-    merged.add(s2Info.idx);
-    
-    // Build the merged points list
-    // Need to orient both segments so they connect at the junction
-    let points1 = [...s1Info.segment.points];
-    let points2 = [...s2Info.segment.points];
-    
-    // If segment 1's junction is at start, reverse it so junction is at end
-    if (s1Info.atStart) points1.reverse();
-    // If segment 2's junction is at end, reverse it so junction is at start  
-    if (!s2Info.atStart) points2.reverse();
-    
-    // Now points1 ends at junction, points2 starts at junction
-    // Skip the duplicate junction point in points2
-    const mergedPoints = [...points1, ...points2.slice(1)];
-    
-    // Determine new endpoint flags
-    // points1's original start is now our start
-    // points2's original end is now our end
-    const newStartIsEndpoint = s1Info.atStart 
-      ? s1Info.segment.endIsEndpoint 
-      : s1Info.segment.startIsEndpoint;
-    const newEndIsEndpoint = s2Info.atStart 
-      ? s2Info.segment.startIsEndpoint 
-      : s2Info.segment.endIsEndpoint;
-    
-    result.push({
-      points: mergedPoints,
-      startIsEndpoint: newStartIsEndpoint,
-      endIsEndpoint: newEndIsEndpoint,
-    });
-  }
-  
-  // Add unmerged segments
-  segments.forEach((seg, idx) => {
-    if (!merged.has(idx)) {
-      result.push(seg);
-    }
-  });
-  
-  console.log(`[SkeletonPolyline] Merged ${merged.size / 2} junction pairs, ${result.length} segments (was ${segments.length})`);
-  
-  return result;
 }
 
 // ============================================================================
@@ -615,16 +454,9 @@ function resampleLinear(points: Point2D[], spacing: number): Point2D[] {
  * @param points - Input polyline
  * @param iterations - Number of smoothing passes (default: 2)
  * @param preserveEnds - Number of points at each end to preserve (default: 1)
- * @param smoothStartEnd - If true, also smooths the first/last points (for junctions)
  * @returns Smoothed polyline
  */
-function chaikinSmooth(
-  points: Point2D[], 
-  iterations: number = 4, 
-  preserveEnds: number = 1,
-  smoothStart: boolean = false,
-  smoothEnd: boolean = false
-): Point2D[] {
+function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: number = 1): Point2D[] {
   if (points.length <= 2) return [...points];
   
   let current = [...points];
@@ -634,56 +466,33 @@ function chaikinSmooth(
     
     const smoothed: Point2D[] = [];
     
-    // Handle first point - either preserve or smooth
-    if (smoothStart && current.length >= 2) {
-      // Smooth the first point toward second point
-      const p0 = current[0];
-      const p1 = current[1];
-      smoothed.push({
-        x: 0.75 * p0.x + 0.25 * p1.x,
-        z: 0.75 * p0.z + 0.25 * p1.z,
-      });
-    } else {
-      smoothed.push(current[0]);
-    }
+    // Always preserve the first point (endpoint/junction)
+    smoothed.push(current[0]);
     
-    // Smooth intermediate edges
+    // Smooth ALL intermediate edges (only skip first and last point)
     for (let i = 0; i < current.length - 1; i++) {
       const p0 = current[i];
       const p1 = current[i + 1];
       
-      // Skip first edge's first subdivision if we preserved point 0
-      if (i > 0 || smoothStart) {
-        if (i > 0) {
-          smoothed.push({
-            x: 0.75 * p0.x + 0.25 * p1.x,
-            z: 0.75 * p0.z + 0.25 * p1.z,
-          });
-        }
+      // Skip the very first edge's first subdivision (we already added point 0)
+      if (i > 0) {
+        smoothed.push({
+          x: 0.75 * p0.x + 0.25 * p1.x,
+          z: 0.75 * p0.z + 0.25 * p1.z,
+        });
       }
       
-      // Skip last edge's second subdivision if we'll preserve last point
-      if (i < current.length - 2 || smoothEnd) {
-        if (i < current.length - 2) {
-          smoothed.push({
-            x: 0.25 * p0.x + 0.75 * p1.x,
-            z: 0.25 * p0.z + 0.75 * p1.z,
-          });
-        }
+      // Skip the very last edge's second subdivision (we'll add the last point after)
+      if (i < current.length - 2) {
+        smoothed.push({
+          x: 0.25 * p0.x + 0.75 * p1.x,
+          z: 0.25 * p0.z + 0.75 * p1.z,
+        });
       }
     }
     
-    // Handle last point - either preserve or smooth
-    if (smoothEnd && current.length >= 2) {
-      const pN = current[current.length - 1];
-      const pN1 = current[current.length - 2];
-      smoothed.push({
-        x: 0.75 * pN.x + 0.25 * pN1.x,
-        z: 0.75 * pN.z + 0.25 * pN1.z,
-      });
-    } else {
-      smoothed.push(current[current.length - 1]);
-    }
+    // Always preserve the last point (endpoint/junction)
+    smoothed.push(current[current.length - 1]);
     
     current = smoothed;
   }
@@ -692,324 +501,8 @@ function chaikinSmooth(
 }
 
 // ============================================================================
-// JUNCTION CENTER PULL
+// MAIN ENTRY POINT
 // ============================================================================
-
-/**
- * Pull points near segment endpoints toward junction centers.
- * 
- * This prevents the curve from hugging inside corners at intersections.
- * Points within `pullRadius` of a junction endpoint are interpolated
- * toward the junction center.
- * 
- * @param points - The polyline points
- * @param startJunction - Junction point at segment start (or null if endpoint)
- * @param endJunction - Junction point at segment end (or null if endpoint)
- * @param pullRadius - Distance from junction to apply pull effect
- * @param pullStrength - How strongly to pull toward center (0-1)
- * @returns Points with junction-pull applied
- */
-function applyJunctionPull(
-  points: Point2D[],
-  startJunction: Point2D | null,
-  endJunction: Point2D | null,
-  pullRadius: number,
-  pullStrength: number
-): Point2D[] {
-  if (points.length < 3) return [...points];
-  
-  const result: Point2D[] = [];
-  const segmentStart = points[0];
-  const segmentEnd = points[points.length - 1];
-  
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i];
-    let newX = p.x;
-    let newZ = p.z;
-    
-    // Check proximity to start junction
-    if (startJunction && i > 0) {
-      const distFromStart = Math.sqrt(
-        (p.x - segmentStart.x) ** 2 + (p.z - segmentStart.z) ** 2
-      );
-      if (distFromStart < pullRadius) {
-        // Interpolate toward junction center based on proximity
-        const t = 1 - (distFromStart / pullRadius); // 1 at junction, 0 at radius edge
-        const pullAmount = t * t * pullStrength; // Quadratic falloff
-        newX += (startJunction.x - p.x) * pullAmount;
-        newZ += (startJunction.z - p.z) * pullAmount;
-      }
-    }
-    
-    // Check proximity to end junction
-    if (endJunction && i < points.length - 1) {
-      const distFromEnd = Math.sqrt(
-        (p.x - segmentEnd.x) ** 2 + (p.z - segmentEnd.z) ** 2
-      );
-      if (distFromEnd < pullRadius) {
-        const t = 1 - (distFromEnd / pullRadius);
-        const pullAmount = t * t * pullStrength;
-        newX += (endJunction.x - p.x) * pullAmount;
-        newZ += (endJunction.z - p.z) * pullAmount;
-      }
-    }
-    
-    result.push({ x: newX, z: newZ });
-  }
-  
-  return result;
-}
-
-// ============================================================================
-// JUNCTION CORNER ROUNDING
-// ============================================================================
-
-/**
- * Round sharp corners at segment endpoints (junctions) by replacing
- * the exact endpoint with a Bezier-style curve.
- * 
- * This fixes the issue where Chaikin preserves segment endpoints,
- * creating sharp corners at junctions.
- */
-function roundJunctionCorner(
-  points: Point2D[],
-  isStartJunction: boolean,
-  isEndJunction: boolean,
-  roundingRadius: number
-): Point2D[] {
-  if (points.length < 3) return [...points];
-  
-  const result: Point2D[] = [];
-  
-  // Round start if it's a junction
-  if (isStartJunction && points.length >= 3) {
-    const p0 = points[0]; // The sharp corner point
-    const p1 = points[1];
-    const p2 = points[2];
-    
-    // Find distance to use for curve
-    const d1 = Math.sqrt((p1.x - p0.x) ** 2 + (p1.z - p0.z) ** 2);
-    const curveLen = Math.min(roundingRadius, d1 * 0.4);
-    
-    if (curveLen > 0.01) {
-      // Direction from corner to next point
-      const dirX = (p1.x - p0.x) / d1;
-      const dirZ = (p1.z - p0.z) / d1;
-      
-      // Create bezier-like curve points
-      // Start slightly away from corner
-      const startOffset = curveLen * 0.3;
-      result.push({
-        x: p0.x + dirX * startOffset,
-        z: p0.z + dirZ * startOffset,
-      });
-      result.push({
-        x: p0.x + dirX * curveLen * 0.6,
-        z: p0.z + dirZ * curveLen * 0.6,
-      });
-      result.push({
-        x: p0.x + dirX * curveLen,
-        z: p0.z + dirZ * curveLen,
-      });
-    } else {
-      result.push(p0);
-    }
-  } else {
-    result.push(points[0]);
-  }
-  
-  // Add middle points
-  for (let i = 1; i < points.length - 1; i++) {
-    result.push(points[i]);
-  }
-  
-  // Round end if it's a junction
-  if (isEndJunction && points.length >= 3) {
-    const pN = points[points.length - 1]; // The sharp corner point
-    const pN1 = points[points.length - 2];
-    
-    const d1 = Math.sqrt((pN1.x - pN.x) ** 2 + (pN1.z - pN.z) ** 2);
-    const curveLen = Math.min(roundingRadius, d1 * 0.4);
-    
-    if (curveLen > 0.01) {
-      const dirX = (pN1.x - pN.x) / d1;
-      const dirZ = (pN1.z - pN.z) / d1;
-      
-      // Insert curve points before the end
-      result.push({
-        x: pN.x + dirX * curveLen,
-        z: pN.z + dirZ * curveLen,
-      });
-      result.push({
-        x: pN.x + dirX * curveLen * 0.6,
-        z: pN.z + dirZ * curveLen * 0.6,
-      });
-      result.push({
-        x: pN.x + dirX * curveLen * 0.3,
-        z: pN.z + dirZ * curveLen * 0.3,
-      });
-    } else {
-      result.push(pN);
-    }
-  } else {
-    result.push(points[points.length - 1]);
-  }
-  
-  return result;
-}
-
-// ============================================================================
-// WALL DISTANCE ENFORCEMENT WITH SMOOTHING
-// ============================================================================
-
-/**
- * Sample the distance field at a world position.
- * Returns the distance to nearest wall in fine grid units, or null if out of bounds.
- */
-function sampleDistanceField(
-  x: number,
-  z: number,
-  fineGrid: Array<Array<{ distance?: number }>>,
-  fineCellSize: number
-): { dist: number; gradX: number; gradY: number } | null {
-  const fineHeight = fineGrid.length;
-  const fineWidth = fineGrid[0]?.length || 0;
-  
-  const fx = x / fineCellSize - 0.5;
-  const fy = z / fineCellSize - 0.5;
-  const fxi = Math.floor(fx);
-  const fyi = Math.floor(fy);
-  
-  if (fxi < 0 || fxi >= fineWidth - 1 || fyi < 0 || fyi >= fineHeight - 1) {
-    return null;
-  }
-  
-  const cell00 = fineGrid[fyi]?.[fxi];
-  const cell10 = fineGrid[fyi]?.[fxi + 1];
-  const cell01 = fineGrid[fyi + 1]?.[fxi];
-  const cell11 = fineGrid[fyi + 1]?.[fxi + 1];
-  
-  if (!cell00 || !cell10 || !cell01 || !cell11 ||
-      cell00.distance === undefined || cell10.distance === undefined ||
-      cell01.distance === undefined || cell11.distance === undefined) {
-    return null;
-  }
-  
-  const tx = fx - fxi;
-  const ty = fy - fyi;
-  
-  const dist = 
-    cell00.distance * (1 - tx) * (1 - ty) +
-    cell10.distance * tx * (1 - ty) +
-    cell01.distance * (1 - tx) * ty +
-    cell11.distance * tx * ty;
-  
-  const gradX = (cell10.distance - cell00.distance + cell11.distance - cell01.distance) / 2;
-  const gradY = (cell01.distance - cell00.distance + cell11.distance - cell10.distance) / 2;
-  
-  return { dist, gradX, gradY };
-}
-
-/**
- * Constrained relaxation: simultaneously smooths toward neighbors AND pushes away from walls.
- * This maintains curve smoothness while ensuring wall distance.
- * 
- * @param points - The polyline points
- * @param fineGrid - Fine grid with distance field
- * @param fineCellSize - Size of each fine cell
- * @param minDistance - Minimum distance from walls (world units)
- * @param iterations - Number of relaxation iterations
- * @param smoothWeight - Weight for neighbor averaging (0-1, default 0.3)
- * @returns Relaxed points
- */
-function constrainedRelaxation(
-  points: Point2D[],
-  fineGrid: Array<Array<{ distance?: number }>>,
-  fineCellSize: number,
-  minDistance: number,
-  iterations: number,
-  smoothWeight: number = 0.3
-): Point2D[] {
-  if (points.length < 3) return [...points];
-  
-  const minDistFine = minDistance / fineCellSize;
-  let current = [...points];
-  
-  for (let iter = 0; iter < iterations; iter++) {
-    const next: Point2D[] = [];
-    
-    for (let i = 0; i < current.length; i++) {
-      const p = current[i];
-      
-      // Preserve endpoints
-      if (i === 0 || i === current.length - 1) {
-        next.push(p);
-        continue;
-      }
-      
-      // Step 1: Smooth toward neighbors (Laplacian smoothing)
-      const prev = current[i - 1];
-      const nextPt = current[i + 1];
-      const avgX = (prev.x + nextPt.x) / 2;
-      const avgZ = (prev.z + nextPt.z) / 2;
-      
-      let newX = p.x + (avgX - p.x) * smoothWeight;
-      let newZ = p.z + (avgZ - p.z) * smoothWeight;
-      
-      // Step 2: Push away from walls if too close
-      const sample = sampleDistanceField(newX, newZ, fineGrid, fineCellSize);
-      if (sample && sample.dist < minDistFine) {
-        const gradLen = Math.sqrt(sample.gradX ** 2 + sample.gradY ** 2);
-        if (gradLen > 0.001) {
-          const pushDirX = sample.gradX / gradLen;
-          const pushDirY = sample.gradY / gradLen;
-          const pushAmount = (minDistFine - sample.dist) * fineCellSize;
-          newX += pushDirX * pushAmount;
-          newZ += pushDirY * pushAmount;
-        }
-      }
-      
-      next.push({ x: newX, z: newZ });
-    }
-    
-    current = next;
-  }
-  
-  return current;
-}
-
-/**
- * Push points away from walls to maintain minimum distance (standalone version).
- */
-function enforceWallDistance(
-  points: Point2D[],
-  fineGrid: Array<Array<{ walkable?: boolean; distance?: number; isSkeleton?: boolean }>>,
-  fineCellSize: number,
-  minDistance: number
-): Point2D[] {
-  const minDistFine = minDistance / fineCellSize;
-  
-  return points.map((p, i) => {
-    const sample = sampleDistanceField(p.x, p.z, fineGrid, fineCellSize);
-    if (!sample || sample.dist >= minDistFine) {
-      return p;
-    }
-    
-    const gradLen = Math.sqrt(sample.gradX ** 2 + sample.gradY ** 2);
-    if (gradLen < 0.001) {
-      return p;
-    }
-    
-    const pushDirX = sample.gradX / gradLen;
-    const pushDirY = sample.gradY / gradLen;
-    const pushAmount = (minDistFine - sample.dist) * fineCellSize;
-    
-    return {
-      x: p.x + pushDirX * pushAmount,
-      z: p.z + pushDirY * pushAmount,
-    };
-  });
-}
 
 /**
  * Process skeleton pixels into smooth polylines.
@@ -1022,7 +515,7 @@ function enforceWallDistance(
  * @returns PolylineGraph with smoothed segments
  */
 export function buildSmoothedPolylines(
-  fineGrid: Array<Array<{ isSkeleton: boolean; isSpur?: boolean; distance?: number; walkable?: boolean }>>,
+  fineGrid: Array<Array<{ isSkeleton: boolean; isSpur?: boolean }>>,
   fineWidth: number,
   fineHeight: number,
   fineCellSize: number,
@@ -1037,8 +530,7 @@ export function buildSmoothedPolylines(
   
   // Default configuration
   // KEY INSIGHT: We need aggressive RDP first to get corner points,
-  // then Chaikin rounds those corners, then junction-pull centers them,
-  // then Catmull-Rom makes it smooth
+  // then Chaikin rounds those corners, then Catmull-Rom makes it smooth
   const cfg: PolylineConfig = {
     // RDP epsilon: 15% of corridor width to extract true corner points
     rdpEpsilon: config?.rdpEpsilon ?? (0.15 * corridorWidth), // ~0.3 world units
@@ -1047,81 +539,33 @@ export function buildSmoothedPolylines(
     resampleSpacing: config?.resampleSpacing ?? (0.05 * corridorWidth), // ~0.1 world units
     useCatmullRom: config?.useCatmullRom ?? true,
     catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 8,
-    // Junction pull: bias curves toward junction centers
-    junctionPullRadius: config?.junctionPullRadius ?? (1.5 * corridorWidth), // ~3.0 world units
-    junctionPullStrength: config?.junctionPullStrength ?? 0.5, // 50% pull toward center
-    // Wall distance enforcement: keep polyline safely centered in corridors
-    // Use 50% of corridor width so smoothing has room to curve inward without hitting walls
-    minWallDistance: config?.minWallDistance ?? (0.50 * corridorWidth), // ~1.0 world units (center of corridor)
-    wallPushIterations: config?.wallPushIterations ?? 8, // More iterations for better convergence
   };
   
   // Step 1: Build skeleton graph
   const graph = buildSkeletonGraph(fineGrid, fineWidth, fineHeight);
   
   // Step 2: Extract polyline segments
-  const { segments: extractedSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
+  const { segments: rawSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
   
-  // Step 2b: Merge segments at junctions to allow smoothing across intersections
-  const rawSegments = mergeSegmentsAtJunctions(extractedSegments, junctions);
-  
-  // Create a lookup for junction positions
-  const junctionSet = new Set(junctions.map(j => `${j.x.toFixed(4)},${j.z.toFixed(4)}`));
-  const findJunction = (p: Point2D): Point2D | null => {
-    // Find if a point is near a junction (within fineCellSize)
-    for (const j of junctions) {
-      const dist = Math.sqrt((p.x - j.x) ** 2 + (p.z - j.z) ** 2);
-      if (dist < fineCellSize * 2) return j;
-    }
-    return null;
-  };
-  
-  // Steps 3-7: Simplify, junction corner rounding, smooth, resample, wall-push
+  // Steps 3, 4, 5: Simplify, smooth, and resample each segment
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
-    // Step 3: RDP simplification - get corner structure
+    // Step 3: RDP simplification - AGGRESSIVE to get corner structure
+    // This removes the micro-zigzags and leaves only true corners
     let points = cfg.rdpEpsilon > 0 
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
     
-    // Identify if start/end are junctions (not dead ends)
-    const isStartJunction = !segment.startIsEndpoint;
-    const isEndJunction = !segment.endIsEndpoint;
+    // Debug: log before/after RDP
+    const beforeChaikin = points.length;
     
-    // Step 4: Junction pull - bias toward junction centers (not inside corners)
-    if (cfg.junctionPullStrength > 0 && points.length >= 3) {
-      const startJunction = segment.startIsEndpoint ? null : findJunction(segment.points[0]);
-      const endJunction = segment.endIsEndpoint ? null : findJunction(segment.points[segment.points.length - 1]);
-      
-      if (startJunction || endJunction) {
-        points = applyJunctionPull(
-          points,
-          startJunction,
-          endJunction,
-          cfg.junctionPullRadius,
-          cfg.junctionPullStrength
-        );
-      }
-    }
+    // Step 4: Chaikin smoothing - rounds the sharp corners
+    points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
     
-    // Step 5: Chaikin smoothing - smooth junction endpoints too (not just middle)
-    points = chaikinSmooth(
-      points, 
-      cfg.chaikinIterations, 
-      cfg.preserveEndpoints,
-      isStartJunction, // Smooth start if it's a junction
-      isEndJunction    // Smooth end if it's a junction
-    );
-    
-    // Step 7: Catmull-Rom resampling - creates smooth interpolated curve
+    // Step 5: Catmull-Rom resampling - creates smooth interpolated curve
     if (cfg.useCatmullRom && points.length >= 2) {
       points = resampleCatmullRom(points, cfg.catmullRomSamplesPerPoint);
     } else if (cfg.resampleSpacing > 0) {
       points = resampleLinear(points, cfg.resampleSpacing);
-    }
-    
-    // Step 8: Single gentle wall-push - just nudge points that are too close
-    if (cfg.minWallDistance > 0) {
-      points = enforceWallDistance(points, fineGrid, fineCellSize, cfg.minWallDistance * 0.6);
     }
     
     return {
