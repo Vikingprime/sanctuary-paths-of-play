@@ -20,7 +20,7 @@ import { Line } from '@react-three/drei';
 import { Maze } from '@/types/game';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from '@/game/MedialAxis';
 import { MagnetismTurnResult } from '@/game/CorridorMagnetism';
-import { buildSmoothedPolylines, buildRawPolylines, buildSmoothedControlPoints, PolylineGraph, Point2D, DistanceField } from '@/game/SkeletonPolyline';
+import { buildSmoothedPolylines, buildRawPolylines, buildSmoothedControlPoints, PolylineGraph, Point2D, DistanceField, ClearancePoint, ClearanceState } from '@/game/SkeletonPolyline';
 import { PlayerState } from '@/game/GameLogic';
 
 // ============================================================================
@@ -431,7 +431,7 @@ function SkeletonPoints({
 }
 
 // ============================================================================
-// POLYLINE VISUALIZATION (Smoothed line strips)
+// POLYLINE VISUALIZATION (Smoothed line strips with clearance coloring)
 // ============================================================================
 
 interface PolylineVisualizationProps {
@@ -441,11 +441,24 @@ interface PolylineVisualizationProps {
   lineWidth?: number;
   showJunctions?: boolean;
   showEndpoints?: boolean;
+  /** Enable clearance-based coloring: red=violation, yellow=marginal, green=safe */
+  showClearanceColors?: boolean;
+}
+
+/** Get color for clearance state */
+function getClearanceColor(state: ClearanceState | undefined): string {
+  switch (state) {
+    case 'violation': return '#ff0000'; // Red
+    case 'marginal': return '#ffff00';  // Yellow
+    case 'safe': return '#00ff44';      // Green
+    default: return '#00ff44';          // Default green
+  }
 }
 
 /**
  * Renders the smoothed polyline graph as line strips.
  * Each segment is drawn as a continuous line with junction/endpoint markers.
+ * When showClearanceColors is enabled, segments are colored based on clearance state.
  */
 function PolylineVisualization({
   graph,
@@ -454,25 +467,73 @@ function PolylineVisualization({
   lineWidth = 2,
   showJunctions = true,
   showEndpoints = true,
+  showClearanceColors = true,
 }: PolylineVisualizationProps) {
-  // Convert each segment to 3D points for Line component
-  const segmentLines = useMemo(() => {
-    return graph.segments.map((segment, idx) => ({
-      key: `segment-${idx}`,
-      points: segment.points.map((p: Point2D): [number, number, number] => [p.x, height, p.z]),
-    }));
-  }, [graph.segments, height]);
+  // Build line segments - with or without clearance coloring
+  const segmentData = useMemo(() => {
+    if (!showClearanceColors) {
+      // Simple mode: single color per segment
+      return graph.segments.map((segment, idx) => ({
+        key: `segment-${idx}`,
+        lines: [{
+          points: segment.points.map((p): [number, number, number] => [p.x, height, p.z]),
+          color: color,
+        }],
+      }));
+    }
+    
+    // Clearance coloring mode: split segment by clearance state
+    return graph.segments.map((segment, segIdx) => {
+      const lines: Array<{ points: [number, number, number][]; color: string }> = [];
+      
+      if (segment.points.length < 2) {
+        return { key: `segment-${segIdx}`, lines };
+      }
+      
+      // Group consecutive points by clearance state
+      let currentLine: [number, number, number][] = [];
+      let currentColor = getClearanceColor((segment.points[0] as ClearancePoint).clearanceState);
+      
+      for (let i = 0; i < segment.points.length; i++) {
+        const p = segment.points[i] as ClearancePoint;
+        const pointColor = getClearanceColor(p.clearanceState);
+        const point3D: [number, number, number] = [p.x, height, p.z];
+        
+        if (pointColor !== currentColor && currentLine.length > 0) {
+          // Color changed - finish current line and start new one
+          // Include the current point in both lines for continuity
+          currentLine.push(point3D);
+          lines.push({ points: [...currentLine], color: currentColor });
+          currentLine = [point3D];
+          currentColor = pointColor;
+        } else {
+          currentLine.push(point3D);
+        }
+      }
+      
+      // Push final line segment
+      if (currentLine.length >= 2) {
+        lines.push({ points: currentLine, color: currentColor });
+      }
+      
+      return { key: `segment-${segIdx}`, lines };
+    });
+  }, [graph.segments, height, color, showClearanceColors]);
 
   return (
     <group name="polyline-visualization">
-      {/* Render each segment as a Line */}
-      {segmentLines.map((line) => (
-        <Line
-          key={line.key}
-          points={line.points}
-          color={color}
-          lineWidth={lineWidth}
-        />
+      {/* Render each segment's lines */}
+      {segmentData.map((segment) => (
+        <group key={segment.key}>
+          {segment.lines.map((line, lineIdx) => (
+            <Line
+              key={`${segment.key}-line-${lineIdx}`}
+              points={line.points}
+              color={line.color}
+              lineWidth={lineWidth}
+            />
+          ))}
+        </group>
       ))}
       
       {/* Junction markers - yellow spheres */}
