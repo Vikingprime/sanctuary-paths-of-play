@@ -16,9 +16,11 @@
 
 import { useMemo, MutableRefObject } from 'react';
 import * as THREE from 'three';
+import { Line } from '@react-three/drei';
 import { Maze } from '@/types/game';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from '@/game/MedialAxis';
 import { MagnetismTurnResult } from '@/game/CorridorMagnetism';
+import { buildSmoothedPolylines, PolylineGraph, Point2D } from '@/game/SkeletonPolyline';
 import { PlayerState } from '@/game/GameLogic';
 
 // ============================================================================
@@ -35,6 +37,10 @@ interface MedialAxisVisualizationProps {
   showHeatmap?: boolean;
   /** Show pruned spur points (orange, for debugging) */
   showPrunedSpurs?: boolean;
+  /** Show smoothed polylines instead of pixel dots */
+  showPolylines?: boolean;
+  /** Show raw (unsmoothed) polylines for comparison */
+  showRawPolylines?: boolean;
   /** Height above ground to render skeleton points */
   height?: number;
   /** Size of skeleton point spheres */
@@ -76,6 +82,8 @@ export function MedialAxisVisualization({
   showRidge = false,
   showHeatmap = false,
   showPrunedSpurs = false,
+  showPolylines = true,
+  showRawPolylines = false,
   height = 0.15,
   pointSize = 0.08,
   spurConfig,
@@ -93,6 +101,19 @@ export function MedialAxisVisualization({
     console.log(`[MedialAxis] Found ${result.skeletonPoints.length} skeleton points, ${result.ridgePoints.length} ridge points, ${result.prunedSpurPoints.length} pruned, maxDist=${result.maxDistance}`);
     return result;
   }, [maze, visible, spurConfig]);
+  
+  // Build smoothed polylines from skeleton
+  const polylineGraph = useMemo<PolylineGraph | null>(() => {
+    if (!visible || !axisResult) return null;
+    const fineWidth = maze.grid[0]?.length * axisResult.scale || 0;
+    const fineHeight = maze.grid.length * axisResult.scale;
+    return buildSmoothedPolylines(
+      axisResult.fineGrid,
+      fineWidth,
+      fineHeight,
+      axisResult.fineCellSize
+    );
+  }, [axisResult, maze, visible]);
   
   // Report default spur config to parent on first computation
   useMemo(() => {
@@ -115,15 +136,25 @@ export function MedialAxisVisualization({
         />
       )}
       
+      {/* Smoothed Polylines - lime green line strips */}
+      {showPolylines && polylineGraph && (
+        <PolylineVisualization
+          graph={polylineGraph}
+          color="#00ff44"
+          height={height + 0.05}
+          lineWidth={3}
+        />
+      )}
       
-      
-      {/* Final Skeleton Points - bright cyan spheres */}
-      <SkeletonPoints
-        points={axisResult.skeletonPoints}
-        color="#00ffff"
-        height={height}
-        size={pointSize}
-      />
+      {/* Final Skeleton Points (pixel dots) - bright cyan spheres */}
+      {!showPolylines && (
+        <SkeletonPoints
+          points={axisResult.skeletonPoints}
+          color="#00ffff"
+          height={height}
+          size={pointSize}
+        />
+      )}
       
       {/* Pruned Spur Points - orange, for debugging */}
       {showPrunedSpurs && axisResult.prunedSpurPoints.length > 0 && (
@@ -333,6 +364,70 @@ function SkeletonPoints({
   if (!instancedMesh) return null;
 
   return <primitive object={instancedMesh} />;
+}
+
+// ============================================================================
+// POLYLINE VISUALIZATION (Smoothed line strips)
+// ============================================================================
+
+interface PolylineVisualizationProps {
+  graph: PolylineGraph;
+  color: string;
+  height: number;
+  lineWidth?: number;
+}
+
+/**
+ * Renders the smoothed polyline graph as line strips.
+ * Each segment is drawn as a continuous line with junction/endpoint markers.
+ */
+function PolylineVisualization({
+  graph,
+  color,
+  height,
+  lineWidth = 2,
+}: PolylineVisualizationProps) {
+  // Convert each segment to 3D points for Line component
+  const segmentLines = useMemo(() => {
+    return graph.segments.map((segment, idx) => ({
+      key: `segment-${idx}`,
+      points: segment.points.map((p: Point2D): [number, number, number] => [p.x, height, p.z]),
+    }));
+  }, [graph.segments, height]);
+
+  return (
+    <group name="polyline-visualization">
+      {/* Render each segment as a Line */}
+      {segmentLines.map((line) => (
+        <Line
+          key={line.key}
+          points={line.points}
+          color={color}
+          lineWidth={lineWidth}
+        />
+      ))}
+      
+      {/* Junction markers - yellow spheres */}
+      {graph.junctions.length > 0 && (
+        <SkeletonPoints
+          points={graph.junctions}
+          color="#ffff00"
+          height={height + 0.02}
+          size={0.12}
+        />
+      )}
+      
+      {/* Endpoint markers - magenta spheres */}
+      {graph.endpoints.length > 0 && (
+        <SkeletonPoints
+          points={graph.endpoints}
+          color="#ff00ff"
+          height={height + 0.02}
+          size={0.1}
+        />
+      )}
+    </group>
+  );
 }
 
 // ============================================================================
