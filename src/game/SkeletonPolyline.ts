@@ -578,20 +578,127 @@ function applyJunctionPull(
 }
 
 // ============================================================================
-// WALL DISTANCE ENFORCEMENT
+// WALL DISTANCE ENFORCEMENT WITH SMOOTHING
 // ============================================================================
 
 /**
- * Push points away from walls to maintain minimum distance.
- * 
- * Uses the distance field from the fine grid to detect proximity to walls
- * and push points toward the corridor center.
+ * Sample the distance field at a world position.
+ * Returns the distance to nearest wall in fine grid units, or null if out of bounds.
+ */
+function sampleDistanceField(
+  x: number,
+  z: number,
+  fineGrid: Array<Array<{ distance?: number }>>,
+  fineCellSize: number
+): { dist: number; gradX: number; gradY: number } | null {
+  const fineHeight = fineGrid.length;
+  const fineWidth = fineGrid[0]?.length || 0;
+  
+  const fx = x / fineCellSize - 0.5;
+  const fy = z / fineCellSize - 0.5;
+  const fxi = Math.floor(fx);
+  const fyi = Math.floor(fy);
+  
+  if (fxi < 0 || fxi >= fineWidth - 1 || fyi < 0 || fyi >= fineHeight - 1) {
+    return null;
+  }
+  
+  const cell00 = fineGrid[fyi]?.[fxi];
+  const cell10 = fineGrid[fyi]?.[fxi + 1];
+  const cell01 = fineGrid[fyi + 1]?.[fxi];
+  const cell11 = fineGrid[fyi + 1]?.[fxi + 1];
+  
+  if (!cell00 || !cell10 || !cell01 || !cell11 ||
+      cell00.distance === undefined || cell10.distance === undefined ||
+      cell01.distance === undefined || cell11.distance === undefined) {
+    return null;
+  }
+  
+  const tx = fx - fxi;
+  const ty = fy - fyi;
+  
+  const dist = 
+    cell00.distance * (1 - tx) * (1 - ty) +
+    cell10.distance * tx * (1 - ty) +
+    cell01.distance * (1 - tx) * ty +
+    cell11.distance * tx * ty;
+  
+  const gradX = (cell10.distance - cell00.distance + cell11.distance - cell01.distance) / 2;
+  const gradY = (cell01.distance - cell00.distance + cell11.distance - cell10.distance) / 2;
+  
+  return { dist, gradX, gradY };
+}
+
+/**
+ * Constrained relaxation: simultaneously smooths toward neighbors AND pushes away from walls.
+ * This maintains curve smoothness while ensuring wall distance.
  * 
  * @param points - The polyline points
  * @param fineGrid - Fine grid with distance field
  * @param fineCellSize - Size of each fine cell
  * @param minDistance - Minimum distance from walls (world units)
- * @returns Points with wall distance enforced
+ * @param iterations - Number of relaxation iterations
+ * @param smoothWeight - Weight for neighbor averaging (0-1, default 0.3)
+ * @returns Relaxed points
+ */
+function constrainedRelaxation(
+  points: Point2D[],
+  fineGrid: Array<Array<{ distance?: number }>>,
+  fineCellSize: number,
+  minDistance: number,
+  iterations: number,
+  smoothWeight: number = 0.3
+): Point2D[] {
+  if (points.length < 3) return [...points];
+  
+  const minDistFine = minDistance / fineCellSize;
+  let current = [...points];
+  
+  for (let iter = 0; iter < iterations; iter++) {
+    const next: Point2D[] = [];
+    
+    for (let i = 0; i < current.length; i++) {
+      const p = current[i];
+      
+      // Preserve endpoints
+      if (i === 0 || i === current.length - 1) {
+        next.push(p);
+        continue;
+      }
+      
+      // Step 1: Smooth toward neighbors (Laplacian smoothing)
+      const prev = current[i - 1];
+      const nextPt = current[i + 1];
+      const avgX = (prev.x + nextPt.x) / 2;
+      const avgZ = (prev.z + nextPt.z) / 2;
+      
+      let newX = p.x + (avgX - p.x) * smoothWeight;
+      let newZ = p.z + (avgZ - p.z) * smoothWeight;
+      
+      // Step 2: Push away from walls if too close
+      const sample = sampleDistanceField(newX, newZ, fineGrid, fineCellSize);
+      if (sample && sample.dist < minDistFine) {
+        const gradLen = Math.sqrt(sample.gradX ** 2 + sample.gradY ** 2);
+        if (gradLen > 0.001) {
+          const pushDirX = sample.gradX / gradLen;
+          const pushDirY = sample.gradY / gradLen;
+          const pushAmount = (minDistFine - sample.dist) * fineCellSize;
+          newX += pushDirX * pushAmount;
+          newZ += pushDirY * pushAmount;
+        }
+      }
+      
+      next.push({ x: newX, z: newZ });
+    }
+    
+    current = next;
+  }
+  
+  return current;
+}
+
+/**
+ * Push points away from walls to maintain minimum distance (standalone version).
  */
 function enforceWallDistance(
   points: Point2D[],
@@ -599,68 +706,22 @@ function enforceWallDistance(
   fineCellSize: number,
   minDistance: number
 ): Point2D[] {
-  const fineHeight = fineGrid.length;
-  const fineWidth = fineGrid[0]?.length || 0;
-  
-  // Convert min distance to fine grid units
   const minDistFine = minDistance / fineCellSize;
   
   return points.map((p, i) => {
-    // Convert world coords to fine grid coords
-    const fx = p.x / fineCellSize - 0.5;
-    const fy = p.z / fineCellSize - 0.5;
-    
-    // Get integer coords
-    const fxi = Math.floor(fx);
-    const fyi = Math.floor(fy);
-    
-    if (fxi < 0 || fxi >= fineWidth - 1 || fyi < 0 || fyi >= fineHeight - 1) {
-      return p; // Out of bounds, keep as is
-    }
-    
-    // Sample distance at this point (bilinear interpolation)
-    const cell00 = fineGrid[fyi]?.[fxi];
-    const cell10 = fineGrid[fyi]?.[fxi + 1];
-    const cell01 = fineGrid[fyi + 1]?.[fxi];
-    const cell11 = fineGrid[fyi + 1]?.[fxi + 1];
-    
-    // Check if cells have distance data (they should from MedialAxis)
-    if (!cell00 || !cell10 || !cell01 || !cell11 ||
-        cell00.distance === undefined || cell10.distance === undefined ||
-        cell01.distance === undefined || cell11.distance === undefined) {
-      return p; // Missing distance data
-    }
-    
-    const tx = fx - fxi;
-    const ty = fy - fyi;
-    
-    const dist = 
-      cell00.distance * (1 - tx) * (1 - ty) +
-      cell10.distance * tx * (1 - ty) +
-      cell01.distance * (1 - tx) * ty +
-      cell11.distance * tx * ty;
-    
-    // If already far enough from walls, keep as is
-    if (dist >= minDistFine) {
+    const sample = sampleDistanceField(p.x, p.z, fineGrid, fineCellSize);
+    if (!sample || sample.dist >= minDistFine) {
       return p;
     }
     
-    // Need to push away from walls - compute gradient to find direction
-    // Use central differences for gradient
-    const gradX = (cell10.distance - cell00.distance + cell11.distance - cell01.distance) / 2;
-    const gradY = (cell01.distance - cell00.distance + cell11.distance - cell10.distance) / 2;
-    
-    const gradLen = Math.sqrt(gradX * gradX + gradY * gradY);
+    const gradLen = Math.sqrt(sample.gradX ** 2 + sample.gradY ** 2);
     if (gradLen < 0.001) {
-      return p; // No gradient, can't determine push direction
+      return p;
     }
     
-    // Normalize gradient (points toward higher distance = away from walls)
-    const pushDirX = gradX / gradLen;
-    const pushDirY = gradY / gradLen;
-    
-    // Push amount: how much we need to move to reach minDistance
-    const pushAmount = (minDistFine - dist) * fineCellSize;
+    const pushDirX = sample.gradX / gradLen;
+    const pushDirY = sample.gradY / gradLen;
+    const pushAmount = (minDistFine - sample.dist) * fineCellSize;
     
     return {
       x: p.x + pushDirX * pushAmount,
@@ -731,22 +792,14 @@ export function buildSmoothedPolylines(
     return null;
   };
   
-  // Steps 3-8: Simplify, wall-push, junction-pull, smooth, resample, final wall-push
+  // Steps 3-6: Simplify, junction-pull, smooth, resample, then constrained relaxation
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
     // Step 3: RDP simplification - AGGRESSIVE to get corner structure
     let points = cfg.rdpEpsilon > 0 
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
     
-    // Step 4: Wall distance enforcement - push control points away FIRST
-    // Use extra buffer since smoothing will pull inward
-    if (cfg.minWallDistance > 0) {
-      for (let i = 0; i < cfg.wallPushIterations; i++) {
-        points = enforceWallDistance(points, fineGrid, fineCellSize, cfg.minWallDistance);
-      }
-    }
-    
-    // Step 5: Junction pull - bias toward junction centers (not inside corners)
+    // Step 4: Junction pull - bias toward junction centers (not inside corners)
     if (cfg.junctionPullStrength > 0 && points.length >= 3) {
       const startJunction = segment.startIsEndpoint ? null : findJunction(segment.points[0]);
       const endJunction = segment.endIsEndpoint ? null : findJunction(segment.points[segment.points.length - 1]);
@@ -762,24 +815,27 @@ export function buildSmoothedPolylines(
       }
     }
     
-    // Step 6: Chaikin smoothing - rounds the sharp corners on safe control points
+    // Step 5: Chaikin smoothing - rounds the sharp corners
     points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
     
-    // Step 7: Catmull-Rom resampling - creates smooth interpolated curve
+    // Step 6: Catmull-Rom resampling - creates smooth interpolated curve
     if (cfg.useCatmullRom && points.length >= 2) {
       points = resampleCatmullRom(points, cfg.catmullRomSamplesPerPoint);
     } else if (cfg.resampleSpacing > 0) {
       points = resampleLinear(points, cfg.resampleSpacing);
     }
     
-    // Step 8: Final wall distance enforcement AFTER smoothing
-    // Corrects any points that smoothing pulled too close to walls
-    // Uses a smaller minimum distance for the final pass to avoid jaggedness
+    // Step 7: Constrained relaxation - simultaneously smooths AND pushes from walls
+    // This maintains curve smoothness while ensuring wall distance
     if (cfg.minWallDistance > 0) {
-      const finalMinDist = cfg.minWallDistance * 0.7; // 70% of original buffer
-      for (let i = 0; i < 3; i++) {
-        points = enforceWallDistance(points, fineGrid, fineCellSize, finalMinDist);
-      }
+      points = constrainedRelaxation(
+        points,
+        fineGrid,
+        fineCellSize,
+        cfg.minWallDistance,
+        cfg.wallPushIterations * 3, // More iterations for gentle convergence
+        0.25 // Smooth weight - keeps curve smooth while pushing
+      );
     }
     
     return {
