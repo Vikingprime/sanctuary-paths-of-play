@@ -593,11 +593,22 @@ export function calculateMagnetismTurn(
       // Stick to locked point unless candidate is significantly better
       // Require 15% closer OR locked point is too far (reduced from 30% for more responsive switching)
       const switchThreshold = 0.85; // New point must be 85% of locked distance (15% closer)
-      const shouldSwitch = lockedDist > maxSearchRadius || candidateDist < lockedDist * switchThreshold;
+      // Force switch if candidate is a junction/suppressed pixel (priority over sticky locking)
+      const candidateIsJunction = candidateNearest.degree >= 3 || candidateNearest.isSuppressed;
+      const shouldSwitch = candidateIsJunction || lockedDist > maxSearchRadius || candidateDist < lockedDist * switchThreshold;
       
       if (!shouldSwitch) {
         nearest = lockedPixel;
         state.lockDuration += delta;
+        
+        // Log when we COULD have switched to a junction but didn't (should no longer happen with candidateIsJunction)
+        if (candidateNearest.degree >= 3 || candidateNearest.isSuppressed) {
+          const now = performance.now();
+          if (!((globalThis as any).__lastStickyLockLog) || now - (globalThis as any).__lastStickyLockLog > 500) {
+            (globalThis as any).__lastStickyLockLog = now;
+            console.log(`[STICKY LOCK] Rejected junction switch: lockedDist=${lockedDist.toFixed(2)}, candidateDist=${candidateDist.toFixed(2)}, candidateDegree=${candidateNearest.degree}`);
+          }
+        }
       } else {
         // Switching to new point - keep committedSign to prevent oscillation at corners
         // The hysteresis logic will handle direction changes naturally
@@ -627,6 +638,15 @@ export function calculateMagnetismTurn(
   
   // If at a junction (tangent is null) OR in suppression zone, skip turn correction entirely
   const isSuppressed = tangent === null || nearest.isSuppressed;
+  
+  // Track junction state transitions for debugging
+  const wasJunction = (globalThis as any).__wasAtJunction ?? false;
+  const isJunctionNow = isSuppressed;
+  if (isJunctionNow !== wasJunction) {
+    console.log(`[JUNCTION TRANSITION] ${wasJunction ? 'LEAVING' : 'ENTERING'} junction, degree=${nearest.degree}, isSuppressed=${nearest.isSuppressed}, lockDur=${state.lockDuration.toFixed(2)}`);
+    (globalThis as any).__wasAtJunction = isJunctionNow;
+  }
+  
   if (isSuppressed) {
     // Decay existing correction and return with suppression flag
     state.currentCorrection *= Math.exp(-config.decayRate * delta);
@@ -715,7 +735,7 @@ export function calculateMagnetismTurn(
   const now = performance.now();
   if (!((globalThis as any).__lastMagnetismLog) || now - (globalThis as any).__lastMagnetismLog > 500) {
     (globalThis as any).__lastMagnetismLog = now;
-    console.log(`[MAGNETISM DEBUG] div=${tangentDivergence.toFixed(3)}, committedSign=${state.committedSign}, rawAligned=(${rawAlignedTx_dbg.toFixed(2)},${rawAlignedTz_dbg.toFixed(2)}), smoothedAligned=(${alignedSmoothedTx_dbg.toFixed(2)},${alignedSmoothedTz_dbg.toFixed(2)}), lockDur=${state.lockDuration.toFixed(2)}`);
+    console.log(`[MAGNETISM DEBUG] div=${tangentDivergence.toFixed(3)}, committedSign=${state.committedSign}, deg=${nearest.degree}, suppressed=${nearest.isSuppressed}, rawAligned=(${rawAlignedTx_dbg.toFixed(2)},${rawAlignedTz_dbg.toFixed(2)}), lockDur=${state.lockDuration.toFixed(2)}`);
   }
   // SMOOTH THE SPINE ANCHOR POINT TO PREVENT VIBRATION AT CURVES
   // ============================================================================
