@@ -20,7 +20,7 @@ import { Line } from '@react-three/drei';
 import { Maze } from '@/types/game';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from '@/game/MedialAxis';
 import { MagnetismTurnResult } from '@/game/CorridorMagnetism';
-import { buildSmoothedPolylines, PolylineGraph, Point2D } from '@/game/SkeletonPolyline';
+import { buildSmoothedPolylines, buildRawPolylines, buildSmoothedControlPoints, PolylineGraph, Point2D } from '@/game/SkeletonPolyline';
 import { PlayerState } from '@/game/GameLogic';
 
 // ============================================================================
@@ -41,6 +41,8 @@ interface MedialAxisVisualizationProps {
   showPolylines?: boolean;
   /** Show raw (unsmoothed) polylines for comparison */
   showRawPolylines?: boolean;
+  /** Show smoothed control points (before Catmull-Rom resampling) */
+  showControlPoints?: boolean;
   /** Height above ground to render skeleton points */
   height?: number;
   /** Size of skeleton point spheres */
@@ -84,6 +86,7 @@ export function MedialAxisVisualization({
   showPrunedSpurs = false,
   showPolylines = true,
   showRawPolylines = false,
+  showControlPoints = false,
   height = 0.15,
   pointSize = 0.08,
   spurConfig,
@@ -102,7 +105,7 @@ export function MedialAxisVisualization({
     return result;
   }, [maze, visible, spurConfig]);
   
-  // Build smoothed polylines from skeleton
+  // Build smoothed polylines from skeleton (final resampled version)
   const polylineGraph = useMemo<PolylineGraph | null>(() => {
     if (!visible || !axisResult) return null;
     const fineWidth = maze.grid[0]?.length * axisResult.scale || 0;
@@ -114,6 +117,32 @@ export function MedialAxisVisualization({
       axisResult.fineCellSize
     );
   }, [axisResult, maze, visible]);
+  
+  // Build raw polylines for debug comparison (original pixel-based)
+  const rawPolylineGraph = useMemo<PolylineGraph | null>(() => {
+    if (!visible || !axisResult || !showRawPolylines) return null;
+    const fineWidth = maze.grid[0]?.length * axisResult.scale || 0;
+    const fineHeight = maze.grid.length * axisResult.scale;
+    return buildRawPolylines(
+      axisResult.fineGrid,
+      fineWidth,
+      fineHeight,
+      axisResult.fineCellSize
+    );
+  }, [axisResult, maze, visible, showRawPolylines]);
+  
+  // Build control points (after Chaikin, before Catmull-Rom resampling)
+  const controlPointsGraph = useMemo<PolylineGraph | null>(() => {
+    if (!visible || !axisResult || !showControlPoints) return null;
+    const fineWidth = maze.grid[0]?.length * axisResult.scale || 0;
+    const fineHeight = maze.grid.length * axisResult.scale;
+    return buildSmoothedControlPoints(
+      axisResult.fineGrid,
+      fineWidth,
+      fineHeight,
+      axisResult.fineCellSize
+    );
+  }, [axisResult, maze, visible, showControlPoints]);
   
   // Report default spur config to parent on first computation
   useMemo(() => {
@@ -136,13 +165,35 @@ export function MedialAxisVisualization({
         />
       )}
       
-      {/* Smoothed Polylines - lime green line strips */}
+      {/* Smoothed Polylines - lime green line strips (final resampled) */}
       {showPolylines && polylineGraph && (
         <PolylineVisualization
           graph={polylineGraph}
           color="#00ff44"
           height={height + 0.05}
           lineWidth={3}
+        />
+      )}
+      
+      {/* Raw Polylines - red, for debug comparison (original pixel-based) */}
+      {showRawPolylines && rawPolylineGraph && (
+        <PolylineVisualization
+          graph={rawPolylineGraph}
+          color="#ff4444"
+          height={height + 0.03}
+          lineWidth={2}
+          showJunctions={false}
+          showEndpoints={false}
+        />
+      )}
+      
+      {/* Control Points - cyan dots (after Chaikin, before Catmull-Rom) */}
+      {showControlPoints && controlPointsGraph && (
+        <ControlPointsVisualization
+          graph={controlPointsGraph}
+          color="#00ffff"
+          height={height + 0.07}
+          size={0.06}
         />
       )}
       
@@ -375,6 +426,8 @@ interface PolylineVisualizationProps {
   color: string;
   height: number;
   lineWidth?: number;
+  showJunctions?: boolean;
+  showEndpoints?: boolean;
 }
 
 /**
@@ -386,6 +439,8 @@ function PolylineVisualization({
   color,
   height,
   lineWidth = 2,
+  showJunctions = true,
+  showEndpoints = true,
 }: PolylineVisualizationProps) {
   // Convert each segment to 3D points for Line component
   const segmentLines = useMemo(() => {
@@ -408,7 +463,7 @@ function PolylineVisualization({
       ))}
       
       {/* Junction markers - yellow spheres */}
-      {graph.junctions.length > 0 && (
+      {showJunctions && graph.junctions.length > 0 && (
         <SkeletonPoints
           points={graph.junctions}
           color="#ffff00"
@@ -418,7 +473,7 @@ function PolylineVisualization({
       )}
       
       {/* Endpoint markers - magenta spheres */}
-      {graph.endpoints.length > 0 && (
+      {showEndpoints && graph.endpoints.length > 0 && (
         <SkeletonPoints
           points={graph.endpoints}
           color="#ff00ff"
@@ -427,6 +482,45 @@ function PolylineVisualization({
         />
       )}
     </group>
+  );
+}
+
+// ============================================================================
+// CONTROL POINTS VISUALIZATION (Dots for Chaikin output)
+// ============================================================================
+
+interface ControlPointsVisualizationProps {
+  graph: PolylineGraph;
+  color: string;
+  height: number;
+  size?: number;
+}
+
+/**
+ * Renders the control points (after Chaikin smoothing, before Catmull-Rom) as dots.
+ */
+function ControlPointsVisualization({
+  graph,
+  color,
+  height,
+  size = 0.06,
+}: ControlPointsVisualizationProps) {
+  // Flatten all segment points into a single array
+  const allPoints = useMemo(() => {
+    const points: Point2D[] = [];
+    graph.segments.forEach(segment => {
+      segment.points.forEach(p => points.push(p));
+    });
+    return points;
+  }, [graph.segments]);
+
+  return (
+    <SkeletonPoints
+      points={allPoints}
+      color={color}
+      height={height}
+      size={size}
+    />
   );
 }
 

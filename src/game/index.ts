@@ -53,6 +53,7 @@ export {
 export {
   buildSmoothedPolylines,
   buildRawPolylines,
+  buildSmoothedControlPoints,
   type PolylineGraph,
   type PolylineSegment,
   type Point2D,
