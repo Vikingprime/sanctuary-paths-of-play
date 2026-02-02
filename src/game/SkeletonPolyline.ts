@@ -54,8 +54,10 @@ export interface PolylineGraph {
 export interface PolylineConfig {
   /** Epsilon for RDP simplification (world units, default: 0.02 * fineCellSize). Set to 0 to disable. */
   rdpEpsilon: number;
-  /** Number of Chaikin smoothing iterations (default: 4) */
+  /** Number of Chaikin smoothing iterations for straight sections (default: 4) */
   chaikinIterations: number;
+  /** Number of additional Chaikin iterations for corner regions (default: 0) */
+  chaikinCornerExtraIterations: number;
   /** Preserve N points at each end of segment from smoothing (default: 1) */
   preserveEndpoints: number;
   /** Resample spacing after smoothing (world units, 0 = disable, default: 0.1 * fineCellSize) */
@@ -64,6 +66,8 @@ export interface PolylineConfig {
   useCatmullRom: boolean;
   /** Number of samples per original point for Catmull-Rom (default: 10) */
   catmullRomSamplesPerPoint: number;
+  /** Push corners inward by this fraction of corridor width (0-1, default: 0) */
+  cornerPushStrength: number;
 }
 
 // ============================================================================
@@ -442,6 +446,112 @@ function resampleLinear(points: Point2D[], spacing: number): Point2D[] {
 }
 
 // ============================================================================
+// CORNER DETECTION AND PUSHING
+// ============================================================================
+
+/**
+ * Detect corner points in a polyline by measuring angle change.
+ * Returns an array of booleans indicating which points are corners.
+ */
+function detectCorners(points: Point2D[], angleThreshold: number = Math.PI / 4): boolean[] {
+  const isCorner: boolean[] = new Array(points.length).fill(false);
+  
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+    
+    // Direction vectors
+    const dx1 = curr.x - prev.x;
+    const dz1 = curr.z - prev.z;
+    const dx2 = next.x - curr.x;
+    const dz2 = next.z - curr.z;
+    
+    const len1 = Math.sqrt(dx1 * dx1 + dz1 * dz1);
+    const len2 = Math.sqrt(dx2 * dx2 + dz2 * dz2);
+    
+    if (len1 < 1e-6 || len2 < 1e-6) continue;
+    
+    // Dot product to find angle
+    const dot = (dx1 * dx2 + dz1 * dz2) / (len1 * len2);
+    const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
+    
+    // Mark as corner if angle exceeds threshold (deviation from straight)
+    if (angle > angleThreshold) {
+      isCorner[i] = true;
+      // Also mark neighbors for smoother transition
+      if (i > 0) isCorner[i - 1] = true;
+      if (i < points.length - 1) isCorner[i + 1] = true;
+    }
+  }
+  
+  return isCorner;
+}
+
+/**
+ * Push corner points inward (toward center of turn).
+ * This helps move the path away from outer corner walls.
+ */
+function pushCornersInward(points: Point2D[], strength: number): Point2D[] {
+  if (points.length < 3 || strength <= 0) return [...points];
+  
+  const result: Point2D[] = [...points];
+  
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+    
+    // Direction vectors
+    const dx1 = curr.x - prev.x;
+    const dz1 = curr.z - prev.z;
+    const dx2 = next.x - curr.x;
+    const dz2 = next.z - curr.z;
+    
+    const len1 = Math.sqrt(dx1 * dx1 + dz1 * dz1);
+    const len2 = Math.sqrt(dx2 * dx2 + dz2 * dz2);
+    
+    if (len1 < 1e-6 || len2 < 1e-6) continue;
+    
+    // Normalized direction vectors
+    const nx1 = dx1 / len1;
+    const nz1 = dz1 / len1;
+    const nx2 = dx2 / len2;
+    const nz2 = dz2 / len2;
+    
+    // Angle at this corner
+    const dot = nx1 * nx2 + nz1 * nz2;
+    const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
+    
+    // Only push if there's a significant turn (> 15 degrees)
+    if (angle < Math.PI / 12) continue;
+    
+    // Bisector direction (points inward, toward the center of the turn)
+    // Negate the sum of directions to get inward direction
+    const bisectX = -(nx1 + nx2);
+    const bisectZ = -(nz1 + nz2);
+    const bisectLen = Math.sqrt(bisectX * bisectX + bisectZ * bisectZ);
+    
+    if (bisectLen < 1e-6) continue;
+    
+    // Normalize bisector
+    const bx = bisectX / bisectLen;
+    const bz = bisectZ / bisectLen;
+    
+    // Push strength scales with angle sharpness
+    const angleFactor = angle / Math.PI; // 0 = straight, 1 = 180 degree turn
+    const pushDistance = strength * angleFactor;
+    
+    result[i] = {
+      x: curr.x + bx * pushDistance,
+      z: curr.z + bz * pushDistance,
+    };
+  }
+  
+  return result;
+}
+
+// ============================================================================
 // CHAIKIN CORNER-CUTTING SMOOTHING
 // ============================================================================
 
@@ -535,10 +645,12 @@ export function buildSmoothedPolylines(
     // RDP epsilon: 15% of corridor width to extract true corner points
     rdpEpsilon: config?.rdpEpsilon ?? (0.15 * corridorWidth), // ~0.3 world units
     chaikinIterations: config?.chaikinIterations ?? 4, // 4 iterations for good rounding
+    chaikinCornerExtraIterations: config?.chaikinCornerExtraIterations ?? 0, // Extra iterations at corners
     preserveEndpoints: config?.preserveEndpoints ?? 1,
     resampleSpacing: config?.resampleSpacing ?? (0.05 * corridorWidth), // ~0.1 world units
     useCatmullRom: config?.useCatmullRom ?? true,
     catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 8,
+    cornerPushStrength: config?.cornerPushStrength ?? 0, // No push by default
   };
   
   // Step 1: Build skeleton graph
@@ -547,7 +659,7 @@ export function buildSmoothedPolylines(
   // Step 2: Extract polyline segments
   const { segments: rawSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
   
-  // Steps 3, 4, 5: Simplify, smooth, and resample each segment
+  // Steps 3, 4, 5, 6: Simplify, push corners, smooth, and resample each segment
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
     // Step 3: RDP simplification - AGGRESSIVE to get corner structure
     // This removes the micro-zigzags and leaves only true corners
@@ -555,13 +667,17 @@ export function buildSmoothedPolylines(
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
     
-    // Debug: log before/after RDP
-    const beforeChaikin = points.length;
+    // Step 4: Push corner points inward (before smoothing)
+    // This moves the skeleton away from outer corners before any averaging
+    if (cfg.cornerPushStrength > 0) {
+      points = pushCornersInward(points, cfg.cornerPushStrength * corridorWidth);
+    }
     
-    // Step 4: Chaikin smoothing - rounds the sharp corners
-    points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
+    // Step 5: Base Chaikin smoothing - rounds all corners
+    const totalIterations = cfg.chaikinIterations + cfg.chaikinCornerExtraIterations;
+    points = chaikinSmooth(points, totalIterations, cfg.preserveEndpoints);
     
-    // Step 5: Catmull-Rom resampling - creates smooth interpolated curve
+    // Step 6: Catmull-Rom resampling - creates smooth interpolated curve
     if (cfg.useCatmullRom && points.length >= 2) {
       points = resampleCatmullRom(points, cfg.catmullRomSamplesPerPoint);
     } else if (cfg.resampleSpacing > 0) {
@@ -575,7 +691,7 @@ export function buildSmoothedPolylines(
   });
   
   const totalPoints = smoothedSegments.reduce((sum, s) => sum + s.points.length, 0);
-  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} total points), ${junctions.length} junctions, ${endpoints.length} endpoints, RDP epsilon=${cfg.rdpEpsilon.toFixed(3)}, Chaikin=${cfg.chaikinIterations}`);
+  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} total points), Chaikin=${cfg.chaikinIterations}+${cfg.chaikinCornerExtraIterations}, cornerPush=${cfg.cornerPushStrength.toFixed(2)}`);
   
   return {
     segments: smoothedSegments,

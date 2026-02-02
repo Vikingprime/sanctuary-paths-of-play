@@ -295,6 +295,9 @@ interface GameHUDProps {
   playerRotation?: number;
   /** Callback to unpause magnetism debug */
   onUnpauseMagnetism?: () => void;
+  // Polyline smoothing tuning
+  polylineConfig?: { chaikinIterations: number; chaikinCornerExtraIterations: number; cornerPushStrength: number };
+  onPolylineConfigChange?: (config: { chaikinIterations: number; chaikinCornerExtraIterations: number; cornerPushStrength: number }) => void;
 }
 
 export const GameHUD = ({
@@ -368,6 +371,8 @@ export const GameHUD = ({
   frozenMagnetismData,
   playerRotation = 0,
   onUnpauseMagnetism,
+  polylineConfig,
+  onPolylineConfigChange,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -1078,6 +1083,96 @@ export const GameHUD = ({
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+          
+          {/* Polyline Smoothing Tuning */}
+          {polylineConfig && onPolylineConfigChange && (
+            <div className="mt-2 pt-2 border-t border-gray-600">
+              <div className="text-[10px] text-gray-400 mb-1">--- Polyline Smoothing ---</div>
+              <div className="space-y-2">
+                {/* Chaikin Iterations Slider */}
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Chaikin Iters:</span>
+                    <span className={cn(
+                      polylineConfig.chaikinIterations !== 4 
+                        ? 'text-orange-400' 
+                        : 'text-cyan-400'
+                    )}>
+                      {polylineConfig.chaikinIterations}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value={polylineConfig.chaikinIterations}
+                    onChange={(e) => onPolylineConfigChange({
+                      ...polylineConfig,
+                      chaikinIterations: parseInt(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+                
+                {/* Extra Corner Iterations Slider */}
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Corner Extra Iters:</span>
+                    <span className={cn(
+                      polylineConfig.chaikinCornerExtraIterations !== 0 
+                        ? 'text-orange-400' 
+                        : 'text-cyan-400'
+                    )}>
+                      {polylineConfig.chaikinCornerExtraIterations}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value={polylineConfig.chaikinCornerExtraIterations}
+                    onChange={(e) => onPolylineConfigChange({
+                      ...polylineConfig,
+                      chaikinCornerExtraIterations: parseInt(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+                
+                {/* Corner Push Strength Slider */}
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Corner Push:</span>
+                    <span className={cn(
+                      polylineConfig.cornerPushStrength !== 0 
+                        ? 'text-orange-400' 
+                        : 'text-cyan-400'
+                    )}>
+                      {polylineConfig.cornerPushStrength.toFixed(2)}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="0.5"
+                    step="0.02"
+                    value={polylineConfig.cornerPushStrength}
+                    onChange={(e) => onPolylineConfigChange({
+                      ...polylineConfig,
+                      cornerPushStrength: parseFloat(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+                
+                <div className="text-[9px] text-gray-500 mt-1">
+                  Push corners inward to move path away from walls
+                </div>
               </div>
             </div>
           )}

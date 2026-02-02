@@ -120,6 +120,17 @@ export const MazeGame3D = ({
   const [showMagnetTarget, setShowMagnetTarget] = useState(true);
   const [showMagnetVector, setShowMagnetVector] = useState(true);
   
+  // Polyline smoothing configuration for debug tuning
+  const [polylineConfig, setPolylineConfig] = useState<{
+    chaikinIterations: number;
+    chaikinCornerExtraIterations: number;
+    cornerPushStrength: number;
+  }>({
+    chaikinIterations: 4,
+    chaikinCornerExtraIterations: 0,
+    cornerPushStrength: 0,
+  });
+  
   // Magnetism debug ref - shared between canvas and HUD for real-time visualization
   const magnetismDebugRef = useRef<MagnetismTurnResult['debug'] | null>(null);
   
@@ -926,6 +937,7 @@ export const MazeGame3D = ({
         magnetismDebugRef={magnetismDebugRef}
         showMagnetTarget={showMagnetTarget}
         showMagnetVector={showMagnetVector}
+        polylineConfig={polylineConfig}
         onDefaultSpurConfig={(config) => {
           // Always update the defaults
           setDefaultSpurConfig(config);
@@ -1030,6 +1042,8 @@ export const MazeGame3D = ({
             setMagnetismDebugFrozen(false);
             setFrozenMagnetismData(null);
           }}
+          polylineConfig={polylineConfig}
+          onPolylineConfigChange={setPolylineConfig}
         />
       )}
 
