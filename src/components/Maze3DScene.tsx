@@ -1271,7 +1271,8 @@ const RefBasedPlayer = ({
             magnetismDebugRef?.current ?? null,
             magnetStrength,
             newState.rotation,                      // Pass current rotation
-            DEFAULT_MAGNETISM_CONFIG.frontOffset    // Pass front offset (0.35)
+            DEFAULT_MAGNETISM_CONFIG.frontOffset,   // Pass front offset (0.35)
+            newState.collisionIntensity             // Pass collision intensity for debug
           );
           
           
