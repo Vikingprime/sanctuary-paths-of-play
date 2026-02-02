@@ -796,10 +796,9 @@ function removeSpurs(
         }
       }
       
-      // MARK spurs but keep them in skeleton (for polyline smoothing)
-      // The polyline builder uses isSkeleton, so we keep it true but also mark isSpur
+      // REMOVE the spur from skeleton (not just mark)
       for (const pixel of path) {
-        // Keep isSkeleton = true so polylines include the spur
+        fineGrid[pixel.y][pixel.x].isSkeleton = false;
         fineGrid[pixel.y][pixel.x].isSpur = true;
         spurPixels.push({ x: pixel.x, y: pixel.y });
       }
@@ -961,9 +960,9 @@ function pruneJunctionBranches(
           }
         }
         
-        // MARK as spur but keep in skeleton for polyline smoothing
+        // Remove the entire branch
         for (const pixel of result.path) {
-          // Keep isSkeleton = true so polylines include the spur
+          fineGrid[pixel.y][pixel.x].isSkeleton = false;
           fineGrid[pixel.y][pixel.x].isSpur = true;
           prunedPixels.push({ x: pixel.x, y: pixel.y });
         }
@@ -1072,8 +1071,8 @@ function removeRedundantJunctions(
         
         // Check if all neighbors are directly connected to each other
         if (allNeighborsConnected(neighbors)) {
-          // This junction is redundant - MARK as spur but keep in skeleton for polylines
-          // Keep isSkeleton = true so polylines include this pixel
+          // This junction is redundant - remove it
+          fineGrid[y][x].isSkeleton = false;
           fineGrid[y][x].isSpur = true;
           removedPixels.push({ x, y });
           changed = true;
