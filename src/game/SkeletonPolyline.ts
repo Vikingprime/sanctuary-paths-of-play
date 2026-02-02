@@ -64,6 +64,30 @@ export interface PolylineConfig {
   useCatmullRom: boolean;
   /** Number of samples per original point for Catmull-Rom (default: 10) */
   catmullRomSamplesPerPoint: number;
+  /** Wall clearance alpha: minClearance = alpha * localMaxDistance (default: 0.75) */
+  wallClearanceAlpha: number;
+  /** Enable wall distance enforcement (default: true) */
+  enforceWallClearance: boolean;
+  /** Light smoothing iterations after projection (default: 1) */
+  postProjectionSmoothing: number;
+}
+
+/** Distance field interface for wall clearance */
+export interface DistanceField {
+  /** Fine grid with distance values */
+  fineGrid: Array<Array<{ distance: number; walkable: boolean }>>;
+  /** Fine grid width */
+  fineWidth: number;
+  /** Fine grid height */
+  fineHeight: number;
+  /** Size of each fine cell in world units */
+  fineCellSize: number;
+}
+
+/** Point with clearance violation info for debug */
+export interface ClearancePoint extends Point2D {
+  /** True if this point violated clearance before projection */
+  hadViolation?: boolean;
 }
 
 // ============================================================================
@@ -501,6 +525,216 @@ function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: 
 }
 
 // ============================================================================
+// WALL DISTANCE ENFORCEMENT
+// ============================================================================
+
+/**
+ * Sample the distance-to-wall value at a world position from the fine grid.
+ * Uses nearest-cell lookup.
+ * 
+ * @param p - Point in world space
+ * @param distField - Distance field from medial axis computation
+ * @returns Distance value (in fine cell units), or 0 if out of bounds/not walkable
+ */
+function sampleDistance(p: Point2D, distField: DistanceField): number {
+  const fx = Math.floor(p.x / distField.fineCellSize);
+  const fz = Math.floor(p.z / distField.fineCellSize);
+  
+  if (fz < 0 || fz >= distField.fineHeight || fx < 0 || fx >= distField.fineWidth) {
+    return 0;
+  }
+  
+  const cell = distField.fineGrid[fz]?.[fx];
+  return cell?.walkable ? cell.distance : 0;
+}
+
+/**
+ * Find the local maximum distance within a radius around a point.
+ * 
+ * @param p - Point in world space
+ * @param radius - Search radius in fine cells
+ * @param distField - Distance field
+ * @returns Maximum distance found in the neighborhood
+ */
+function findLocalMaxDistance(p: Point2D, radius: number, distField: DistanceField): number {
+  const centerFx = Math.floor(p.x / distField.fineCellSize);
+  const centerFz = Math.floor(p.z / distField.fineCellSize);
+  
+  let maxDist = 0;
+  
+  for (let dz = -radius; dz <= radius; dz++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      const fx = centerFx + dx;
+      const fz = centerFz + dz;
+      
+      if (fz < 0 || fz >= distField.fineHeight || fx < 0 || fx >= distField.fineWidth) {
+        continue;
+      }
+      
+      const cell = distField.fineGrid[fz]?.[fx];
+      if (cell?.walkable && cell.distance > maxDist) {
+        maxDist = cell.distance;
+      }
+    }
+  }
+  
+  return maxDist;
+}
+
+/**
+ * Project a point back into the safe medial band if it's too close to walls.
+ * 
+ * Searches nearby cells for a walkable cell with sufficient clearance.
+ * Uses distance field gradient to push point toward higher-distance areas.
+ * 
+ * @param p - Point to project
+ * @param minClearance - Minimum required distance value
+ * @param distField - Distance field
+ * @param maxSearchRadius - Maximum search radius in fine cells
+ * @returns Projected point (or original if no better position found)
+ */
+function projectToSafeBand(
+  p: Point2D, 
+  minClearance: number, 
+  distField: DistanceField,
+  maxSearchRadius: number = 5
+): ClearancePoint {
+  const currentDist = sampleDistance(p, distField);
+  
+  // Already safe
+  if (currentDist >= minClearance) {
+    return { ...p, hadViolation: false };
+  }
+  
+  const centerFx = Math.floor(p.x / distField.fineCellSize);
+  const centerFz = Math.floor(p.z / distField.fineCellSize);
+  
+  // Search in expanding radius for cells with sufficient clearance
+  for (let radius = 2; radius <= maxSearchRadius; radius += 2) {
+    let bestCandidate: { fx: number; fz: number; dist: number } | null = null;
+    let bestDistToOriginal = Infinity;
+    
+    for (let dz = -radius; dz <= radius; dz++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const fx = centerFx + dx;
+        const fz = centerFz + dz;
+        
+        if (fz < 0 || fz >= distField.fineHeight || fx < 0 || fx >= distField.fineWidth) {
+          continue;
+        }
+        
+        const cell = distField.fineGrid[fz]?.[fx];
+        if (!cell?.walkable || cell.distance < minClearance) {
+          continue;
+        }
+        
+        // Calculate world distance to original point
+        const worldX = (fx + 0.5) * distField.fineCellSize;
+        const worldZ = (fz + 0.5) * distField.fineCellSize;
+        const distToOrig = (worldX - p.x) ** 2 + (worldZ - p.z) ** 2;
+        
+        // Prefer closest cell with sufficient clearance
+        if (distToOrig < bestDistToOriginal) {
+          bestDistToOriginal = distToOrig;
+          bestCandidate = { fx, fz, dist: cell.distance };
+        }
+      }
+    }
+    
+    if (bestCandidate) {
+      return {
+        x: (bestCandidate.fx + 0.5) * distField.fineCellSize,
+        z: (bestCandidate.fz + 0.5) * distField.fineCellSize,
+        hadViolation: true,
+      };
+    }
+  }
+  
+  // No suitable cell found - keep original
+  return { ...p, hadViolation: true };
+}
+
+/**
+ * Enforce wall clearance on a polyline by projecting points away from walls.
+ * 
+ * Pipeline:
+ * 1. For each point, calculate local max distance and min clearance threshold
+ * 2. Project points below threshold toward the medial band
+ * 3. Apply light smoothing to remove snapping artifacts
+ * 
+ * @param points - Input polyline
+ * @param distField - Distance field for clearance lookup
+ * @param alpha - Clearance factor: minClearance = alpha * localMaxDistance
+ * @param postSmoothingIterations - Light smoothing passes after projection
+ * @param scale - Scale factor for local max search radius
+ * @returns Points with clearance info for debug visualization
+ */
+function enforceWallClearance(
+  points: Point2D[],
+  distField: DistanceField,
+  alpha: number = 0.75,
+  postSmoothingIterations: number = 1,
+  scale: number = 20
+): ClearancePoint[] {
+  if (points.length < 2) return points.map(p => ({ ...p, hadViolation: false }));
+  
+  // Local max search radius = scale fine cells (approx 1 maze cell)
+  const localMaxRadius = scale;
+  
+  // Step 1 & 2: Project each point if needed
+  const projected: ClearancePoint[] = points.map((p, idx) => {
+    // Always preserve endpoints (first and last)
+    if (idx === 0 || idx === points.length - 1) {
+      return { ...p, hadViolation: false };
+    }
+    
+    // Find local max distance around this point
+    const localMax = findLocalMaxDistance(p, localMaxRadius, distField);
+    
+    // Calculate minimum clearance (ceil to be conservative)
+    const minClearance = Math.ceil(alpha * localMax);
+    
+    // Project if below threshold
+    return projectToSafeBand(p, minClearance, distField);
+  });
+  
+  // Step 3: Light smoothing to remove snapping kinks
+  if (postSmoothingIterations > 0 && projected.length > 2) {
+    return laplacianSmooth(projected, postSmoothingIterations);
+  }
+  
+  return projected;
+}
+
+/**
+ * Laplacian smoothing (average of neighbors) - preserves endpoints.
+ */
+function laplacianSmooth(points: ClearancePoint[], iterations: number): ClearancePoint[] {
+  let current = [...points];
+  
+  for (let iter = 0; iter < iterations; iter++) {
+    const smoothed: ClearancePoint[] = [current[0]]; // Keep first
+    
+    for (let i = 1; i < current.length - 1; i++) {
+      const prev = current[i - 1];
+      const curr = current[i];
+      const next = current[i + 1];
+      
+      smoothed.push({
+        x: (prev.x + curr.x + next.x) / 3,
+        z: (prev.z + curr.z + next.z) / 3,
+        hadViolation: curr.hadViolation,
+      });
+    }
+    
+    smoothed.push(current[current.length - 1]); // Keep last
+    current = smoothed;
+  }
+  
+  return current;
+}
+
+// ============================================================================
 // MAIN ENTRY POINT
 // ============================================================================
 
@@ -515,11 +749,12 @@ function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: 
  * @returns PolylineGraph with smoothed segments
  */
 export function buildSmoothedPolylines(
-  fineGrid: Array<Array<{ isSkeleton: boolean; isSpur?: boolean }>>,
+  fineGrid: Array<Array<{ isSkeleton: boolean; isSpur?: boolean; distance?: number; walkable?: boolean }>>,
   fineWidth: number,
   fineHeight: number,
   fineCellSize: number,
-  config?: Partial<PolylineConfig>
+  config?: Partial<PolylineConfig>,
+  distanceField?: DistanceField
 ): PolylineGraph {
   // fineCellSize is the size of each fine grid cell (~0.033 world units)
   // We need RDP epsilon relative to CORRIDOR width, not fine cell size
@@ -527,6 +762,7 @@ export function buildSmoothedPolylines(
   // Use a fraction of corridor width for meaningful simplification
   const cellSize = fineCellSize * 20; // Approximate original cell size (0.667)
   const corridorWidth = cellSize * 3; // ~2.0 world units
+  const scale = 20; // Fine cells per maze cell
   
   // Default configuration
   // KEY INSIGHT: We need aggressive RDP first to get corner points,
@@ -539,7 +775,20 @@ export function buildSmoothedPolylines(
     resampleSpacing: config?.resampleSpacing ?? (0.05 * corridorWidth), // ~0.1 world units
     useCatmullRom: config?.useCatmullRom ?? true,
     catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 8,
+    wallClearanceAlpha: config?.wallClearanceAlpha ?? 0.75,
+    enforceWallClearance: config?.enforceWallClearance ?? true,
+    postProjectionSmoothing: config?.postProjectionSmoothing ?? 1,
   };
+  
+  // Build distance field if not provided but we need clearance enforcement
+  const effectiveDistField: DistanceField | undefined = distanceField ?? (
+    cfg.enforceWallClearance ? {
+      fineGrid: fineGrid as Array<Array<{ distance: number; walkable: boolean }>>,
+      fineWidth,
+      fineHeight,
+      fineCellSize,
+    } : undefined
+  );
   
   // Step 1: Build skeleton graph
   const graph = buildSkeletonGraph(fineGrid, fineWidth, fineHeight);
@@ -547,16 +796,13 @@ export function buildSmoothedPolylines(
   // Step 2: Extract polyline segments
   const { segments: rawSegments, junctions, endpoints } = extractPolylineSegments(graph, fineCellSize);
   
-  // Steps 3, 4, 5: Simplify, smooth, and resample each segment
+  // Steps 3, 4, 5, 6: Simplify, smooth, resample, and enforce clearance
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
     // Step 3: RDP simplification - AGGRESSIVE to get corner structure
     // This removes the micro-zigzags and leaves only true corners
-    let points = cfg.rdpEpsilon > 0 
+    let points: Point2D[] = cfg.rdpEpsilon > 0 
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
-    
-    // Debug: log before/after RDP
-    const beforeChaikin = points.length;
     
     // Step 4: Chaikin smoothing - rounds the sharp corners
     points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
@@ -568,6 +814,18 @@ export function buildSmoothedPolylines(
       points = resampleLinear(points, cfg.resampleSpacing);
     }
     
+    // Step 6: Wall clearance enforcement - push points away from walls
+    if (cfg.enforceWallClearance && effectiveDistField) {
+      const clearancePoints = enforceWallClearance(
+        points,
+        effectiveDistField,
+        cfg.wallClearanceAlpha,
+        cfg.postProjectionSmoothing,
+        scale
+      );
+      points = clearancePoints;
+    }
+    
     return {
       ...segment,
       points,
@@ -575,7 +833,7 @@ export function buildSmoothedPolylines(
   });
   
   const totalPoints = smoothedSegments.reduce((sum, s) => sum + s.points.length, 0);
-  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} total points), ${junctions.length} junctions, ${endpoints.length} endpoints, RDP epsilon=${cfg.rdpEpsilon.toFixed(3)}, Chaikin=${cfg.chaikinIterations}`);
+  console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} total points), clearance=${cfg.enforceWallClearance ? 'ON' : 'OFF'} alpha=${cfg.wallClearanceAlpha}`);
   
   return {
     segments: smoothedSegments,
