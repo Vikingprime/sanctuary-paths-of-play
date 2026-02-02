@@ -19,6 +19,7 @@
 import { Maze } from '@/types/game';
 import { GameConfig } from './GameConfig';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from './MedialAxis';
+import { verboseLog } from '@/lib/debug';
 
 // ============================================================================
 // TYPES
@@ -67,9 +68,12 @@ export interface MagnetismTurnResult {
     /** Target point on spine for visualization */
     targetX: number;
     targetZ: number;
-    /** Spine tangent direction (normalized) */
+    /** Spine tangent direction (normalized, smoothed - for rotation alignment) */
     tangentX: number;
     tangentZ: number;
+    /** Raw tangent from skeleton (for position constraint - instant response) */
+    rawTangentX: number;
+    rawTangentZ: number;
     /** Neighbor 1 position (world space) - for visualization */
     neighbor1X: number;
     neighbor1Z: number;
@@ -500,6 +504,8 @@ export function calculateMagnetismTurn(
       targetZ: playerZ,
       tangentX: 0,
       tangentZ: 1,
+      rawTangentX: 0,
+      rawTangentZ: 1,
       neighbor1X: playerX,
       neighbor1Z: playerZ,
       neighbor2X: playerX,
@@ -637,6 +643,8 @@ export function calculateMagnetismTurn(
         targetZ: nearest.wz,
         tangentX: 0,
         tangentZ: 1,
+        rawTangentX: 0,
+        rawTangentZ: 1,
         neighbor1X: nearest.wx,
         neighbor1Z: nearest.wz,
         neighbor2X: nearest.wx,
@@ -689,7 +697,12 @@ export function calculateMagnetismTurn(
     }
   }
   
-  // ============================================================================
+  // Debug: Log tangent divergence at corners for diagnostics
+  // Only fires when verbose logging is enabled AND divergence is significant
+  const tangentDivergence = 1 - (tx * smoothedTx + tz * smoothedTz); // 0 = same, 2 = opposite
+  if (tangentDivergence > 0.1) {
+    verboseLog('MAGNETISM', `Tangent divergence: ${tangentDivergence.toFixed(3)}, raw=(${tx.toFixed(2)},${tz.toFixed(2)}), smoothed=(${smoothedTx.toFixed(2)},${smoothedTz.toFixed(2)})`);
+  }
   // SMOOTH THE SPINE ANCHOR POINT TO PREVENT VIBRATION AT CURVES
   // ============================================================================
   // The raw spine point is discrete (jumps between grid nodes as animal moves).
@@ -857,6 +870,8 @@ export function calculateMagnetismTurn(
         rawSpineX: nearest.wx, rawSpineZ: nearest.wz,
         targetX: nearest.wx, targetZ: nearest.wz,
         tangentX: alignedTx, tangentZ: alignedTz,
+        rawTangentX: state.committedSign > 0 ? tx : -tx,
+        rawTangentZ: state.committedSign > 0 ? tz : -tz,
         neighbor1X: endpoint1.wx, neighbor1Z: endpoint1.wz,
         neighbor2X: endpoint2.wx, neighbor2Z: endpoint2.wz,
         rawAngleDiff, isActive: false,
@@ -886,9 +901,12 @@ export function calculateMagnetismTurn(
       rawSpineZ: nearest.wz,
       targetX: state.smoothedSpineX,
       targetZ: state.smoothedSpineZ,
-      // Pass the ALIGNED tangent to debug so compass shows correct direction
+      // Pass the ALIGNED SMOOTHED tangent to debug so compass shows correct direction
       tangentX: alignedTx,
       tangentZ: alignedTz,
+      // Pass RAW tangent for position constraint (prevents lag-induced vibration at corners)
+      rawTangentX: state.committedSign > 0 ? tx : -tx,
+      rawTangentZ: state.committedSign > 0 ? tz : -tz,
       neighbor1X: endpoint1.wx,
       neighbor1Z: endpoint1.wz,
       neighbor2X: endpoint2.wx,
@@ -1017,9 +1035,10 @@ export function constrainMovementToTangent(
     return { x: newX, z: newZ };
   }
   
-  // Get tangent direction
-  const tangentX = magnetismDebug.tangentX;
-  const tangentZ = magnetismDebug.tangentZ;
+  // Use RAW tangent for position constraint (prevents lag-induced vibration at corners)
+  // The smoothed tangent is good for rotation alignment, but position needs instant direction
+  const tangentX = magnetismDebug.rawTangentX ?? magnetismDebug.tangentX;
+  const tangentZ = magnetismDebug.rawTangentZ ?? magnetismDebug.tangentZ;
   
   // Tangent must be valid
   const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ);
