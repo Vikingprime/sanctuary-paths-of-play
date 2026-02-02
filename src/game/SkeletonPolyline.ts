@@ -489,11 +489,12 @@ function detectCorners(points: Point2D[], angleThreshold: number = Math.PI / 4):
 }
 
 /**
- * Push corner points inward (toward center of turn).
- * This helps move the path away from outer corner walls.
+ * Push corner points inward (toward center of turn) or outward.
+ * Positive strength moves path toward inside of turns (away from outer walls).
+ * Negative strength moves path toward outside of turns (away from inner walls).
  */
 function pushCornersInward(points: Point2D[], strength: number): Point2D[] {
-  if (points.length < 3 || strength <= 0) return [...points];
+  if (points.length < 3 || strength === 0) return [...points];
   
   const result: Point2D[] = [...points];
   
@@ -667,9 +668,10 @@ export function buildSmoothedPolylines(
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
     
-    // Step 4: Push corner points inward (before smoothing)
-    // This moves the skeleton away from outer corners before any averaging
-    if (cfg.cornerPushStrength > 0) {
+    // Step 4: Push corner points inward/outward (before smoothing)
+    // Positive = toward center of turn (away from outer walls)
+    // Negative = toward outside of turn (away from inner walls)
+    if (cfg.cornerPushStrength !== 0) {
       points = pushCornersInward(points, cfg.cornerPushStrength * corridorWidth);
     }
     
