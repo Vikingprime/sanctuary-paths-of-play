@@ -20,7 +20,7 @@ import { Line } from '@react-three/drei';
 import { Maze } from '@/types/game';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from '@/game/MedialAxis';
 import { MagnetismTurnResult } from '@/game/CorridorMagnetism';
-import { buildSmoothedPolylines, buildRawPolylines, buildSmoothedControlPoints, PolylineGraph, Point2D } from '@/game/SkeletonPolyline';
+import { buildSmoothedPolylines, buildRawPolylines, buildSmoothedControlPoints, PolylineGraph, Point2D, DistanceField } from '@/game/SkeletonPolyline';
 import { PlayerState } from '@/game/GameLogic';
 
 // ============================================================================
@@ -105,18 +105,31 @@ export function MedialAxisVisualization({
     return result;
   }, [maze, visible, spurConfig]);
   
-  // Build smoothed polylines from skeleton (final resampled version)
-  const polylineGraph = useMemo<PolylineGraph | null>(() => {
+  // Build distance field for wall clearance enforcement
+  const distanceField = useMemo<DistanceField | null>(() => {
     if (!visible || !axisResult) return null;
+    return {
+      fineGrid: axisResult.fineGrid,
+      fineWidth: maze.grid[0]?.length * axisResult.scale || 0,
+      fineHeight: maze.grid.length * axisResult.scale,
+      fineCellSize: axisResult.fineCellSize,
+    };
+  }, [axisResult, maze, visible]);
+  
+  // Build smoothed polylines from skeleton (final resampled version with clearance)
+  const polylineGraph = useMemo<PolylineGraph | null>(() => {
+    if (!visible || !axisResult || !distanceField) return null;
     const fineWidth = maze.grid[0]?.length * axisResult.scale || 0;
     const fineHeight = maze.grid.length * axisResult.scale;
     return buildSmoothedPolylines(
       axisResult.fineGrid,
       fineWidth,
       fineHeight,
-      axisResult.fineCellSize
+      axisResult.fineCellSize,
+      undefined,
+      distanceField
     );
-  }, [axisResult, maze, visible]);
+  }, [axisResult, distanceField, maze, visible]);
   
   // Build raw polylines for debug comparison (original pixel-based)
   const rawPolylineGraph = useMemo<PolylineGraph | null>(() => {
