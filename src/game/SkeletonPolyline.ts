@@ -789,15 +789,24 @@ function enforceWallClearanceConstrained(
     current[current.length - 1] = { ...lastPoint };
   }
   
-  // Resample at fixed spacing to restore uniform density
-  if (resampleSpacing > 0 && current.length >= 2) {
-    current = resampleLinear(current, resampleSpacing);
-    
-    // Ensure endpoints are exact
-    if (current.length > 0) {
-      current[0] = { ...firstPoint };
-      current[current.length - 1] = { ...lastPoint };
+  // Final smoothing pass: Catmull-Rom to round the constrained corners
+  // This creates smooth curves through the pushed-out points
+  if (current.length >= 3) {
+    current = resampleCatmullRom(current, 4); // 4 samples per segment for smoothness
+  }
+  
+  // After Catmull-Rom, run one more constraint pass to ensure new interpolated points are safe
+  for (let i = 1; i < current.length - 1; i++) {
+    const dist = sampleDistance(current[i], distField);
+    if (dist < dMin) {
+      current[i] = constraintStep(current[i], dMin, distField, constraintSteps, stepWorld);
     }
+  }
+  
+  // Ensure endpoints are exact
+  if (current.length > 0) {
+    current[0] = { ...firstPoint };
+    current[current.length - 1] = { ...lastPoint };
   }
   
   // Add clearance state for debug visualization (FINAL state after constraint)
