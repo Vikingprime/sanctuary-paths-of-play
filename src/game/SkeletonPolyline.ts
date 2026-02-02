@@ -578,6 +578,104 @@ function applyJunctionPull(
 }
 
 // ============================================================================
+// JUNCTION CORNER ROUNDING
+// ============================================================================
+
+/**
+ * Round sharp corners at segment endpoints (junctions) by replacing
+ * the exact endpoint with a Bezier-style curve.
+ * 
+ * This fixes the issue where Chaikin preserves segment endpoints,
+ * creating sharp corners at junctions.
+ */
+function roundJunctionCorner(
+  points: Point2D[],
+  isStartJunction: boolean,
+  isEndJunction: boolean,
+  roundingRadius: number
+): Point2D[] {
+  if (points.length < 3) return [...points];
+  
+  const result: Point2D[] = [];
+  
+  // Round start if it's a junction
+  if (isStartJunction && points.length >= 3) {
+    const p0 = points[0]; // The sharp corner point
+    const p1 = points[1];
+    const p2 = points[2];
+    
+    // Find distance to use for curve
+    const d1 = Math.sqrt((p1.x - p0.x) ** 2 + (p1.z - p0.z) ** 2);
+    const curveLen = Math.min(roundingRadius, d1 * 0.4);
+    
+    if (curveLen > 0.01) {
+      // Direction from corner to next point
+      const dirX = (p1.x - p0.x) / d1;
+      const dirZ = (p1.z - p0.z) / d1;
+      
+      // Create bezier-like curve points
+      // Start slightly away from corner
+      const startOffset = curveLen * 0.3;
+      result.push({
+        x: p0.x + dirX * startOffset,
+        z: p0.z + dirZ * startOffset,
+      });
+      result.push({
+        x: p0.x + dirX * curveLen * 0.6,
+        z: p0.z + dirZ * curveLen * 0.6,
+      });
+      result.push({
+        x: p0.x + dirX * curveLen,
+        z: p0.z + dirZ * curveLen,
+      });
+    } else {
+      result.push(p0);
+    }
+  } else {
+    result.push(points[0]);
+  }
+  
+  // Add middle points
+  for (let i = 1; i < points.length - 1; i++) {
+    result.push(points[i]);
+  }
+  
+  // Round end if it's a junction
+  if (isEndJunction && points.length >= 3) {
+    const pN = points[points.length - 1]; // The sharp corner point
+    const pN1 = points[points.length - 2];
+    
+    const d1 = Math.sqrt((pN1.x - pN.x) ** 2 + (pN1.z - pN.z) ** 2);
+    const curveLen = Math.min(roundingRadius, d1 * 0.4);
+    
+    if (curveLen > 0.01) {
+      const dirX = (pN1.x - pN.x) / d1;
+      const dirZ = (pN1.z - pN.z) / d1;
+      
+      // Insert curve points before the end
+      result.push({
+        x: pN.x + dirX * curveLen,
+        z: pN.z + dirZ * curveLen,
+      });
+      result.push({
+        x: pN.x + dirX * curveLen * 0.6,
+        z: pN.z + dirZ * curveLen * 0.6,
+      });
+      result.push({
+        x: pN.x + dirX * curveLen * 0.3,
+        z: pN.z + dirZ * curveLen * 0.3,
+      });
+    } else {
+      result.push(pN);
+    }
+  } else {
+    result.push(points[points.length - 1]);
+  }
+  
+  return result;
+}
+
+// ============================================================================
 // WALL DISTANCE ENFORCEMENT WITH SMOOTHING
 // ============================================================================
 
@@ -792,14 +890,22 @@ export function buildSmoothedPolylines(
     return null;
   };
   
-  // Steps 3-6: Simplify, junction-pull, smooth, resample, then gentle wall-push
+  // Steps 3-7: Simplify, junction corner rounding, smooth, resample, wall-push
   const smoothedSegments: PolylineSegment[] = rawSegments.map(segment => {
     // Step 3: RDP simplification - get corner structure
     let points = cfg.rdpEpsilon > 0 
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
     
-    // Step 4: Junction pull - bias toward junction centers (not inside corners)
+    // Step 4: Round junction corners BEFORE smoothing
+    // This replaces the sharp junction point with a mini-curve
+    const isStartJunction = !segment.startIsEndpoint;
+    const isEndJunction = !segment.endIsEndpoint;
+    if (isStartJunction || isEndJunction) {
+      points = roundJunctionCorner(points, isStartJunction, isEndJunction, corridorWidth * 0.5);
+    }
+    
+    // Step 5: Junction pull - bias toward junction centers (not inside corners)
     if (cfg.junctionPullStrength > 0 && points.length >= 3) {
       const startJunction = segment.startIsEndpoint ? null : findJunction(segment.points[0]);
       const endJunction = segment.endIsEndpoint ? null : findJunction(segment.points[segment.points.length - 1]);
@@ -815,18 +921,17 @@ export function buildSmoothedPolylines(
       }
     }
     
-    // Step 5: Chaikin smoothing - rounds the sharp corners
+    // Step 6: Chaikin smoothing - rounds the sharp corners
     points = chaikinSmooth(points, cfg.chaikinIterations, cfg.preserveEndpoints);
     
-    // Step 6: Catmull-Rom resampling - creates smooth interpolated curve
+    // Step 7: Catmull-Rom resampling - creates smooth interpolated curve
     if (cfg.useCatmullRom && points.length >= 2) {
       points = resampleCatmullRom(points, cfg.catmullRomSamplesPerPoint);
     } else if (cfg.resampleSpacing > 0) {
       points = resampleLinear(points, cfg.resampleSpacing);
     }
     
-    // Step 7: Single gentle wall-push - just nudge points that are too close
-    // Don't iterate, just do one pass to avoid oscillation
+    // Step 8: Single gentle wall-push - just nudge points that are too close
     if (cfg.minWallDistance > 0) {
       points = enforceWallDistance(points, fineGrid, fineCellSize, cfg.minWallDistance * 0.6);
     }
