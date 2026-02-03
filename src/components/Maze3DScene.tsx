@@ -1219,92 +1219,50 @@ const RefBasedPlayer = ({
           moveSpeedRef.current = 0;
           onRailMoveComplete?.();
         } else {
-          // === ARC-LENGTH TRAVERSAL: Move along the path curve itself ===
-          // Instead of moving toward waypoints (which creates zigzag), 
-          // advance a fractional path index and interpolate between path points
-          
+          // === SIMPLE PATH FOLLOWING: Move directly along path points ===
           const RAIL_SPEED = 2.5; // World units per second
           const moveSpeed = RAIL_SPEED * clampedDelta;
           
-          // Calculate distance to next path point
-          const currentPt = path[pathIdx];
-          const nextPt = path[Math.min(pathIdx + 1, path.length - 1)];
-          const segmentDx = nextPt.x - currentPt.x;
-          const segmentDz = nextPt.z - currentPt.z;
-          const segmentLen = Math.sqrt(segmentDx * segmentDx + segmentDz * segmentDz);
+          // Move toward the next path point
+          const dirX = dx / dist;
+          const dirZ = dz / dist;
+          const moveDist = Math.min(moveSpeed, dist);
+          const newX = player.x + dirX * moveDist;
+          const newZ = player.y + dirZ * moveDist;
           
-          // Use a fractional index for smooth interpolation
-          if (!railFractionalIndexRef) {
-            // Fallback if ref not available
-            railPathIndexRef.current = pathIdx + 1;
+          // Calculate tangent from path points for smooth rotation
+          const tangentBehindIdx = Math.max(0, pathIdx - 3);
+          const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 5);
+          const behindPt = path[tangentBehindIdx];
+          const aheadPt = path[tangentAheadIdx];
+          
+          const tangentDx = aheadPt.x - behindPt.x;
+          const tangentDz = aheadPt.z - behindPt.z;
+          const tangentLen = Math.sqrt(tangentDx * tangentDx + tangentDz * tangentDz);
+          
+          // Calculate visual angle from tangent
+          let visualAngle: number;
+          if (tangentLen > 0.01) {
+            visualAngle = Math.atan2(tangentDx, tangentDz);
           } else {
-            // Advance fractional index based on speed and segment length
-            const fractionalAdvance = segmentLen > 0.001 ? moveSpeed / segmentLen : 1;
-            railFractionalIndexRef.current = (railFractionalIndexRef.current ?? pathIdx) + fractionalAdvance;
-            
-            // Clamp to path bounds
-            const maxIdx = path.length - 1;
-            if (railFractionalIndexRef.current >= maxIdx) {
-              railFractionalIndexRef.current = maxIdx;
-            }
-            
-            // Update integer index for waypoint tracking
-            const newPathIdx = Math.floor(railFractionalIndexRef.current);
-            if (newPathIdx !== pathIdx) {
-              railPathIndexRef.current = newPathIdx;
-            }
-            
-            // Interpolate position between path points
-            const t = railFractionalIndexRef.current - newPathIdx;
-            const p0 = path[newPathIdx];
-            const p1 = path[Math.min(newPathIdx + 1, maxIdx)];
-            const newX = p0.x + (p1.x - p0.x) * t;
-            const newZ = p0.z + (p1.z - p0.z) * t;
-            
-            // Calculate tangent from adjacent path points for rotation
-            const tangentBehindIdx = Math.max(0, newPathIdx - 2);
-            const tangentAheadIdx = Math.min(maxIdx, newPathIdx + 3);
-            const behindPt = path[tangentBehindIdx];
-            const aheadPt = path[tangentAheadIdx];
-            
-            const tangentDx = aheadPt.x - behindPt.x;
-            const tangentDz = aheadPt.z - behindPt.z;
-            const tangentLen = Math.sqrt(tangentDx * tangentDx + tangentDz * tangentDz);
-            
-            // Calculate the visual angle (what the mesh should face)
-            let visualAngle: number;
-            if (tangentLen > 0.01) {
-              visualAngle = Math.atan2(tangentDx, tangentDz);
-            } else {
-              visualAngle = Math.atan2(p1.x - p0.x, p1.z - p0.z);
-            }
-            
-            // Convert visual angle to player rotation
-            let targetRotation = -visualAngle + Math.PI;
-            while (targetRotation < 0) targetRotation += Math.PI * 2;
-            while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
-            
-            // Apply position directly on the path curve
-            playerStateRef.current = {
-              x: newX,
-              y: newZ,
-              rotation: targetRotation,
-            };
-            
-            // Check if reached end
-            if (railFractionalIndexRef.current >= maxIdx - 0.01) {
-              railPathRef.current = [];
-              railPathIndexRef.current = 0;
-              railFractionalIndexRef.current = 0;
-              isMovingRef.current = false;
-              moveSpeedRef.current = 0;
-              onRailMoveComplete?.();
-            } else {
-              isMovingRef.current = true;
-              isTurningRef.current = false;
-              moveSpeedRef.current = 0.8;
-            }
+            visualAngle = Math.atan2(dx, dz);
           }
+          
+          // Convert to player rotation
+          let targetRotation = -visualAngle + Math.PI;
+          while (targetRotation < 0) targetRotation += Math.PI * 2;
+          while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
+          
+          // Apply position and rotation directly
+          playerStateRef.current = {
+            x: newX,
+            y: newZ,
+            rotation: targetRotation,
+          };
+          
+          isMovingRef.current = true;
+          isTurningRef.current = false;
+          moveSpeedRef.current = 0.8;
         }
         
         // Skip normal movement processing in rail mode
@@ -1489,8 +1447,9 @@ const RefBasedPlayer = ({
       } // End of else block for normal movement (non-rail mode)
       
       // === MAGNETISM: Calculate turn-based corridor alignment ===
+      // Skip magnetism in rail mode - the path already defines exact movement
       // Always calculate for debug visualization, but only apply correction when moving
-      if (magnetismConfig?.enabled && magnetismCacheRef.current) {
+      if (!railMode && magnetismConfig?.enabled && magnetismCacheRef.current) {
         const config = magnetismConfig || DEFAULT_MAGNETISM_CONFIG;
         const player = playerStateRef.current;
         
