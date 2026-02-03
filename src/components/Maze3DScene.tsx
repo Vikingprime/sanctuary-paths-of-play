@@ -1239,20 +1239,30 @@ const RefBasedPlayer = ({
           // Base turn speed in radians per second
           const BASE_TURN_SPEED = 3.0;
           
-          // Turn rate cap system: limit forward velocity to keep turn rate below cap
-          // Formula: requiredTurnRate = curveAngle * velocity / pathArcLength
-          // Simplified: if following the path at current speed requires turning faster than cap,
-          // reduce velocity proportionally
+          // Turn rate cap system: limit forward velocity based on ALIGNMENT with path tangent
+          // When misaligned from the path direction, reduce velocity until turn is complete
           const config = magnetismConfig || DEFAULT_MAGNETISM_CONFIG;
-          if (config.turnRateCapEnabled && curveCheck.curveAngle > 0.01) {
-            // Calculate the required turn rate to follow the path at current velocity
-            // Turn rate needed = curve_angle * velocity (approximation for arc following)
-            // If requiredTurnRate > cap, reduce velocity: newVelocity = cap / curve_angle
-            const requiredTurnRate = curveCheck.curveAngle * moveSpeed * 2.5; // Scale by base speed
-            if (requiredTurnRate > config.turnRateCap) {
-              // Reduce moveSpeed to keep turn rate at cap
-              moveSpeed = config.turnRateCap / (curveCheck.curveAngle * 2.5);
-              moveSpeed = Math.max(0.1, Math.min(moveSpeed, Math.abs(joyY))); // Clamp to [0.1, original]
+          if (config.turnRateCapEnabled && magnetismConfig?.strength >= 9.9 && curveCheck.tangentAngle !== 0) {
+            // Calculate animal's facing direction (visual rotation matches what we use for magnetism)
+            const animalFacing = -playerStateRef.current.rotation + Math.PI;
+            
+            // Calculate alignment difference between animal facing and path tangent
+            // Need to handle both directions of the tangent (path can be traveled either way)
+            let alignmentDiff = Math.abs(normalizeAngle(animalFacing - curveCheck.tangentAngle));
+            const reverseAlignmentDiff = Math.abs(normalizeAngle(animalFacing - curveCheck.tangentAngle + Math.PI));
+            alignmentDiff = Math.min(alignmentDiff, reverseAlignmentDiff);
+            
+            // If animal is misaligned from path, reduce velocity
+            // At 0 misalignment: full speed. At 90° misalignment: minimum speed.
+            const ALIGNMENT_THRESHOLD = 0.3; // ~17 degrees - below this is considered "aligned"
+            const MAX_MISALIGNMENT = Math.PI / 2; // 90 degrees - at this point, nearly stopped
+            
+            if (alignmentDiff > ALIGNMENT_THRESHOLD) {
+              // Linear reduction from 1.0 at threshold to 0.15 at MAX_MISALIGNMENT
+              const misalignmentFactor = Math.min(1, (alignmentDiff - ALIGNMENT_THRESHOLD) / (MAX_MISALIGNMENT - ALIGNMENT_THRESHOLD));
+              const velocityMultiplier = 1.0 - (misalignmentFactor * 0.85); // Range: 1.0 to 0.15
+              moveSpeed *= velocityMultiplier;
+              moveSpeed = Math.max(0.1, moveSpeed); // Never fully stop
             }
           }
           
