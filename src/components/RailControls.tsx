@@ -164,16 +164,11 @@ export function findAvailableDirections(
   if (!cache?.polylineGraph) return [];
   
   const { polylineGraph } = cache;
-  const directions: DirectionOption[] = [];
+  const rawDirections: DirectionOption[] = [];
   
   // Helper to classify angle relative to camera (screen orientation)
-  // In this game, we use a fixed top-down or isometric camera where:
-  // - "forward" arrow = moving away from camera (typically +Z or based on camera angle)
-  // - We'll classify based on world angles for now (north/south/east/west style)
   const classifyWorldDirection = (targetAngle: number): 'forward' | 'left' | 'right' | 'back' => {
-    // Use camera yaw to determine relative direction
     let relativeAngle = targetAngle - cameraYaw;
-    // Normalize to [-PI, PI]
     while (relativeAngle > Math.PI) relativeAngle -= 2 * Math.PI;
     while (relativeAngle < -Math.PI) relativeAngle += 2 * Math.PI;
     
@@ -185,7 +180,6 @@ export function findAvailableDirections(
   
   // At a junction - find all connected segments
   if (position.atJunction) {
-    // Find the junction point
     let junctionPoint: Point2D | null = null;
     for (const junction of polylineGraph.junctions) {
       const dx = position.x - junction.x;
@@ -197,31 +191,26 @@ export function findAvailableDirections(
     }
     
     if (junctionPoint) {
-      // Find all segments that connect to this junction
       for (let segIdx = 0; segIdx < polylineGraph.segments.length; segIdx++) {
         const seg = polylineGraph.segments[segIdx];
         const firstPt = seg.points[0];
         const lastPt = seg.points[seg.points.length - 1];
         
-        // Check if segment starts at this junction
         const firstDist = Math.sqrt((firstPt.x - junctionPoint.x) ** 2 + (firstPt.z - junctionPoint.z) ** 2);
         if (firstDist < 0.5) {
-          // Segment starts here - direction is toward end
           const targetPt = lastPt;
-          // Look at a point a bit down the segment for direction
           const lookAheadIdx = Math.min(10, seg.points.length - 1);
           const lookAheadPt = seg.points[lookAheadIdx];
           const dirX = lookAheadPt.x - firstPt.x;
           const dirZ = lookAheadPt.z - firstPt.z;
           const angle = Math.atan2(dirX, dirZ);
           
-          // Include current position as first point for smooth start
           const pathWithStart: Point2D[] = [
             { x: junctionPoint.x, z: junctionPoint.z },
             ...seg.points
           ];
           
-          directions.push({
+          rawDirections.push({
             label: classifyWorldDirection(angle),
             direction: classifyWorldDirection(angle),
             angle,
@@ -232,25 +221,21 @@ export function findAvailableDirections(
           });
         }
         
-        // Check if segment ends at this junction (separately, as it could be both)
         const lastDist = Math.sqrt((lastPt.x - junctionPoint.x) ** 2 + (lastPt.z - junctionPoint.z) ** 2);
         if (lastDist < 0.5 && firstDist >= 0.5) {
-          // Segment ends here (and doesn't start here) - direction is toward start
           const targetPt = firstPt;
-          // Look at a point a bit back from the end for direction
           const lookBackIdx = Math.max(0, seg.points.length - 11);
           const lookBackPt = seg.points[lookBackIdx];
           const dirX = lookBackPt.x - lastPt.x;
           const dirZ = lookBackPt.z - lastPt.z;
           const angle = Math.atan2(dirX, dirZ);
           
-          // Include current position as first point for smooth start
           const pathWithStart: Point2D[] = [
             { x: junctionPoint.x, z: junctionPoint.z },
             ...[...seg.points].reverse()
           ];
           
-          directions.push({
+          rawDirections.push({
             label: classifyWorldDirection(angle),
             direction: classifyWorldDirection(angle),
             angle,
@@ -270,7 +255,6 @@ export function findAvailableDirections(
     const points = segment.points;
     const ptIdx = position.pointIndex;
     
-    // Forward direction (toward end of segment)
     if (ptIdx < points.length - 1) {
       const targetPt = points[points.length - 1];
       const lookAheadIdx = Math.min(ptIdx + 10, points.length - 1);
@@ -279,13 +263,12 @@ export function findAvailableDirections(
       const dirZ = lookAheadPt.z - position.z;
       const angle = Math.atan2(dirX, dirZ);
       
-      // Include current position as first point for smooth start
       const pathWithStart: Point2D[] = [
         { x: position.x, z: position.z },
         ...points.slice(ptIdx)
       ];
       
-      directions.push({
+      rawDirections.push({
         label: 'Forward',
         direction: classifyWorldDirection(angle),
         angle,
@@ -296,7 +279,6 @@ export function findAvailableDirections(
       });
     }
     
-    // Backward direction (toward start of segment)
     if (ptIdx > 0) {
       const targetPt = points[0];
       const lookBackIdx = Math.max(0, ptIdx - 10);
@@ -305,13 +287,12 @@ export function findAvailableDirections(
       const dirZ = lookBackPt.z - position.z;
       const angle = Math.atan2(dirX, dirZ);
       
-      // Include current position as first point for smooth start
       const pathWithStart: Point2D[] = [
         { x: position.x, z: position.z },
         ...points.slice(0, ptIdx + 1).reverse()
       ];
       
-      directions.push({
+      rawDirections.push({
         label: 'Backward',
         direction: classifyWorldDirection(angle),
         angle,
@@ -323,7 +304,32 @@ export function findAvailableDirections(
     }
   }
   
-  return directions;
+  // Deduplicate directions by angle - merge paths within 30 degrees
+  const ANGLE_THRESHOLD = Math.PI / 6; // 30 degrees
+  const deduped: DirectionOption[] = [];
+  
+  for (const dir of rawDirections) {
+    let isDuplicate = false;
+    for (const existing of deduped) {
+      let angleDiff = Math.abs(dir.angle - existing.angle);
+      if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+      
+      if (angleDiff < ANGLE_THRESHOLD) {
+        // Keep the one with more path points (longer path)
+        if (dir.pathPoints.length > existing.pathPoints.length) {
+          const idx = deduped.indexOf(existing);
+          deduped[idx] = dir;
+        }
+        isDuplicate = true;
+        break;
+      }
+    }
+    if (!isDuplicate) {
+      deduped.push(dir);
+    }
+  }
+  
+  return deduped;
 }
 
 // ============================================================================
