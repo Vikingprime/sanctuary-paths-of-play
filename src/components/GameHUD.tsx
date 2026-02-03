@@ -1034,13 +1034,13 @@ export const GameHUD = ({
                   <div className="flex justify-between text-[10px]">
                     <span>Turn Rate Cap:</span>
                     <span className={cn(
-                      !magnetismConfig.turnRateCapEnabled
+                      !(magnetismConfig.turnRateCapEnabled ?? true)
                         ? 'text-gray-500'
-                        : magnetismConfig.turnRateCap !== 2.0 
+                        : (magnetismConfig.turnRateCap ?? 2.0) !== 2.0 
                           ? 'text-orange-400' 
                           : 'text-cyan-400'
                     )}>
-                      {magnetismConfig.turnRateCapEnabled ? `${magnetismConfig.turnRateCap.toFixed(1)} rad/s` : 'OFF'}
+                      {(magnetismConfig.turnRateCapEnabled ?? true) ? `${(magnetismConfig.turnRateCap ?? 2.0).toFixed(1)} rad/s` : 'OFF'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1063,7 +1063,7 @@ export const GameHUD = ({
                         ...magnetismConfig,
                         turnRateCap: parseFloat(e.target.value)
                       })}
-                      disabled={!magnetismConfig.turnRateCapEnabled}
+                      disabled={!(magnetismConfig.turnRateCapEnabled ?? true)}
                       className="flex-1 h-1 bg-gray-700 rounded appearance-none cursor-pointer disabled:opacity-50"
                     />
                   </div>
