@@ -1529,11 +1529,11 @@ const RefBasedPlayer = ({
     }
     
     // Smooth position with mode-aware lerp factor
-    // Rail mode: tight position lock to prevent jitter
+    // Rail mode: instant position snap to eliminate all lag/jitter
     // Joystick mode: gentle smoothing for natural movement
     const targetX = playerStateRef.current.x;
     const targetZ = playerStateRef.current.y;
-    const posLerpFactor = railMode ? 0.9 : 0.3;
+    const posLerpFactor = railMode ? 1.0 : 0.3;
     smoothPositionX.current += (targetX - smoothPositionX.current) * posLerpFactor;
     smoothPositionZ.current += (targetZ - smoothPositionZ.current) * posLerpFactor;
     
