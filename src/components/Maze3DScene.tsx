@@ -1263,14 +1263,14 @@ const RefBasedPlayer = ({
           const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
           
           // Apply tangent constraint at high magnetism strength (locks movement to corridor direction)
-          // Uses previous frame's magnetism data since current frame hasn't calculated yet
+          // Now uses fresh polyline lookup with current position (no frame lag)
           const magnetStrength = magnetismConfig?.enabled ? (magnetismConfig.strength ?? 5) : 0;
           const constrained = constrainMovementToTangent(
             prev.x,
             prev.y,
             newState.x,
             newState.y,
-            magnetismDebugRef?.current ?? null,
+            magnetismCacheRef.current,              // Pass cache for fresh lookup
             magnetStrength,
             newState.rotation,                      // Pass current rotation
             DEFAULT_MAGNETISM_CONFIG.frontOffset    // Pass front offset (0.35)
