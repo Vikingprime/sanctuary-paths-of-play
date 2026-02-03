@@ -1236,12 +1236,24 @@ export function constrainMovementToTangent(
   const targetX = magnetismDebug.rawSpineX ?? magnetismDebug.spineX;
   const targetZ = magnetismDebug.rawSpineZ ?? magnetismDebug.spineZ;
   
-  // At full magnetism (10), the front point should be EXACTLY on the polyline.
-  // Calculate the full offset needed to place front at target.
-  const offsetX = targetX - frontX;
-  const offsetZ = targetZ - frontZ;
+  // Vector from front to target polyline point
+  const toTargetX = targetX - frontX;
+  const toTargetZ = targetZ - frontZ;
   
-  // Apply offset to animal center (moves the whole animal so front lands on polyline)
+  // Project this offset onto the ANIMAL's lateral axis (perpendicular to facing).
+  // This way we correct lateral drift fully, but never fight forward/backward movement.
+  // Animal's lateral (right) direction: perpendicular to facing = (facingZ, -facingX)
+  const lateralX = facingZ;
+  const lateralZ = -facingX;
+  
+  // Dot product gives how far off-center the front is (laterally)
+  const lateralDist = toTargetX * lateralX + toTargetZ * lateralZ;
+  
+  // Apply ONLY the lateral correction (perpendicular to animal facing)
+  const offsetX = lateralDist * lateralX;
+  const offsetZ = lateralDist * lateralZ;
+  
+  // Apply offset to animal center
   const constrainedX = newX + offsetX;
   const constrainedZ = newZ + offsetZ;
   
