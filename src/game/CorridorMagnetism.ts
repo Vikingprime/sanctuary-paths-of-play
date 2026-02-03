@@ -1251,6 +1251,16 @@ export function filterTargetPoint(
   return { x: state.targetX, z: state.targetZ };
 }
 
+/** Result of constraint calculation including tangent for rotation */
+export interface ConstrainResult {
+  x: number;
+  z: number;
+  /** Tangent angle of the polyline at this position (radians, for rotation alignment) */
+  tangentAngle: number | null;
+  /** Whether a valid tangent was found */
+  hasTangent: boolean;
+}
+
 /**
  * Constrain the animal's position so the front sensing point stays ON the polyline.
  * At full magnetism strength (10), only the LATERAL offset is corrected - the animal
@@ -1262,7 +1272,7 @@ export function filterTargetPoint(
  * @param newZ New Z position (after movement calculation)
  * @param magnetismDebug Debug info from magnetism calculation (contains front point, spine, and tangent)
  * @param strength Magnetism strength (0-10, where 10 = full lock to polyline)
- * @returns Constrained position { x, z }
+ * @returns Constrained position { x, z } and tangent angle for rotation
  */
 export function constrainMovementToTangent(
   prevX: number,
@@ -1273,11 +1283,11 @@ export function constrainMovementToTangent(
   strength: number,
   playerRotation: number,    // Current player rotation (to calculate fresh front point)
   frontOffset: number        // Distance from center to front sensing point
-): { x: number; z: number } {
+): ConstrainResult {
   
   // Only apply constraint at high strength and when cache is available
   if (!cache || strength < 9.9) {
-    return { x: newX, z: newZ };
+    return { x: newX, z: newZ, tangentAngle: null, hasTangent: false };
   }
   
   // Calculate CURRENT front point from the NEW position
@@ -1291,12 +1301,12 @@ export function constrainMovementToTangent(
   const nearest = findNearestPolylinePoint(frontX, frontZ, cache, 4.0, 5);
   
   if (!nearest) {
-    return { x: newX, z: newZ };
+    return { x: newX, z: newZ, tangentAngle: null, hasTangent: false };
   }
   
   // Skip if at junction (let player move freely at intersections)
   if (nearest.isSuppressed) {
-    return { x: newX, z: newZ };
+    return { x: newX, z: newZ, tangentAngle: null, hasTangent: false };
   }
   
   // The target is the exact nearest point on the polyline
@@ -1320,12 +1330,19 @@ export function constrainMovementToTangent(
     return {
       x: newX + (constrainedX - newX) * lockBlend,
       z: newZ + (constrainedZ - newZ) * lockBlend,
+      tangentAngle: null,
+      hasTangent: false,
     };
   }
   
   // Normalize tangent
   const tanX = tx / tangentLen;
   const tanZ = tz / tangentLen;
+  
+  // Calculate tangent angle for rotation alignment
+  // The tangent points along the path - we need to convert to rotation angle
+  // atan2(tanX, tanZ) gives the angle where tanX is the "forward" X component
+  const tangentAngle = Math.atan2(tanX, tanZ);
   
   // PATH's perpendicular direction (the lateral axis of the corridor)
   const perpX = -tanZ;
@@ -1349,5 +1366,7 @@ export function constrainMovementToTangent(
   return {
     x: newX + (constrainedX - newX) * lockBlend,
     z: newZ + (constrainedZ - newZ) * lockBlend,
+    tangentAngle,
+    hasTangent: true,
   };
 }
