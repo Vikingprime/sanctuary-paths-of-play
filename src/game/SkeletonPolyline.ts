@@ -724,8 +724,8 @@ export function buildSmoothedPolylines(
   const cfg: PolylineConfig = {
     // RDP epsilon: 15% of corridor width to extract true corner points
     rdpEpsilon: config?.rdpEpsilon ?? (0.15 * corridorWidth), // ~0.3 world units
-    chaikinIterations: config?.chaikinIterations ?? 4, // 4 iterations for good rounding
-    chaikinCornerExtraIterations: config?.chaikinCornerExtraIterations ?? 0, // Extra iterations at corners
+    chaikinIterations: config?.chaikinIterations ?? 1, // 1 iteration for minimal rounding
+    chaikinCornerExtraIterations: config?.chaikinCornerExtraIterations ?? 0, // No extra iterations
     preserveEndpoints: config?.preserveEndpoints ?? 1,
     resampleSpacing: config?.resampleSpacing ?? (0.05 * corridorWidth), // ~0.1 world units
     useCatmullRom: config?.useCatmullRom ?? true,
