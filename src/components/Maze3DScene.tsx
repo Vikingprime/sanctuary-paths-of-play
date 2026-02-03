@@ -26,6 +26,8 @@ import {
   buildMagnetismCache, 
   calculateMagnetismTurn,
   constrainMovementToTangent,
+  findNearestPolylinePoint,
+  PolylineNearestResult,
 } from '@/game/CorridorMagnetism';
 
 // Re-export for backward compatibility
@@ -1225,25 +1227,36 @@ const RefBasedPlayer = ({
           const newX = player.x + dirX * moveDist;
           const newZ = player.y + dirZ * moveDist;
           
-          // Calculate target rotation from path tangent (look ahead a few points for smoother rotation)
-          // Use the direction between current point and a point a few steps ahead
-          const lookAheadIdx = Math.min(pathIdx + 5, path.length - 1);
-          const lookAheadPoint = path[lookAheadIdx];
-          const tangentDx = lookAheadPoint.x - player.x;
-          const tangentDz = lookAheadPoint.z - player.y;
-          const tangentDist = Math.sqrt(tangentDx * tangentDx + tangentDz * tangentDz);
-          
+          // Get the polyline tangent at the NEW position for precise rotation alignment
+          // This ensures the animal's rotation matches the actual polyline direction
           let targetRotation: number;
-          if (tangentDist > 0.01) {
-            targetRotation = Math.atan2(tangentDx, tangentDz);
+          const nearest = magnetismCacheRef.current 
+            ? findNearestPolylinePoint(newX, newZ, magnetismCacheRef.current, 4.0, 8)
+            : null;
+          
+          if (nearest && Math.sqrt(nearest.tx * nearest.tx + nearest.tz * nearest.tz) > 0.01) {
+            // Use the polyline tangent for rotation
+            const tangentAngle = Math.atan2(nearest.tx, nearest.tz);
+            
+            // Make sure tangent points in the direction of travel (not backwards)
+            const travelAngle = Math.atan2(dx, dz);
+            const angleDiffToTravel = normalizeAngle(tangentAngle - travelAngle);
+            
+            if (Math.abs(angleDiffToTravel) > Math.PI / 2) {
+              // Tangent is pointing backwards, flip it
+              targetRotation = normalizeAngle(tangentAngle + Math.PI);
+            } else {
+              targetRotation = tangentAngle;
+            }
           } else {
+            // Fallback to travel direction
             targetRotation = Math.atan2(dx, dz);
           }
           
           // Smoothly rotate toward target tangent
           const currentRotation = player.rotation;
           const angleDiff = normalizeAngle(targetRotation - currentRotation);
-          const TURN_SPEED = 5.0; // Fast turning for rail mode
+          const TURN_SPEED = 6.0; // Fast turning for rail mode
           const maxTurn = TURN_SPEED * clampedDelta;
           
           let newRotation: number;
