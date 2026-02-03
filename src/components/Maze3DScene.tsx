@@ -1265,6 +1265,8 @@ const RefBasedPlayer = ({
           // Apply tangent constraint at high magnetism strength (locks movement to corridor direction)
           // Now uses fresh polyline lookup with current position (no frame lag)
           const magnetStrength = magnetismConfig?.enabled ? (magnetismConfig.strength ?? 5) : 0;
+          // Use VISUAL rotation (same as magnetism debug) to match where the animal visually faces
+          const constraintVisualRotation = -newState.rotation + Math.PI;
           const constrained = constrainMovementToTangent(
             prev.x,
             prev.y,
@@ -1272,7 +1274,7 @@ const RefBasedPlayer = ({
             newState.y,
             magnetismCacheRef.current,              // Pass cache for fresh lookup
             magnetStrength,
-            newState.rotation,                      // Pass current rotation
+            constraintVisualRotation,               // Use visual rotation (matches debug markers)
             DEFAULT_MAGNETISM_CONFIG.frontOffset    // Pass front offset (0.35)
           );
           
