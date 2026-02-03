@@ -30,6 +30,20 @@ export interface Point2D {
   z: number;
 }
 
+/** Connection from a junction to a segment */
+export interface JunctionConnection {
+  /** Index of the connected segment in PolylineGraph.segments */
+  segmentIndex: number;
+  /** True if segment.points[0] connects to this junction, false if segment.points[last] does */
+  atStart: boolean;
+}
+
+/** A junction point with its connected segments */
+export interface Junction extends Point2D {
+  /** Segments that connect to this junction */
+  connections: JunctionConnection[];
+}
+
 /** A polyline segment connecting endpoints or junctions */
 export interface PolylineSegment {
   /** Ordered list of points from one end to the other */
@@ -44,8 +58,8 @@ export interface PolylineSegment {
 export interface PolylineGraph {
   /** All polyline segments */
   segments: PolylineSegment[];
-  /** Junction points (degree >= 3) */
-  junctions: Point2D[];
+  /** Junction points (degree >= 3) with connectivity info */
+  junctions: Junction[];
   /** Endpoint positions (degree 1) */
   endpoints: Point2D[];
 }
@@ -151,11 +165,11 @@ function buildSkeletonGraph(
 function extractPolylineSegments(
   graph: Map<string, SkeletonNode>,
   fineCellSize: number
-): { segments: PolylineSegment[]; junctions: Point2D[]; endpoints: Point2D[] } {
+): { segments: PolylineSegment[]; junctions: Junction[]; endpoints: Point2D[] } {
   const segments: PolylineSegment[] = [];
   const visitedEdges = new Set<string>();
   
-  const junctions: Point2D[] = [];
+  const junctions: Junction[] = [];
   const endpoints: Point2D[] = [];
   
   // Convert grid coords to world space
@@ -172,7 +186,8 @@ function extractPolylineSegments(
     if (node.degree === 1) {
       endpoints.push(toWorld(node.fx, node.fy));
     } else if (node.degree >= 3) {
-      junctions.push(toWorld(node.fx, node.fy));
+      const pt = toWorld(node.fx, node.fy);
+      junctions.push({ x: pt.x, z: pt.z, connections: [] });
     }
   }
   
@@ -225,6 +240,25 @@ function extractPolylineSegments(
           startIsEndpoint: startNode.degree === 1,
           endIsEndpoint: currNode ? currNode.degree === 1 : false,
         });
+      }
+    }
+  }
+  
+  // Compute junction connectivity - link each junction to its connected segments
+  const JUNCTION_MATCH_THRESHOLD = 0.1; // World units - tight threshold for exact matches
+  for (const junction of junctions) {
+    for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+      const seg = segments[segIdx];
+      const firstPt = seg.points[0];
+      const lastPt = seg.points[seg.points.length - 1];
+      
+      const firstDistSq = (firstPt.x - junction.x) ** 2 + (firstPt.z - junction.z) ** 2;
+      const lastDistSq = (lastPt.x - junction.x) ** 2 + (lastPt.z - junction.z) ** 2;
+      
+      if (firstDistSq < JUNCTION_MATCH_THRESHOLD ** 2) {
+        junction.connections.push({ segmentIndex: segIdx, atStart: true });
+      } else if (lastDistSq < JUNCTION_MATCH_THRESHOLD ** 2) {
+        junction.connections.push({ segmentIndex: segIdx, atStart: false });
       }
     }
   }
