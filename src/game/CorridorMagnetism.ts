@@ -45,6 +45,12 @@ export interface MagnetismConfig {
   enabled: boolean;
   /** Maximum turn rate limit (radians per second) - caps how fast correction can change */
   maxTurnRate: number;
+  /** Enable turn speed capping at sharp curves - limits turn rate to slow down through turns */
+  curveTurnCapEnabled: boolean;
+  /** Curve angle threshold in degrees for turn cap (default 70) */
+  curveTurnCapThreshold: number;
+  /** Turn rate multiplier at sharp curves (0-1, default 0.5 = half speed) */
+  curveTurnCapMultiplier: number;
 }
 
 /** Result of magnetism turn calculation */
@@ -186,6 +192,9 @@ export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
   strength: 8.0,                      // Higher default strength (0-10 scale)
   enabled: true,
   maxTurnRate: 2.0,                   // Reduced for smoother turns
+  curveTurnCapEnabled: true,          // Enable turn speed capping at sharp curves
+  curveTurnCapThreshold: 70,          // Degrees - curves sharper than this will cap turn speed
+  curveTurnCapMultiplier: 0.5,        // Turn speed multiplier at sharp curves (50%)
 };
 
 // ============================================================================
