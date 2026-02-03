@@ -583,9 +583,9 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 
 /** Result of finding the nearest point on a polyline */
 interface PolylineNearestResult {
-  /** World X of nearest point */
+  /** World X of nearest point (may be interpolated on segment) */
   wx: number;
-  /** World Z of nearest point */
+  /** World Z of nearest point (may be interpolated on segment) */
   wz: number;
   /** Tangent direction at this point (normalized) */
   tx: number;
@@ -596,7 +596,7 @@ interface PolylineNearestResult {
   distance: number;
   /** Segment index */
   segmentIndex: number;
-  /** Point index within segment */
+  /** Point index within segment (of the discrete point, for reference) */
   pointIndex: number;
   /** For visualization: position N points before */
   tangentStart: { wx: number; wz: number };
@@ -605,7 +605,42 @@ interface PolylineNearestResult {
 }
 
 /**
+ * Project a point onto a line segment, returning the closest point on the segment.
+ * @returns { point: {x, z}, t: parameter [0,1], distSq: squared distance }
+ */
+function projectPointOntoSegment(
+  px: number, pz: number,
+  ax: number, az: number,
+  bx: number, bz: number
+): { x: number; z: number; t: number; distSq: number } {
+  const abx = bx - ax;
+  const abz = bz - az;
+  const apx = px - ax;
+  const apz = pz - az;
+  
+  const ab2 = abx * abx + abz * abz;
+  if (ab2 < 0.0001) {
+    // Degenerate segment (a == b)
+    const dx = px - ax;
+    const dz = pz - az;
+    return { x: ax, z: az, t: 0, distSq: dx * dx + dz * dz };
+  }
+  
+  // Parameter t along segment [0, 1]
+  let t = (apx * abx + apz * abz) / ab2;
+  t = Math.max(0, Math.min(1, t)); // Clamp to segment
+  
+  const closestX = ax + t * abx;
+  const closestZ = az + t * abz;
+  const dx = px - closestX;
+  const dz = pz - closestZ;
+  
+  return { x: closestX, z: closestZ, t, distSq: dx * dx + dz * dz };
+}
+
+/**
  * Find the nearest point on the polyline to a query position using spatial hashing.
+ * Projects onto line SEGMENTS between polyline points for exact positioning.
  * Also computes the tangent at that point by looking at neighboring points.
  * 
  * @param x - Query X position (world space)
@@ -633,7 +668,8 @@ function findNearestPolylinePoint(
   const centerBx = Math.floor(x / polylineBucketSize);
   const centerBz = Math.floor(z / polylineBucketSize);
   
-  let nearest: PolylinePoint | null = null;
+  // First pass: find nearest discrete point (for segment lookup)
+  let nearestPoint: PolylinePoint | null = null;
   let nearestDistSq = searchRadius * searchRadius;
   
   // Check all buckets in range
@@ -650,27 +686,50 @@ function findNearestPolylinePoint(
         
         if (distSq < nearestDistSq) {
           nearestDistSq = distSq;
-          nearest = point;
+          nearestPoint = point;
         }
       }
     }
   }
   
-  if (!nearest) {
+  if (!nearestPoint) {
     return null;
   }
   
-  // Get the segment to compute tangent
-  const segment = polylineGraph.segments[nearest.segmentIndex];
+  // Get the segment
+  const segment = polylineGraph.segments[nearestPoint.segmentIndex];
   if (!segment) {
     return null;
   }
   
   const points = segment.points;
-  const ptIdx = nearest.pointIndex;
+  const ptIdx = nearestPoint.pointIndex;
+  
+  // Second pass: project onto adjacent segments for exact closest point
+  // Check segment [ptIdx-1, ptIdx] and [ptIdx, ptIdx+1]
+  let bestProjection = { x: nearestPoint.wx, z: nearestPoint.wz, distSq: nearestDistSq, usedPtIdx: ptIdx };
+  
+  // Check segment before (if exists)
+  if (ptIdx > 0) {
+    const prevPt = points[ptIdx - 1];
+    const currPt = points[ptIdx];
+    const proj = projectPointOntoSegment(x, z, prevPt.x, prevPt.z, currPt.x, currPt.z);
+    if (proj.distSq < bestProjection.distSq) {
+      bestProjection = { x: proj.x, z: proj.z, distSq: proj.distSq, usedPtIdx: ptIdx };
+    }
+  }
+  
+  // Check segment after (if exists)
+  if (ptIdx < points.length - 1) {
+    const currPt = points[ptIdx];
+    const nextPt = points[ptIdx + 1];
+    const proj = projectPointOntoSegment(x, z, currPt.x, currPt.z, nextPt.x, nextPt.z);
+    if (proj.distSq < bestProjection.distSq) {
+      bestProjection = { x: proj.x, z: proj.z, distSq: proj.distSq, usedPtIdx: ptIdx };
+    }
+  }
   
   // Compute tangent by looking at points before and after
-  // Clamp to segment bounds
   const lookBehindIdx = Math.max(0, ptIdx - tangentLookAhead);
   const lookAheadIdx = Math.min(points.length - 1, ptIdx + tangentLookAhead);
   
@@ -690,14 +749,14 @@ function findNearestPolylinePoint(
   }
   
   return {
-    wx: nearest.wx,
-    wz: nearest.wz,
+    wx: bestProjection.x,
+    wz: bestProjection.z,
     tx,
     tz,
-    isSuppressed: nearest.isSuppressed,
-    distance: Math.sqrt(nearestDistSq),
-    segmentIndex: nearest.segmentIndex,
-    pointIndex: nearest.pointIndex,
+    isSuppressed: nearestPoint.isSuppressed,
+    distance: Math.sqrt(bestProjection.distSq),
+    segmentIndex: nearestPoint.segmentIndex,
+    pointIndex: bestProjection.usedPtIdx,
     tangentStart: { wx: behindPt.x, wz: behindPt.z },
     tangentEnd: { wx: aheadPt.x, wz: aheadPt.z },
   };
@@ -1247,14 +1306,10 @@ export function constrainMovementToTangent(
   const lateralZ = -facingX;
   
   // Dot product gives how far off-center the front is (laterally)
-  let lateralDist = toTargetX * lateralX + toTargetZ * lateralZ;
+  // With segment projection, this should be near-zero when already on the polyline
+  const lateralDist = toTargetX * lateralX + toTargetZ * lateralZ;
   
-  // CLAMP lateral correction to prevent sudden acceleration/jumps
-  // Max correction ~0.15 world units per frame (smooth pull, not teleport)
-  const MAX_LATERAL_CORRECTION = 0.15;
-  lateralDist = Math.max(-MAX_LATERAL_CORRECTION, Math.min(MAX_LATERAL_CORRECTION, lateralDist));
-  
-  // Apply ONLY the clamped lateral correction (perpendicular to animal facing)
+  // Apply ONLY the lateral correction (perpendicular to animal facing)
   const offsetX = lateralDist * lateralX;
   const offsetZ = lateralDist * lateralZ;
   
