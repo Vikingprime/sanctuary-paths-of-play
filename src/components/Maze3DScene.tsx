@@ -1220,7 +1220,7 @@ const RefBasedPlayer = ({
           const moveX = (dx / dist) * moveDist;
           const moveZ = (dz / dist) * moveDist;
           
-          // Calculate target rotation to face movement direction
+          // Calculate target rotation to face movement direction (path tangent)
           const targetRotation = Math.atan2(dx, dz);
           
           // Smoothly rotate toward target
@@ -1238,10 +1238,28 @@ const RefBasedPlayer = ({
           newRotation = normalizeAngle(newRotation);
           if (newRotation < 0) newRotation += Math.PI * 2;
           
-          // Apply movement
+          // Calculate new position before constraint
+          let newX = player.x + moveX;
+          let newZ = player.y + moveZ;
+          
+          // Apply magnetism constraint to keep animal locked onto polyline
+          // Use visual rotation to match animal facing direction
+          const visualRotation = -newRotation + Math.PI;
+          const constrained = constrainMovementToTangent(
+            player.x,
+            player.y,
+            newX,
+            newZ,
+            magnetismCacheRef.current,
+            10, // Full magnetism strength for rail mode - always lock to polyline
+            visualRotation,
+            DEFAULT_MAGNETISM_CONFIG.frontOffset
+          );
+          
+          // Apply constrained movement
           playerStateRef.current = {
-            x: player.x + moveX,
-            y: player.y + moveZ,
+            x: constrained.x,
+            y: constrained.z,
             rotation: newRotation,
           };
           
