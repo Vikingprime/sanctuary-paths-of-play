@@ -215,13 +215,19 @@ export function findAvailableDirections(
           const dirZ = lookAheadPt.z - firstPt.z;
           const angle = Math.atan2(dirX, dirZ);
           
+          // Include current position as first point for smooth start
+          const pathWithStart: Point2D[] = [
+            { x: junctionPoint.x, z: junctionPoint.z },
+            ...seg.points
+          ];
+          
           directions.push({
             label: classifyWorldDirection(angle),
             direction: classifyWorldDirection(angle),
             angle,
             targetX: targetPt.x,
             targetZ: targetPt.z,
-            pathPoints: seg.points,
+            pathPoints: pathWithStart,
             isTurnAround: false,
           });
         }
@@ -238,13 +244,19 @@ export function findAvailableDirections(
           const dirZ = lookBackPt.z - lastPt.z;
           const angle = Math.atan2(dirX, dirZ);
           
+          // Include current position as first point for smooth start
+          const pathWithStart: Point2D[] = [
+            { x: junctionPoint.x, z: junctionPoint.z },
+            ...[...seg.points].reverse()
+          ];
+          
           directions.push({
             label: classifyWorldDirection(angle),
             direction: classifyWorldDirection(angle),
             angle,
             targetX: targetPt.x,
             targetZ: targetPt.z,
-            pathPoints: [...seg.points].reverse(),
+            pathPoints: pathWithStart,
             isTurnAround: false,
           });
         }
@@ -267,13 +279,19 @@ export function findAvailableDirections(
       const dirZ = lookAheadPt.z - position.z;
       const angle = Math.atan2(dirX, dirZ);
       
+      // Include current position as first point for smooth start
+      const pathWithStart: Point2D[] = [
+        { x: position.x, z: position.z },
+        ...points.slice(ptIdx)
+      ];
+      
       directions.push({
         label: 'Forward',
         direction: classifyWorldDirection(angle),
         angle,
         targetX: targetPt.x,
         targetZ: targetPt.z,
-        pathPoints: points.slice(ptIdx),
+        pathPoints: pathWithStart,
         isTurnAround: false,
       });
     }
@@ -287,13 +305,19 @@ export function findAvailableDirections(
       const dirZ = lookBackPt.z - position.z;
       const angle = Math.atan2(dirX, dirZ);
       
+      // Include current position as first point for smooth start
+      const pathWithStart: Point2D[] = [
+        { x: position.x, z: position.z },
+        ...points.slice(0, ptIdx + 1).reverse()
+      ];
+      
       directions.push({
         label: 'Backward',
         direction: classifyWorldDirection(angle),
         angle,
         targetX: targetPt.x,
         targetZ: targetPt.z,
-        pathPoints: points.slice(0, ptIdx + 1).reverse(),
+        pathPoints: pathWithStart,
         isTurnAround: false,
       });
     }
@@ -306,37 +330,48 @@ export function findAvailableDirections(
 // RAIL CONTROLS COMPONENT
 // ============================================================================
 
-const DirectionButton = ({
-  direction,
+/**
+ * Radial direction button - positioned by actual path angle
+ * Arrow rotates to point in the direction of travel
+ */
+const RadialDirectionButton = ({
+  angle,
   onClick,
   disabled,
   isTurnAround,
+  radius = 60, // Distance from center
 }: {
-  direction: 'forward' | 'left' | 'right' | 'back';
+  angle: number; // World angle in radians
   onClick: () => void;
   disabled?: boolean;
   isTurnAround?: boolean;
+  radius?: number;
 }) => {
-  const Icon = {
-    forward: ArrowUp,
-    left: ArrowLeft,
-    right: ArrowRight,
-    back: ArrowDown,
-  }[direction];
+  // Convert world angle to screen position
+  // angle 0 = +Z = down on screen, angle PI/2 = +X = right on screen
+  // We want angle 0 to point "up" visually when facing +Z
+  const screenAngle = -angle + Math.PI; // Flip and rotate
   
-  const positions = {
-    forward: 'top-0 left-1/2 -translate-x-1/2',
-    left: 'left-0 top-1/2 -translate-y-1/2',
-    right: 'right-0 top-1/2 -translate-y-1/2',
-    back: 'bottom-0 left-1/2 -translate-x-1/2',
-  };
+  // Position on circle (center of container is at 80,80 for w-40 h-40)
+  const centerX = 80;
+  const centerY = 80;
+  const x = centerX + Math.sin(screenAngle) * radius;
+  const y = centerY - Math.cos(screenAngle) * radius;
+  
+  // Arrow rotation - point in direction of travel
+  const arrowRotation = (screenAngle * 180 / Math.PI);
   
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      style={{
+        position: 'absolute',
+        left: `${x}px`,
+        top: `${y}px`,
+        transform: `translate(-50%, -50%)`,
+      }}
       className={`
-        absolute ${positions[direction]}
         w-14 h-14 rounded-full
         flex items-center justify-center
         transition-all duration-200
@@ -349,7 +384,14 @@ const DirectionButton = ({
         border-2 ${disabled ? 'border-gray-600' : isTurnAround ? 'border-amber-400' : 'border-primary-foreground/30'}
       `}
     >
-      {isTurnAround ? <RotateCcw className="w-6 h-6" /> : <Icon className="w-6 h-6" />}
+      {isTurnAround ? (
+        <RotateCcw className="w-6 h-6" />
+      ) : (
+        <ArrowUp 
+          className="w-6 h-6" 
+          style={{ transform: `rotate(${arrowRotation}deg)` }}
+        />
+      )}
     </button>
   );
 };
@@ -422,12 +464,6 @@ export function RailControls({
     );
   }
   
-  // Group directions by type
-  const forwardDir = directions.find(d => d.direction === 'forward');
-  const leftDir = directions.find(d => d.direction === 'left');
-  const rightDir = directions.find(d => d.direction === 'right');
-  const backDir = directions.find(d => d.direction === 'back');
-  
   return (
     <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-20">
       <div className="relative w-40 h-40">
@@ -438,35 +474,15 @@ export function RailControls({
           </div>
         </div>
         
-        {/* Direction buttons */}
-        {forwardDir && (
-          <DirectionButton
-            direction="forward"
-            onClick={() => handleDirectionClick(forwardDir)}
-            isTurnAround={forwardDir.isTurnAround}
+        {/* Direction buttons - positioned at actual path angles */}
+        {directions.map((dir, idx) => (
+          <RadialDirectionButton
+            key={idx}
+            angle={dir.angle}
+            onClick={() => handleDirectionClick(dir)}
+            isTurnAround={dir.isTurnAround}
           />
-        )}
-        {leftDir && (
-          <DirectionButton
-            direction="left"
-            onClick={() => handleDirectionClick(leftDir)}
-            isTurnAround={leftDir.isTurnAround}
-          />
-        )}
-        {rightDir && (
-          <DirectionButton
-            direction="right"
-            onClick={() => handleDirectionClick(rightDir)}
-            isTurnAround={rightDir.isTurnAround}
-          />
-        )}
-        {backDir && (
-          <DirectionButton
-            direction="back"
-            onClick={() => handleDirectionClick(backDir)}
-            isTurnAround={backDir.isTurnAround}
-          />
-        )}
+        ))}
         
         {/* Turn around button (always available) */}
         {directions.length > 0 && !directions.some(d => d.isTurnAround) && (
