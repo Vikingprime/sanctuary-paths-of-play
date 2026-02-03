@@ -1229,9 +1229,9 @@ const RefBasedPlayer = ({
           
           // Calculate tangent from path points for rotation
           // Look behind and ahead in the path for a smooth tangent direction
-          // Look further behind and ahead for stable tangent on dense paths
-          const tangentBehindIdx = Math.max(0, pathIdx - 15);
-          const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 20);
+          // Moderate window size: too small = jittery, too large = doesn't follow curves
+          const tangentBehindIdx = Math.max(0, pathIdx - 3);
+          const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 5);
           const behindPt = path[tangentBehindIdx];
           const aheadPt = path[tangentAheadIdx];
           
