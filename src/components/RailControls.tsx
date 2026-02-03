@@ -188,22 +188,27 @@ function findNearestJunction(
  */
 function deduplicateDirectionsByAngle(
   directions: DirectionOption[],
-  angleThreshold: number = Math.PI / 6 // 30 degrees
+  angleThreshold: number = Math.PI / 4 // 45 degrees - generous to handle skeleton fragmentation
 ): DirectionOption[] {
   if (directions.length <= 1) return directions;
   
   const result: DirectionOption[] = [];
   
+  // Filter out very short paths first (likely skeleton artifacts)
+  // A real path should be at least 0.5 world units
+  const MIN_REAL_PATH_LENGTH = 0.5;
+  const validDirections = directions.filter(d => calculatePathLength(d.pathPoints) >= MIN_REAL_PATH_LENGTH);
+  
   // Sort by path length descending so we prefer longer paths
-  const sorted = [...directions]
+  const sorted = [...validDirections]
     .map((d) => ({ dir: d, length: calculatePathLength(d.pathPoints) }))
     .sort((a, b) => b.length - a.length);
   
   // DEBUG: Log incoming directions
-  console.log(`[RailControls] Deduplicating ${directions.length} directions:`, 
+  console.log(`[RailControls] Deduplicating ${directions.length} directions (${validDirections.length} valid):`, 
     sorted.map(s => `angle=${(s.dir.angle * 180 / Math.PI).toFixed(1)}° len=${s.length.toFixed(2)}`));
   
-  for (const { dir, length } of sorted) {
+  for (const { dir } of sorted) {
     // Check if this direction is too similar to one we already added
     let isDuplicate = false;
     for (const existing of result) {
@@ -212,7 +217,6 @@ function deduplicateDirectionsByAngle(
       if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
       
       if (angleDiff < angleThreshold) {
-        console.log(`[RailControls] Duplicate: ${(dir.angle * 180 / Math.PI).toFixed(1)}° vs ${(existing.angle * 180 / Math.PI).toFixed(1)}° (diff=${(angleDiff * 180 / Math.PI).toFixed(1)}°)`);
         isDuplicate = true;
         break;
       }
