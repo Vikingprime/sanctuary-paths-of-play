@@ -7,8 +7,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { MagnetismCache } from '@/game/CorridorMagnetism';
-import { PolylineGraph, Point2D } from '@/game/SkeletonPolyline';
-import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, RotateCcw, Square } from 'lucide-react';
+import { PolylineGraph, Point2D, Junction } from '@/game/SkeletonPolyline';
+import { ArrowUp, RotateCcw, Square } from 'lucide-react';
 
 // ============================================================================
 // TYPES
@@ -146,15 +146,46 @@ export function findRailPosition(
 }
 
 /**
- * Find available directions from current position
+ * Calculate total path length in world units
  */
+function calculatePathLength(points: Point2D[]): number {
+  let length = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i].x - points[i - 1].x;
+    const dz = points[i].z - points[i - 1].z;
+    length += Math.sqrt(dx * dx + dz * dz);
+  }
+  return length;
+}
+
+/**
+ * Find the nearest junction to a position
+ */
+function findNearestJunction(
+  x: number,
+  z: number,
+  junctions: Junction[],
+  maxDist: number = 0.5
+): Junction | null {
+  let nearest: Junction | null = null;
+  let nearestDistSq = maxDist * maxDist;
+  
+  for (const junction of junctions) {
+    const dx = x - junction.x;
+    const dz = z - junction.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq < nearestDistSq) {
+      nearestDistSq = distSq;
+      nearest = junction;
+    }
+  }
+  
+  return nearest;
+}
+
 /**
  * Find available directions from current position
- * Directions are classified relative to screen/camera (not player rotation)
- * - 'forward' = toward top of screen (negative Z in world)
- * - 'back' = toward bottom of screen (positive Z in world)
- * - 'left' = toward left of screen (negative X in world)
- * - 'right' = toward right of screen (positive X in world)
+ * Uses topology-based junction connectivity instead of distance-based matching
  */
 export function findAvailableDirections(
   position: RailPosition,
@@ -164,7 +195,7 @@ export function findAvailableDirections(
   if (!cache?.polylineGraph) return [];
   
   const { polylineGraph } = cache;
-  const rawDirections: DirectionOption[] = [];
+  const directions: DirectionOption[] = [];
   
   // Helper to classify angle relative to camera (screen orientation)
   const classifyWorldDirection = (targetAngle: number): 'forward' | 'left' | 'right' | 'back' => {
@@ -178,83 +209,69 @@ export function findAvailableDirections(
     return relativeAngle > 0 ? 'right' : 'left';
   };
   
-  // At a junction - find all connected segments
+  // Minimum path length for a direction to be valid (prevents "turn only" buttons)
+  const MIN_PATH_LENGTH = 0.3;
+  
+  // At a junction - use the stored connectivity data
   if (position.atJunction) {
-    let junctionPoint: Point2D | null = null;
-    for (const junction of polylineGraph.junctions) {
-      const dx = position.x - junction.x;
-      const dz = position.z - junction.z;
-      if (dx * dx + dz * dz < 0.5 * 0.5) {
-        junctionPoint = junction;
-        break;
-      }
-    }
+    const junction = findNearestJunction(position.x, position.z, polylineGraph.junctions);
     
-    if (junctionPoint) {
-      for (let segIdx = 0; segIdx < polylineGraph.segments.length; segIdx++) {
-        const seg = polylineGraph.segments[segIdx];
-        const firstPt = seg.points[0];
-        const lastPt = seg.points[seg.points.length - 1];
+    if (junction) {
+      // Process each connected segment exactly once
+      const processedSegments = new Set<number>();
+      
+      for (const conn of junction.connections) {
+        // Skip if we've already processed this segment
+        if (processedSegments.has(conn.segmentIndex)) continue;
+        processedSegments.add(conn.segmentIndex);
         
-        const firstDist = Math.sqrt((firstPt.x - junctionPoint.x) ** 2 + (firstPt.z - junctionPoint.z) ** 2);
-        if (firstDist < 0.5) {
-          const targetPt = lastPt;
-          const lookAheadIdx = Math.min(10, seg.points.length - 1);
-          const lookAheadPt = seg.points[lookAheadIdx];
-          const dirX = lookAheadPt.x - firstPt.x;
-          const dirZ = lookAheadPt.z - firstPt.z;
-          const angle = Math.atan2(dirX, dirZ);
-          
-          const pathWithStart: Point2D[] = [
-            { x: junctionPoint.x, z: junctionPoint.z },
-            ...seg.points
-          ];
-          
-          rawDirections.push({
-            label: classifyWorldDirection(angle),
-            direction: classifyWorldDirection(angle),
-            angle,
-            targetX: targetPt.x,
-            targetZ: targetPt.z,
-            pathPoints: pathWithStart,
-            isTurnAround: false,
-          });
-        }
+        const seg = polylineGraph.segments[conn.segmentIndex];
+        if (!seg || seg.points.length < 2) continue;
         
-        const lastDist = Math.sqrt((lastPt.x - junctionPoint.x) ** 2 + (lastPt.z - junctionPoint.z) ** 2);
-        if (lastDist < 0.5 && firstDist >= 0.5) {
-          const targetPt = firstPt;
-          const lookBackIdx = Math.max(0, seg.points.length - 11);
-          const lookBackPt = seg.points[lookBackIdx];
-          const dirX = lookBackPt.x - lastPt.x;
-          const dirZ = lookBackPt.z - lastPt.z;
-          const angle = Math.atan2(dirX, dirZ);
-          
-          const pathWithStart: Point2D[] = [
-            { x: junctionPoint.x, z: junctionPoint.z },
-            ...[...seg.points].reverse()
-          ];
-          
-          rawDirections.push({
-            label: classifyWorldDirection(angle),
-            direction: classifyWorldDirection(angle),
-            angle,
-            targetX: targetPt.x,
-            targetZ: targetPt.z,
-            pathPoints: pathWithStart,
-            isTurnAround: false,
-          });
-        }
+        // If segment starts at this junction, walk forward through points
+        // If segment ends at this junction, walk backward (reverse points)
+        const points = conn.atStart ? seg.points : [...seg.points].reverse();
+        
+        // Calculate direction from first few points after junction
+        const lookAheadIdx = Math.min(10, points.length - 1);
+        const lookAheadPt = points[lookAheadIdx];
+        const startPt = points[0];
+        const dirX = lookAheadPt.x - startPt.x;
+        const dirZ = lookAheadPt.z - startPt.z;
+        const angle = Math.atan2(dirX, dirZ);
+        
+        // Build path starting from current position (not junction center)
+        const pathPoints: Point2D[] = [
+          { x: position.x, z: position.z },
+          ...points
+        ];
+        
+        // Validate path has sufficient length
+        const pathLength = calculatePathLength(pathPoints);
+        if (pathLength < MIN_PATH_LENGTH) continue;
+        
+        const targetPt = points[points.length - 1];
+        
+        directions.push({
+          label: classifyWorldDirection(angle),
+          direction: classifyWorldDirection(angle),
+          angle,
+          targetX: targetPt.x,
+          targetZ: targetPt.z,
+          pathPoints,
+          isTurnAround: false,
+        });
       }
     }
   } else {
-    // On a segment - can go forward or backward along it
+    // On a segment (not at junction) - can go forward or backward along it
     const segment = polylineGraph.segments[position.segmentIndex];
     if (!segment) return [];
     
     const points = segment.points;
     const ptIdx = position.pointIndex;
     
+    // Forward direction (toward end of segment)
     if (ptIdx < points.length - 1) {
       const targetPt = points[points.length - 1];
       const lookAheadIdx = Math.min(ptIdx + 10, points.length - 1);
@@ -263,22 +280,26 @@ export function findAvailableDirections(
       const dirZ = lookAheadPt.z - position.z;
       const angle = Math.atan2(dirX, dirZ);
       
-      const pathWithStart: Point2D[] = [
+      const pathPoints: Point2D[] = [
         { x: position.x, z: position.z },
         ...points.slice(ptIdx)
       ];
       
-      rawDirections.push({
-        label: 'Forward',
-        direction: classifyWorldDirection(angle),
-        angle,
-        targetX: targetPt.x,
-        targetZ: targetPt.z,
-        pathPoints: pathWithStart,
-        isTurnAround: false,
-      });
+      const pathLength = calculatePathLength(pathPoints);
+      if (pathLength >= MIN_PATH_LENGTH) {
+        directions.push({
+          label: 'Forward',
+          direction: classifyWorldDirection(angle),
+          angle,
+          targetX: targetPt.x,
+          targetZ: targetPt.z,
+          pathPoints,
+          isTurnAround: false,
+        });
+      }
     }
     
+    // Backward direction (toward start of segment)
     if (ptIdx > 0) {
       const targetPt = points[0];
       const lookBackIdx = Math.max(0, ptIdx - 10);
@@ -287,49 +308,27 @@ export function findAvailableDirections(
       const dirZ = lookBackPt.z - position.z;
       const angle = Math.atan2(dirX, dirZ);
       
-      const pathWithStart: Point2D[] = [
+      const pathPoints: Point2D[] = [
         { x: position.x, z: position.z },
         ...points.slice(0, ptIdx + 1).reverse()
       ];
       
-      rawDirections.push({
-        label: 'Backward',
-        direction: classifyWorldDirection(angle),
-        angle,
-        targetX: targetPt.x,
-        targetZ: targetPt.z,
-        pathPoints: pathWithStart,
-        isTurnAround: false,
-      });
-    }
-  }
-  
-  // Deduplicate directions by angle - merge paths within 30 degrees
-  const ANGLE_THRESHOLD = Math.PI / 6; // 30 degrees
-  const deduped: DirectionOption[] = [];
-  
-  for (const dir of rawDirections) {
-    let isDuplicate = false;
-    for (const existing of deduped) {
-      let angleDiff = Math.abs(dir.angle - existing.angle);
-      if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
-      
-      if (angleDiff < ANGLE_THRESHOLD) {
-        // Keep the one with more path points (longer path)
-        if (dir.pathPoints.length > existing.pathPoints.length) {
-          const idx = deduped.indexOf(existing);
-          deduped[idx] = dir;
-        }
-        isDuplicate = true;
-        break;
+      const pathLength = calculatePathLength(pathPoints);
+      if (pathLength >= MIN_PATH_LENGTH) {
+        directions.push({
+          label: 'Backward',
+          direction: classifyWorldDirection(angle),
+          angle,
+          targetX: targetPt.x,
+          targetZ: targetPt.z,
+          pathPoints,
+          isTurnAround: false,
+        });
       }
     }
-    if (!isDuplicate) {
-      deduped.push(dir);
-    }
   }
   
-  return deduped;
+  return directions;
 }
 
 // ============================================================================

@@ -57,6 +57,8 @@ export {
   type PolylineGraph,
   type PolylineSegment,
   type Point2D,
+  type Junction,
+  type JunctionConnection,
   type PolylineConfig,
 } from './SkeletonPolyline';
 
