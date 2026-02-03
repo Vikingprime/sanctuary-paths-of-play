@@ -1269,19 +1269,14 @@ export function constrainMovementToTangent(
   prevZ: number,
   newX: number,
   newZ: number,
-  magnetismDebug: MagnetismTurnResult['debug'] | null,
+  cache: MagnetismCache | null,
   strength: number,
   playerRotation: number,    // Current player rotation (to calculate fresh front point)
   frontOffset: number        // Distance from center to front sensing point
 ): { x: number; z: number } {
   
-  // Only apply constraint at high strength and when magnetism is active
-  if (!magnetismDebug || !magnetismDebug.isActive || strength < 9.9) {
-    return { x: newX, z: newZ };
-  }
-  
-  // Skip if at junction (let player move freely at intersections)
-  if (magnetismDebug.isJunctionSuppressed) {
+  // Only apply constraint at high strength and when cache is available
+  if (!cache || strength < 9.9) {
     return { x: newX, z: newZ };
   }
   
@@ -1291,17 +1286,30 @@ export function constrainMovementToTangent(
   const frontX = newX + facingX * frontOffset;
   const frontZ = newZ + facingZ * frontOffset;
   
-  // Use RAW spine point (the actual polyline point we want the front to be ON)
-  const targetX = magnetismDebug.rawSpineX ?? magnetismDebug.spineX;
-  const targetZ = magnetismDebug.rawSpineZ ?? magnetismDebug.spineZ;
+  // Do a FRESH polyline lookup using the current front position
+  // This eliminates the one-frame lag from using previous frame's debug data
+  const nearest = findNearestPolylinePoint(frontX, frontZ, cache, 4.0, 5);
+  
+  if (!nearest) {
+    return { x: newX, z: newZ };
+  }
+  
+  // Skip if at junction (let player move freely at intersections)
+  if (nearest.isSuppressed) {
+    return { x: newX, z: newZ };
+  }
+  
+  // The target is the exact nearest point on the polyline
+  const targetX = nearest.wx;
+  const targetZ = nearest.wz;
   
   // Vector from front to target polyline point - this is the FULL offset needed
   const toTargetX = targetX - frontX;
   const toTargetZ = targetZ - frontZ;
   
-  // Get path tangent direction from magnetism debug
-  const tx = magnetismDebug.tangentX;
-  const tz = magnetismDebug.tangentZ;
+  // Get path tangent direction from the fresh lookup
+  const tx = nearest.tx;
+  const tz = nearest.tz;
   const tangentLen = Math.sqrt(tx * tx + tz * tz);
   
   if (tangentLen < 0.01) {
