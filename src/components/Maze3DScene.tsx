@@ -1531,12 +1531,15 @@ const RefBasedPlayer = ({
     groupRef.current.position.z = smoothPositionZ.current;
     
     // Smooth rotation with fixed lerp factor
+    // In rail mode, use very fast lerp (near-instant) to lock rotation to path tangent
     const targetRotation = -playerStateRef.current.rotation + Math.PI;
     let rotDiff = targetRotation - (smoothRotation.current ?? targetRotation);
     if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
     if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
     
-    smoothRotation.current = (smoothRotation.current ?? targetRotation) + rotDiff * 0.15;
+    // Rail mode: snap to target rotation immediately; Joystick mode: smooth transition
+    const rotLerpFactor = railMode ? 1.0 : 0.15;
+    smoothRotation.current = (smoothRotation.current ?? targetRotation) + rotDiff * rotLerpFactor;
     
     // Normalize rotation
     if (smoothRotation.current > Math.PI * 2) smoothRotation.current -= Math.PI * 2;
