@@ -20,8 +20,8 @@ export interface RailControlsProps {
   /** Current player position in world space */
   playerX: number;
   playerZ: number;
-  /** Current camera yaw (radians) - used to classify directions relative to screen */
-  cameraYaw: number;
+  /** Current animal rotation (radians) - used to classify directions relative to animal's facing */
+  animalRotation: number;
   /** Callback when direction is selected - provides target position and direction */
   onDirectionSelect: (targetX: number, targetZ: number, pathPoints: Point2D[]) => void;
   /** Callback when stop is pressed */
@@ -204,10 +204,6 @@ function deduplicateDirectionsByAngle(
     .map((d) => ({ dir: d, length: calculatePathLength(d.pathPoints) }))
     .sort((a, b) => b.length - a.length);
   
-  // DEBUG: Log incoming directions
-  console.log(`[RailControls] Deduplicating ${directions.length} directions (${validDirections.length} valid):`, 
-    sorted.map(s => `angle=${(s.dir.angle * 180 / Math.PI).toFixed(1)}° len=${s.length.toFixed(2)}`));
-  
   for (const { dir } of sorted) {
     // Check if this direction is too similar to one we already added
     let isDuplicate = false;
@@ -227,7 +223,6 @@ function deduplicateDirectionsByAngle(
     }
   }
   
-  console.log(`[RailControls] Result: ${result.length} directions after dedup`);
   return result;
 }
 
@@ -237,7 +232,7 @@ function deduplicateDirectionsByAngle(
  */
 export function findAvailableDirections(
   position: RailPosition,
-  cameraYaw: number,
+  animalRotation: number,
   cache: MagnetismCache | null,
 ): DirectionOption[] {
   if (!cache?.polylineGraph) return [];
@@ -245,9 +240,14 @@ export function findAvailableDirections(
   const { polylineGraph } = cache;
   const directions: DirectionOption[] = [];
   
-  // Helper to classify angle relative to camera (screen orientation)
+  // Helper to classify angle relative to animal's facing direction
+  // animalRotation is in world space, targetAngle is also world space
   const classifyWorldDirection = (targetAngle: number): 'forward' | 'left' | 'right' | 'back' => {
-    let relativeAngle = targetAngle - cameraYaw;
+    // Convert animal rotation to the visual direction it's facing
+    // The relationship is: visualRotation = -playerRotation + PI
+    const animalFacingAngle = -animalRotation + Math.PI;
+    
+    let relativeAngle = targetAngle - animalFacingAngle;
     while (relativeAngle > Math.PI) relativeAngle -= 2 * Math.PI;
     while (relativeAngle < -Math.PI) relativeAngle += 2 * Math.PI;
     
@@ -455,7 +455,7 @@ export function RailControls({
   cache,
   playerX,
   playerZ,
-  cameraYaw,
+  animalRotation,
   onDirectionSelect,
   onStop,
   onTurnAround,
@@ -481,12 +481,12 @@ export function RailControls({
     if (!isMoving) {
       const availableDirs = findAvailableDirections(
         position,
-        cameraYaw,
+        animalRotation,
         cache,
       );
       setDirections(availableDirs);
     }
-  }, [enabled, cache, playerX, playerZ, cameraYaw, isMoving]);
+  }, [enabled, cache, playerX, playerZ, animalRotation, isMoving]);
   
   const handleDirectionClick = useCallback((dir: DirectionOption) => {
     if (dir.isTurnAround) {
