@@ -71,7 +71,6 @@ export {
   type MagnetismCache,
   type MagnetismTurnResult,
   type MagnetismTurnState,
-  type ConstraintResult,
   // Legacy exports for compatibility
   calculateMagnetism,
   type MagnetismResult,

@@ -1029,49 +1029,6 @@ export const GameHUD = ({
                   />
                 </div>
                 
-                {/* Turn Rate Cap Slider */}
-                <div>
-                  <div className="flex justify-between text-[10px]">
-                    <span>Turn Rate Cap:</span>
-                    <span className={cn(
-                      !(magnetismConfig.turnRateCapEnabled ?? true)
-                        ? 'text-gray-500'
-                        : (magnetismConfig.turnRateCap ?? 2.0) !== 2.0 
-                          ? 'text-orange-400' 
-                          : 'text-cyan-400'
-                    )}>
-                      {(magnetismConfig.turnRateCapEnabled ?? true) ? `${(magnetismConfig.turnRateCap ?? 2.0).toFixed(1)} rad/s` : 'OFF'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={magnetismConfig.turnRateCapEnabled ?? true}
-                      onChange={(e) => onMagnetismConfigChange({
-                        ...magnetismConfig,
-                        turnRateCapEnabled: e.target.checked
-                      })}
-                      className="w-3 h-3"
-                    />
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="5.0"
-                      step="0.1"
-                      value={magnetismConfig.turnRateCap ?? 2.0}
-                      onChange={(e) => onMagnetismConfigChange({
-                        ...magnetismConfig,
-                        turnRateCap: parseFloat(e.target.value)
-                      })}
-                      disabled={!(magnetismConfig.turnRateCapEnabled ?? true)}
-                      className="flex-1 h-1 bg-gray-700 rounded appearance-none cursor-pointer disabled:opacity-50"
-                    />
-                  </div>
-                  <div className="text-[8px] text-gray-500">
-                    Limits velocity to keep turn rate below cap
-                  </div>
-                </div>
-                
                 {/* Debug Visualization Toggles */}
                 <div className="flex gap-2 mt-2 pt-2 border-t border-gray-700">
                   {onToggleShowMagnetTarget && (

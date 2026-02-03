@@ -45,10 +45,6 @@ export interface MagnetismConfig {
   enabled: boolean;
   /** Maximum turn rate limit (radians per second) - caps how fast correction can change */
   maxTurnRate: number;
-  /** Turn rate cap in radians per second - forward velocity is limited to keep turn rate below this */
-  turnRateCap: number;
-  /** Enable/disable turn rate cap velocity limiting */
-  turnRateCapEnabled: boolean;
 }
 
 /** Result of magnetism turn calculation */
@@ -190,8 +186,6 @@ export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
   strength: 8.0,                      // Higher default strength (0-10 scale)
   enabled: true,
   maxTurnRate: 2.0,                   // Reduced for smoother turns
-  turnRateCap: 2.0,                   // Max turn rate in rad/s - velocity is limited to stay below this
-  turnRateCapEnabled: true,           // Enable turn rate cap velocity limiting
 };
 
 // ============================================================================
@@ -1257,22 +1251,10 @@ export function filterTargetPoint(
   return { x: state.targetX, z: state.targetZ };
 }
 
-/** Result of constrainMovementToTangent with curve sharpness info */
-export interface ConstraintResult {
-  x: number;
-  z: number;
-  /** Angle of the curve at current position (radians). 0 = straight, higher = sharper turn. */
-  curveAngle: number;
-  /** Path tangent angle in radians (direction the path is heading) */
-  tangentAngle: number;
-}
-
 /**
  * Constrain the animal's position so the front sensing point stays ON the polyline.
  * At full magnetism strength (10), only the LATERAL offset is corrected - the animal
  * can still move forward freely along the path.
- * 
- * Also returns the curve sharpness at the current position for velocity reduction at turns.
  * 
  * @param prevX Previous X position (animal center)
  * @param prevZ Previous Z position (animal center)
@@ -1280,7 +1262,7 @@ export interface ConstraintResult {
  * @param newZ New Z position (after movement calculation)
  * @param magnetismDebug Debug info from magnetism calculation (contains front point, spine, and tangent)
  * @param strength Magnetism strength (0-10, where 10 = full lock to polyline)
- * @returns Constrained position { x, z } plus curveAngle (radians)
+ * @returns Constrained position { x, z }
  */
 export function constrainMovementToTangent(
   prevX: number,
@@ -1291,11 +1273,11 @@ export function constrainMovementToTangent(
   strength: number,
   playerRotation: number,    // Current player rotation (to calculate fresh front point)
   frontOffset: number        // Distance from center to front sensing point
-): ConstraintResult {
+): { x: number; z: number } {
   
-  // If no cache, return position unchanged with no curve info
-  if (!cache) {
-    return { x: newX, z: newZ, curveAngle: 0, tangentAngle: 0 };
+  // Only apply constraint at high strength and when cache is available
+  if (!cache || strength < 9.9) {
+    return { x: newX, z: newZ };
   }
   
   // Calculate CURRENT front point from the NEW position
@@ -1305,28 +1287,16 @@ export function constrainMovementToTangent(
   const frontZ = newZ + facingZ * frontOffset;
   
   // Do a FRESH polyline lookup using the current front position
+  // This eliminates the one-frame lag from using previous frame's debug data
   const nearest = findNearestPolylinePoint(frontX, frontZ, cache, 4.0, 5);
   
   if (!nearest) {
-    return { x: newX, z: newZ, curveAngle: 0, tangentAngle: 0 };
+    return { x: newX, z: newZ };
   }
   
-  // Calculate curve sharpness from polyline tangent at two nearby points
-  // Look ahead and behind on the polyline to measure how much the path curves
-  const curveAngle = computeLocalCurveAngle(cache, nearest);
-  
-  // Calculate tangent angle from the polyline tangent vector
-  // atan2(x, z) gives heading angle where +Z is 0, +X is PI/2
-  const tangentAngle = Math.atan2(nearest.tx, nearest.tz);
-  
-  // If below strength threshold, just return curve angle without position constraint
-  if (strength < 9.9) {
-    return { x: newX, z: newZ, curveAngle, tangentAngle };
-  }
-  
-  // Skip constraint if at junction (let player move freely at intersections)
+  // Skip if at junction (let player move freely at intersections)
   if (nearest.isSuppressed) {
-    return { x: newX, z: newZ, curveAngle, tangentAngle };
+    return { x: newX, z: newZ };
   }
   
   // The target is the exact nearest point on the polyline
@@ -1350,8 +1320,6 @@ export function constrainMovementToTangent(
     return {
       x: newX + (constrainedX - newX) * lockBlend,
       z: newZ + (constrainedZ - newZ) * lockBlend,
-      curveAngle,
-      tangentAngle,
     };
   }
   
@@ -1375,94 +1343,11 @@ export function constrainMovementToTangent(
   const constrainedX = newX + offsetX;
   const constrainedZ = newZ + offsetZ;
   
-  // Calculate alignment between animal facing and path tangent
-  // If misaligned, reduce the lock strength to prevent "sideways locking"
-  const animalHeading = playerRotation; // Already in same coordinate space
-  let alignmentDiff = Math.abs(normalizeAngle(animalHeading - tangentAngle));
-  // Check reverse direction too (path can be traveled either way)
-  const reverseAlignmentDiff = Math.abs(normalizeAngle(animalHeading - tangentAngle + Math.PI));
-  alignmentDiff = Math.min(alignmentDiff, reverseAlignmentDiff);
-  
-  // Alignment factor: 1.0 when aligned, 0.0 when perpendicular (90°)
-  // Start reducing at 30° misalignment, reach 0 at 90°
-  const ALIGNMENT_START = 0.5; // ~30 degrees
-  const ALIGNMENT_END = Math.PI / 2; // 90 degrees
-  let alignmentFactor = 1.0;
-  if (alignmentDiff > ALIGNMENT_START) {
-    alignmentFactor = 1.0 - Math.min(1, (alignmentDiff - ALIGNMENT_START) / (ALIGNMENT_END - ALIGNMENT_START));
-  }
-  
-  // Blend based on strength AND alignment
-  // At full strength but misaligned: don't lock position yet
-  const strengthBlend = Math.min(1, (strength - 9.9) / 0.1);
-  const lockBlend = strengthBlend * alignmentFactor;
+  // Blend based on how close to full strength (9.9-10 = full lock)
+  const lockBlend = Math.min(1, (strength - 9.9) / 0.1);
   
   return {
     x: newX + (constrainedX - newX) * lockBlend,
     z: newZ + (constrainedZ - newZ) * lockBlend,
-    curveAngle,
-    tangentAngle,
   };
-}
-
-/**
- * Compute the local curve angle (sharpness) at the current polyline position.
- * Uses the tangents slightly ahead and behind to measure how much the path is curving.
- * Returns angle in radians (0 = straight, PI = complete U-turn).
- */
-function computeLocalCurveAngle(
-  cache: MagnetismCache,
-  nearest: ReturnType<typeof findNearestPolylinePoint>
-): number {
-  if (!nearest || !cache.polylineSpatialHash) return 0;
-  
-  const segIdx = nearest.segmentIndex;
-  const pointIdx = nearest.pointIndex;
-  const segments = cache.polylineGraph?.segments;
-  
-  if (!segments || segIdx < 0 || segIdx >= segments.length) return 0;
-  
-  const segment = segments[segIdx];
-  const points = segment.points;
-  
-  if (points.length < 3) return 0;
-  
-  // Look 3 points ahead and behind (or to endpoints)
-  const lookDist = 3;
-  const behindIdx = Math.max(0, pointIdx - lookDist);
-  const aheadIdx = Math.min(points.length - 1, pointIdx + lookDist);
-  
-  // If we can't look both ways, not enough curvature data
-  if (aheadIdx - behindIdx < 2) return 0;
-  
-  const pBehind = points[behindIdx];
-  const pAhead = points[aheadIdx];
-  const pCurrent = points[Math.min(pointIdx, points.length - 1)];
-  
-  // Vector from behind to current
-  const v1x = pCurrent.x - pBehind.x;
-  const v1z = pCurrent.z - pBehind.z;
-  const len1 = Math.sqrt(v1x * v1x + v1z * v1z);
-  
-  // Vector from current to ahead
-  const v2x = pAhead.x - pCurrent.x;
-  const v2z = pAhead.z - pCurrent.z;
-  const len2 = Math.sqrt(v2x * v2x + v2z * v2z);
-  
-  if (len1 < 0.01 || len2 < 0.01) return 0;
-  
-  // Normalize
-  const n1x = v1x / len1;
-  const n1z = v1z / len1;
-  const n2x = v2x / len2;
-  const n2z = v2z / len2;
-  
-  // Dot product gives cos(angle) between vectors
-  const dot = n1x * n2x + n1z * n2z;
-  const clampedDot = Math.max(-1, Math.min(1, dot));
-  
-  // Angle between the two directions (0 = same direction, PI = opposite)
-  const angle = Math.acos(clampedDot);
-  
-  return angle;
 }
