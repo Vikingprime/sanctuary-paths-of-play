@@ -491,12 +491,11 @@ function detectCorners(points: Point2D[], angleThreshold: number = Math.PI / 4):
 }
 
 /**
- * Push corner points inward (toward center of turn) or outward.
- * Positive strength moves path toward inside of turns (away from outer walls).
- * Negative strength moves path toward outside of turns (away from inner walls).
+ * Inflate corner regions by pushing points outward along their local curve normals.
+ * Positive strength inflates outward (away from turn center).
+ * Negative strength deflates inward (toward turn center).
  * 
- * IMPORTANT: This propagates the push to neighboring points with falloff,
- * so the entire curve section shifts rather than just the corner vertex.
+ * Unlike a simple shift, this makes corners rounder/bulge rather than translate.
  */
 function pushCornersInward(
   points: Point2D[],
@@ -505,14 +504,17 @@ function pushCornersInward(
 ): Point2D[] {
   if (points.length < 3 || strength === 0) return [...points];
   
-  // First pass: calculate push vectors for each corner
-  interface CornerPush {
+  const INFLUENCE_RADIUS = 4; // Points on each side of corner apex to affect
+  
+  // First pass: identify corner apexes and their sharpness
+  interface CornerApex {
     index: number;
-    pushX: number;
-    pushZ: number;
-    magnitude: number;
+    angle: number; // Sharpness of the turn (0 = straight, PI = 180 degree turn)
+    // Direction the corner "opens" toward (outward normal at apex)
+    outwardX: number;
+    outwardZ: number;
   }
-  const cornerPushes: CornerPush[] = [];
+  const corners: CornerApex[] = [];
   
   for (let i = 1; i < points.length - 1; i++) {
     const prev = points[i - 1];
@@ -540,79 +542,87 @@ function pushCornersInward(
     const dot = nx1 * nx2 + nz1 * nz2;
     const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
     
-    // Only push if there's a significant turn (> 15 degrees)
-    if (angle < Math.PI / 12) continue;
+    // Only consider significant turns (> 20 degrees)
+    if (angle < Math.PI / 9) continue;
     
-    // Bisector direction (points inward, toward the center of the turn)
-    // Negate the sum of directions to get inward direction
-    const bisectX = -(nx1 + nx2);
-    const bisectZ = -(nz1 + nz2);
+    // Bisector direction points INWARD (toward center of turn)
+    // We want OUTWARD for inflation, so negate
+    const bisectX = (nx1 + nx2); // Outward direction
+    const bisectZ = (nz1 + nz2);
     const bisectLen = Math.sqrt(bisectX * bisectX + bisectZ * bisectZ);
     
     if (bisectLen < 1e-6) continue;
     
-    // Normalize bisector
-    const bx = bisectX / bisectLen;
-    const bz = bisectZ / bisectLen;
-    
-    // Push strength scales with angle sharpness
-    const angleFactor = angle / Math.PI; // 0 = straight, 1 = 180 degree turn
-    const pushMagnitude = strength * angleFactor;
-    
-    // Optional: validate push won't go into a wall
-    let finalPushX = bx * pushMagnitude;
-    let finalPushZ = bz * pushMagnitude;
-    
-    if (isWallFn) {
-      // Check if the pushed position would be in a wall
-      const pushedX = curr.x + finalPushX;
-      const pushedZ = curr.z + finalPushZ;
-      if (isWallFn(pushedX, pushedZ)) {
-        // Reduce push to avoid wall collision
-        finalPushX *= 0.3;
-        finalPushZ *= 0.3;
-      }
-    }
-    
-    cornerPushes.push({
+    corners.push({
       index: i,
-      pushX: finalPushX,
-      pushZ: finalPushZ,
-      magnitude: Math.abs(pushMagnitude),
+      angle,
+      outwardX: bisectX / bisectLen,
+      outwardZ: bisectZ / bisectLen,
     });
   }
   
-  // Second pass: apply pushes with falloff to neighbors
-  // This ensures the curve shifts smoothly rather than creating kinks
-  const FALLOFF_RADIUS = 3; // Number of neighbors to affect on each side
+  // Second pass: for each point, calculate its inflation offset
+  // Each point pushes along its LOCAL normal, not the corner's normal
   const offsets: Array<{ dx: number; dz: number }> = points.map(() => ({ dx: 0, dz: 0 }));
   
-  for (const push of cornerPushes) {
-    // Apply full push to corner point
-    offsets[push.index].dx += push.pushX;
-    offsets[push.index].dz += push.pushZ;
+  for (const corner of corners) {
+    const angleFactor = corner.angle / Math.PI; // 0-1 based on sharpness
     
-    // Apply falloff to neighbors
-    for (let d = 1; d <= FALLOFF_RADIUS; d++) {
-      const falloff = 1 - d / (FALLOFF_RADIUS + 1); // Linear falloff: 1 -> 0.75 -> 0.5 -> 0.25
+    // Affect points within INFLUENCE_RADIUS of the corner apex
+    for (let d = -INFLUENCE_RADIUS; d <= INFLUENCE_RADIUS; d++) {
+      const idx = corner.index + d;
+      if (idx <= 0 || idx >= points.length - 1) continue; // Skip endpoints
       
-      // Before the corner
-      const prevIdx = push.index - d;
-      if (prevIdx > 0) { // Don't affect endpoints
-        offsets[prevIdx].dx += push.pushX * falloff;
-        offsets[prevIdx].dz += push.pushZ * falloff;
+      // Calculate local curve normal at this point
+      const prev = points[idx - 1];
+      const curr = points[idx];
+      const next = points[idx + 1];
+      
+      // Tangent direction (average of incoming and outgoing)
+      const tx = (next.x - prev.x);
+      const tz = (next.z - prev.z);
+      const tLen = Math.sqrt(tx * tx + tz * tz);
+      if (tLen < 1e-6) continue;
+      
+      // Normal is perpendicular to tangent (rotate 90 degrees)
+      // Choose the direction that aligns with the corner's outward direction
+      let normalX = -tz / tLen;
+      let normalZ = tx / tLen;
+      
+      // Flip normal if it points opposite to corner's outward direction
+      const dotWithCorner = normalX * corner.outwardX + normalZ * corner.outwardZ;
+      if (dotWithCorner < 0) {
+        normalX = -normalX;
+        normalZ = -normalZ;
       }
       
-      // After the corner
-      const nextIdx = push.index + d;
-      if (nextIdx < points.length - 1) { // Don't affect endpoints
-        offsets[nextIdx].dx += push.pushX * falloff;
-        offsets[nextIdx].dz += push.pushZ * falloff;
+      // Falloff: strongest at apex, weaker toward edges
+      const distFromApex = Math.abs(d);
+      const falloff = 1 - (distFromApex / (INFLUENCE_RADIUS + 1));
+      
+      // Push magnitude
+      const pushMag = strength * angleFactor * falloff;
+      
+      // Accumulate offset
+      offsets[idx].dx += normalX * pushMag;
+      offsets[idx].dz += normalZ * pushMag;
+    }
+  }
+  
+  // Optional: validate pushes won't go into walls
+  if (isWallFn) {
+    for (let i = 1; i < points.length - 1; i++) {
+      const pushedX = points[i].x + offsets[i].dx;
+      const pushedZ = points[i].z + offsets[i].dz;
+      if (isWallFn(pushedX, pushedZ)) {
+        // Reduce push to avoid wall collision
+        offsets[i].dx *= 0.2;
+        offsets[i].dz *= 0.2;
       }
     }
   }
   
-  // Apply accumulated offsets
+  // Apply offsets
   const result: Point2D[] = points.map((p, i) => ({
     x: p.x + offsets[i].dx,
     z: p.z + offsets[i].dz,
