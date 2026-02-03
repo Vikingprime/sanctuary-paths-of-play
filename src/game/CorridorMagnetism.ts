@@ -183,7 +183,7 @@ export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
   decayRate: 5.0,                     // Faster decay
   backOffset: 0.2,                    // Distance to back sensing point
   frontOffset: 0.35,                  // Distance to front sensing point
-  strength: 8.0,                      // Higher default strength (0-10 scale)
+  strength: 0.0,                      // DEFAULT TO 0 - magnetism off by default for manual control
   enabled: true,
   maxTurnRate: 2.0,                   // Reduced for smoother turns
 };
