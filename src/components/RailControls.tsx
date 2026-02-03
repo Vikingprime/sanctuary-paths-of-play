@@ -184,6 +184,46 @@ function findNearestJunction(
 }
 
 /**
+ * Deduplicate directions by angle - keep only the longest path for similar directions
+ */
+function deduplicateDirectionsByAngle(
+  directions: DirectionOption[],
+  angleThreshold: number = Math.PI / 6 // 30 degrees
+): DirectionOption[] {
+  if (directions.length <= 1) return directions;
+  
+  const result: DirectionOption[] = [];
+  const used = new Set<number>();
+  
+  // Sort by path length descending so we prefer longer paths
+  const sorted = [...directions].map((d, i) => ({ dir: d, idx: i, length: calculatePathLength(d.pathPoints) }))
+    .sort((a, b) => b.length - a.length);
+  
+  for (const { dir, idx } of sorted) {
+    if (used.has(idx)) continue;
+    
+    // Check if this direction is too similar to one we already added
+    let isDuplicate = false;
+    for (const existing of result) {
+      let angleDiff = Math.abs(dir.angle - existing.angle);
+      while (angleDiff > Math.PI) angleDiff = Math.abs(angleDiff - 2 * Math.PI);
+      
+      if (angleDiff < angleThreshold) {
+        isDuplicate = true;
+        break;
+      }
+    }
+    
+    if (!isDuplicate) {
+      result.push(dir);
+      used.add(idx);
+    }
+  }
+  
+  return result;
+}
+
+/**
  * Find available directions from current position
  * Uses topology-based junction connectivity instead of distance-based matching
  */
@@ -209,8 +249,7 @@ export function findAvailableDirections(
     return relativeAngle > 0 ? 'right' : 'left';
   };
   
-  // Minimum path length for a direction to be valid (prevents "turn only" buttons)
-  // Set low to ensure short corridor segments still appear as valid directions
+  // Minimum path length for a direction to be valid
   const MIN_PATH_LENGTH = 0.1;
   
   // At a junction - use the stored connectivity data
@@ -329,7 +368,9 @@ export function findAvailableDirections(
     }
   }
   
-  return directions;
+  // Deduplicate directions that point in nearly the same direction
+  // Keep the longer path when two directions are within 30 degrees
+  return deduplicateDirectionsByAngle(directions);
 }
 
 // ============================================================================
