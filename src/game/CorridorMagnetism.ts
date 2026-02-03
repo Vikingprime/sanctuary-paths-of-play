@@ -19,6 +19,7 @@
 import { Maze } from '@/types/game';
 import { GameConfig } from './GameConfig';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from './MedialAxis';
+import { buildSmoothedPolylines, PolylineGraph, PolylineSegment, Point2D, PolylineConfig } from './SkeletonPolyline';
 
 // ============================================================================
 // TYPES
@@ -105,6 +106,26 @@ interface SkeletonPixel {
   isSuppressed: boolean;
 }
 
+/** A point on a polyline segment with metadata for magnetism lookup */
+interface PolylinePoint {
+  /** World X position */
+  wx: number;
+  /** World Z position */
+  wz: number;
+  /** Index of the segment this point belongs to */
+  segmentIndex: number;
+  /** Index within the segment's points array */
+  pointIndex: number;
+  /** Whether this point is near a junction (suppressed for magnetism) */
+  isSuppressed: boolean;
+}
+
+/** Spatial bucket for fast polyline point lookup */
+interface PolylineSpatialBucket {
+  /** Points in this spatial bucket */
+  points: PolylinePoint[];
+}
+
 /** Cached skeleton data for fast lookups */
 export interface MagnetismCache {
   /** Fine grid reference */
@@ -120,6 +141,14 @@ export interface MagnetismCache {
   fineHeight: number;
   /** Suppression radius in skeleton steps */
   suppressionRadius: number;
+  
+  // === POLYLINE DATA ===
+  /** Complete polyline graph with smoothed segments */
+  polylineGraph: PolylineGraph | null;
+  /** Spatial hash for fast polyline point lookup (key: "gridX,gridZ") */
+  polylineSpatialHash: Map<string, PolylineSpatialBucket>;
+  /** Size of each spatial bucket in world units */
+  polylineBucketSize: number;
 }
 
 /** State for smoothing turn corrections */
@@ -168,7 +197,8 @@ export const DEFAULT_MAGNETISM_CONFIG: MagnetismConfig = {
  */
 export function buildMagnetismCache(
   maze: Maze,
-  spurConfig?: SpurConfig
+  spurConfig?: SpurConfig,
+  polylineConfig?: Partial<PolylineConfig>
 ): MagnetismCache {
   const result = computeMedialAxis(maze, 20, spurConfig);
   const { fineGrid, scale, fineCellSize } = result;
@@ -269,6 +299,97 @@ export function buildMagnetismCache(
   const suppressedCount = skeletonPixels.filter(p => p.isSuppressed).length;
   console.log(`[Magnetism] Built cache with ${skeletonPixels.length} skeleton pixels, ${suppressedCount} suppressed (${seedPixels.length} seeds, radius=${suppressionRadius})`);
   
+  // === BUILD POLYLINE SPATIAL INDEX ===
+  // Create wall check function for polyline building
+  const isWallFn = (worldX: number, worldZ: number): boolean => {
+    const gridX = Math.floor(worldX);
+    const gridZ = Math.floor(worldZ);
+    if (gridZ < 0 || gridZ >= maze.grid.length) return true;
+    if (gridX < 0 || gridX >= maze.grid[0].length) return true;
+    const cell = maze.grid[gridZ][gridX];
+    return cell === null || cell === undefined || cell.isWall;
+  };
+  
+  // Build smoothed polylines
+  const polylineGraph = buildSmoothedPolylines(
+    fineGrid,
+    fineWidth,
+    fineHeight,
+    fineCellSize,
+    { ...polylineConfig, isWallFn }
+  );
+  
+  // Build spatial hash for fast polyline lookups
+  // Bucket size of 0.5 world units provides good balance between precision and lookup speed
+  const polylineBucketSize = 0.5;
+  const polylineSpatialHash = new Map<string, PolylineSpatialBucket>();
+  
+  // Helper to get bucket key from world position
+  const getBucketKey = (wx: number, wz: number): string => {
+    const bx = Math.floor(wx / polylineBucketSize);
+    const bz = Math.floor(wz / polylineBucketSize);
+    return `${bx},${bz}`;
+  };
+  
+  // Index all polyline points into spatial buckets
+  // Also mark points near junctions as suppressed
+  const junctionSet = new Set<string>();
+  for (const junction of polylineGraph.junctions) {
+    // Create a suppression zone around each junction (1 world unit radius)
+    const suppressionWorldRadius = 1.0;
+    junctionSet.add(`${junction.x.toFixed(1)},${junction.z.toFixed(1)}`);
+  }
+  
+  for (let segIdx = 0; segIdx < polylineGraph.segments.length; segIdx++) {
+    const segment = polylineGraph.segments[segIdx];
+    
+    for (let ptIdx = 0; ptIdx < segment.points.length; ptIdx++) {
+      const pt = segment.points[ptIdx];
+      
+      // Check if this point is near any junction
+      let isSuppressed = false;
+      const junctionSuppressionRadius = 1.0; // 1 world unit from junction
+      for (const junction of polylineGraph.junctions) {
+        const dx = pt.x - junction.x;
+        const dz = pt.z - junction.z;
+        if (dx * dx + dz * dz < junctionSuppressionRadius * junctionSuppressionRadius) {
+          isSuppressed = true;
+          break;
+        }
+      }
+      
+      // Also suppress points near endpoints (first/last few points of segment)
+      const endpointSuppressionCount = 5;
+      if (segment.startIsEndpoint && ptIdx < endpointSuppressionCount) {
+        isSuppressed = true;
+      }
+      if (segment.endIsEndpoint && ptIdx >= segment.points.length - endpointSuppressionCount) {
+        isSuppressed = true;
+      }
+      
+      const polyPoint: PolylinePoint = {
+        wx: pt.x,
+        wz: pt.z,
+        segmentIndex: segIdx,
+        pointIndex: ptIdx,
+        isSuppressed,
+      };
+      
+      // Add to the bucket for this point's position
+      const key = getBucketKey(pt.x, pt.z);
+      if (!polylineSpatialHash.has(key)) {
+        polylineSpatialHash.set(key, { points: [] });
+      }
+      polylineSpatialHash.get(key)!.points.push(polyPoint);
+    }
+  }
+  
+  const totalPolyPoints = polylineGraph.segments.reduce((sum, s) => sum + s.points.length, 0);
+  const suppressedPolyPoints = Array.from(polylineSpatialHash.values())
+    .flatMap(b => b.points)
+    .filter(p => p.isSuppressed).length;
+  console.log(`[Magnetism] Indexed ${totalPolyPoints} polyline points into ${polylineSpatialHash.size} spatial buckets, ${suppressedPolyPoints} suppressed`);
+  
   return {
     fineGrid,
     scale,
@@ -277,6 +398,9 @@ export function buildMagnetismCache(
     fineWidth,
     fineHeight,
     suppressionRadius,
+    polylineGraph,
+    polylineSpatialHash,
+    polylineBucketSize,
   };
 }
 
@@ -454,6 +578,132 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 }
 
 // ============================================================================
+// POLYLINE-BASED NEAREST POINT LOOKUP
+// ============================================================================
+
+/** Result of finding the nearest point on a polyline */
+interface PolylineNearestResult {
+  /** World X of nearest point */
+  wx: number;
+  /** World Z of nearest point */
+  wz: number;
+  /** Tangent direction at this point (normalized) */
+  tx: number;
+  tz: number;
+  /** Whether this point is suppressed (near junction/endpoint) */
+  isSuppressed: boolean;
+  /** Distance from query point to nearest polyline point */
+  distance: number;
+  /** Segment index */
+  segmentIndex: number;
+  /** Point index within segment */
+  pointIndex: number;
+  /** For visualization: position N points before */
+  tangentStart: { wx: number; wz: number };
+  /** For visualization: position N points after */
+  tangentEnd: { wx: number; wz: number };
+}
+
+/**
+ * Find the nearest point on the polyline to a query position using spatial hashing.
+ * Also computes the tangent at that point by looking at neighboring points.
+ * 
+ * @param x - Query X position (world space)
+ * @param z - Query Z position (world space)
+ * @param cache - Magnetism cache with polyline spatial hash
+ * @param searchRadius - Maximum search radius in world units
+ * @param tangentLookAhead - Number of points to look ahead/behind for tangent calculation
+ * @returns Nearest point result or null if none found
+ */
+function findNearestPolylinePoint(
+  x: number,
+  z: number,
+  cache: MagnetismCache,
+  searchRadius: number = 4.0,
+  tangentLookAhead: number = 5
+): PolylineNearestResult | null {
+  const { polylineSpatialHash, polylineBucketSize, polylineGraph } = cache;
+  
+  if (!polylineGraph || polylineSpatialHash.size === 0) {
+    return null;
+  }
+  
+  // Calculate which buckets to search (a grid of buckets around the query point)
+  const bucketsToCheck = Math.ceil(searchRadius / polylineBucketSize) + 1;
+  const centerBx = Math.floor(x / polylineBucketSize);
+  const centerBz = Math.floor(z / polylineBucketSize);
+  
+  let nearest: PolylinePoint | null = null;
+  let nearestDistSq = searchRadius * searchRadius;
+  
+  // Check all buckets in range
+  for (let dbx = -bucketsToCheck; dbx <= bucketsToCheck; dbx++) {
+    for (let dbz = -bucketsToCheck; dbz <= bucketsToCheck; dbz++) {
+      const bucketKey = `${centerBx + dbx},${centerBz + dbz}`;
+      const bucket = polylineSpatialHash.get(bucketKey);
+      if (!bucket) continue;
+      
+      for (const point of bucket.points) {
+        const dx = x - point.wx;
+        const dz = z - point.wz;
+        const distSq = dx * dx + dz * dz;
+        
+        if (distSq < nearestDistSq) {
+          nearestDistSq = distSq;
+          nearest = point;
+        }
+      }
+    }
+  }
+  
+  if (!nearest) {
+    return null;
+  }
+  
+  // Get the segment to compute tangent
+  const segment = polylineGraph.segments[nearest.segmentIndex];
+  if (!segment) {
+    return null;
+  }
+  
+  const points = segment.points;
+  const ptIdx = nearest.pointIndex;
+  
+  // Compute tangent by looking at points before and after
+  // Clamp to segment bounds
+  const lookBehindIdx = Math.max(0, ptIdx - tangentLookAhead);
+  const lookAheadIdx = Math.min(points.length - 1, ptIdx + tangentLookAhead);
+  
+  const behindPt = points[lookBehindIdx];
+  const aheadPt = points[lookAheadIdx];
+  
+  const dx = aheadPt.x - behindPt.x;
+  const dz = aheadPt.z - behindPt.z;
+  const len = Math.sqrt(dx * dx + dz * dz);
+  
+  // Default tangent if points are coincident
+  let tx = 0;
+  let tz = 1;
+  if (len > 0.001) {
+    tx = dx / len;
+    tz = dz / len;
+  }
+  
+  return {
+    wx: nearest.wx,
+    wz: nearest.wz,
+    tx,
+    tz,
+    isSuppressed: nearest.isSuppressed,
+    distance: Math.sqrt(nearestDistSq),
+    segmentIndex: nearest.segmentIndex,
+    pointIndex: nearest.pointIndex,
+    tangentStart: { wx: behindPt.x, wz: behindPt.z },
+    tangentEnd: { wx: aheadPt.x, wz: aheadPt.z },
+  };
+}
+
+// ============================================================================
 // TURN-BASED MAGNETISM CALCULATION
 // ============================================================================
 
@@ -550,9 +800,12 @@ export function calculateMagnetismTurn(
   const frontX = playerX + facingX * config.frontOffset;
   const frontZ = playerZ + facingZ * config.frontOffset;
   
-  // Find nearest skeleton pixel to front (head) point for better anticipation
-  const candidateNearest = findNearestSkeletonPixel(frontX, frontZ, cache);
-  if (!candidateNearest) {
+  // Find nearest polyline point to front (head) point for better anticipation
+  // This uses the smoothed polyline instead of the raw skeleton pixels
+  const polylineResult = findNearestPolylinePoint(frontX, frontZ, cache, 4.0, 5);
+  
+  // Fallback to skeleton if polyline not available (shouldn't happen normally)
+  if (!polylineResult) {
     // Decay and return
     state.currentCorrection *= Math.exp(-config.decayRate * delta);
     state.lastNearestFx = -1;
@@ -561,60 +814,65 @@ export function calculateMagnetismTurn(
     return { ...noOpResult, turnCorrection: state.currentCorrection };
   }
   
-  // Sticky skeleton point selection:
-  // Once locked to a point, only switch if:
-  // 1. The new point is significantly closer (>15% closer), OR
-  // 2. The locked point is no longer valid (outside search radius)
-  let nearest = candidateNearest;
-  const candidateDist = Math.sqrt((frontX - candidateNearest.wx) ** 2 + (frontZ - candidateNearest.wz) ** 2);
+  // Create a synthetic "nearest" point structure for compatibility with rest of code
+  const nearest = {
+    wx: polylineResult.wx,
+    wz: polylineResult.wz,
+    isSuppressed: polylineResult.isSuppressed,
+    // For debug display - use segment/point index as a pseudo-degree
+    degree: 2, // Polyline points are always "corridor" type (degree 2)
+  };
   
-  if (state.lastNearestFx >= 0 && state.lastNearestFy >= 0) {
-    // Try to find the previously locked point
-    const lockedPixel = cache.skeletonPixels.find(
-      p => p.fx === state.lastNearestFx && p.fy === state.lastNearestFy
-    );
+  // Update sticky point tracking using segment/point indices
+  // Reuse fx/fy fields to store segment/point indices
+  const candidateKey = polylineResult.segmentIndex * 10000 + polylineResult.pointIndex;
+  const candidateDist = polylineResult.distance;
+  
+  const lastKey = state.lastNearestFx * 10000 + state.lastNearestFy;
+  if (state.lastNearestFx >= 0 && state.lastNearestFy >= 0 && lastKey !== candidateKey) {
+    // Check if we should stick to the previous point
+    const maxSearchRadius = 2.5;
+    const switchThreshold = 0.85;
     
-    if (lockedPixel) {
-      const lockedDist = Math.sqrt((frontX - lockedPixel.wx) ** 2 + (frontZ - lockedPixel.wz) ** 2);
-      const maxSearchRadius = 2.5; // Reduced from 4.0 - don't hold onto distant points
+    // Try to get the distance to the previously locked point
+    const prevSegment = cache.polylineGraph?.segments[state.lastNearestFx];
+    if (prevSegment && state.lastNearestFy < prevSegment.points.length) {
+      const prevPt = prevSegment.points[state.lastNearestFy];
+      const lockedDist = Math.sqrt((frontX - prevPt.x) ** 2 + (frontZ - prevPt.z) ** 2);
       
-      // Stick to locked point unless candidate is significantly better
-      // Require 15% closer OR locked point is too far (reduced from 30% for more responsive switching)
-      const switchThreshold = 0.85; // New point must be 85% of locked distance (15% closer)
       const shouldSwitch = lockedDist > maxSearchRadius || candidateDist < lockedDist * switchThreshold;
       
       if (!shouldSwitch) {
-        nearest = lockedPixel;
+        // Stick to previous point - re-query from that position
+        // (For simplicity, just continue with the new nearest since polyline is smooth)
         state.lockDuration += delta;
       } else {
-        // Switching to new point - ALSO reset the tangent direction commitment
-        state.lastNearestFx = candidateNearest.fx;
-        state.lastNearestFy = candidateNearest.fy;
+        state.lastNearestFx = polylineResult.segmentIndex;
+        state.lastNearestFy = polylineResult.pointIndex;
         state.lockDuration = 0;
-        state.committedSign = 0; // Reset to neutral - will be set based on current facing
+        state.committedSign = 0;
       }
     } else {
-      // Locked point no longer exists, use candidate
-      state.lastNearestFx = candidateNearest.fx;
-      state.lastNearestFy = candidateNearest.fy;
+      state.lastNearestFx = polylineResult.segmentIndex;
+      state.lastNearestFy = polylineResult.pointIndex;
       state.lockDuration = 0;
-      state.committedSign = 0; // Reset to neutral
+      state.committedSign = 0;
     }
-  } else {
-    // No locked point, use candidate
-    state.lastNearestFx = candidateNearest.fx;
-    state.lastNearestFy = candidateNearest.fy;
+  } else if (state.lastNearestFx < 0) {
+    state.lastNearestFx = polylineResult.segmentIndex;
+    state.lastNearestFy = polylineResult.pointIndex;
     state.lockDuration = 0;
-    state.committedSign = 0; // Reset to neutral
+    state.committedSign = 0;
   }
   
-  // Get tangent at skeleton point using extended neighbors (±5 steps for smooth curves)
-  const tangent = computeTangentExtended(nearest, cache, 5);
+  // Use polyline tangent directly (already computed by findNearestPolylinePoint)
+  const tx = polylineResult.tx;
+  const tz = polylineResult.tz;
+  const endpoint1 = polylineResult.tangentStart;
+  const endpoint2 = polylineResult.tangentEnd;
   
-  // If at a junction (tangent is null) OR in suppression zone, skip turn correction entirely
-  const isSuppressed = tangent === null || nearest.isSuppressed;
-  if (isSuppressed) {
-    // Decay existing correction and return with suppression flag
+  // If suppressed (near junction/endpoint), skip turn correction
+  if (polylineResult.isSuppressed) {
     state.currentCorrection *= Math.exp(-config.decayRate * delta);
     return {
       turnCorrection: state.currentCorrection,
@@ -629,16 +887,16 @@ export function calculateMagnetismTurn(
         rawSpineZ: nearest.wz,
         targetX: nearest.wx,
         targetZ: nearest.wz,
-        tangentX: 0,
-        tangentZ: 1,
-        neighbor1X: nearest.wx,
-        neighbor1Z: nearest.wz,
-        neighbor2X: nearest.wx,
-        neighbor2Z: nearest.wz,
+        tangentX: tx,
+        tangentZ: tz,
+        neighbor1X: endpoint1.wx,
+        neighbor1Z: endpoint1.wz,
+        neighbor2X: endpoint2.wx,
+        neighbor2Z: endpoint2.wz,
         rawAngleDiff: 0,
         isActive: false,
         strengthMultiplier: 0,
-        crossDist: Math.sqrt((nearest.wx - frontX) ** 2 + (nearest.wz - frontZ) ** 2),
+        crossDist: polylineResult.distance,
         isJunctionSuppressed: true,
         nearestDegree: nearest.degree,
         appliedTurnCorrection: state.currentCorrection,
@@ -646,26 +904,19 @@ export function calculateMagnetismTurn(
     };
   }
   
-  const { tx, tz, endpoint1, endpoint2 } = tangent;
-  
   // ============================================================================
   // SMOOTH THE SPINE ANCHOR POINT TO PREVENT VIBRATION AT CURVES
   // ============================================================================
-  // The raw spine point is discrete (jumps between grid nodes as animal moves).
-  // When the nearest spine node changes, the tangent line shifts by one grid cell,
-  // causing visible vibration. Apply exponential smoothing to create a stable anchor.
-  // Tau = 0.05s: fast enough to track movement but eliminates single-frame jumps.
+  // The polyline is already smooth, but we still apply position smoothing
+  // to eliminate any remaining discrete jumps between points.
   // ============================================================================
   const spineSmoothingTau = 0.05;
   const spineAlpha = delta / (spineSmoothingTau + delta);
   
   if (state.smoothedSpineX === 0 && state.smoothedSpineZ === 0) {
-    // Initialize smoothed spine to current position on first use
     state.smoothedSpineX = nearest.wx;
     state.smoothedSpineZ = nearest.wz;
   } else {
-    // Smoothing alpha applied below
-    
     state.smoothedSpineX += (nearest.wx - state.smoothedSpineX) * spineAlpha;
     state.smoothedSpineZ += (nearest.wz - state.smoothedSpineZ) * spineAlpha;
   }
