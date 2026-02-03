@@ -526,6 +526,7 @@ export const MazeGame3D = ({
   const handleRailDirectionSelect = useCallback((targetX: number, targetZ: number, pathPoints: Point2D[]) => {
     railPathRef.current = pathPoints;
     railPathIndexRef.current = 0;
+    railFractionalIndexRef.current = 0; // Reset fractional progress for smooth traversal
     setIsRailMoving(true);
   }, []);
   

@@ -1183,83 +1183,111 @@ const RefBasedPlayer = ({
       const clampedDelta = Math.min(delta, 0.05);
       
       // === RAIL MODE: Automatic movement along polyline path ===
-      // In rail mode, the animal follows the pre-computed path points directly
-      // No magnetism needed - just move from point to point along the path
+      // Move by stepping through path points at a fixed world-space speed
+      // Position is set EXACTLY on path points - no "move toward" interpolation
       if (railMode && railPathRef?.current && railPathRef.current.length >= 2 && railPathIndexRef) {
         const path = railPathRef.current;
-        let pathIdx = railPathIndexRef.current;
         
-        // Get current target point (next point in path)
-        const targetIdx = Math.min(pathIdx + 1, path.length - 1);
-        const targetPoint = path[targetIdx];
+        // Use a continuous progress value instead of integer index
+        // This tracks our exact position along the polyline
+        let progress = railFractionalIndexRef?.current ?? 0;
         
-        // Calculate direction to target point
-        const player = playerStateRef.current;
-        let dx = targetPoint.x - player.x;
-        let dz = targetPoint.z - player.y; // Note: player.y is world Z
-        let dist = Math.sqrt(dx * dx + dz * dz);
+        // Calculate total distance to travel this frame
+        const RAIL_SPEED = 2.5; // World units per second
+        let remainingDist = RAIL_SPEED * clampedDelta;
         
-        // Check if we've reached the current waypoint - advance to next
-        const waypointThreshold = 0.12; // Increased from 0.08 to reduce jitter
-        while (dist < waypointThreshold && pathIdx < path.length - 2) {
-          pathIdx++;
-          railPathIndexRef.current = pathIdx;
-          const nextTarget = path[Math.min(pathIdx + 1, path.length - 1)];
-          dx = nextTarget.x - player.x;
-          dz = nextTarget.z - player.y;
-          dist = Math.sqrt(dx * dx + dz * dz);
+        // Step through path segments until we've traveled the required distance
+        while (remainingDist > 0 && progress < path.length - 1) {
+          const currentIdx = Math.floor(progress);
+          const nextIdx = Math.min(currentIdx + 1, path.length - 1);
+          
+          const p0 = path[currentIdx];
+          const p1 = path[nextIdx];
+          
+          // Distance from current fractional position to next point
+          const segmentT = progress - currentIdx; // 0-1 within this segment
+          const currentX = p0.x + (p1.x - p0.x) * segmentT;
+          const currentZ = p0.z + (p1.z - p0.z) * segmentT;
+          
+          // Segment length
+          const segDx = p1.x - p0.x;
+          const segDz = p1.z - p0.z;
+          const segLen = Math.sqrt(segDx * segDx + segDz * segDz);
+          
+          if (segLen < 0.0001) {
+            // Skip zero-length segments
+            progress = nextIdx;
+            continue;
+          }
+          
+          // How far to the end of this segment?
+          const distToSegEnd = segLen * (1 - segmentT);
+          
+          if (remainingDist >= distToSegEnd) {
+            // Move to end of this segment and continue
+            remainingDist -= distToSegEnd;
+            progress = nextIdx;
+          } else {
+            // Partial move within this segment
+            const advanceT = remainingDist / segLen;
+            progress += advanceT;
+            remainingDist = 0;
+          }
         }
         
-        // Check if we've reached the end of the path
-        if (pathIdx >= path.length - 2 && dist < waypointThreshold) {
-          // Reached destination - signal completion
+        // Clamp progress to valid range
+        progress = Math.min(progress, path.length - 1);
+        if (railFractionalIndexRef) {
+          railFractionalIndexRef.current = progress;
+        }
+        railPathIndexRef.current = Math.floor(progress);
+        
+        // Calculate exact position on path
+        const currentIdx = Math.floor(progress);
+        const nextIdx = Math.min(currentIdx + 1, path.length - 1);
+        const t = progress - currentIdx;
+        const p0 = path[currentIdx];
+        const p1 = path[nextIdx];
+        const newX = p0.x + (p1.x - p0.x) * t;
+        const newZ = p0.z + (p1.z - p0.z) * t;
+        
+        // Calculate tangent for rotation (look a few points ahead/behind)
+        const tangentBehind = Math.max(0, currentIdx - 3);
+        const tangentAhead = Math.min(path.length - 1, currentIdx + 5);
+        const behindPt = path[tangentBehind];
+        const aheadPt = path[tangentAhead];
+        
+        const tangentDx = aheadPt.x - behindPt.x;
+        const tangentDz = aheadPt.z - behindPt.z;
+        const tangentLen = Math.sqrt(tangentDx * tangentDx + tangentDz * tangentDz);
+        
+        let visualAngle: number;
+        if (tangentLen > 0.01) {
+          visualAngle = Math.atan2(tangentDx, tangentDz);
+        } else {
+          visualAngle = Math.atan2(p1.x - p0.x, p1.z - p0.z);
+        }
+        
+        let targetRotation = -visualAngle + Math.PI;
+        while (targetRotation < 0) targetRotation += Math.PI * 2;
+        while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
+        
+        // Set position exactly on the path curve
+        playerStateRef.current = {
+          x: newX,
+          y: newZ,
+          rotation: targetRotation,
+        };
+        
+        // Check if reached end
+        if (progress >= path.length - 1.01) {
           railPathRef.current = [];
           railPathIndexRef.current = 0;
+          if (railFractionalIndexRef) railFractionalIndexRef.current = 0;
           isMovingRef.current = false;
           moveSpeedRef.current = 0;
           onRailMoveComplete?.();
         } else {
-          // === SIMPLE PATH FOLLOWING: Move directly along path points ===
-          const RAIL_SPEED = 2.5; // World units per second
-          const moveSpeed = RAIL_SPEED * clampedDelta;
-          
-          // Move toward the next path point
-          const dirX = dx / dist;
-          const dirZ = dz / dist;
-          const moveDist = Math.min(moveSpeed, dist);
-          const newX = player.x + dirX * moveDist;
-          const newZ = player.y + dirZ * moveDist;
-          
-          // Calculate tangent from path points for smooth rotation
-          const tangentBehindIdx = Math.max(0, pathIdx - 3);
-          const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 5);
-          const behindPt = path[tangentBehindIdx];
-          const aheadPt = path[tangentAheadIdx];
-          
-          const tangentDx = aheadPt.x - behindPt.x;
-          const tangentDz = aheadPt.z - behindPt.z;
-          const tangentLen = Math.sqrt(tangentDx * tangentDx + tangentDz * tangentDz);
-          
-          // Calculate visual angle from tangent
-          let visualAngle: number;
-          if (tangentLen > 0.01) {
-            visualAngle = Math.atan2(tangentDx, tangentDz);
-          } else {
-            visualAngle = Math.atan2(dx, dz);
-          }
-          
-          // Convert to player rotation
-          let targetRotation = -visualAngle + Math.PI;
-          while (targetRotation < 0) targetRotation += Math.PI * 2;
-          while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
-          
-          // Apply position and rotation directly
-          playerStateRef.current = {
-            x: newX,
-            y: newZ,
-            rotation: targetRotation,
-          };
-          
           isMovingRef.current = true;
           isTurningRef.current = false;
           moveSpeedRef.current = 0.8;
