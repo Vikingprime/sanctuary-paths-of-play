@@ -42,6 +42,8 @@ interface DirectionOption {
   direction: 'forward' | 'left' | 'right' | 'back';
   /** World angle of this direction (radians) */
   angle: number;
+  /** Angle relative to animal's facing direction (radians) - for UI positioning */
+  relativeAngle: number;
   /** Target position (junction or endpoint) */
   targetX: number;
   targetZ: number;
@@ -240,19 +242,23 @@ export function findAvailableDirections(
   const { polylineGraph } = cache;
   const directions: DirectionOption[] = [];
   
-  // Helper to classify angle relative to animal's facing direction
-  // Since camera is locked behind the animal, screen directions match animal directions
-  // animalRotation is in world space, targetAngle is also world space
-  const classifyWorldDirection = (targetAngle: number): 'forward' | 'left' | 'right' | 'back' => {
-    // Convert animal rotation to the visual direction it's facing
-    // The relationship is: visualRotation = -playerRotation + PI
-    const animalFacingAngle = -animalRotation + Math.PI;
-    
+  // Convert animal rotation to the visual direction it's facing
+  // The relationship is: visualRotation = -playerRotation + PI
+  const animalFacingAngle = -animalRotation + Math.PI;
+  
+  // Helper to compute relative angle (for UI positioning)
+  const computeRelativeAngle = (targetAngle: number): number => {
     let relativeAngle = targetAngle - animalFacingAngle;
     // Normalize to [-PI, PI]
     while (relativeAngle > Math.PI) relativeAngle -= 2 * Math.PI;
     while (relativeAngle < -Math.PI) relativeAngle += 2 * Math.PI;
-    
+    return relativeAngle;
+  };
+  
+  // Helper to classify angle relative to animal's facing direction
+  // Since camera is locked behind the animal, screen directions match animal directions
+  const classifyWorldDirection = (targetAngle: number): 'forward' | 'left' | 'right' | 'back' => {
+    const relativeAngle = computeRelativeAngle(targetAngle);
     const absAngle = Math.abs(relativeAngle);
     // Forward = same direction animal is facing (within 45°)
     if (absAngle < Math.PI / 4) return 'forward';
@@ -309,6 +315,7 @@ export function findAvailableDirections(
           label: classifyWorldDirection(angle),
           direction: classifyWorldDirection(angle),
           angle,
+          relativeAngle: computeRelativeAngle(angle),
           targetX: targetPt.x,
           targetZ: targetPt.z,
           pathPoints,
@@ -344,6 +351,7 @@ export function findAvailableDirections(
           label: 'Forward',
           direction: classifyWorldDirection(angle),
           angle,
+          relativeAngle: computeRelativeAngle(angle),
           targetX: targetPt.x,
           targetZ: targetPt.z,
           pathPoints,
@@ -372,6 +380,7 @@ export function findAvailableDirections(
           label: 'Backward',
           direction: classifyWorldDirection(angle),
           angle,
+          relativeAngle: computeRelativeAngle(angle),
           targetX: targetPt.x,
           targetZ: targetPt.z,
           pathPoints,
@@ -395,31 +404,31 @@ export function findAvailableDirections(
  * Arrow rotates to point in the direction of travel
  */
 const RadialDirectionButton = ({
-  angle,
+  relativeAngle,
   onClick,
   disabled,
   isTurnAround,
   radius = 60, // Distance from center
 }: {
-  angle: number; // World angle in radians
+  relativeAngle: number; // Angle relative to animal's facing direction (radians)
   onClick: () => void;
   disabled?: boolean;
   isTurnAround?: boolean;
   radius?: number;
 }) => {
-  // Convert world angle to screen position
-  // angle 0 = +Z = down on screen, angle PI/2 = +X = right on screen
-  // We want angle 0 to point "up" visually when facing +Z
-  const screenAngle = -angle + Math.PI; // Flip and rotate
-  
+  // relativeAngle: 0 = forward, PI/2 = right, -PI/2 = left, PI = back
+  // For screen position: forward should be at top (y = center - radius)
   // Position on circle (center of container is at 80,80 for w-40 h-40)
   const centerX = 80;
   const centerY = 80;
-  const x = centerX + Math.sin(screenAngle) * radius;
-  const y = centerY - Math.cos(screenAngle) * radius;
+  // Screen coordinates: +Y is down, +X is right
+  // relativeAngle 0 (forward) = top = (0, -1)
+  // relativeAngle PI/2 (right) = right = (1, 0)
+  const x = centerX + Math.sin(relativeAngle) * radius;
+  const y = centerY - Math.cos(relativeAngle) * radius;
   
-  // Arrow rotation - point in direction of travel
-  const arrowRotation = (screenAngle * 180 / Math.PI);
+  // Arrow rotation - point in direction of travel (relative to up)
+  const arrowRotation = (relativeAngle * 180 / Math.PI);
   
   return (
     <button
@@ -538,7 +547,7 @@ export function RailControls({
         {directions.map((dir, idx) => (
           <RadialDirectionButton
             key={idx}
-            angle={dir.angle}
+            relativeAngle={dir.relativeAngle}
             onClick={() => handleDirectionClick(dir)}
             isTurnAround={dir.isTurnAround}
           />
