@@ -1227,57 +1227,40 @@ const RefBasedPlayer = ({
           const newX = player.x + dirX * moveDist;
           const newZ = player.y + dirZ * moveDist;
           
-          // Get the polyline tangent at the NEW position for precise rotation alignment
-          // This ensures the animal's rotation matches the actual polyline direction
-          let targetRotation: number;
-          const nearest = magnetismCacheRef.current 
-            ? findNearestPolylinePoint(newX, newZ, magnetismCacheRef.current, 4.0, 8)
-            : null;
+          // Calculate tangent DIRECTLY from path points - these ARE the polyline!
+          // Look behind and ahead in the path for a smooth tangent
+          const tangentBehindIdx = Math.max(0, pathIdx - 3);
+          const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 5);
+          const behindPt = path[tangentBehindIdx];
+          const aheadPt = path[tangentAheadIdx];
           
-          if (nearest && Math.sqrt(nearest.tx * nearest.tx + nearest.tz * nearest.tz) > 0.01) {
-            // Use the polyline tangent for rotation
-            const tangentAngle = Math.atan2(nearest.tx, nearest.tz);
-            
-            // Make sure tangent points in the direction of travel (not backwards)
-            const travelAngle = Math.atan2(dx, dz);
-            const angleDiffToTravel = normalizeAngle(tangentAngle - travelAngle);
-            
-            if (Math.abs(angleDiffToTravel) > Math.PI / 2) {
-              // Tangent is pointing backwards, flip it
-              targetRotation = normalizeAngle(tangentAngle + Math.PI);
-            } else {
-              targetRotation = tangentAngle;
-            }
+          const tangentDx = aheadPt.x - behindPt.x;
+          const tangentDz = aheadPt.z - behindPt.z;
+          const tangentLen = Math.sqrt(tangentDx * tangentDx + tangentDz * tangentDz);
+          
+          // Set rotation to EXACTLY match the path tangent direction
+          // No smoothing - just lock to tangent
+          let targetRotation: number;
+          if (tangentLen > 0.01) {
+            targetRotation = Math.atan2(tangentDx, tangentDz);
           } else {
-            // Fallback to travel direction
+            // Fallback if points are too close
             targetRotation = Math.atan2(dx, dz);
           }
           
-          // Smoothly rotate toward target tangent
-          const currentRotation = player.rotation;
-          const angleDiff = normalizeAngle(targetRotation - currentRotation);
-          const TURN_SPEED = 6.0; // Fast turning for rail mode
-          const maxTurn = TURN_SPEED * clampedDelta;
+          // Normalize to [0, 2*PI]
+          if (targetRotation < 0) targetRotation += Math.PI * 2;
           
-          let newRotation: number;
-          if (Math.abs(angleDiff) <= maxTurn) {
-            newRotation = targetRotation;
-          } else {
-            newRotation = currentRotation + Math.sign(angleDiff) * maxTurn;
-          }
-          newRotation = normalizeAngle(newRotation);
-          if (newRotation < 0) newRotation += Math.PI * 2;
-          
-          // Apply movement directly along path
+          // Apply movement with LOCKED rotation to path tangent
           playerStateRef.current = {
             x: newX,
             y: newZ,
-            rotation: newRotation,
+            rotation: targetRotation, // Direct lock, no smoothing
           };
           
           // Update animation refs
           isMovingRef.current = true;
-          isTurningRef.current = Math.abs(angleDiff) > 0.1;
+          isTurningRef.current = false; // No turning animation when locked
           moveSpeedRef.current = 0.8; // Walk animation
         }
         
