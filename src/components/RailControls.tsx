@@ -250,13 +250,17 @@ export function findAvailableDirections(
   console.log(`[RailControls] animalRotation=${(animalRotation * 180 / Math.PI).toFixed(1)}°, animalFacingAngle=${(animalFacingAngle * 180 / Math.PI).toFixed(1)}°`);
   
   // Helper to compute relative angle (for UI positioning)
-  // Positive = clockwise from animal's perspective (right)
-  // Negative = counter-clockwise (left)
+  // The world uses atan2(x, z) where +angle is counter-clockwise when viewed from above
+  // But screen coordinates have +X to the right (clockwise from forward = right)
+  // So we need to NEGATE the relative angle to convert from world to screen convention
   const computeRelativeAngle = (targetAngle: number): number => {
     let relativeAngle = targetAngle - animalFacingAngle;
     // Normalize to [-PI, PI]
     while (relativeAngle > Math.PI) relativeAngle -= 2 * Math.PI;
     while (relativeAngle < -Math.PI) relativeAngle += 2 * Math.PI;
+    
+    // NEGATE to convert from world (CCW+) to screen (CW+) convention
+    relativeAngle = -relativeAngle;
     
     // DEBUG: Log each direction's angles
     console.log(`[RailControls] Path: worldAngle=${(targetAngle * 180 / Math.PI).toFixed(1)}° -> relativeAngle=${(relativeAngle * 180 / Math.PI).toFixed(1)}°`);
@@ -266,6 +270,7 @@ export function findAvailableDirections(
   
   // Helper to classify angle relative to animal's facing direction
   // Since camera is locked behind the animal, screen directions match animal directions
+  // After negation: positive = right, negative = left
   const classifyWorldDirection = (targetAngle: number): 'forward' | 'left' | 'right' | 'back' => {
     const relativeAngle = computeRelativeAngle(targetAngle);
     const absAngle = Math.abs(relativeAngle);
@@ -273,7 +278,7 @@ export function findAvailableDirections(
     if (absAngle < Math.PI / 4) return 'forward';
     // Back = opposite direction (more than 135°)
     if (absAngle > 3 * Math.PI / 4) return 'back';
-    // Left/Right based on sign (positive = right from animal's POV)
+    // Left/Right based on sign (positive = right from animal's POV after negation)
     return relativeAngle > 0 ? 'right' : 'left';
   };
   
