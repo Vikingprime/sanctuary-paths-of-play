@@ -492,11 +492,21 @@ function detectCorners(points: Point2D[], angleThreshold: number = Math.PI / 4):
  * Push corner points inward (toward center of turn) or outward.
  * Positive strength moves path toward inside of turns (away from outer walls).
  * Negative strength moves path toward outside of turns (away from inner walls).
+ * 
+ * IMPORTANT: This now propagates the push to neighboring points with falloff,
+ * so the entire curve section shifts rather than just the corner vertex.
  */
 function pushCornersInward(points: Point2D[], strength: number): Point2D[] {
   if (points.length < 3 || strength === 0) return [...points];
   
-  const result: Point2D[] = [...points];
+  // First pass: calculate push vectors for each corner
+  interface CornerPush {
+    index: number;
+    pushX: number;
+    pushZ: number;
+    magnitude: number;
+  }
+  const cornerPushes: CornerPush[] = [];
   
   for (let i = 1; i < points.length - 1; i++) {
     const prev = points[i - 1];
@@ -541,13 +551,51 @@ function pushCornersInward(points: Point2D[], strength: number): Point2D[] {
     
     // Push strength scales with angle sharpness
     const angleFactor = angle / Math.PI; // 0 = straight, 1 = 180 degree turn
-    const pushDistance = strength * angleFactor;
+    const pushMagnitude = strength * angleFactor;
     
-    result[i] = {
-      x: curr.x + bx * pushDistance,
-      z: curr.z + bz * pushDistance,
-    };
+    cornerPushes.push({
+      index: i,
+      pushX: bx * pushMagnitude,
+      pushZ: bz * pushMagnitude,
+      magnitude: Math.abs(pushMagnitude),
+    });
   }
+  
+  // Second pass: apply pushes with falloff to neighbors
+  // This ensures the curve shifts smoothly rather than creating kinks
+  const FALLOFF_RADIUS = 3; // Number of neighbors to affect on each side
+  const offsets: Array<{ dx: number; dz: number }> = points.map(() => ({ dx: 0, dz: 0 }));
+  
+  for (const push of cornerPushes) {
+    // Apply full push to corner point
+    offsets[push.index].dx += push.pushX;
+    offsets[push.index].dz += push.pushZ;
+    
+    // Apply falloff to neighbors
+    for (let d = 1; d <= FALLOFF_RADIUS; d++) {
+      const falloff = 1 - d / (FALLOFF_RADIUS + 1); // Linear falloff: 1 -> 0.75 -> 0.5 -> 0.25
+      
+      // Before the corner
+      const prevIdx = push.index - d;
+      if (prevIdx > 0) { // Don't affect endpoints
+        offsets[prevIdx].dx += push.pushX * falloff;
+        offsets[prevIdx].dz += push.pushZ * falloff;
+      }
+      
+      // After the corner
+      const nextIdx = push.index + d;
+      if (nextIdx < points.length - 1) { // Don't affect endpoints
+        offsets[nextIdx].dx += push.pushX * falloff;
+        offsets[nextIdx].dz += push.pushZ * falloff;
+      }
+    }
+  }
+  
+  // Apply accumulated offsets
+  const result: Point2D[] = points.map((p, i) => ({
+    x: p.x + offsets[i].dx,
+    z: p.z + offsets[i].dz,
+  }));
   
   return result;
 }
