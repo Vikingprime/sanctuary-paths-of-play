@@ -66,8 +66,10 @@ export interface PolylineConfig {
   useCatmullRom: boolean;
   /** Number of samples per original point for Catmull-Rom (default: 10) */
   catmullRomSamplesPerPoint: number;
-  /** Push corners inward by this fraction of corridor width (0-1, default: 0) */
+  /** Push corners away from walls by this magnitude (absolute value used, default: 0) */
   cornerPushStrength: number;
+  /** Optional function to check if a world position is a wall (for wall-aware corner push) */
+  isWallFn?: (x: number, z: number) => boolean;
 }
 
 // ============================================================================
@@ -489,15 +491,22 @@ function detectCorners(points: Point2D[], angleThreshold: number = Math.PI / 4):
 }
 
 /**
- * Push corner points inward (toward center of turn) or outward.
- * Positive strength moves path toward inside of turns (away from outer walls).
- * Negative strength moves path toward outside of turns (away from inner walls).
+ * Push corner points away from walls (wall-aware).
+ * Uses absolute value of strength as magnitude.
+ * Each corner independently determines which direction to push based on
+ * perpendicular distance to walls on each side of the turn.
  * 
- * IMPORTANT: This now propagates the push to neighboring points with falloff,
+ * IMPORTANT: This propagates the push to neighboring points with falloff,
  * so the entire curve section shifts rather than just the corner vertex.
  */
-function pushCornersInward(points: Point2D[], strength: number): Point2D[] {
+function pushCornersInward(
+  points: Point2D[],
+  strength: number,
+  isWallFn?: (x: number, z: number) => boolean
+): Point2D[] {
   if (points.length < 3 || strength === 0) return [...points];
+  
+  const absStrength = Math.abs(strength);
   
   // First pass: calculate push vectors for each corner
   interface CornerPush {
@@ -537,27 +546,82 @@ function pushCornersInward(points: Point2D[], strength: number): Point2D[] {
     // Only push if there's a significant turn (> 15 degrees)
     if (angle < Math.PI / 12) continue;
     
-    // Bisector direction (points inward, toward the center of the turn)
-    // Negate the sum of directions to get inward direction
+    // Calculate the bisector direction (points toward inside of turn)
     const bisectX = -(nx1 + nx2);
     const bisectZ = -(nz1 + nz2);
     const bisectLen = Math.sqrt(bisectX * bisectX + bisectZ * bisectZ);
     
     if (bisectLen < 1e-6) continue;
     
-    // Normalize bisector
-    const bx = bisectX / bisectLen;
-    const bz = bisectZ / bisectLen;
+    // Normalize bisector - this points toward the INSIDE of the turn
+    const bxInward = bisectX / bisectLen;
+    const bzInward = bisectZ / bisectLen;
+    
+    // Determine push direction based on wall proximity
+    let pushDirX = 0;
+    let pushDirZ = 0;
+    
+    if (isWallFn) {
+      // Sample wall distance in both directions (inward and outward)
+      const sampleDist = 0.3; // Sample 0.3 units away
+      
+      // Check inward direction (inside of turn)
+      const inwardX = curr.x + bxInward * sampleDist;
+      const inwardZ = curr.z + bzInward * sampleDist;
+      const inwardIsWall = isWallFn(inwardX, inwardZ);
+      
+      // Check outward direction (outside of turn)
+      const outwardX = curr.x - bxInward * sampleDist;
+      const outwardZ = curr.z - bzInward * sampleDist;
+      const outwardIsWall = isWallFn(outwardX, outwardZ);
+      
+      if (inwardIsWall && !outwardIsWall) {
+        // Wall is on the inside, push outward
+        pushDirX = -bxInward;
+        pushDirZ = -bzInward;
+      } else if (outwardIsWall && !inwardIsWall) {
+        // Wall is on the outside, push inward
+        pushDirX = bxInward;
+        pushDirZ = bzInward;
+      } else if (inwardIsWall && outwardIsWall) {
+        // Walls on both sides - push toward whichever has more clearance
+        // Sample at multiple distances to find clearance
+        let inwardClear = 0;
+        let outwardClear = 0;
+        for (let d = 0.1; d <= 0.5; d += 0.1) {
+          if (!isWallFn(curr.x + bxInward * d, curr.z + bzInward * d)) inwardClear++;
+          if (!isWallFn(curr.x - bxInward * d, curr.z - bzInward * d)) outwardClear++;
+        }
+        if (inwardClear > outwardClear) {
+          pushDirX = bxInward;
+          pushDirZ = bzInward;
+        } else if (outwardClear > inwardClear) {
+          pushDirX = -bxInward;
+          pushDirZ = -bzInward;
+        }
+        // If equal, don't push (leave as 0)
+      }
+      // If neither direction has a wall, don't push
+    } else {
+      // No wall function provided - use sign of strength for direction
+      // Positive = inward, Negative = outward
+      const sign = strength > 0 ? 1 : -1;
+      pushDirX = bxInward * sign;
+      pushDirZ = bzInward * sign;
+    }
+    
+    // Skip if no push direction determined
+    if (pushDirX === 0 && pushDirZ === 0) continue;
     
     // Push strength scales with angle sharpness
     const angleFactor = angle / Math.PI; // 0 = straight, 1 = 180 degree turn
-    const pushMagnitude = strength * angleFactor;
+    const pushMagnitude = absStrength * angleFactor;
     
     cornerPushes.push({
       index: i,
-      pushX: bx * pushMagnitude,
-      pushZ: bz * pushMagnitude,
-      magnitude: Math.abs(pushMagnitude),
+      pushX: pushDirX * pushMagnitude,
+      pushZ: pushDirZ * pushMagnitude,
+      magnitude: pushMagnitude,
     });
   }
   
@@ -700,6 +764,7 @@ export function buildSmoothedPolylines(
     useCatmullRom: config?.useCatmullRom ?? true,
     catmullRomSamplesPerPoint: config?.catmullRomSamplesPerPoint ?? 8,
     cornerPushStrength: config?.cornerPushStrength ?? 0, // No push by default
+    isWallFn: config?.isWallFn, // Optional wall check function
   };
   
   // Step 1: Build skeleton graph
@@ -716,11 +781,10 @@ export function buildSmoothedPolylines(
       ? rdpSimplify(segment.points, cfg.rdpEpsilon)
       : [...segment.points];
     
-    // Step 4: Push corner points inward/outward (before smoothing)
-    // Positive = toward center of turn (away from outer walls)
-    // Negative = toward outside of turn (away from inner walls)
+    // Step 4: Push corner points away from walls (wall-aware)
+    // Each corner independently determines push direction based on wall proximity
     if (cfg.cornerPushStrength !== 0) {
-      points = pushCornersInward(points, cfg.cornerPushStrength * corridorWidth);
+      points = pushCornersInward(points, cfg.cornerPushStrength * corridorWidth, cfg.isWallFn);
     }
     
     // Step 5: Base Chaikin smoothing - rounds all corners

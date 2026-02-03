@@ -113,12 +113,29 @@ export function MedialAxisVisualization({
     if (!visible || !axisResult) return null;
     const fineWidth = maze.grid[0]?.length * axisResult.scale || 0;
     const fineHeight = maze.grid.length * axisResult.scale;
+    
+    // Create wall check function that converts world coordinates to grid coordinates
+    const isWallFn = (worldX: number, worldZ: number): boolean => {
+      const gridX = Math.floor(worldX);
+      const gridZ = Math.floor(worldZ);
+      if (gridZ < 0 || gridZ >= maze.grid.length) return true;
+      if (gridX < 0 || gridX >= maze.grid[0].length) return true;
+      const cell = maze.grid[gridZ][gridX];
+      return cell === null || cell === undefined || cell.isWall;
+    };
+    
+    // Merge wall function into config
+    const configWithWall: Partial<PolylineConfig> = {
+      ...polylineConfig,
+      isWallFn,
+    };
+    
     return buildSmoothedPolylines(
       axisResult.fineGrid,
       fineWidth,
       fineHeight,
       axisResult.fineCellSize,
-      polylineConfig ?? undefined
+      configWithWall
     );
   }, [axisResult, maze, visible, polylineConfig]);
   
