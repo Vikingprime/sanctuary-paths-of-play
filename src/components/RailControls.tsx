@@ -241,6 +241,7 @@ export function findAvailableDirections(
   const directions: DirectionOption[] = [];
   
   // Helper to classify angle relative to animal's facing direction
+  // Since camera is locked behind the animal, screen directions match animal directions
   // animalRotation is in world space, targetAngle is also world space
   const classifyWorldDirection = (targetAngle: number): 'forward' | 'left' | 'right' | 'back' => {
     // Convert animal rotation to the visual direction it's facing
@@ -248,12 +249,16 @@ export function findAvailableDirections(
     const animalFacingAngle = -animalRotation + Math.PI;
     
     let relativeAngle = targetAngle - animalFacingAngle;
+    // Normalize to [-PI, PI]
     while (relativeAngle > Math.PI) relativeAngle -= 2 * Math.PI;
     while (relativeAngle < -Math.PI) relativeAngle += 2 * Math.PI;
     
     const absAngle = Math.abs(relativeAngle);
+    // Forward = same direction animal is facing (within 45°)
     if (absAngle < Math.PI / 4) return 'forward';
+    // Back = opposite direction (more than 135°)
     if (absAngle > 3 * Math.PI / 4) return 'back';
+    // Left/Right based on sign (positive = right from animal's POV)
     return relativeAngle > 0 ? 'right' : 'left';
   };
   

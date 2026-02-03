@@ -993,7 +993,7 @@ export const MazeGame3D = ({
           }
         }}
         onMagnetismCacheReady={handleMagnetismCacheReady}
-        railMode={controlMode === 'rail' && isRailMoving}
+        railMode={controlMode === 'rail'}
         railPathRef={railPathRef}
         railPathIndexRef={railPathIndexRef}
         onRailMoveComplete={handleRailStop}
