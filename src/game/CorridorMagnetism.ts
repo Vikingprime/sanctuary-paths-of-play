@@ -1193,16 +1193,16 @@ export function filterTargetPoint(
 }
 
 /**
- * Constrain the animal's position so the front sensing point stays on the tangent line.
- * At full magnetism strength, the front point is projected onto the tangent line through the spine.
- * This allows movement along the corridor while preventing lateral drift.
+ * Constrain the animal's position so the front sensing point stays ON the polyline.
+ * At full magnetism strength (10), the front point is pulled directly to the nearest
+ * polyline point, not just perpendicular to the tangent line.
  * 
  * @param prevX Previous X position (animal center)
  * @param prevZ Previous Z position (animal center)
  * @param newX New X position (after movement calculation)
  * @param newZ New Z position (after movement calculation)
  * @param magnetismDebug Debug info from magnetism calculation (contains front point, spine, and tangent)
- * @param strength Magnetism strength (0-10, where 10 = full lock to tangent line)
+ * @param strength Magnetism strength (0-10, where 10 = full lock to polyline)
  * @returns Constrained position { x, z }
  */
 export function constrainMovementToTangent(
@@ -1226,47 +1226,21 @@ export function constrainMovementToTangent(
     return { x: newX, z: newZ };
   }
   
-  // Get tangent direction
-  const tangentX = magnetismDebug.tangentX;
-  const tangentZ = magnetismDebug.tangentZ;
-  
-  // Tangent must be valid
-  const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ);
-  if (tangentLen < 0.01) {
-    return { x: newX, z: newZ };
-  }
-  
-  // Normalize tangent
-  const tx = tangentX / tangentLen;
-  const tz = tangentZ / tangentLen;
-  
-  // Calculate CURRENT front point from the NEW position (not stale debug data)
-  // This fixes the issue where the front point was computed from the previous frame's position
+  // Calculate CURRENT front point from the NEW position
   const facingX = Math.sin(playerRotation);
   const facingZ = Math.cos(playerRotation);
   const frontX = newX + facingX * frontOffset;
   const frontZ = newZ + facingZ * frontOffset;
   
-  // Use RAW spine point as anchor to prevent overshoot from smoothing lag
-  const spineX = magnetismDebug.rawSpineX ?? magnetismDebug.spineX;
-  const spineZ = magnetismDebug.rawSpineZ ?? magnetismDebug.spineZ;
+  // Use RAW spine point (the actual polyline point we want the front to be on)
+  const targetX = magnetismDebug.rawSpineX ?? magnetismDebug.spineX;
+  const targetZ = magnetismDebug.rawSpineZ ?? magnetismDebug.spineZ;
   
-  // Vector from smoothed spine to front point
-  const toFrontX = frontX - spineX;
-  const toFrontZ = frontZ - spineZ;
-  
-  // Perpendicular to smoothed tangent is (-tz, tx)
-  const perpX = -tz;
-  const perpZ = tx;
-  
-  // Signed perpendicular distance from front to tangent line through spine
-  const perpDist = toFrontX * perpX + toFrontZ * perpZ;
-  
-  
-  // Offset is PURELY perpendicular (no along-tangent component)
-  // This pulls the animal directly toward the centerline without sliding along it
-  const offsetX = -perpDist * perpX;
-  const offsetZ = -perpDist * perpZ;
+  // Calculate the offset needed to put the front point exactly on the polyline point
+  // Front is currently at (frontX, frontZ), we want it at (targetX, targetZ)
+  // So we need to move the animal center by the same offset
+  const offsetX = targetX - frontX;
+  const offsetZ = targetZ - frontZ;
   
   // Apply offset to animal center
   const constrainedX = newX + offsetX;
@@ -1274,7 +1248,6 @@ export function constrainMovementToTangent(
   
   // Blend based on how close to full strength (9.9-10 = full lock)
   const lockBlend = Math.min(1, (strength - 9.9) / 0.1);
-  
   
   return {
     x: newX + (constrainedX - newX) * lockBlend,
