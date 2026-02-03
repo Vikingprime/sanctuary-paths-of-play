@@ -193,22 +193,26 @@ function deduplicateDirectionsByAngle(
   if (directions.length <= 1) return directions;
   
   const result: DirectionOption[] = [];
-  const used = new Set<number>();
   
   // Sort by path length descending so we prefer longer paths
-  const sorted = [...directions].map((d, i) => ({ dir: d, idx: i, length: calculatePathLength(d.pathPoints) }))
+  const sorted = [...directions]
+    .map((d) => ({ dir: d, length: calculatePathLength(d.pathPoints) }))
     .sort((a, b) => b.length - a.length);
   
-  for (const { dir, idx } of sorted) {
-    if (used.has(idx)) continue;
-    
+  // DEBUG: Log incoming directions
+  console.log(`[RailControls] Deduplicating ${directions.length} directions:`, 
+    sorted.map(s => `angle=${(s.dir.angle * 180 / Math.PI).toFixed(1)}° len=${s.length.toFixed(2)}`));
+  
+  for (const { dir, length } of sorted) {
     // Check if this direction is too similar to one we already added
     let isDuplicate = false;
     for (const existing of result) {
       let angleDiff = Math.abs(dir.angle - existing.angle);
-      while (angleDiff > Math.PI) angleDiff = Math.abs(angleDiff - 2 * Math.PI);
+      // Normalize to [0, PI]
+      if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
       
       if (angleDiff < angleThreshold) {
+        console.log(`[RailControls] Duplicate: ${(dir.angle * 180 / Math.PI).toFixed(1)}° vs ${(existing.angle * 180 / Math.PI).toFixed(1)}° (diff=${(angleDiff * 180 / Math.PI).toFixed(1)}°)`);
         isDuplicate = true;
         break;
       }
@@ -216,10 +220,10 @@ function deduplicateDirectionsByAngle(
     
     if (!isDuplicate) {
       result.push(dir);
-      used.add(idx);
     }
   }
   
+  console.log(`[RailControls] Result: ${result.length} directions after dedup`);
   return result;
 }
 
