@@ -1219,7 +1219,7 @@ const RefBasedPlayer = ({
           const targetMoveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
           let moveSpeed = Math.abs(joyY);
           
-          // Get curve angle at current position for turn speed capping at sharp turns
+          // Get curve angle at current position for turn rate cap velocity limiting
           const preVisualRotation = -playerStateRef.current.rotation + Math.PI;
           const curveCheck = constrainMovementToTangent(
             playerStateRef.current.x,
@@ -1233,24 +1233,30 @@ const RefBasedPlayer = ({
           );
           
           // GRADUAL TURNING: Instead of snapping to target rotation, smoothly rotate
-          // This prevents the jerking when joystick moves from one side to another
           const currentRotation = playerStateRef.current.rotation;
           const angleDiff = normalizeAngle(targetMoveAngle - currentRotation);
           
           // Base turn speed in radians per second
-          let TURN_SPEED = 3.0;
+          const BASE_TURN_SPEED = 3.0;
           
-          // Cap turn speed at sharp curves if enabled - this naturally slows forward movement
-          // because the animal can't turn fast enough to follow the path
+          // Turn rate cap system: limit forward velocity to keep turn rate below cap
+          // Formula: requiredTurnRate = curveAngle * velocity / pathArcLength
+          // Simplified: if following the path at current speed requires turning faster than cap,
+          // reduce velocity proportionally
           const config = magnetismConfig || DEFAULT_MAGNETISM_CONFIG;
-          if (config.curveTurnCapEnabled) {
-            const thresholdRad = (config.curveTurnCapThreshold ?? 70) * (Math.PI / 180);
-            if (curveCheck.curveAngle > thresholdRad) {
-              TURN_SPEED *= (config.curveTurnCapMultiplier ?? 0.5);
+          if (config.turnRateCapEnabled && curveCheck.curveAngle > 0.01) {
+            // Calculate the required turn rate to follow the path at current velocity
+            // Turn rate needed = curve_angle * velocity (approximation for arc following)
+            // If requiredTurnRate > cap, reduce velocity: newVelocity = cap / curve_angle
+            const requiredTurnRate = curveCheck.curveAngle * moveSpeed * 2.5; // Scale by base speed
+            if (requiredTurnRate > config.turnRateCap) {
+              // Reduce moveSpeed to keep turn rate at cap
+              moveSpeed = config.turnRateCap / (curveCheck.curveAngle * 2.5);
+              moveSpeed = Math.max(0.1, Math.min(moveSpeed, Math.abs(joyY))); // Clamp to [0.1, original]
             }
           }
           
-          const maxTurn = TURN_SPEED * clampedDelta;
+          const maxTurn = BASE_TURN_SPEED * clampedDelta;
           
           // Clamp the turn to max speed, ensuring we turn the shortest direction
           let newRotation: number;
