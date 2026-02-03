@@ -1217,7 +1217,27 @@ const RefBasedPlayer = ({
           // joyY positive = move in direction camera faces (away)
           // joyY negative = move toward camera (but still facing camera direction)
           const targetMoveAngle = cameraYaw + (joyY < 0 ? Math.PI : 0);
-          const moveSpeed = Math.abs(joyY);
+          let moveSpeed = Math.abs(joyY);
+          
+          // Get curve angle at current position for velocity reduction at sharp turns
+          // We need to do a preliminary constraint check to get the curve sharpness
+          const preVisualRotation = -playerStateRef.current.rotation + Math.PI;
+          const curveCheck = constrainMovementToTangent(
+            playerStateRef.current.x,
+            playerStateRef.current.y,
+            playerStateRef.current.x,
+            playerStateRef.current.y,
+            magnetismCacheRef.current,
+            0, // Don't apply position constraint, just get curve angle
+            preVisualRotation,
+            DEFAULT_MAGNETISM_CONFIG.frontOffset
+          );
+          
+          // Reduce velocity by 50% at sharp curves (>70 degrees = ~1.22 radians)
+          const SHARP_TURN_THRESHOLD = 70 * (Math.PI / 180); // 70 degrees in radians
+          if (curveCheck.curveAngle > SHARP_TURN_THRESHOLD) {
+            moveSpeed *= 0.5;
+          }
           
           // GRADUAL TURNING: Instead of snapping to target rotation, smoothly rotate
           // This prevents the jerking when joystick moves from one side to another
