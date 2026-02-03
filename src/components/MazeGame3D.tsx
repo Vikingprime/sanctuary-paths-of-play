@@ -129,7 +129,7 @@ export const MazeGame3D = ({
     chaikinCornerExtraIterations: number;
     cornerPushStrength: number;
   }>({
-    chaikinIterations: 4,
+  chaikinIterations: 1,
     chaikinCornerExtraIterations: 0,
     cornerPushStrength: 0,
   });

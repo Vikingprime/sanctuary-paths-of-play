@@ -68,7 +68,7 @@ export interface PolylineGraph {
 export interface PolylineConfig {
   /** Epsilon for RDP simplification (world units, default: 0.02 * fineCellSize). Set to 0 to disable. */
   rdpEpsilon: number;
-  /** Number of Chaikin smoothing iterations for straight sections (default: 4) */
+  /** Number of Chaikin smoothing iterations for straight sections (default: 1) */
   chaikinIterations: number;
   /** Number of additional Chaikin iterations for corner regions (default: 0) */
   chaikinCornerExtraIterations: number;
