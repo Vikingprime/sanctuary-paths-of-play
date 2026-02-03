@@ -1226,48 +1226,22 @@ export function constrainMovementToTangent(
     return { x: newX, z: newZ };
   }
   
-  // Get tangent direction (the path direction at the nearest polyline point)
-  const tangentX = magnetismDebug.tangentX;
-  const tangentZ = magnetismDebug.tangentZ;
-  
-  // Tangent must be valid
-  const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ);
-  if (tangentLen < 0.01) {
-    return { x: newX, z: newZ };
-  }
-  
-  // Normalize tangent
-  const tx = tangentX / tangentLen;
-  const tz = tangentZ / tangentLen;
-  
   // Calculate CURRENT front point from the NEW position
   const facingX = Math.sin(playerRotation);
   const facingZ = Math.cos(playerRotation);
   const frontX = newX + facingX * frontOffset;
   const frontZ = newZ + facingZ * frontOffset;
   
-  // Use RAW spine point (the actual polyline point)
+  // Use RAW spine point (the actual polyline point we want the front to be ON)
   const targetX = magnetismDebug.rawSpineX ?? magnetismDebug.spineX;
   const targetZ = magnetismDebug.rawSpineZ ?? magnetismDebug.spineZ;
   
-  // Vector from front to target polyline point
-  const toTargetX = targetX - frontX;
-  const toTargetZ = targetZ - frontZ;
+  // At full magnetism (10), the front point should be EXACTLY on the polyline.
+  // Calculate the full offset needed to place front at target.
+  const offsetX = targetX - frontX;
+  const offsetZ = targetZ - frontZ;
   
-  // Project this offset onto the PERPENDICULAR of the tangent (lateral direction)
-  // This way we only correct lateral drift, not fight forward/backward movement
-  // Perpendicular to tangent is (-tz, tx)
-  const perpX = -tz;
-  const perpZ = tx;
-  
-  // Dot product gives the lateral (perpendicular) component of the offset
-  const lateralDist = toTargetX * perpX + toTargetZ * perpZ;
-  
-  // Only apply the lateral correction
-  const offsetX = lateralDist * perpX;
-  const offsetZ = lateralDist * perpZ;
-  
-  // Apply offset to animal center
+  // Apply offset to animal center (moves the whole animal so front lands on polyline)
   const constrainedX = newX + offsetX;
   const constrainedZ = newZ + offsetZ;
   
