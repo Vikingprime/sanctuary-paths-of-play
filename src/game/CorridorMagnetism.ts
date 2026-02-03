@@ -1263,6 +1263,8 @@ export interface ConstraintResult {
   z: number;
   /** Angle of the curve at current position (radians). 0 = straight, higher = sharper turn. */
   curveAngle: number;
+  /** Path tangent angle in radians (direction the path is heading) */
+  tangentAngle: number;
 }
 
 /**
@@ -1293,7 +1295,7 @@ export function constrainMovementToTangent(
   
   // If no cache, return position unchanged with no curve info
   if (!cache) {
-    return { x: newX, z: newZ, curveAngle: 0 };
+    return { x: newX, z: newZ, curveAngle: 0, tangentAngle: 0 };
   }
   
   // Calculate CURRENT front point from the NEW position
@@ -1306,21 +1308,25 @@ export function constrainMovementToTangent(
   const nearest = findNearestPolylinePoint(frontX, frontZ, cache, 4.0, 5);
   
   if (!nearest) {
-    return { x: newX, z: newZ, curveAngle: 0 };
+    return { x: newX, z: newZ, curveAngle: 0, tangentAngle: 0 };
   }
   
   // Calculate curve sharpness from polyline tangent at two nearby points
   // Look ahead and behind on the polyline to measure how much the path curves
   const curveAngle = computeLocalCurveAngle(cache, nearest);
   
+  // Calculate tangent angle from the polyline tangent vector
+  // atan2(x, z) gives heading angle where +Z is 0, +X is PI/2
+  const tangentAngle = Math.atan2(nearest.tx, nearest.tz);
+  
   // If below strength threshold, just return curve angle without position constraint
   if (strength < 9.9) {
-    return { x: newX, z: newZ, curveAngle };
+    return { x: newX, z: newZ, curveAngle, tangentAngle };
   }
   
   // Skip constraint if at junction (let player move freely at intersections)
   if (nearest.isSuppressed) {
-    return { x: newX, z: newZ, curveAngle };
+    return { x: newX, z: newZ, curveAngle, tangentAngle };
   }
   
   // The target is the exact nearest point on the polyline
@@ -1345,6 +1351,7 @@ export function constrainMovementToTangent(
       x: newX + (constrainedX - newX) * lockBlend,
       z: newZ + (constrainedZ - newZ) * lockBlend,
       curveAngle,
+      tangentAngle,
     };
   }
   
@@ -1375,6 +1382,7 @@ export function constrainMovementToTangent(
     x: newX + (constrainedX - newX) * lockBlend,
     z: newZ + (constrainedZ - newZ) * lockBlend,
     curveAngle,
+    tangentAngle,
   };
 }
 
