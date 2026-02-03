@@ -1194,8 +1194,8 @@ export function filterTargetPoint(
 
 /**
  * Constrain the animal's position so the front sensing point stays ON the polyline.
- * At full magnetism strength (10), the front point is pulled directly to the nearest
- * polyline point, not just perpendicular to the tangent line.
+ * At full magnetism strength (10), only the LATERAL offset is corrected - the animal
+ * can still move forward freely along the path.
  * 
  * @param prevX Previous X position (animal center)
  * @param prevZ Previous Z position (animal center)
@@ -1226,21 +1226,46 @@ export function constrainMovementToTangent(
     return { x: newX, z: newZ };
   }
   
+  // Get tangent direction (the path direction at the nearest polyline point)
+  const tangentX = magnetismDebug.tangentX;
+  const tangentZ = magnetismDebug.tangentZ;
+  
+  // Tangent must be valid
+  const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ);
+  if (tangentLen < 0.01) {
+    return { x: newX, z: newZ };
+  }
+  
+  // Normalize tangent
+  const tx = tangentX / tangentLen;
+  const tz = tangentZ / tangentLen;
+  
   // Calculate CURRENT front point from the NEW position
   const facingX = Math.sin(playerRotation);
   const facingZ = Math.cos(playerRotation);
   const frontX = newX + facingX * frontOffset;
   const frontZ = newZ + facingZ * frontOffset;
   
-  // Use RAW spine point (the actual polyline point we want the front to be on)
+  // Use RAW spine point (the actual polyline point)
   const targetX = magnetismDebug.rawSpineX ?? magnetismDebug.spineX;
   const targetZ = magnetismDebug.rawSpineZ ?? magnetismDebug.spineZ;
   
-  // Calculate the offset needed to put the front point exactly on the polyline point
-  // Front is currently at (frontX, frontZ), we want it at (targetX, targetZ)
-  // So we need to move the animal center by the same offset
-  const offsetX = targetX - frontX;
-  const offsetZ = targetZ - frontZ;
+  // Vector from front to target polyline point
+  const toTargetX = targetX - frontX;
+  const toTargetZ = targetZ - frontZ;
+  
+  // Project this offset onto the PERPENDICULAR of the tangent (lateral direction)
+  // This way we only correct lateral drift, not fight forward/backward movement
+  // Perpendicular to tangent is (-tz, tx)
+  const perpX = -tz;
+  const perpZ = tx;
+  
+  // Dot product gives the lateral (perpendicular) component of the offset
+  const lateralDist = toTargetX * perpX + toTargetZ * perpZ;
+  
+  // Only apply the lateral correction
+  const offsetX = lateralDist * perpX;
+  const offsetZ = lateralDist * perpZ;
   
   // Apply offset to animal center
   const constrainedX = newX + offsetX;
