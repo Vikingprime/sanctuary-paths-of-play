@@ -1197,7 +1197,7 @@ const RefBasedPlayer = ({
         let dist = Math.sqrt(dx * dx + dz * dz);
         
         // Check if we've reached the current waypoint - advance to next
-        const waypointThreshold = 0.08;
+        const waypointThreshold = 0.12; // Increased from 0.08 to reduce jitter
         while (dist < waypointThreshold && pathIdx < path.length - 2) {
           pathIdx++;
           railPathIndexRef.current = pathIdx;
@@ -1229,8 +1229,9 @@ const RefBasedPlayer = ({
           
           // Calculate tangent from path points for rotation
           // Look behind and ahead in the path for a smooth tangent direction
-          const tangentBehindIdx = Math.max(0, pathIdx - 5);
-          const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 8);
+          // Look further behind and ahead for stable tangent on dense paths
+          const tangentBehindIdx = Math.max(0, pathIdx - 15);
+          const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 20);
           const behindPt = path[tangentBehindIdx];
           const aheadPt = path[tangentAheadIdx];
           
@@ -1527,11 +1528,14 @@ const RefBasedPlayer = ({
       positionInitialized.current = true;
     }
     
-    // Smooth position with fixed lerp factor
+    // Smooth position with mode-aware lerp factor
+    // Rail mode: tight position lock to prevent jitter
+    // Joystick mode: gentle smoothing for natural movement
     const targetX = playerStateRef.current.x;
     const targetZ = playerStateRef.current.y;
-    smoothPositionX.current += (targetX - smoothPositionX.current) * 0.3;
-    smoothPositionZ.current += (targetZ - smoothPositionZ.current) * 0.3;
+    const posLerpFactor = railMode ? 0.9 : 0.3;
+    smoothPositionX.current += (targetX - smoothPositionX.current) * posLerpFactor;
+    smoothPositionZ.current += (targetZ - smoothPositionZ.current) * posLerpFactor;
     
     groupRef.current.position.x = smoothPositionX.current;
     groupRef.current.position.z = smoothPositionZ.current;
