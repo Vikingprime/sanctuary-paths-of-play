@@ -119,6 +119,7 @@ interface Maze3DSceneProps {
   railMode?: boolean;
   railPathRef?: MutableRefObject<Array<{ x: number; z: number }>>;
   railPathIndexRef?: MutableRefObject<number>;
+  railFractionalIndexRef?: MutableRefObject<number>;
   onRailMoveComplete?: () => void;
   onMagnetismCacheReady?: (cache: MagnetismCache) => void;
 }
@@ -1100,6 +1101,7 @@ const RefBasedPlayer = ({
   railMode = false,
   railPathRef,
   railPathIndexRef,
+  railFractionalIndexRef,
   onRailMoveComplete,
 }: { 
   animalType: AnimalType;
@@ -1127,6 +1129,7 @@ const RefBasedPlayer = ({
   railMode?: boolean;
   railPathRef?: MutableRefObject<Array<{ x: number; z: number }>>;
   railPathIndexRef?: MutableRefObject<number>;
+  railFractionalIndexRef?: MutableRefObject<number>;
   onRailMoveComplete?: () => void;
 }) => {
   const groupRef = useRef<any>(null);
@@ -1215,60 +1218,93 @@ const RefBasedPlayer = ({
           isMovingRef.current = false;
           moveSpeedRef.current = 0;
           onRailMoveComplete?.();
-        } else if (dist > 0.001) {
-          // Move directly toward the next path point
+        } else {
+          // === ARC-LENGTH TRAVERSAL: Move along the path curve itself ===
+          // Instead of moving toward waypoints (which creates zigzag), 
+          // advance a fractional path index and interpolate between path points
+          
           const RAIL_SPEED = 2.5; // World units per second
           const moveSpeed = RAIL_SPEED * clampedDelta;
-          const moveDist = Math.min(moveSpeed, dist);
           
-          // Normalize direction and apply movement
-          const dirX = dx / dist;
-          const dirZ = dz / dist;
-          const newX = player.x + dirX * moveDist;
-          const newZ = player.y + dirZ * moveDist;
+          // Calculate distance to next path point
+          const currentPt = path[pathIdx];
+          const nextPt = path[Math.min(pathIdx + 1, path.length - 1)];
+          const segmentDx = nextPt.x - currentPt.x;
+          const segmentDz = nextPt.z - currentPt.z;
+          const segmentLen = Math.sqrt(segmentDx * segmentDx + segmentDz * segmentDz);
           
-          // Calculate tangent from path points for rotation
-          // Look behind and ahead in the path for a smooth tangent direction
-          // Moderate window size: too small = jittery, too large = doesn't follow curves
-          const tangentBehindIdx = Math.max(0, pathIdx - 3);
-          const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 5);
-          const behindPt = path[tangentBehindIdx];
-          const aheadPt = path[tangentAheadIdx];
-          
-          const tangentDx = aheadPt.x - behindPt.x;
-          const tangentDz = aheadPt.z - behindPt.z;
-          const tangentLen = Math.sqrt(tangentDx * tangentDx + tangentDz * tangentDz);
-          
-          // Calculate the visual angle (what the mesh should face)
-          // atan2(x, z) gives angle where 0 = facing +Z, positive = counterclockwise
-          let visualAngle: number;
-          if (tangentLen > 0.01) {
-            visualAngle = Math.atan2(tangentDx, tangentDz);
+          // Use a fractional index for smooth interpolation
+          if (!railFractionalIndexRef) {
+            // Fallback if ref not available
+            railPathIndexRef.current = pathIdx + 1;
           } else {
-            // Fallback to travel direction
-            visualAngle = Math.atan2(dx, dz);
+            // Advance fractional index based on speed and segment length
+            const fractionalAdvance = segmentLen > 0.001 ? moveSpeed / segmentLen : 1;
+            railFractionalIndexRef.current = (railFractionalIndexRef.current ?? pathIdx) + fractionalAdvance;
+            
+            // Clamp to path bounds
+            const maxIdx = path.length - 1;
+            if (railFractionalIndexRef.current >= maxIdx) {
+              railFractionalIndexRef.current = maxIdx;
+            }
+            
+            // Update integer index for waypoint tracking
+            const newPathIdx = Math.floor(railFractionalIndexRef.current);
+            if (newPathIdx !== pathIdx) {
+              railPathIndexRef.current = newPathIdx;
+            }
+            
+            // Interpolate position between path points
+            const t = railFractionalIndexRef.current - newPathIdx;
+            const p0 = path[newPathIdx];
+            const p1 = path[Math.min(newPathIdx + 1, maxIdx)];
+            const newX = p0.x + (p1.x - p0.x) * t;
+            const newZ = p0.z + (p1.z - p0.z) * t;
+            
+            // Calculate tangent from adjacent path points for rotation
+            const tangentBehindIdx = Math.max(0, newPathIdx - 2);
+            const tangentAheadIdx = Math.min(maxIdx, newPathIdx + 3);
+            const behindPt = path[tangentBehindIdx];
+            const aheadPt = path[tangentAheadIdx];
+            
+            const tangentDx = aheadPt.x - behindPt.x;
+            const tangentDz = aheadPt.z - behindPt.z;
+            const tangentLen = Math.sqrt(tangentDx * tangentDx + tangentDz * tangentDz);
+            
+            // Calculate the visual angle (what the mesh should face)
+            let visualAngle: number;
+            if (tangentLen > 0.01) {
+              visualAngle = Math.atan2(tangentDx, tangentDz);
+            } else {
+              visualAngle = Math.atan2(p1.x - p0.x, p1.z - p0.z);
+            }
+            
+            // Convert visual angle to player rotation
+            let targetRotation = -visualAngle + Math.PI;
+            while (targetRotation < 0) targetRotation += Math.PI * 2;
+            while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
+            
+            // Apply position directly on the path curve
+            playerStateRef.current = {
+              x: newX,
+              y: newZ,
+              rotation: targetRotation,
+            };
+            
+            // Check if reached end
+            if (railFractionalIndexRef.current >= maxIdx - 0.01) {
+              railPathRef.current = [];
+              railPathIndexRef.current = 0;
+              railFractionalIndexRef.current = 0;
+              isMovingRef.current = false;
+              moveSpeedRef.current = 0;
+              onRailMoveComplete?.();
+            } else {
+              isMovingRef.current = true;
+              isTurningRef.current = false;
+              moveSpeedRef.current = 0.8;
+            }
           }
-          
-          // Convert visual angle to player rotation
-          // The relationship is: visualRotation = -playerRotation + PI
-          // So: playerRotation = -visualAngle + PI
-          let targetRotation = -visualAngle + Math.PI;
-          
-          // Normalize to [0, 2*PI]
-          while (targetRotation < 0) targetRotation += Math.PI * 2;
-          while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
-          
-          // Apply direct path position (no constraint correction) and locked rotation
-          playerStateRef.current = {
-            x: newX,
-            y: newZ,
-            rotation: targetRotation,
-          };
-          
-          // Update animation refs
-          isMovingRef.current = true;
-          isTurningRef.current = false; // No turning animation when locked
-          moveSpeedRef.current = 0.8; // Walk animation
         }
         
         // Skip normal movement processing in rail mode
@@ -2395,7 +2431,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, onRailMoveComplete, onMagnetismCacheReady }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, onRailMoveComplete, onMagnetismCacheReady }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2639,6 +2675,7 @@ return (
         railMode={railMode}
         railPathRef={railPathRef}
         railPathIndexRef={railPathIndexRef}
+        railFractionalIndexRef={railFractionalIndexRef}
         onRailMoveComplete={onRailMoveComplete}
       />
       

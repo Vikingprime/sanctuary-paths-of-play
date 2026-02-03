@@ -1,131 +1,42 @@
 
-# Diagnosing and Fixing Animal Shaking During Rail Movement
+# Rail Movement Shaking Fix - Implementation Complete
 
-## Problem Analysis
+## Root Cause Identified
 
-When the animal travels along the curved polyline in rail mode, it shakes/jitters. After exploring the codebase, I've identified several potential causes:
+The shaking was caused by the animal moving **toward** waypoints in straight lines rather than following the actual curved path. This created a zigzag pattern as the animal took shortcuts between densely-packed path points.
 
-### Root Causes Identified
+## Solution Implemented
 
-1. **Position Lerp in Rail Mode (Primary Cause)**
-   - In `Maze3DScene.tsx` lines 1530-1537, position smoothing uses a fixed lerp of 0.3:
-     ```typescript
-     smoothPositionX.current += (targetX - smoothPositionX.current) * 0.3;
-     smoothPositionZ.current += (targetZ - smoothPositionZ.current) * 0.3;
-     ```
-   - This same lerp is applied in rail mode, where the animal moves precisely along discrete waypoints
-   - With Catmull-Rom resampling producing 8 points per original point (~200+ points per segment), the animal position "chases" each waypoint with a lag, causing oscillation as it catches up then overshoots
+Replaced the "move toward waypoint" approach with **arc-length traversal**:
 
-2. **Rotation vs Position Smoothing Mismatch**
-   - Rail mode correctly uses `rotLerpFactor = 1.0` for instant rotation snap (line 1547)
-   - But position uses `0.3` lerp regardless of mode
-   - This creates a disconnect where the animal's visual rotation is locked to the path tangent but its position lags behind, causing a visual "wobble"
+1. **Fractional index interpolation**: Instead of moving toward the next point, we maintain a fractional path index and advance it based on speed/segment length
+2. **Linear interpolation between points**: Position is calculated as `lerp(pathPoint[i], pathPoint[i+1], fractionalPart)`
+3. **Instant position lock**: Position lerp factor of 1.0 in rail mode eliminates all smoothing lag
 
-3. **Tangent Calculation Window**
-   - Tangent is calculated by looking 5 points behind and 8 points ahead (lines 1232-1238)
-   - With densely packed Catmull-Rom points (~0.05 world units apart), this window spans only ~0.65 world units
-   - On sharp curves, this small window can cause the tangent to flip rapidly as new points enter/exit
+## Changes Made
 
-4. **Waypoint Threshold**
-   - The `waypointThreshold = 0.08` (line 1200) is very small
-   - Combined with the high-density path points, the animal is constantly switching target waypoints mid-movement
+### src/components/Maze3DScene.tsx
+- Added `railFractionalIndexRef` prop for smooth arc-length traversal
+- Replaced movement-toward-waypoint logic with interpolation-along-path logic
+- Position now stays exactly on the path curve at all times
 
-## Solution Strategy
-
-The fix needs to differentiate rail mode from joystick mode for position smoothing, and potentially adjust the path following algorithm to be smoother.
-
-### Approach: Tighter Position Lock in Rail Mode
-
-```text
-+---------------------------+        +---------------------------+
-|   CURRENT (Both modes)    |        |   PROPOSED (Rail mode)    |
-+---------------------------+        +---------------------------+
-| Position lerp: 0.3        |  -->   | Position lerp: 0.9-1.0    |
-| Rotation lerp: 1.0 (rail) |        | Rotation lerp: 1.0        |
-+---------------------------+        +---------------------------+
-```
-
-## Implementation Plan
-
-### Step 1: Increase Position Lerp Factor in Rail Mode
-**File:** `src/components/Maze3DScene.tsx`
-
-Modify the position smoothing section (around line 1530-1537) to use a much tighter lerp when in rail mode:
-
-```typescript
-// Smooth position with mode-aware lerp factor
-const targetX = playerStateRef.current.x;
-const targetZ = playerStateRef.current.y;
-
-// Rail mode: tight position lock to prevent jitter
-// Joystick mode: gentle smoothing for natural movement
-const posLerpFactor = railMode ? 0.9 : 0.3;
-
-smoothPositionX.current += (targetX - smoothPositionX.current) * posLerpFactor;
-smoothPositionZ.current += (targetZ - smoothPositionZ.current) * posLerpFactor;
-```
-
-### Step 2: Expand Tangent Calculation Window
-**File:** `src/components/Maze3DScene.tsx`
-
-Increase the look-behind and look-ahead indices for tangent calculation (around lines 1232-1238) to span a larger section of the path:
-
-```typescript
-// Look further behind and ahead for stable tangent on dense paths
-// With ~8 points per original segment, this spans ~2.5 world units
-const tangentBehindIdx = Math.max(0, pathIdx - 15);
-const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 20);
-```
-
-### Step 3: Increase Waypoint Threshold
-**File:** `src/components/Maze3DScene.tsx`
-
-Increase the waypoint threshold slightly to reduce rapid waypoint switching (around line 1200):
-
-```typescript
-const waypointThreshold = 0.12; // Was 0.08 - larger to reduce jitter
-```
-
----
+### src/components/MazeGame3D.tsx
+- Added `railFractionalIndexRef = useRef(0)` for fractional path tracking
+- Passed new ref to Maze3DCanvas
 
 ## Technical Details
 
-### Why Position Lerp 0.3 Causes Jitter
+Old approach (caused jitter):
+```
+direction = normalize(targetWaypoint - currentPosition)
+newPosition = currentPosition + direction * speed * dt
+```
 
-The lerp-based smoothing creates an exponential approach to the target. With a 0.3 factor:
-- Each frame closes 30% of the gap to target
-- On a 60fps display, this creates a visible "trailing" effect
-- When the target moves continuously (waypoint hopping), the position oscillates around the moving target
+New approach (smooth):
+```
+fractionalIndex += (speed * dt) / segmentLength
+t = fractionalIndex - floor(fractionalIndex)
+newPosition = lerp(path[floor(idx)], path[floor(idx)+1], t)
+```
 
-### Why Rail Mode Needs Tighter Lock
-
-In joystick mode, smoothing is desirable because:
-- Player input can be noisy
-- Collision resolution may cause position jumps
-- Camera lag creates a pleasant "follow" feel
-
-In rail mode, the path is pre-computed and guaranteed to be smooth. The animal should travel directly along it without any visual lag.
-
-### Expected Outcome
-
-After these changes:
-- Animal position will closely track the polyline path in rail mode
-- Rotation will remain instant-locked to tangent (already working)
-- Joystick mode behavior remains unchanged
-- Shaking/jittering during rail travel should be eliminated
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/components/Maze3DScene.tsx` | 3 line changes: position lerp, tangent window, waypoint threshold |
-
-## Testing Recommendations
-
-1. Enter rail mode and select a direction at a junction
-2. Observe the animal traveling along a curved path segment
-3. Verify no shaking or jittering occurs
-4. Test at different frame rates (throttle to 30fps in browser) to ensure stability
-5. Verify joystick mode still feels smooth and responsive
+The animal now glides smoothly along the exact curve defined by the path points.
