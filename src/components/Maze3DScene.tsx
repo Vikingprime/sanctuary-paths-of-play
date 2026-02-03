@@ -1227,35 +1227,47 @@ const RefBasedPlayer = ({
           const newX = player.x + dirX * moveDist;
           const newZ = player.y + dirZ * moveDist;
           
-          // Calculate tangent DIRECTLY from path points - these ARE the polyline!
-          // Look behind and ahead in the path for a smooth tangent
-          const tangentBehindIdx = Math.max(0, pathIdx - 3);
-          const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 5);
-          const behindPt = path[tangentBehindIdx];
-          const aheadPt = path[tangentAheadIdx];
+          // Use the SAME constraint function as joystick mode to get proper tangent angle
+          // This ensures rotation is locked to the polyline in the correct coordinate space
+          const visualRotation = -player.rotation + Math.PI;
+          const constrained = constrainMovementToTangent(
+            player.x,
+            player.y,
+            newX,
+            newZ,
+            magnetismCacheRef.current,
+            10, // Full magnetism strength for rail mode
+            visualRotation,
+            DEFAULT_MAGNETISM_CONFIG.frontOffset
+          );
           
-          const tangentDx = aheadPt.x - behindPt.x;
-          const tangentDz = aheadPt.z - behindPt.z;
-          const tangentLen = Math.sqrt(tangentDx * tangentDx + tangentDz * tangentDz);
-          
-          // Set rotation to EXACTLY match the path tangent direction
-          // No smoothing - just lock to tangent
+          // Use tangent angle from constraint if available, otherwise calculate from path
           let targetRotation: number;
-          if (tangentLen > 0.01) {
-            targetRotation = Math.atan2(tangentDx, tangentDz);
+          if (constrained.hasTangent && constrained.tangentAngle !== null) {
+            // Convert tangent angle back from visual space to player rotation space
+            // Visual rotation = -player.rotation + PI, so player.rotation = -visualRotation + PI
+            // tangentAngle is in visual space, so: targetRotation = -tangentAngle + PI
+            targetRotation = -constrained.tangentAngle + Math.PI;
           } else {
-            // Fallback if points are too close
-            targetRotation = Math.atan2(dx, dz);
+            // Fallback: calculate from path points
+            const tangentBehindIdx = Math.max(0, pathIdx - 3);
+            const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 5);
+            const behindPt = path[tangentBehindIdx];
+            const aheadPt = path[tangentAheadIdx];
+            const tangentDx = aheadPt.x - behindPt.x;
+            const tangentDz = aheadPt.z - behindPt.z;
+            targetRotation = Math.atan2(tangentDx, tangentDz);
           }
           
           // Normalize to [0, 2*PI]
           if (targetRotation < 0) targetRotation += Math.PI * 2;
+          if (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
           
-          // Apply movement with LOCKED rotation to path tangent
+          // Apply constrained position and locked rotation
           playerStateRef.current = {
-            x: newX,
-            y: newZ,
-            rotation: targetRotation, // Direct lock, no smoothing
+            x: constrained.x,
+            y: constrained.z,
+            rotation: targetRotation,
           };
           
           // Update animation refs
