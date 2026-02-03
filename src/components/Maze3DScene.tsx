@@ -1388,7 +1388,16 @@ const RefBasedPlayer = ({
         if (isMovingRef.current && magnetResult.turnCorrection !== 0) {
           // Weaken magnetism based on collision intensity (0 = full magnetism, 1 = no magnetism)
           const collisionWeakening = 1 - collisionIntensityRef.current;
-          const weakenedCorrection = magnetResult.turnCorrection * collisionWeakening;
+          let weakenedCorrection = magnetResult.turnCorrection * collisionWeakening;
+          
+          // Apply turn rate cap to magnetism rotation corrections
+          // This prevents the polyline lock from causing instant snap-turns
+          if (config.turnRateCapEnabled) {
+            const maxCorrectionThisFrame = (config.turnRateCap ?? 2.0) * clampedDelta;
+            if (Math.abs(weakenedCorrection) > maxCorrectionThisFrame) {
+              weakenedCorrection = Math.sign(weakenedCorrection) * maxCorrectionThisFrame;
+            }
+          }
           
           if (Math.abs(weakenedCorrection) > 0.001) {
             // Negate the correction because it was calculated in visual space (inverted rotation)
