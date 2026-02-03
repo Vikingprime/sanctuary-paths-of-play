@@ -1212,7 +1212,7 @@ const RefBasedPlayer = ({
           moveSpeedRef.current = 0;
           onRailMoveComplete?.();
         } else if (dist > 0.001) {
-          // Move toward target
+          // Move toward target waypoint
           const RAIL_SPEED = 2.5; // World units per second
           const moveSpeed = RAIL_SPEED * clampedDelta;
           const moveDist = Math.min(moveSpeed, dist);
@@ -1220,11 +1220,46 @@ const RefBasedPlayer = ({
           const moveX = (dx / dist) * moveDist;
           const moveZ = (dz / dist) * moveDist;
           
-          // Calculate target rotation to face movement direction (path tangent)
-          const targetRotation = Math.atan2(dx, dz);
+          // Calculate new position before constraint
+          let newX = player.x + moveX;
+          let newZ = player.y + moveZ;
           
-          // Smoothly rotate toward target
+          // Apply magnetism constraint to keep animal locked onto polyline
+          // This also gives us the tangent angle for proper rotation alignment
           const currentRotation = player.rotation;
+          const visualRotation = -currentRotation + Math.PI;
+          const constrained = constrainMovementToTangent(
+            player.x,
+            player.y,
+            newX,
+            newZ,
+            magnetismCacheRef.current,
+            10, // Full magnetism strength for rail mode - always lock to polyline
+            visualRotation,
+            DEFAULT_MAGNETISM_CONFIG.frontOffset
+          );
+          
+          // Use the polyline TANGENT for rotation, not the waypoint direction
+          // The tangent gives the actual curve direction at this point
+          let targetRotation: number;
+          if (constrained.hasTangent && constrained.tangentAngle !== null) {
+            // Use tangent from polyline - this is the TRUE path direction at this position
+            targetRotation = constrained.tangentAngle;
+            
+            // Make sure tangent points in the direction we're traveling (not backwards)
+            // Compare with the waypoint direction to determine if we need to flip
+            const waypointAngle = Math.atan2(dx, dz);
+            const angleDiffToWaypoint = normalizeAngle(targetRotation - waypointAngle);
+            if (Math.abs(angleDiffToWaypoint) > Math.PI / 2) {
+              // Tangent is pointing backwards, flip it
+              targetRotation = normalizeAngle(targetRotation + Math.PI);
+            }
+          } else {
+            // Fallback to waypoint direction if no tangent
+            targetRotation = Math.atan2(dx, dz);
+          }
+          
+          // Smoothly rotate toward target tangent
           const angleDiff = normalizeAngle(targetRotation - currentRotation);
           const TURN_SPEED = 4.0; // Faster turning for rail mode
           const maxTurn = TURN_SPEED * clampedDelta;
@@ -1238,25 +1273,7 @@ const RefBasedPlayer = ({
           newRotation = normalizeAngle(newRotation);
           if (newRotation < 0) newRotation += Math.PI * 2;
           
-          // Calculate new position before constraint
-          let newX = player.x + moveX;
-          let newZ = player.y + moveZ;
-          
-          // Apply magnetism constraint to keep animal locked onto polyline
-          // Use visual rotation to match animal facing direction
-          const visualRotation = -newRotation + Math.PI;
-          const constrained = constrainMovementToTangent(
-            player.x,
-            player.y,
-            newX,
-            newZ,
-            magnetismCacheRef.current,
-            10, // Full magnetism strength for rail mode - always lock to polyline
-            visualRotation,
-            DEFAULT_MAGNETISM_CONFIG.frontOffset
-          );
-          
-          // Apply constrained movement
+          // Apply constrained movement with tangent-aligned rotation
           playerStateRef.current = {
             x: constrained.x,
             y: constrained.z,
