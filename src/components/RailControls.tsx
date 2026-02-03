@@ -5,7 +5,7 @@
  * between junctions. The user controls direction via clickable arrows.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { MagnetismCache } from '@/game/CorridorMagnetism';
 import { PolylineGraph, Point2D } from '@/game/SkeletonPolyline';
 import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, RotateCcw, Square } from 'lucide-react';
@@ -20,8 +20,8 @@ export interface RailControlsProps {
   /** Current player position in world space */
   playerX: number;
   playerZ: number;
-  /** Current player rotation (radians) */
-  playerRotation: number;
+  /** Current camera yaw (radians) - used to classify directions relative to screen */
+  cameraYaw: number;
   /** Callback when direction is selected - provides target position and direction */
   onDirectionSelect: (targetX: number, targetZ: number, pathPoints: Point2D[]) => void;
   /** Callback when stop is pressed */
@@ -148,34 +148,39 @@ export function findRailPosition(
 /**
  * Find available directions from current position
  */
+/**
+ * Find available directions from current position
+ * Directions are classified relative to screen/camera (not player rotation)
+ * - 'forward' = toward top of screen (negative Z in world)
+ * - 'back' = toward bottom of screen (positive Z in world)
+ * - 'left' = toward left of screen (negative X in world)
+ * - 'right' = toward right of screen (positive X in world)
+ */
 export function findAvailableDirections(
   position: RailPosition,
-  playerRotation: number,
+  cameraYaw: number,
   cache: MagnetismCache | null,
-  lastDirection?: 'forward' | 'backward'
 ): DirectionOption[] {
   if (!cache?.polylineGraph) return [];
   
   const { polylineGraph } = cache;
   const directions: DirectionOption[] = [];
   
-  const segment = polylineGraph.segments[position.segmentIndex];
-  if (!segment) return [];
-  
-  const points = segment.points;
-  const ptIdx = position.pointIndex;
-  
-  // Helper to classify angle relative to player rotation
-  const classifyDirection = (targetAngle: number): 'forward' | 'left' | 'right' | 'back' => {
-    let diff = targetAngle - playerRotation;
+  // Helper to classify angle relative to camera (screen orientation)
+  // In this game, we use a fixed top-down or isometric camera where:
+  // - "forward" arrow = moving away from camera (typically +Z or based on camera angle)
+  // - We'll classify based on world angles for now (north/south/east/west style)
+  const classifyWorldDirection = (targetAngle: number): 'forward' | 'left' | 'right' | 'back' => {
+    // Use camera yaw to determine relative direction
+    let relativeAngle = targetAngle - cameraYaw;
     // Normalize to [-PI, PI]
-    while (diff > Math.PI) diff -= 2 * Math.PI;
-    while (diff < -Math.PI) diff += 2 * Math.PI;
+    while (relativeAngle > Math.PI) relativeAngle -= 2 * Math.PI;
+    while (relativeAngle < -Math.PI) relativeAngle += 2 * Math.PI;
     
-    const absAngle = Math.abs(diff);
+    const absAngle = Math.abs(relativeAngle);
     if (absAngle < Math.PI / 4) return 'forward';
     if (absAngle > 3 * Math.PI / 4) return 'back';
-    return diff > 0 ? 'right' : 'left';
+    return relativeAngle > 0 ? 'right' : 'left';
   };
   
   // At a junction - find all connected segments
@@ -198,20 +203,21 @@ export function findAvailableDirections(
         const firstPt = seg.points[0];
         const lastPt = seg.points[seg.points.length - 1];
         
-        // Check if segment starts or ends at this junction
+        // Check if segment starts at this junction
         const firstDist = Math.sqrt((firstPt.x - junctionPoint.x) ** 2 + (firstPt.z - junctionPoint.z) ** 2);
-        const lastDist = Math.sqrt((lastPt.x - junctionPoint.x) ** 2 + (lastPt.z - junctionPoint.z) ** 2);
-        
         if (firstDist < 0.5) {
           // Segment starts here - direction is toward end
           const targetPt = lastPt;
-          const dirX = seg.points[Math.min(5, seg.points.length - 1)].x - firstPt.x;
-          const dirZ = seg.points[Math.min(5, seg.points.length - 1)].z - firstPt.z;
+          // Look at a point a bit down the segment for direction
+          const lookAheadIdx = Math.min(10, seg.points.length - 1);
+          const lookAheadPt = seg.points[lookAheadIdx];
+          const dirX = lookAheadPt.x - firstPt.x;
+          const dirZ = lookAheadPt.z - firstPt.z;
           const angle = Math.atan2(dirX, dirZ);
           
           directions.push({
-            label: classifyDirection(angle),
-            direction: classifyDirection(angle),
+            label: classifyWorldDirection(angle),
+            direction: classifyWorldDirection(angle),
             angle,
             targetX: targetPt.x,
             targetZ: targetPt.z,
@@ -220,16 +226,21 @@ export function findAvailableDirections(
           });
         }
         
-        if (lastDist < 0.5) {
-          // Segment ends here - direction is toward start
+        // Check if segment ends at this junction (separately, as it could be both)
+        const lastDist = Math.sqrt((lastPt.x - junctionPoint.x) ** 2 + (lastPt.z - junctionPoint.z) ** 2);
+        if (lastDist < 0.5 && firstDist >= 0.5) {
+          // Segment ends here (and doesn't start here) - direction is toward start
           const targetPt = firstPt;
-          const dirX = seg.points[Math.max(0, seg.points.length - 6)].x - lastPt.x;
-          const dirZ = seg.points[Math.max(0, seg.points.length - 6)].z - lastPt.z;
-          const angle = Math.atan2(-dirX, -dirZ);
+          // Look at a point a bit back from the end for direction
+          const lookBackIdx = Math.max(0, seg.points.length - 11);
+          const lookBackPt = seg.points[lookBackIdx];
+          const dirX = lookBackPt.x - lastPt.x;
+          const dirZ = lookBackPt.z - lastPt.z;
+          const angle = Math.atan2(dirX, dirZ);
           
           directions.push({
-            label: classifyDirection(angle),
-            direction: classifyDirection(angle),
+            label: classifyWorldDirection(angle),
+            direction: classifyWorldDirection(angle),
             angle,
             targetX: targetPt.x,
             targetZ: targetPt.z,
@@ -241,42 +252,49 @@ export function findAvailableDirections(
     }
   } else {
     // On a segment - can go forward or backward along it
+    const segment = polylineGraph.segments[position.segmentIndex];
+    if (!segment) return [];
+    
+    const points = segment.points;
+    const ptIdx = position.pointIndex;
     
     // Forward direction (toward end of segment)
     if (ptIdx < points.length - 1) {
       const targetPt = points[points.length - 1];
-      const nextPt = points[Math.min(ptIdx + 5, points.length - 1)];
-      const dirX = nextPt.x - position.x;
-      const dirZ = nextPt.z - position.z;
+      const lookAheadIdx = Math.min(ptIdx + 10, points.length - 1);
+      const lookAheadPt = points[lookAheadIdx];
+      const dirX = lookAheadPt.x - position.x;
+      const dirZ = lookAheadPt.z - position.z;
       const angle = Math.atan2(dirX, dirZ);
       
       directions.push({
         label: 'Forward',
-        direction: classifyDirection(angle),
+        direction: classifyWorldDirection(angle),
         angle,
         targetX: targetPt.x,
         targetZ: targetPt.z,
         pathPoints: points.slice(ptIdx),
-        isTurnAround: lastDirection === 'backward',
+        isTurnAround: false,
       });
     }
     
     // Backward direction (toward start of segment)
     if (ptIdx > 0) {
       const targetPt = points[0];
-      const prevPt = points[Math.max(0, ptIdx - 5)];
-      const dirX = prevPt.x - position.x;
-      const dirZ = prevPt.z - position.z;
+      const lookBackIdx = Math.max(0, ptIdx - 10);
+      const lookBackPt = points[lookBackIdx];
+      const dirX = lookBackPt.x - position.x;
+      const dirZ = lookBackPt.z - position.z;
       const angle = Math.atan2(dirX, dirZ);
       
       directions.push({
         label: 'Backward',
-        direction: classifyDirection(angle),
+        direction: classifyWorldDirection(angle),
         angle,
         targetX: targetPt.x,
         targetZ: targetPt.z,
         pathPoints: points.slice(0, ptIdx + 1).reverse(),
-        isTurnAround: lastDirection === 'forward',
+        isTurnAround: false,
       });
     }
   }
@@ -340,7 +358,7 @@ export function RailControls({
   cache,
   playerX,
   playerZ,
-  playerRotation,
+  cameraYaw,
   onDirectionSelect,
   onStop,
   onTurnAround,
@@ -348,7 +366,6 @@ export function RailControls({
   enabled,
 }: RailControlsProps) {
   const [directions, setDirections] = useState<DirectionOption[]>([]);
-  const lastDirectionRef = useRef<'forward' | 'backward' | undefined>();
   
   // Find current position and available directions
   useEffect(() => {
@@ -363,24 +380,18 @@ export function RailControls({
       return;
     }
     
-    // Only update directions when stopped at junction/endpoint or initially
-    if (!isMoving || position.atJunction || position.atEndpoint) {
+    // Only update directions when stopped
+    if (!isMoving) {
       const availableDirs = findAvailableDirections(
         position,
-        playerRotation,
+        cameraYaw,
         cache,
-        lastDirectionRef.current
       );
       setDirections(availableDirs);
     }
-  }, [enabled, cache, playerX, playerZ, playerRotation, isMoving]);
+  }, [enabled, cache, playerX, playerZ, cameraYaw, isMoving]);
   
   const handleDirectionClick = useCallback((dir: DirectionOption) => {
-    // Track which direction we're going for turn-around detection
-    if (dir.direction === 'forward' || dir.direction === 'back') {
-      lastDirectionRef.current = dir.direction === 'forward' ? 'forward' : 'backward';
-    }
-    
     if (dir.isTurnAround) {
       onTurnAround();
     }

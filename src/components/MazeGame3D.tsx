@@ -532,6 +532,8 @@ export const MazeGame3D = ({
     setIsRailMoving(false);
     railPathRef.current = [];
     railPathIndexRef.current = 0;
+    // Sync UI state with current player position for direction calculation
+    setPlayerStateForUI({ ...playerStateRef.current });
   }, []);
   
   const handleRailTurnAround = useCallback(() => {
@@ -1108,9 +1110,9 @@ export const MazeGame3D = ({
       {!isPreviewing && mobileControlsEnabled && controlMode === 'rail' && (
         <RailControls
           cache={magnetismCacheRef.current}
-          playerX={playerStateRef.current.x}
-          playerZ={playerStateRef.current.y}
-          playerRotation={playerStateRef.current.rotation}
+          playerX={playerStateForUI.x}
+          playerZ={playerStateForUI.y}
+          cameraYaw={cameraYawRef.current}
           onDirectionSelect={handleRailDirectionSelect}
           onStop={handleRailStop}
           onTurnAround={handleRailTurnAround}
@@ -1122,7 +1124,16 @@ export const MazeGame3D = ({
       {/* Control Mode Toggle - shows in top right below HUD */}
       {!isPreviewing && mobileControlsEnabled && (
         <button
-          onClick={() => setControlMode(prev => prev === 'joystick' ? 'rail' : 'joystick')}
+          onClick={() => {
+            setControlMode(prev => {
+              const newMode = prev === 'joystick' ? 'rail' : 'joystick';
+              // Sync UI state when switching to rail mode
+              if (newMode === 'rail') {
+                setPlayerStateForUI({ ...playerStateRef.current });
+              }
+              return newMode;
+            });
+          }}
           className="fixed top-20 right-4 z-40 bg-card/95 backdrop-blur-sm rounded-xl px-4 py-3 shadow-lg font-display text-base transition-all hover:bg-primary hover:text-primary-foreground border border-border"
         >
           {controlMode === 'joystick' ? '🎮 Joystick' : '🛤️ Rail'}
