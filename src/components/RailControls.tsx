@@ -210,7 +210,8 @@ export function findAvailableDirections(
   };
   
   // Minimum path length for a direction to be valid (prevents "turn only" buttons)
-  const MIN_PATH_LENGTH = 0.3;
+  // Set low to ensure short corridor segments still appear as valid directions
+  const MIN_PATH_LENGTH = 0.1;
   
   // At a junction - use the stored connectivity data
   if (position.atJunction) {
