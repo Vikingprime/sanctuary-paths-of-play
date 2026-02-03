@@ -1295,23 +1295,41 @@ export function constrainMovementToTangent(
   const targetX = magnetismDebug.rawSpineX ?? magnetismDebug.spineX;
   const targetZ = magnetismDebug.rawSpineZ ?? magnetismDebug.spineZ;
   
-  // Vector from front to target polyline point
+  // Vector from front to target polyline point - this is the FULL offset needed
   const toTargetX = targetX - frontX;
   const toTargetZ = targetZ - frontZ;
   
-  // Project this offset onto the ANIMAL's lateral axis (perpendicular to facing).
-  // This way we correct lateral drift fully, but never fight forward/backward movement.
-  // Animal's lateral (right) direction: perpendicular to facing = (facingZ, -facingX)
-  const lateralX = facingZ;
-  const lateralZ = -facingX;
+  // Get path tangent direction from magnetism debug
+  const tx = magnetismDebug.tangentX;
+  const tz = magnetismDebug.tangentZ;
+  const tangentLen = Math.sqrt(tx * tx + tz * tz);
   
-  // Dot product gives how far off-center the front is (laterally)
-  // With segment projection, this should be near-zero when already on the polyline
-  const lateralDist = toTargetX * lateralX + toTargetZ * lateralZ;
+  if (tangentLen < 0.01) {
+    // No valid tangent, apply full offset to lock position
+    const constrainedX = newX + toTargetX;
+    const constrainedZ = newZ + toTargetZ;
+    const lockBlend = Math.min(1, (strength - 9.9) / 0.1);
+    return {
+      x: newX + (constrainedX - newX) * lockBlend,
+      z: newZ + (constrainedZ - newZ) * lockBlend,
+    };
+  }
   
-  // Apply ONLY the lateral correction (perpendicular to animal facing)
-  const offsetX = lateralDist * lateralX;
-  const offsetZ = lateralDist * lateralZ;
+  // Normalize tangent
+  const tanX = tx / tangentLen;
+  const tanZ = tz / tangentLen;
+  
+  // PATH's perpendicular direction (the lateral axis of the corridor)
+  const perpX = -tanZ;
+  const perpZ = tanX;
+  
+  // Project the offset onto the PATH's perpendicular (lateral to the corridor)
+  // This way we correct drift perpendicular to the path, but never fight movement along the path
+  const lateralDist = toTargetX * perpX + toTargetZ * perpZ;
+  
+  // Apply the lateral correction (perpendicular to path tangent)
+  const offsetX = lateralDist * perpX;
+  const offsetZ = lateralDist * perpZ;
   
   // Apply offset to animal center
   const constrainedX = newX + offsetX;
