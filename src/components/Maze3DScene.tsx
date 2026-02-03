@@ -1629,6 +1629,7 @@ const OverShoulderCameraController = ({
   maze,
   opacityFadeEnabled = true,
   cameraYawRef,
+  railMode = false,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
@@ -1640,6 +1641,7 @@ const OverShoulderCameraController = ({
   maze?: Maze;
   opacityFadeEnabled?: boolean;
   cameraYawRef?: MutableRefObject<number>;
+  railMode?: boolean;
 }) => {
   const { camera, scene } = useThree();
   
@@ -1722,8 +1724,11 @@ const OverShoulderCameraController = ({
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
-    // Use cameraYawRef for orbit camera, or fall back to player rotation
-    const targetCameraYaw = cameraYawRef?.current ?? playerRotation;
+    // In rail mode, camera follows animal's rotation directly for smooth path following
+    // In orbit mode, use cameraYawRef, otherwise fall back to player rotation
+    const targetCameraYaw = railMode 
+      ? playerRotation 
+      : (cameraYawRef?.current ?? playerRotation);
     
     // Store initial position on first frame (after initialization)
     if (initialized.current && initialPlayerPos.current === null) {
@@ -2653,6 +2658,7 @@ return (
             maze={maze}
             opacityFadeEnabled={opacityFadeEnabled}
             cameraYawRef={cameraYawRef}
+            railMode={railMode}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
         </>
