@@ -1094,6 +1094,11 @@ const RefBasedPlayer = ({
   magnetismConfig,
   magnetismDebugRef,
   onMagnetismCacheReady,
+  // Rail movement props
+  railMode = false,
+  railPathRef,
+  railPathIndexRef,
+  onRailMoveComplete,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1116,6 +1121,11 @@ const RefBasedPlayer = ({
   magnetismConfig?: MagnetismConfig;
   magnetismDebugRef?: MutableRefObject<MagnetismTurnResult['debug'] | null>;
   onMagnetismCacheReady?: (cache: MagnetismCache) => void;
+  // Rail movement props
+  railMode?: boolean;
+  railPathRef?: MutableRefObject<Array<{ x: number; z: number }>>;
+  railPathIndexRef?: MutableRefObject<number>;
+  onRailMoveComplete?: () => void;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
@@ -1166,6 +1176,84 @@ const RefBasedPlayer = ({
     if (!isPaused) {
       // Clamp delta to prevent large jumps on frame drops
       const clampedDelta = Math.min(delta, 0.05);
+      
+      // === RAIL MODE: Automatic movement along polyline path ===
+      if (railMode && railPathRef?.current && railPathRef.current.length >= 2 && railPathIndexRef) {
+        const path = railPathRef.current;
+        let pathIdx = railPathIndexRef.current;
+        
+        // Get current target point (next point in path)
+        const targetIdx = Math.min(pathIdx + 1, path.length - 1);
+        const targetPoint = path[targetIdx];
+        
+        // Calculate direction to target
+        const player = playerStateRef.current;
+        let dx = targetPoint.x - player.x;
+        let dz = targetPoint.z - player.y; // Note: player.y is world Z
+        let dist = Math.sqrt(dx * dx + dz * dz);
+        
+        // Check if we've reached the current waypoint
+        const waypointThreshold = 0.15;
+        while (dist < waypointThreshold && pathIdx < path.length - 2) {
+          pathIdx++;
+          railPathIndexRef.current = pathIdx;
+          const nextTarget = path[Math.min(pathIdx + 1, path.length - 1)];
+          dx = nextTarget.x - player.x;
+          dz = nextTarget.z - player.y;
+          dist = Math.sqrt(dx * dx + dz * dz);
+        }
+        
+        // Check if we've reached the end of the path
+        if (pathIdx >= path.length - 2 && dist < waypointThreshold) {
+          // Reached destination - signal completion
+          railPathRef.current = [];
+          railPathIndexRef.current = 0;
+          isMovingRef.current = false;
+          moveSpeedRef.current = 0;
+          onRailMoveComplete?.();
+        } else if (dist > 0.001) {
+          // Move toward target
+          const RAIL_SPEED = 2.5; // World units per second
+          const moveSpeed = RAIL_SPEED * clampedDelta;
+          const moveDist = Math.min(moveSpeed, dist);
+          
+          const moveX = (dx / dist) * moveDist;
+          const moveZ = (dz / dist) * moveDist;
+          
+          // Calculate target rotation to face movement direction
+          const targetRotation = Math.atan2(dx, dz);
+          
+          // Smoothly rotate toward target
+          const currentRotation = player.rotation;
+          const angleDiff = normalizeAngle(targetRotation - currentRotation);
+          const TURN_SPEED = 4.0; // Faster turning for rail mode
+          const maxTurn = TURN_SPEED * clampedDelta;
+          
+          let newRotation: number;
+          if (Math.abs(angleDiff) <= maxTurn) {
+            newRotation = targetRotation;
+          } else {
+            newRotation = currentRotation + Math.sign(angleDiff) * maxTurn;
+          }
+          newRotation = normalizeAngle(newRotation);
+          if (newRotation < 0) newRotation += Math.PI * 2;
+          
+          // Apply movement
+          playerStateRef.current = {
+            x: player.x + moveX,
+            y: player.y + moveZ,
+            rotation: newRotation,
+          };
+          
+          // Update animation refs
+          isMovingRef.current = true;
+          isTurningRef.current = Math.abs(angleDiff) > 0.1;
+          moveSpeedRef.current = 0.8; // Walk animation
+        }
+        
+        // Skip normal movement processing in rail mode
+      } else {
+        // === NORMAL MOVEMENT (keyboard/joystick) ===
       
       // Get joystick input
       const joyX = joystickXRef?.current ?? 0;
@@ -1342,6 +1430,7 @@ const RefBasedPlayer = ({
         moveSpeedRef.current = 0;
         collisionIntensityRef.current = 0; // Reset collision state when idle
       }
+      } // End of else block for normal movement (non-rail mode)
       
       // === MAGNETISM: Calculate turn-based corridor alignment ===
       // Always calculate for debug visualization, but only apply correction when moving
@@ -2516,6 +2605,10 @@ return (
         magnetismConfig={magnetismConfig}
         magnetismDebugRef={magnetismDebugRef}
         onMagnetismCacheReady={onMagnetismCacheReady}
+        railMode={railMode}
+        railPathRef={railPathRef}
+        railPathIndexRef={railPathIndexRef}
+        onRailMoveComplete={onRailMoveComplete}
       />
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}

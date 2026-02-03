@@ -991,6 +991,10 @@ export const MazeGame3D = ({
           }
         }}
         onMagnetismCacheReady={handleMagnetismCacheReady}
+        railMode={controlMode === 'rail' && isRailMoving}
+        railPathRef={railPathRef}
+        railPathIndexRef={railPathIndexRef}
+        onRailMoveComplete={handleRailStop}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
