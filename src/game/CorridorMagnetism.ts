@@ -582,7 +582,7 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 // ============================================================================
 
 /** Result of finding the nearest point on a polyline */
-interface PolylineNearestResult {
+export interface PolylineNearestResult {
   /** World X of nearest point (may be interpolated on segment) */
   wx: number;
   /** World Z of nearest point (may be interpolated on segment) */
@@ -650,7 +650,7 @@ function projectPointOntoSegment(
  * @param tangentLookAhead - Number of points to look ahead/behind for tangent calculation
  * @returns Nearest point result or null if none found
  */
-function findNearestPolylinePoint(
+export function findNearestPolylinePoint(
   x: number,
   z: number,
   cache: MagnetismCache,
