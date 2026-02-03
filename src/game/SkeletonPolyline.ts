@@ -245,6 +245,7 @@ function extractPolylineSegments(
   }
   
   // Compute junction connectivity - link each junction to its connected segments
+  // Each segment should connect to a junction at most once (via its start OR end, not both)
   const JUNCTION_MATCH_THRESHOLD = 0.1; // World units - tight threshold for exact matches
   for (const junction of junctions) {
     for (let segIdx = 0; segIdx < segments.length; segIdx++) {
@@ -255,7 +256,9 @@ function extractPolylineSegments(
       const firstDistSq = (firstPt.x - junction.x) ** 2 + (firstPt.z - junction.z) ** 2;
       const lastDistSq = (lastPt.x - junction.x) ** 2 + (lastPt.z - junction.z) ** 2;
       
-      if (firstDistSq < JUNCTION_MATCH_THRESHOLD ** 2) {
+      // Only add the closer endpoint - prevents double-counting for short segments
+      // where both endpoints might be near the same junction
+      if (firstDistSq < JUNCTION_MATCH_THRESHOLD ** 2 && firstDistSq <= lastDistSq) {
         junction.connections.push({ segmentIndex: segIdx, atStart: true });
       } else if (lastDistSq < JUNCTION_MATCH_THRESHOLD ** 2) {
         junction.connections.push({ segmentIndex: segIdx, atStart: false });
