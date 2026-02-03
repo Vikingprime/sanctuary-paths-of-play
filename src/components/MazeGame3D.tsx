@@ -97,7 +97,7 @@ export const MazeGame3D = ({
   // Debug toggles
   const [topDownCamera, setTopDownCamera] = useState(false);
   const [groundLevelCamera, setGroundLevelCamera] = useState(false);
-  const [showCollisionDebug, setShowCollisionDebug] = useState(debugMode);
+  const [showCollisionDebug, setShowCollisionDebug] = useState(false); // Default OFF even in debug mode
   const [autopushEnabled, setAutopushEnabled] = useState(true);
   const [losFaderEnabled, setLosFaderEnabled] = useState(true);
   const [verboseLogging, setVerboseLogging] = useState(false);
