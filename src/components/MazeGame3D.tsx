@@ -165,6 +165,7 @@ export const MazeGame3D = ({
   const [isRailMoving, setIsRailMoving] = useState(false);
   const railPathRef = useRef<Point2D[]>([]);
   const railPathIndexRef = useRef(0);
+  const railFractionalIndexRef = useRef(0); // For smooth arc-length traversal
   const magnetismCacheRef = useRef<MagnetismCache | null>(null);
   
   // Debug toggle to completely disable mobile controls (WASD only mode)
@@ -996,6 +997,7 @@ export const MazeGame3D = ({
         railMode={controlMode === 'rail'}
         railPathRef={railPathRef}
         railPathIndexRef={railPathIndexRef}
+        railFractionalIndexRef={railFractionalIndexRef}
         onRailMoveComplete={handleRailStop}
       />
 
