@@ -1,178 +1,118 @@
 
-# Plan: Fix Duplicate Rail Direction Buttons
+# Diagnosing and Fixing Animal Shaking During Rail Movement
 
 ## Problem Analysis
 
-The Rail mode shows too many direction buttons because the `findAvailableDirections` function has a fundamental architectural flaw in how it identifies connected paths at junctions.
+When the animal travels along the curved polyline in rail mode, it shakes/jitters. After exploring the codebase, I've identified several potential causes:
 
-### Root Causes
+### Root Causes Identified
 
-1. **Distance-based matching is unreliable**: The current code loops through ALL segments in the polyline graph and checks if their first/last point is within 0.5 units of the current junction. This creates duplicates when:
-   - Multiple segments have endpoints that overlap near the same junction
-   - The same segment gets matched twice (once for its start, once for its end) at U-shaped paths
+1. **Position Lerp in Rail Mode (Primary Cause)**
+   - In `Maze3DScene.tsx` lines 1530-1537, position smoothing uses a fixed lerp of 0.3:
+     ```typescript
+     smoothPositionX.current += (targetX - smoothPositionX.current) * 0.3;
+     smoothPositionZ.current += (targetZ - smoothPositionZ.current) * 0.3;
+     ```
+   - This same lerp is applied in rail mode, where the animal moves precisely along discrete waypoints
+   - With Catmull-Rom resampling producing 8 points per original point (~200+ points per segment), the animal position "chases" each waypoint with a lag, causing oscillation as it catches up then overshoots
 
-2. **Junction topology isn't stored**: The `PolylineGraph` has `junctions` and `segments` arrays, but there's no direct mapping between them (e.g., "junction #3 connects to segments #1, #5, #7"). The code reconstructs this relationship via distance checks every frame.
+2. **Rotation vs Position Smoothing Mismatch**
+   - Rail mode correctly uses `rotLerpFactor = 1.0` for instant rotation snap (line 1547)
+   - But position uses `0.3` lerp regardless of mode
+   - This creates a disconnect where the animal's visual rotation is locked to the path tangent but its position lags behind, causing a visual "wobble"
 
-3. **Non-functional buttons**: When the animal is very close to a junction, the generated `pathPoints` array may be extremely short (1-2 points), causing the movement loop to complete instantly without visible movement.
+3. **Tangent Calculation Window**
+   - Tangent is calculated by looking 5 points behind and 8 points ahead (lines 1232-1238)
+   - With densely packed Catmull-Rom points (~0.05 world units apart), this window spans only ~0.65 world units
+   - On sharp curves, this small window can cause the tangent to flip rapidly as new points enter/exit
 
----
+4. **Waypoint Threshold**
+   - The `waypointThreshold = 0.08` (line 1200) is very small
+   - Combined with the high-density path points, the animal is constantly switching target waypoints mid-movement
 
-## Solution
+## Solution Strategy
 
-### 1. Store Junction-to-Segment Connectivity in the Graph
+The fix needs to differentiate rail mode from joystick mode for position smoothing, and potentially adjust the path following algorithm to be smoother.
 
-Modify `SkeletonPolyline.ts` to compute and store which segment indices connect to each junction during graph construction:
-
-```text
-interface Junction extends Point2D {
-  connectedSegments: Array<{
-    segmentIndex: number;
-    atStart: boolean; // true if segment.points[0] is at this junction
-  }>;
-}
-```
-
-This eliminates the need for distance-based matching at runtime.
-
-### 2. Rewrite Junction Direction Finding
-
-Replace the current "loop all segments, check distance" logic with a direct lookup:
+### Approach: Tighter Position Lock in Rail Mode
 
 ```text
-if (position.atJunction) {
-  const junction = findNearestJunction(position, cache);
-  for (const conn of junction.connectedSegments) {
-    const segment = polylineGraph.segments[conn.segmentIndex];
-    // If segment starts at this junction, direction goes toward last point
-    // If segment ends at this junction, direction goes toward first point
-    const points = conn.atStart ? segment.points : [...segment.points].reverse();
-    // Calculate angle from first few points...
-  }
-}
++---------------------------+        +---------------------------+
+|   CURRENT (Both modes)    |        |   PROPOSED (Rail mode)    |
++---------------------------+        +---------------------------+
+| Position lerp: 0.3        |  -->   | Position lerp: 0.9-1.0    |
+| Rotation lerp: 1.0 (rail) |        | Rotation lerp: 1.0        |
++---------------------------+        +---------------------------+
 ```
 
-### 3. Ensure Path Points Are Valid
+## Implementation Plan
 
-Add validation to ensure `pathPoints` has sufficient points for actual movement:
+### Step 1: Increase Position Lerp Factor in Rail Mode
+**File:** `src/components/Maze3DScene.tsx`
 
-```text
-// Only add direction if path has meaningful length
-const pathLength = calculatePathLength(pathPoints);
-if (pathLength > 0.3) { // At least 0.3 world units of travel
-  rawDirections.push(...);
-}
+Modify the position smoothing section (around line 1530-1537) to use a much tighter lerp when in rail mode:
+
+```typescript
+// Smooth position with mode-aware lerp factor
+const targetX = playerStateRef.current.x;
+const targetZ = playerStateRef.current.y;
+
+// Rail mode: tight position lock to prevent jitter
+// Joystick mode: gentle smoothing for natural movement
+const posLerpFactor = railMode ? 0.9 : 0.3;
+
+smoothPositionX.current += (targetX - smoothPositionX.current) * posLerpFactor;
+smoothPositionZ.current += (targetZ - smoothPositionZ.current) * posLerpFactor;
 ```
 
-### 4. Deduplicate at the Source (Not as Post-Processing)
+### Step 2: Expand Tangent Calculation Window
+**File:** `src/components/Maze3DScene.tsx`
 
-Instead of generating duplicates then filtering, prevent duplicates by:
-- Using a `Set<number>` to track which segment indices have already been processed
-- Ensuring each segment contributes exactly one direction per connected endpoint
+Increase the look-behind and look-ahead indices for tangent calculation (around lines 1232-1238) to span a larger section of the path:
 
----
+```typescript
+// Look further behind and ahead for stable tangent on dense paths
+// With ~8 points per original segment, this spans ~2.5 world units
+const tangentBehindIdx = Math.max(0, pathIdx - 15);
+const tangentAheadIdx = Math.min(path.length - 1, pathIdx + 20);
+```
 
-## Implementation Steps
+### Step 3: Increase Waypoint Threshold
+**File:** `src/components/Maze3DScene.tsx`
 
-1. **Modify `src/game/SkeletonPolyline.ts`**:
-   - Update `PolylineGraph` interface to include junction connectivity
-   - Modify `extractPolylineSegments` to compute and store which segments connect to which junctions
-   - Export this enhanced junction data
+Increase the waypoint threshold slightly to reduce rapid waypoint switching (around line 1200):
 
-2. **Rewrite `findAvailableDirections` in `src/components/RailControls.tsx`**:
-   - At junctions: Use the new `junction.connectedSegments` array directly
-   - On segments: Keep existing forward/backward logic (this part works correctly)
-   - Remove the angle-based deduplication (no longer needed)
-
-3. **Add path length validation**:
-   - Calculate total path distance before adding a direction
-   - Filter out paths shorter than a minimum threshold (0.3 units)
-
-4. **Fix "non-functional button" issue**:
-   - Ensure path always starts with current position, not junction center
-   - Validate that path has at least 3 points before enabling the button
+```typescript
+const waypointThreshold = 0.12; // Was 0.08 - larger to reduce jitter
+```
 
 ---
 
 ## Technical Details
 
-### Updated PolylineGraph Interface
+### Why Position Lerp 0.3 Causes Jitter
 
-```typescript
-interface JunctionConnection {
-  segmentIndex: number;
-  atStart: boolean; // true = segment.points[0] connects here
-}
+The lerp-based smoothing creates an exponential approach to the target. With a 0.3 factor:
+- Each frame closes 30% of the gap to target
+- On a 60fps display, this creates a visible "trailing" effect
+- When the target moves continuously (waypoint hopping), the position oscillates around the moving target
 
-interface Junction extends Point2D {
-  connections: JunctionConnection[];
-}
+### Why Rail Mode Needs Tighter Lock
 
-interface PolylineGraph {
-  segments: PolylineSegment[];
-  junctions: Junction[];  // Now with connections
-  endpoints: Point2D[];
-}
-```
+In joystick mode, smoothing is desirable because:
+- Player input can be noisy
+- Collision resolution may cause position jumps
+- Camera lag creates a pleasant "follow" feel
 
-### Junction Connectivity Computation (in extractPolylineSegments)
+In rail mode, the path is pre-computed and guaranteed to be smooth. The animal should travel directly along it without any visual lag.
 
-```typescript
-// After creating all segments, compute junction connections
-for (const junction of junctions) {
-  junction.connections = [];
-  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
-    const seg = segments[segIdx];
-    const firstPt = seg.points[0];
-    const lastPt = seg.points[seg.points.length - 1];
-    
-    const firstDist = distance(firstPt, junction);
-    const lastDist = distance(lastPt, junction);
-    
-    if (firstDist < 0.1) {
-      junction.connections.push({ segmentIndex: segIdx, atStart: true });
-    } else if (lastDist < 0.1) {
-      junction.connections.push({ segmentIndex: segIdx, atStart: false });
-    }
-  }
-}
-```
+### Expected Outcome
 
-### Rewritten findAvailableDirections (junction case)
-
-```typescript
-if (position.atJunction && junction) {
-  const processedSegments = new Set<number>();
-  
-  for (const conn of junction.connections) {
-    if (processedSegments.has(conn.segmentIndex)) continue;
-    processedSegments.add(conn.segmentIndex);
-    
-    const seg = polylineGraph.segments[conn.segmentIndex];
-    const points = conn.atStart ? seg.points : [...seg.points].reverse();
-    
-    // Calculate direction from first few points
-    const lookAheadPt = points[Math.min(10, points.length - 1)];
-    const angle = Math.atan2(
-      lookAheadPt.x - junction.x,
-      lookAheadPt.z - junction.z
-    );
-    
-    // Build path starting from current position
-    const pathPoints = [
-      { x: position.x, z: position.z },
-      ...points
-    ];
-    
-    rawDirections.push({
-      angle,
-      targetX: points[points.length - 1].x,
-      targetZ: points[points.length - 1].z,
-      pathPoints,
-      // ...
-    });
-  }
-}
-```
+After these changes:
+- Animal position will closely track the polyline path in rail mode
+- Rotation will remain instant-locked to tangent (already working)
+- Joystick mode behavior remains unchanged
+- Shaking/jittering during rail travel should be eliminated
 
 ---
 
@@ -180,16 +120,12 @@ if (position.atJunction && junction) {
 
 | File | Changes |
 |------|---------|
-| `src/game/SkeletonPolyline.ts` | Add `Junction` interface with `connections`, update `extractPolylineSegments` to populate it |
-| `src/components/RailControls.tsx` | Rewrite `findAvailableDirections` to use junction connectivity, remove angle-based deduplication |
+| `src/components/Maze3DScene.tsx` | 3 line changes: position lerp, tangent window, waypoint threshold |
 
----
+## Testing Recommendations
 
-## Expected Outcome
-
-- At a 3-way junction: exactly 3 direction buttons
-- At a 4-way junction: exactly 4 direction buttons
-- On a corridor (not at junction): exactly 2 buttons (forward/backward)
-- All buttons trigger movement immediately (no "turn only" behavior)
-- Arrows point in the actual direction of each path
-
+1. Enter rail mode and select a direction at a junction
+2. Observe the animal traveling along a curved path segment
+3. Verify no shaking or jittering occurs
+4. Test at different frame rates (throttle to 30fps in browser) to ensure stability
+5. Verify joystick mode still feels smooth and responsive
