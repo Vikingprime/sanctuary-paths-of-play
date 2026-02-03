@@ -491,10 +491,9 @@ function detectCorners(points: Point2D[], angleThreshold: number = Math.PI / 4):
 }
 
 /**
- * Push corner points away from walls (wall-aware).
- * Uses absolute value of strength as magnitude.
- * Each corner independently determines which direction to push based on
- * perpendicular distance to walls on each side of the turn.
+ * Push corner points inward (toward center of turn) or outward.
+ * Positive strength moves path toward inside of turns (away from outer walls).
+ * Negative strength moves path toward outside of turns (away from inner walls).
  * 
  * IMPORTANT: This propagates the push to neighboring points with falloff,
  * so the entire curve section shifts rather than just the corner vertex.
@@ -505,8 +504,6 @@ function pushCornersInward(
   isWallFn?: (x: number, z: number) => boolean
 ): Point2D[] {
   if (points.length < 3 || strength === 0) return [...points];
-  
-  const absStrength = Math.abs(strength);
   
   // First pass: calculate push vectors for each corner
   interface CornerPush {
@@ -546,73 +543,42 @@ function pushCornersInward(
     // Only push if there's a significant turn (> 15 degrees)
     if (angle < Math.PI / 12) continue;
     
-    // Calculate the bisector direction (points toward inside of turn)
+    // Bisector direction (points inward, toward the center of the turn)
+    // Negate the sum of directions to get inward direction
     const bisectX = -(nx1 + nx2);
     const bisectZ = -(nz1 + nz2);
     const bisectLen = Math.sqrt(bisectX * bisectX + bisectZ * bisectZ);
     
     if (bisectLen < 1e-6) continue;
     
-    // Normalize bisector - this points toward the INSIDE of the turn
-    const bxInward = bisectX / bisectLen;
-    const bzInward = bisectZ / bisectLen;
-    
-    // Determine push direction based on wall proximity
-    let pushDirX = 0;
-    let pushDirZ = 0;
-    let wallDetected = false;
-    
-    if (isWallFn) {
-      // Sample wall distance at multiple distances in both directions
-      // Check from 0.2 to 0.8 units to find walls
-      let inwardWallDist = Infinity;
-      let outwardWallDist = Infinity;
-      
-      for (let d = 0.2; d <= 0.8; d += 0.15) {
-        if (inwardWallDist === Infinity && isWallFn(curr.x + bxInward * d, curr.z + bzInward * d)) {
-          inwardWallDist = d;
-        }
-        if (outwardWallDist === Infinity && isWallFn(curr.x - bxInward * d, curr.z - bzInward * d)) {
-          outwardWallDist = d;
-        }
-      }
-      
-      // Determine push direction based on which wall is closer
-      if (inwardWallDist < Infinity || outwardWallDist < Infinity) {
-        wallDetected = true;
-        if (inwardWallDist < outwardWallDist) {
-          // Wall is closer on the inside, push outward
-          pushDirX = -bxInward;
-          pushDirZ = -bzInward;
-        } else if (outwardWallDist < inwardWallDist) {
-          // Wall is closer on the outside, push inward
-          pushDirX = bxInward;
-          pushDirZ = bzInward;
-        }
-        // If equal distance, don't push (centered already)
-      }
-    }
-    
-    // Fall back to signed-strength behavior if no wall detected or no wall function
-    if (!wallDetected) {
-      // Use sign of strength for direction: Positive = inward, Negative = outward
-      const sign = strength > 0 ? 1 : -1;
-      pushDirX = bxInward * sign;
-      pushDirZ = bzInward * sign;
-    }
-    
-    // Skip if no push direction determined
-    if (pushDirX === 0 && pushDirZ === 0) continue;
+    // Normalize bisector
+    const bx = bisectX / bisectLen;
+    const bz = bisectZ / bisectLen;
     
     // Push strength scales with angle sharpness
     const angleFactor = angle / Math.PI; // 0 = straight, 1 = 180 degree turn
-    const pushMagnitude = absStrength * angleFactor;
+    const pushMagnitude = strength * angleFactor;
+    
+    // Optional: validate push won't go into a wall
+    let finalPushX = bx * pushMagnitude;
+    let finalPushZ = bz * pushMagnitude;
+    
+    if (isWallFn) {
+      // Check if the pushed position would be in a wall
+      const pushedX = curr.x + finalPushX;
+      const pushedZ = curr.z + finalPushZ;
+      if (isWallFn(pushedX, pushedZ)) {
+        // Reduce push to avoid wall collision
+        finalPushX *= 0.3;
+        finalPushZ *= 0.3;
+      }
+    }
     
     cornerPushes.push({
       index: i,
-      pushX: pushDirX * pushMagnitude,
-      pushZ: pushDirZ * pushMagnitude,
-      magnitude: pushMagnitude,
+      pushX: finalPushX,
+      pushZ: finalPushZ,
+      magnitude: Math.abs(pushMagnitude),
     });
   }
   
