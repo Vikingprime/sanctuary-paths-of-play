@@ -560,51 +560,42 @@ function pushCornersInward(
     // Determine push direction based on wall proximity
     let pushDirX = 0;
     let pushDirZ = 0;
+    let wallDetected = false;
     
     if (isWallFn) {
-      // Sample wall distance in both directions (inward and outward)
-      const sampleDist = 0.3; // Sample 0.3 units away
+      // Sample wall distance at multiple distances in both directions
+      // Check from 0.2 to 0.8 units to find walls
+      let inwardWallDist = Infinity;
+      let outwardWallDist = Infinity;
       
-      // Check inward direction (inside of turn)
-      const inwardX = curr.x + bxInward * sampleDist;
-      const inwardZ = curr.z + bzInward * sampleDist;
-      const inwardIsWall = isWallFn(inwardX, inwardZ);
-      
-      // Check outward direction (outside of turn)
-      const outwardX = curr.x - bxInward * sampleDist;
-      const outwardZ = curr.z - bzInward * sampleDist;
-      const outwardIsWall = isWallFn(outwardX, outwardZ);
-      
-      if (inwardIsWall && !outwardIsWall) {
-        // Wall is on the inside, push outward
-        pushDirX = -bxInward;
-        pushDirZ = -bzInward;
-      } else if (outwardIsWall && !inwardIsWall) {
-        // Wall is on the outside, push inward
-        pushDirX = bxInward;
-        pushDirZ = bzInward;
-      } else if (inwardIsWall && outwardIsWall) {
-        // Walls on both sides - push toward whichever has more clearance
-        // Sample at multiple distances to find clearance
-        let inwardClear = 0;
-        let outwardClear = 0;
-        for (let d = 0.1; d <= 0.5; d += 0.1) {
-          if (!isWallFn(curr.x + bxInward * d, curr.z + bzInward * d)) inwardClear++;
-          if (!isWallFn(curr.x - bxInward * d, curr.z - bzInward * d)) outwardClear++;
+      for (let d = 0.2; d <= 0.8; d += 0.15) {
+        if (inwardWallDist === Infinity && isWallFn(curr.x + bxInward * d, curr.z + bzInward * d)) {
+          inwardWallDist = d;
         }
-        if (inwardClear > outwardClear) {
-          pushDirX = bxInward;
-          pushDirZ = bzInward;
-        } else if (outwardClear > inwardClear) {
+        if (outwardWallDist === Infinity && isWallFn(curr.x - bxInward * d, curr.z - bzInward * d)) {
+          outwardWallDist = d;
+        }
+      }
+      
+      // Determine push direction based on which wall is closer
+      if (inwardWallDist < Infinity || outwardWallDist < Infinity) {
+        wallDetected = true;
+        if (inwardWallDist < outwardWallDist) {
+          // Wall is closer on the inside, push outward
           pushDirX = -bxInward;
           pushDirZ = -bzInward;
+        } else if (outwardWallDist < inwardWallDist) {
+          // Wall is closer on the outside, push inward
+          pushDirX = bxInward;
+          pushDirZ = bzInward;
         }
-        // If equal, don't push (leave as 0)
+        // If equal distance, don't push (centered already)
       }
-      // If neither direction has a wall, don't push
-    } else {
-      // No wall function provided - use sign of strength for direction
-      // Positive = inward, Negative = outward
+    }
+    
+    // Fall back to signed-strength behavior if no wall detected or no wall function
+    if (!wallDetected) {
+      // Use sign of strength for direction: Positive = inward, Negative = outward
       const sign = strength > 0 ? 1 : -1;
       pushDirX = bxInward * sign;
       pushDirZ = bzInward * sign;
