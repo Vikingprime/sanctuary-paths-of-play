@@ -5,6 +5,7 @@ import { MazePreview } from './MazePreview';
 import { MiniMap } from './MiniMap';
 import { GameHUD, SensitivityConfig, DEFAULT_SENSITIVITY } from './GameHUD';
 import { MobileControls } from './MobileControls';
+import { RailControls } from './RailControls';
 import { MazeIntroSequence } from './MazeIntroSequence';
 import { Button } from '@/components/ui/button';
 import { Confetti } from '@/components/Confetti';
@@ -12,6 +13,8 @@ import { animals } from '@/data/animals';
 import { formatTime } from '@/lib/utils';
 import { setAutopushEnabled as setDebugAutopush, setLOSFaderEnabled as setDebugLOSFader, setVerboseLogging as setDebugVerbose } from '@/lib/debug';
 import { useBackButton } from '@/hooks/useBackButton';
+import { Point2D } from '@/game/SkeletonPolyline';
+import { MagnetismCache } from '@/game/CorridorMagnetism';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -153,6 +156,16 @@ export const MazeGame3D = ({
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   // Camera orbit yaw - controlled by joystick X, used for orbit camera
   const cameraYawRef = useRef(startRotation); // Camera yaw angle (orbits around player)
+  
+  // Control mode: 'joystick' (default) or 'rail' (on-rail navigation)
+  type ControlMode = 'joystick' | 'rail';
+  const [controlMode, setControlMode] = useState<ControlMode>('joystick');
+  
+  // Rail control state
+  const [isRailMoving, setIsRailMoving] = useState(false);
+  const railPathRef = useRef<Point2D[]>([]);
+  const railPathIndexRef = useRef(0);
+  const magnetismCacheRef = useRef<MagnetismCache | null>(null);
   
   // Debug toggle to completely disable mobile controls (WASD only mode)
   const [mobileControlsEnabled, setMobileControlsEnabled] = useState(true);
@@ -507,6 +520,33 @@ export const MazeGame3D = ({
       pendingEndGameRef.current = false;
     }
   }, [activeDialogue, dialogueMessageIndex, maze.grid, maze.timeLimit, timeLeft, onComplete, findNextChainedDialogue, canEndLevel]);
+
+  // Rail control handlers
+  const handleRailDirectionSelect = useCallback((targetX: number, targetZ: number, pathPoints: Point2D[]) => {
+    railPathRef.current = pathPoints;
+    railPathIndexRef.current = 0;
+    setIsRailMoving(true);
+  }, []);
+  
+  const handleRailStop = useCallback(() => {
+    setIsRailMoving(false);
+    railPathRef.current = [];
+    railPathIndexRef.current = 0;
+  }, []);
+  
+  const handleRailTurnAround = useCallback(() => {
+    // Reverse current path
+    if (railPathRef.current.length > 1) {
+      railPathRef.current = [...railPathRef.current].reverse();
+      railPathIndexRef.current = 0;
+      setIsRailMoving(true);
+    }
+  }, []);
+  
+  // Callback to receive magnetism cache from Maze3DScene
+  const handleMagnetismCacheReady = useCallback((cache: MagnetismCache) => {
+    magnetismCacheRef.current = cache;
+  }, []);
 
   // Movement is now handled in Maze3DScene's useFrame for sync with rendering
 
@@ -950,6 +990,7 @@ export const MazeGame3D = ({
             setSpurConfig(config);
           }
         }}
+        onMagnetismCacheReady={handleMagnetismCacheReady}
       />
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -1047,8 +1088,8 @@ export const MazeGame3D = ({
         />
       )}
 
-      {/* Mobile Controls - only render after preview ends AND if enabled */}
-      {!isPreviewing && mobileControlsEnabled && (
+      {/* Mobile/Rail Controls - only render after preview ends AND if enabled */}
+      {!isPreviewing && mobileControlsEnabled && controlMode === 'joystick' && (
         <MobileControls
           playerStateRef={playerStateRef}
           joystickXRef={joystickXRef}
@@ -1057,6 +1098,31 @@ export const MazeGame3D = ({
           mobileTouchActiveRef={mobileTouchActiveRef}
           debugMode={debugMode}
         />
+      )}
+      
+      {/* Rail Controls - on-rail navigation mode */}
+      {!isPreviewing && mobileControlsEnabled && controlMode === 'rail' && (
+        <RailControls
+          cache={magnetismCacheRef.current}
+          playerX={playerStateRef.current.x}
+          playerZ={playerStateRef.current.y}
+          playerRotation={playerStateRef.current.rotation}
+          onDirectionSelect={handleRailDirectionSelect}
+          onStop={handleRailStop}
+          onTurnAround={handleRailTurnAround}
+          isMoving={isRailMoving}
+          enabled={controlMode === 'rail'}
+        />
+      )}
+      
+      {/* Control Mode Toggle - shows in bottom right */}
+      {!isPreviewing && mobileControlsEnabled && (
+        <button
+          onClick={() => setControlMode(prev => prev === 'joystick' ? 'rail' : 'joystick')}
+          className="fixed bottom-4 right-4 z-30 bg-card/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg font-display text-sm transition-all hover:bg-primary hover:text-primary-foreground"
+        >
+          {controlMode === 'joystick' ? '🎮 Joystick' : '🛤️ Rail'}
+        </button>
       )}
 
       {/* Map Station Button - appears when station is available but not viewing or in dialogue */}
