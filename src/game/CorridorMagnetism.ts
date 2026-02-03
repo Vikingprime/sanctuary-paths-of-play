@@ -1375,8 +1375,27 @@ export function constrainMovementToTangent(
   const constrainedX = newX + offsetX;
   const constrainedZ = newZ + offsetZ;
   
-  // Blend based on how close to full strength (9.9-10 = full lock)
-  const lockBlend = Math.min(1, (strength - 9.9) / 0.1);
+  // Calculate alignment between animal facing and path tangent
+  // If misaligned, reduce the lock strength to prevent "sideways locking"
+  const animalHeading = playerRotation; // Already in same coordinate space
+  let alignmentDiff = Math.abs(normalizeAngle(animalHeading - tangentAngle));
+  // Check reverse direction too (path can be traveled either way)
+  const reverseAlignmentDiff = Math.abs(normalizeAngle(animalHeading - tangentAngle + Math.PI));
+  alignmentDiff = Math.min(alignmentDiff, reverseAlignmentDiff);
+  
+  // Alignment factor: 1.0 when aligned, 0.0 when perpendicular (90°)
+  // Start reducing at 30° misalignment, reach 0 at 90°
+  const ALIGNMENT_START = 0.5; // ~30 degrees
+  const ALIGNMENT_END = Math.PI / 2; // 90 degrees
+  let alignmentFactor = 1.0;
+  if (alignmentDiff > ALIGNMENT_START) {
+    alignmentFactor = 1.0 - Math.min(1, (alignmentDiff - ALIGNMENT_START) / (ALIGNMENT_END - ALIGNMENT_START));
+  }
+  
+  // Blend based on strength AND alignment
+  // At full strength but misaligned: don't lock position yet
+  const strengthBlend = Math.min(1, (strength - 9.9) / 0.1);
+  const lockBlend = strengthBlend * alignmentFactor;
   
   return {
     x: newX + (constrainedX - newX) * lockBlend,
