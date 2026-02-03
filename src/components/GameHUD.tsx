@@ -453,9 +453,27 @@ export const GameHUD = ({
             ✕ <span className="hidden landscape:hidden sm:inline">Quit</span>
           </button>
           
-          {/* Debug toggles - only in debug mode */}
-          {debugMode && (
+          {/* Debug toggle indicator - shows expand button when collapsed */}
+          {debugMode && rightPanelCollapsed && (
+            <button 
+              onClick={() => setRightPanelCollapsed(false)}
+              className="bg-card/90 backdrop-blur-sm rounded-xl px-2 py-1 shadow-lg font-display text-[10px] text-yellow-500"
+              title="Show debug controls"
+            >
+              🔧
+            </button>
+          )}
+          {/* Debug toggles - only in debug mode and when not collapsed */}
+          {debugMode && !rightPanelCollapsed && (
             <div className="flex flex-col gap-2">
+              {/* Collapse button */}
+              <button 
+                onClick={() => setRightPanelCollapsed(true)}
+                className="bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-[10px] text-yellow-500 font-bold"
+                title="Hide debug controls"
+              >
+                DEBUG CONTROLS ✕
+              </button>
               {/* Camera view toggles (kept) */}
               {onToggleTopDownCamera && (
                 <button
@@ -536,25 +554,31 @@ export const GameHUD = ({
         </div>
       </div>
 
+      {/* Collapsed Perf Profiler expand button */}
+      {debugMode && performanceInfo && leftPanelCollapsed && (
+        <button 
+          onClick={() => setLeftPanelCollapsed(false)}
+          className="block absolute top-20 left-4 bg-black/80 rounded-lg text-xs font-mono text-yellow-400 pointer-events-auto px-2 py-1 hover:bg-black"
+          title="Show performance profiler"
+        >
+          📊 PERF
+        </button>
+      )}
+      
       {/* Full Performance Profiler Panel - only in debug mode */}
-      {debugMode && performanceInfo && (
-        <div className={cn(
-          "block absolute top-20 left-4 bg-black/80 rounded-lg text-xs font-mono text-white pointer-events-auto transition-all",
-          leftPanelCollapsed ? "px-1 py-1" : "px-3 py-2 max-w-[280px] max-h-[60vh] overflow-y-auto"
-        )}>
-          {/* Collapse toggle */}
-          <button 
-            onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
-            className="absolute -right-2 top-1/2 -translate-y-1/2 bg-black/80 rounded-r p-0.5 hover:bg-black"
-          >
-            {leftPanelCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
-          </button>
-          
-          {leftPanelCollapsed ? (
-            <div className="text-yellow-400 font-bold text-[10px] writing-mode-vertical" style={{ writingMode: 'vertical-rl' }}>PERF</div>
-          ) : (
-          <>
-          <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">PERF PROFILER</div>
+      {debugMode && performanceInfo && !leftPanelCollapsed && (
+        <div className="block absolute top-20 left-4 bg-black/80 rounded-lg text-xs font-mono text-white pointer-events-auto transition-all px-3 py-2 max-w-[280px] max-h-[60vh] overflow-y-auto">
+          {/* Header with close button */}
+          <div className="flex items-center justify-between mb-1 border-b border-yellow-400/30 pb-1">
+            <span className="text-yellow-400 font-bold">PERF PROFILER</span>
+            <button 
+              onClick={() => setLeftPanelCollapsed(true)}
+              className="text-gray-400 hover:text-white ml-2"
+              title="Minimize profiler"
+            >
+              ✕
+            </button>
+          </div>
           
           {/* Player Position */}
           {performanceInfo.playerX !== undefined && (
@@ -1239,32 +1263,10 @@ export const GameHUD = ({
               </div>
             </div>
           )}
-          </>
-          )}
         </div>
       )}
       
-      {/* Right Debug Panel (controls) - collapsible */}
-      {debugMode && (
-        <div className={cn(
-          "block absolute top-20 right-4 bg-black/80 rounded-lg text-xs font-mono text-white pointer-events-auto transition-all",
-          rightPanelCollapsed ? "px-1 py-1" : "px-3 py-2"
-        )}>
-          {/* Collapse toggle */}
-          <button 
-            onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
-            className="absolute -left-2 top-1/2 -translate-y-1/2 bg-black/80 rounded-l p-0.5 hover:bg-black"
-          >
-            {rightPanelCollapsed ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-          </button>
-          
-          {rightPanelCollapsed ? (
-            <div className="text-yellow-400 font-bold text-[10px]" style={{ writingMode: 'vertical-rl' }}>DBG</div>
-          ) : (
-            <div className="text-yellow-400 font-bold mb-1 border-b border-yellow-400/30 pb-1">DEBUG CONTROLS</div>
-          )}
-        </div>
-      )}
+      {/* Right Debug Panel removed - now integrated into top-right controls */}
 
     </div>
 
