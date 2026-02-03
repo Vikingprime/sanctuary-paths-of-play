@@ -1247,9 +1247,14 @@ export function constrainMovementToTangent(
   const lateralZ = -facingX;
   
   // Dot product gives how far off-center the front is (laterally)
-  const lateralDist = toTargetX * lateralX + toTargetZ * lateralZ;
+  let lateralDist = toTargetX * lateralX + toTargetZ * lateralZ;
   
-  // Apply ONLY the lateral correction (perpendicular to animal facing)
+  // CLAMP lateral correction to prevent sudden acceleration/jumps
+  // Max correction ~0.15 world units per frame (smooth pull, not teleport)
+  const MAX_LATERAL_CORRECTION = 0.15;
+  lateralDist = Math.max(-MAX_LATERAL_CORRECTION, Math.min(MAX_LATERAL_CORRECTION, lateralDist));
+  
+  // Apply ONLY the clamped lateral correction (perpendicular to animal facing)
   const offsetX = lateralDist * lateralX;
   const offsetZ = lateralDist * lateralZ;
   
