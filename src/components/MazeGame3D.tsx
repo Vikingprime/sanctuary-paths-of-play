@@ -1115,11 +1115,11 @@ export const MazeGame3D = ({
         />
       )}
       
-      {/* Control Mode Toggle - shows in bottom right */}
+      {/* Control Mode Toggle - shows in top right below HUD */}
       {!isPreviewing && mobileControlsEnabled && (
         <button
           onClick={() => setControlMode(prev => prev === 'joystick' ? 'rail' : 'joystick')}
-          className="fixed bottom-4 right-4 z-30 bg-card/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg font-display text-sm transition-all hover:bg-primary hover:text-primary-foreground"
+          className="fixed top-20 right-4 z-40 bg-card/95 backdrop-blur-sm rounded-xl px-4 py-3 shadow-lg font-display text-base transition-all hover:bg-primary hover:text-primary-foreground border border-border"
         >
           {controlMode === 'joystick' ? '🎮 Joystick' : '🛤️ Rail'}
         </button>
