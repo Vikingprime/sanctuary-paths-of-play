@@ -243,28 +243,8 @@ function extractPolylineSegments(
       }
     }
   }
-  
-  // Compute junction connectivity - link each junction to its connected segments
-  // Each segment should connect to a junction at most once (via its start OR end, not both)
-  const JUNCTION_MATCH_THRESHOLD = 0.1; // World units - tight threshold for exact matches
-  for (const junction of junctions) {
-    for (let segIdx = 0; segIdx < segments.length; segIdx++) {
-      const seg = segments[segIdx];
-      const firstPt = seg.points[0];
-      const lastPt = seg.points[seg.points.length - 1];
-      
-      const firstDistSq = (firstPt.x - junction.x) ** 2 + (firstPt.z - junction.z) ** 2;
-      const lastDistSq = (lastPt.x - junction.x) ** 2 + (lastPt.z - junction.z) ** 2;
-      
-      // Only add the closer endpoint - prevents double-counting for short segments
-      // where both endpoints might be near the same junction
-      if (firstDistSq < JUNCTION_MATCH_THRESHOLD ** 2 && firstDistSq <= lastDistSq) {
-        junction.connections.push({ segmentIndex: segIdx, atStart: true });
-      } else if (lastDistSq < JUNCTION_MATCH_THRESHOLD ** 2) {
-        junction.connections.push({ segmentIndex: segIdx, atStart: false });
-      }
-    }
-  }
+  // NOTE: Junction connectivity will be computed AFTER smoothing in buildSmoothedPolylines
+  // This ensures segment endpoints match the final smoothed path positions
   
   return { segments, junctions, endpoints };
 }
@@ -807,6 +787,30 @@ export function buildSmoothedPolylines(
       points,
     };
   });
+  
+  // CRITICAL: Re-compute junction connectivity using SMOOTHED segment endpoints
+  // The raw junctions have correct positions, but connectivity must match smoothed paths
+  const JUNCTION_MATCH_THRESHOLD_SQ = 0.3 * 0.3; // Slightly larger for smoothed paths
+  for (const junction of junctions) {
+    junction.connections = []; // Clear old connectivity from raw segments
+    for (let segIdx = 0; segIdx < smoothedSegments.length; segIdx++) {
+      const seg = smoothedSegments[segIdx];
+      if (seg.points.length < 2) continue;
+      
+      const firstPt = seg.points[0];
+      const lastPt = seg.points[seg.points.length - 1];
+      
+      const firstDistSq = (firstPt.x - junction.x) ** 2 + (firstPt.z - junction.z) ** 2;
+      const lastDistSq = (lastPt.x - junction.x) ** 2 + (lastPt.z - junction.z) ** 2;
+      
+      // Only add the closer endpoint to prevent double-counting
+      if (firstDistSq < JUNCTION_MATCH_THRESHOLD_SQ && firstDistSq <= lastDistSq) {
+        junction.connections.push({ segmentIndex: segIdx, atStart: true });
+      } else if (lastDistSq < JUNCTION_MATCH_THRESHOLD_SQ) {
+        junction.connections.push({ segmentIndex: segIdx, atStart: false });
+      }
+    }
+  }
   
   const totalPoints = smoothedSegments.reduce((sum, s) => sum + s.points.length, 0);
   console.log(`[SkeletonPolyline] Built ${smoothedSegments.length} segments (${totalPoints} total points), Chaikin=${cfg.chaikinIterations}+${cfg.chaikinCornerExtraIterations}, cornerPush=${cfg.cornerPushStrength.toFixed(2)}`);
