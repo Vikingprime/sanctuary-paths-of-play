@@ -246,12 +246,21 @@ export function findAvailableDirections(
   // The relationship is: visualRotation = -playerRotation + PI
   const animalFacingAngle = -animalRotation + Math.PI;
   
+  // DEBUG: Log the animal rotation values
+  console.log(`[RailControls] animalRotation=${(animalRotation * 180 / Math.PI).toFixed(1)}°, animalFacingAngle=${(animalFacingAngle * 180 / Math.PI).toFixed(1)}°`);
+  
   // Helper to compute relative angle (for UI positioning)
+  // Positive = clockwise from animal's perspective (right)
+  // Negative = counter-clockwise (left)
   const computeRelativeAngle = (targetAngle: number): number => {
     let relativeAngle = targetAngle - animalFacingAngle;
     // Normalize to [-PI, PI]
     while (relativeAngle > Math.PI) relativeAngle -= 2 * Math.PI;
     while (relativeAngle < -Math.PI) relativeAngle += 2 * Math.PI;
+    
+    // DEBUG: Log each direction's angles
+    console.log(`[RailControls] Path: worldAngle=${(targetAngle * 180 / Math.PI).toFixed(1)}° -> relativeAngle=${(relativeAngle * 180 / Math.PI).toFixed(1)}°`);
+    
     return relativeAngle;
   };
   
