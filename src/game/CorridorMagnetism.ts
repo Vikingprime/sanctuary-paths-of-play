@@ -781,15 +781,18 @@ function findBestBranchAtJunction(
   
   const { junctions, segments } = cache.polylineGraph;
   
-  // Find the junction we're at
+  // Find the closest junction (search larger radius to cover the suppression zone)
   let junction: Junction | null = null;
-  const junctionMatchRadius = 1.5; // Must be within this distance of junction center
+  let junctionDist = Infinity;
+  const junctionSearchRadius = 2.5; // Extended to cover the full suppression zone
+  
   for (const j of junctions) {
     const dx = junctionX - j.x;
     const dz = junctionZ - j.z;
-    if (dx * dx + dz * dz < junctionMatchRadius * junctionMatchRadius) {
+    const dist = dx * dx + dz * dz;
+    if (dist < junctionSearchRadius * junctionSearchRadius && dist < junctionDist) {
+      junctionDist = dist;
       junction = j;
-      break;
     }
   }
   
@@ -1437,7 +1440,9 @@ export function constrainMovementToTangent(
   cache: MagnetismCache | null,
   strength: number,
   playerRotation: number,    // Current player rotation (to calculate fresh front point)
-  frontOffset: number        // Distance from center to front sensing point
+  frontOffset: number,       // Distance from center to front sensing point
+  joystickDirX: number = 0,  // World-space joystick direction for junction prediction
+  joystickDirZ: number = 0
 ): ConstrainResult {
   
   // Only apply constraint at high strength and when cache is available
@@ -1459,8 +1464,71 @@ export function constrainMovementToTangent(
     return { x: newX, z: newZ, tangentAngle: null, hasTangent: false };
   }
   
-  // Skip if at junction (let player move freely at intersections)
+  // At junctions with full lock (10.0), use joystick to predict branch and stay locked
   if (nearest.isSuppressed) {
+    const hasJoystickInput = Math.abs(joystickDirX) > 0.01 || Math.abs(joystickDirZ) > 0.01;
+    
+    if (hasJoystickInput) {
+      // Find best branch based on joystick direction
+      const branchResult = findBestBranchAtJunction(frontX, frontZ, joystickDirX, joystickDirZ, cache);
+      
+      if (branchResult && cache.polylineGraph) {
+        // Get actual segment points for lateral constraint
+        const segment = cache.polylineGraph.segments[branchResult.segmentIndex];
+        if (segment && segment.points.length > 0) {
+          // Find the nearest point on this specific segment
+          let bestDist = Infinity;
+          let bestPt: { x: number; z: number } | null = null;
+          
+          for (const pt of segment.points) {
+            const dx = frontX - pt.x;
+            const dz = frontZ - pt.z;
+            const dist = dx * dx + dz * dz;
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestPt = pt;
+            }
+          }
+          
+          if (bestPt) {
+            // Apply lateral constraint to predicted branch
+            const toTargetX = bestPt.x - frontX;
+            const toTargetZ = bestPt.z - frontZ;
+            
+            const tx = branchResult.tangentX;
+            const tz = branchResult.tangentZ;
+            const tangentLen = Math.sqrt(tx * tx + tz * tz);
+            
+            if (tangentLen > 0.01) {
+              const tanX = tx / tangentLen;
+              const tanZ = tz / tangentLen;
+              const tangentAngle = Math.atan2(tanX, tanZ);
+              
+              const perpX = -tanZ;
+              const perpZ = tanX;
+              const lateralDist = toTargetX * perpX + toTargetZ * perpZ;
+              
+              const offsetX = lateralDist * perpX;
+              const offsetZ = lateralDist * perpZ;
+              
+              const constrainedX = newX + offsetX;
+              const constrainedZ = newZ + offsetZ;
+              const lockBlend = Math.min(1, (strength - 9.9) / 0.1);
+              
+              return {
+                x: newX + (constrainedX - newX) * lockBlend,
+                z: newZ + (constrainedZ - newZ) * lockBlend,
+                tangentAngle,
+                hasTangent: true,
+              };
+            }
+          }
+        }
+      }
+    }
+    
+    // No joystick input at junction - still stay near the nearest point
+    // but don't enforce strict lateral constraint
     return { x: newX, z: newZ, tangentAngle: null, hasTangent: false };
   }
   

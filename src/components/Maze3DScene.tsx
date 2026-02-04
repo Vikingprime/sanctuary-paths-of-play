@@ -1486,6 +1486,29 @@ const RefBasedPlayer = ({
           const magnetStrength = magnetismConfig?.enabled ? (magnetismConfig.strength ?? 5) : 0;
           // Use VISUAL rotation (same as magnetism debug) to match where the animal visually faces
           const constraintVisualRotation = -newState.rotation + Math.PI;
+          
+          // Calculate joystick world direction for junction prediction in constraint
+          let constraintJoyDirX = 0;
+          let constraintJoyDirZ = 0;
+          const joyXConstraint = joystickXRef?.current ?? 0;
+          const joyYConstraint = joystickYRef?.current ?? 0;
+          const joystickMagConstraint = Math.sqrt(joyXConstraint * joyXConstraint + joyYConstraint * joyYConstraint);
+          const mobileActiveConstraint = (mobileTouchActiveRef?.current ?? false) && joystickMagConstraint > 0.01;
+          const keyboardActiveConstraint = keysPressed.current.has('w') || keysPressed.current.has('s') || 
+                                keysPressed.current.has('a') || keysPressed.current.has('d') ||
+                                keysPressed.current.has('arrowup') || keysPressed.current.has('arrowdown') ||
+                                keysPressed.current.has('arrowleft') || keysPressed.current.has('arrowright');
+          
+          if (mobileActiveConstraint && cameraYawRef && joystickMagConstraint > 0.1) {
+            const camYaw = cameraYawRef.current;
+            const targetAngle = camYaw + (joyYConstraint < 0 ? Math.PI : 0);
+            constraintJoyDirX = Math.sin(targetAngle);
+            constraintJoyDirZ = Math.cos(targetAngle);
+          } else if (keyboardActiveConstraint) {
+            constraintJoyDirX = Math.sin(newState.rotation);
+            constraintJoyDirZ = Math.cos(newState.rotation);
+          }
+          
           const constrained = constrainMovementToTangent(
             prev.x,
             prev.y,
@@ -1494,7 +1517,9 @@ const RefBasedPlayer = ({
             magnetismCacheRef.current,              // Pass cache for fresh lookup
             magnetStrength,
             constraintVisualRotation,               // Use visual rotation (matches debug markers)
-            DEFAULT_MAGNETISM_CONFIG.frontOffset    // Pass front offset (0.35)
+            DEFAULT_MAGNETISM_CONFIG.frontOffset,   // Pass front offset (0.35)
+            constraintJoyDirX,                      // Joystick world direction for junction prediction
+            constraintJoyDirZ
           );
           
           
