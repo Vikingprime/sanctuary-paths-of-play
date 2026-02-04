@@ -567,23 +567,7 @@ export function RailControls({
           />
         ))}
         
-        {/* Turn around button (always available) */}
-        {directions.length > 0 && !directions.some(d => d.isTurnAround) && (
-          <button
-            onClick={onTurnAround}
-            className="
-              absolute bottom-2 right-2
-              w-10 h-10 rounded-full
-              flex items-center justify-center
-              bg-amber-600/80 hover:bg-amber-500
-              text-white shadow-lg hover:scale-110
-              transition-all duration-200
-              border border-amber-400
-            "
-          >
-            <RotateCcw className="w-5 h-5" />
-          </button>
-        )}
+        {/* Turn around button removed - user should use direction arrows instead */}
       </div>
       
       {/* Status text */}
