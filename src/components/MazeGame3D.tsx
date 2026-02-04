@@ -168,6 +168,8 @@ export const MazeGame3D = ({
   const railPathRef = useRef<Point2D[]>([]);
   const railPathIndexRef = useRef(0);
   const railFractionalIndexRef = useRef(0); // For smooth arc-length traversal
+  const railTurnPhaseRef = useRef(false); // True during pre-turn phase before movement starts
+  const railTargetAngleRef = useRef(0); // Target angle to turn toward before moving
   const magnetismCacheRef = useRef<MagnetismCache | null>(null);
   
   // Debug toggle to completely disable mobile controls (WASD only mode)
@@ -526,9 +528,24 @@ export const MazeGame3D = ({
 
   // Rail control handlers
   const handleRailDirectionSelect = useCallback((targetX: number, targetZ: number, pathPoints: Point2D[]) => {
+    if (pathPoints.length < 2) return;
+    
+    // Calculate initial path direction to turn toward
+    const lookAheadIdx = Math.min(10, pathPoints.length - 1);
+    const dirX = pathPoints[lookAheadIdx].x - pathPoints[0].x;
+    const dirZ = pathPoints[lookAheadIdx].z - pathPoints[0].z;
+    const pathAngle = Math.atan2(dirX, dirZ);
+    
+    // Convert to player rotation format: targetRotation = -visualAngle + PI
+    let targetRotation = -pathAngle + Math.PI;
+    while (targetRotation < 0) targetRotation += Math.PI * 2;
+    while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
+    
     railPathRef.current = pathPoints;
     railPathIndexRef.current = 0;
     railFractionalIndexRef.current = 0; // Reset fractional progress for smooth traversal
+    railTurnPhaseRef.current = true; // Start in turn phase
+    railTargetAngleRef.current = targetRotation;
     setIsRailMoving(true);
   }, []);
   
@@ -1001,6 +1018,8 @@ export const MazeGame3D = ({
         railPathRef={railPathRef}
         railPathIndexRef={railPathIndexRef}
         railFractionalIndexRef={railFractionalIndexRef}
+        railTurnPhaseRef={railTurnPhaseRef}
+        railTargetAngleRef={railTargetAngleRef}
         onRailMoveComplete={handleRailStop}
       />
 

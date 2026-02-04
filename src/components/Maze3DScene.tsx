@@ -120,6 +120,8 @@ interface Maze3DSceneProps {
   railPathRef?: MutableRefObject<Array<{ x: number; z: number }>>;
   railPathIndexRef?: MutableRefObject<number>;
   railFractionalIndexRef?: MutableRefObject<number>;
+  railTurnPhaseRef?: MutableRefObject<boolean>;
+  railTargetAngleRef?: MutableRefObject<number>;
   onRailMoveComplete?: () => void;
   onMagnetismCacheReady?: (cache: MagnetismCache) => void;
 }
@@ -1102,6 +1104,8 @@ const RefBasedPlayer = ({
   railPathRef,
   railPathIndexRef,
   railFractionalIndexRef,
+  railTurnPhaseRef,
+  railTargetAngleRef,
   onRailMoveComplete,
   // Polyline config for cache rebuilding
   polylineConfig,
@@ -1132,6 +1136,8 @@ const RefBasedPlayer = ({
   railPathRef?: MutableRefObject<Array<{ x: number; z: number }>>;
   railPathIndexRef?: MutableRefObject<number>;
   railFractionalIndexRef?: MutableRefObject<number>;
+  railTurnPhaseRef?: MutableRefObject<boolean>;
+  railTargetAngleRef?: MutableRefObject<number>;
   onRailMoveComplete?: () => void;
   // Polyline config
   polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; chaikinFactor?: number; cornerPushStrength?: number } | null;
@@ -1202,122 +1208,165 @@ const RefBasedPlayer = ({
       if (railMode && railPathRef?.current && railPathRef.current.length >= 2 && railPathIndexRef) {
         const path = railPathRef.current;
         
-        // Use a continuous progress value instead of integer index
-        // This tracks our exact position along the polyline
-        let progress = railFractionalIndexRef?.current ?? 0;
-        
-        // Calculate total distance to travel this frame
-        const RAIL_SPEED = 2.5; // World units per second
-        let remainingDist = RAIL_SPEED * clampedDelta;
-        
-        // Step through path segments until we've traveled the required distance
-        while (remainingDist > 0 && progress < path.length - 1) {
+        // === TURN PHASE: Rotate to face path direction before moving ===
+        if (railTurnPhaseRef?.current && railTargetAngleRef) {
+          const player = playerStateRef.current;
+          const targetAngle = railTargetAngleRef.current;
+          
+          // Calculate angle difference
+          let angleDiff = targetAngle - player.rotation;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          
+          // Turn speed: 2.5 radians per second (slower than normal for cinematic feel)
+          const RAIL_TURN_SPEED = 2.5;
+          const turnAmount = RAIL_TURN_SPEED * clampedDelta;
+          
+          if (Math.abs(angleDiff) <= turnAmount) {
+            // Finished turning - snap to target and start moving
+            playerStateRef.current = {
+              ...player,
+              rotation: targetAngle,
+            };
+            railTurnPhaseRef.current = false;
+          } else {
+            // Continue turning
+            const turnDir = angleDiff > 0 ? 1 : -1;
+            let newRotation = player.rotation + turnDir * turnAmount;
+            while (newRotation < 0) newRotation += Math.PI * 2;
+            while (newRotation >= Math.PI * 2) newRotation -= Math.PI * 2;
+            
+            playerStateRef.current = {
+              ...player,
+              rotation: newRotation,
+            };
+            
+            // Set animation state to turning
+            isTurningRef.current = true;
+            isMovingRef.current = false;
+            moveSpeedRef.current = 0;
+          }
+          // Skip movement during turn phase
+        } else {
+          // === MOVEMENT PHASE: Travel along the path ===
+          
+          // Use a continuous progress value instead of integer index
+          // This tracks our exact position along the polyline
+          let progress = railFractionalIndexRef?.current ?? 0;
+          
+          // Calculate total distance to travel this frame
+          const RAIL_SPEED = 2.5; // World units per second
+          let remainingDist = RAIL_SPEED * clampedDelta;
+          
+          // Step through path segments until we've traveled the required distance
+          while (remainingDist > 0 && progress < path.length - 1) {
+            const currentIdx = Math.floor(progress);
+            const nextIdx = Math.min(currentIdx + 1, path.length - 1);
+            
+            const p0 = path[currentIdx];
+            const p1 = path[nextIdx];
+            
+            // Distance from current fractional position to next point
+            const segmentT = progress - currentIdx; // 0-1 within this segment
+            const currentX = p0.x + (p1.x - p0.x) * segmentT;
+            const currentZ = p0.z + (p1.z - p0.z) * segmentT;
+            
+            // Segment length
+            const segDx = p1.x - p0.x;
+            const segDz = p1.z - p0.z;
+            const segLen = Math.sqrt(segDx * segDx + segDz * segDz);
+            
+            if (segLen < 0.0001) {
+              // Skip zero-length segments
+              progress = nextIdx;
+              continue;
+            }
+            
+            // How far to the end of this segment?
+            const distToSegEnd = segLen * (1 - segmentT);
+            
+            if (remainingDist >= distToSegEnd) {
+              // Move to end of this segment and continue
+              remainingDist -= distToSegEnd;
+              progress = nextIdx;
+            } else {
+              // Partial move within this segment
+              const advanceT = remainingDist / segLen;
+              progress += advanceT;
+              remainingDist = 0;
+            }
+          }
+          
+          // Clamp progress to valid range
+          progress = Math.min(progress, path.length - 1);
+          if (railFractionalIndexRef) {
+            railFractionalIndexRef.current = progress;
+          }
+          railPathIndexRef.current = Math.floor(progress);
+          
+          // Calculate exact position on path
           const currentIdx = Math.floor(progress);
           const nextIdx = Math.min(currentIdx + 1, path.length - 1);
-          
+          const t = progress - currentIdx;
           const p0 = path[currentIdx];
           const p1 = path[nextIdx];
+          const newX = p0.x + (p1.x - p0.x) * t;
+          const newZ = p0.z + (p1.z - p0.z) * t;
           
-          // Distance from current fractional position to next point
-          const segmentT = progress - currentIdx; // 0-1 within this segment
-          const currentX = p0.x + (p1.x - p0.x) * segmentT;
-          const currentZ = p0.z + (p1.z - p0.z) * segmentT;
+          // Calculate tangent for rotation using interpolation to avoid discrete jumps
+          // Use fractional progress to smoothly interpolate between tangent windows
+          const LOOK_BEHIND = 3;
+          const LOOK_AHEAD = 5;
           
-          // Segment length
-          const segDx = p1.x - p0.x;
-          const segDz = p1.z - p0.z;
-          const segLen = Math.sqrt(segDx * segDx + segDz * segDz);
+          // Get tangent at current integer index and next integer index
+          const idx0 = currentIdx;
+          const idx1 = Math.min(currentIdx + 1, path.length - 1);
+          const frac = t; // 0-1 fractional part within current segment
           
-          if (segLen < 0.0001) {
-            // Skip zero-length segments
-            progress = nextIdx;
-            continue;
-          }
+          // Tangent window for idx0
+          const behind0 = Math.max(0, idx0 - LOOK_BEHIND);
+          const ahead0 = Math.min(path.length - 1, idx0 + LOOK_AHEAD);
+          const dx0 = path[ahead0].x - path[behind0].x;
+          const dz0 = path[ahead0].z - path[behind0].z;
+          const angle0 = Math.atan2(dx0, dz0);
           
-          // How far to the end of this segment?
-          const distToSegEnd = segLen * (1 - segmentT);
+          // Tangent window for idx1
+          const behind1 = Math.max(0, idx1 - LOOK_BEHIND);
+          const ahead1 = Math.min(path.length - 1, idx1 + LOOK_AHEAD);
+          const dx1 = path[ahead1].x - path[behind1].x;
+          const dz1 = path[ahead1].z - path[behind1].z;
+          const angle1 = Math.atan2(dx1, dz1);
           
-          if (remainingDist >= distToSegEnd) {
-            // Move to end of this segment and continue
-            remainingDist -= distToSegEnd;
-            progress = nextIdx;
+          // Interpolate between the two tangent angles
+          let angleDiff = angle1 - angle0;
+          if (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          if (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          const visualAngle = angle0 + angleDiff * frac;
+          
+          let targetRotation = -visualAngle + Math.PI;
+          while (targetRotation < 0) targetRotation += Math.PI * 2;
+          while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
+          
+          // Set position exactly on the path curve
+          playerStateRef.current = {
+            x: newX,
+            y: newZ,
+            rotation: targetRotation,
+          };
+          
+          // Check if reached end
+          if (progress >= path.length - 1.01) {
+            railPathRef.current = [];
+            railPathIndexRef.current = 0;
+            if (railFractionalIndexRef) railFractionalIndexRef.current = 0;
+            isMovingRef.current = false;
+            moveSpeedRef.current = 0;
+            onRailMoveComplete?.();
           } else {
-            // Partial move within this segment
-            const advanceT = remainingDist / segLen;
-            progress += advanceT;
-            remainingDist = 0;
+            isMovingRef.current = true;
+            isTurningRef.current = false;
+            moveSpeedRef.current = 0.8;
           }
-        }
-        
-        // Clamp progress to valid range
-        progress = Math.min(progress, path.length - 1);
-        if (railFractionalIndexRef) {
-          railFractionalIndexRef.current = progress;
-        }
-        railPathIndexRef.current = Math.floor(progress);
-        
-        // Calculate exact position on path
-        const currentIdx = Math.floor(progress);
-        const nextIdx = Math.min(currentIdx + 1, path.length - 1);
-        const t = progress - currentIdx;
-        const p0 = path[currentIdx];
-        const p1 = path[nextIdx];
-        const newX = p0.x + (p1.x - p0.x) * t;
-        const newZ = p0.z + (p1.z - p0.z) * t;
-        
-        // Calculate tangent for rotation using interpolation to avoid discrete jumps
-        // Use fractional progress to smoothly interpolate between tangent windows
-        const LOOK_BEHIND = 3;
-        const LOOK_AHEAD = 5;
-        
-        // Get tangent at current integer index and next integer index
-        const idx0 = currentIdx;
-        const idx1 = Math.min(currentIdx + 1, path.length - 1);
-        const frac = t; // 0-1 fractional part within current segment
-        
-        // Tangent window for idx0
-        const behind0 = Math.max(0, idx0 - LOOK_BEHIND);
-        const ahead0 = Math.min(path.length - 1, idx0 + LOOK_AHEAD);
-        const dx0 = path[ahead0].x - path[behind0].x;
-        const dz0 = path[ahead0].z - path[behind0].z;
-        const angle0 = Math.atan2(dx0, dz0);
-        
-        // Tangent window for idx1
-        const behind1 = Math.max(0, idx1 - LOOK_BEHIND);
-        const ahead1 = Math.min(path.length - 1, idx1 + LOOK_AHEAD);
-        const dx1 = path[ahead1].x - path[behind1].x;
-        const dz1 = path[ahead1].z - path[behind1].z;
-        const angle1 = Math.atan2(dx1, dz1);
-        
-        // Interpolate between the two tangent angles
-        let angleDiff = angle1 - angle0;
-        if (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        if (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        const visualAngle = angle0 + angleDiff * frac;
-        
-        let targetRotation = -visualAngle + Math.PI;
-        while (targetRotation < 0) targetRotation += Math.PI * 2;
-        while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
-        
-        // Set position exactly on the path curve
-        playerStateRef.current = {
-          x: newX,
-          y: newZ,
-          rotation: targetRotation,
-        };
-        
-        // Check if reached end
-        if (progress >= path.length - 1.01) {
-          railPathRef.current = [];
-          railPathIndexRef.current = 0;
-          if (railFractionalIndexRef) railFractionalIndexRef.current = 0;
-          isMovingRef.current = false;
-          moveSpeedRef.current = 0;
-          onRailMoveComplete?.();
-        } else {
-          isMovingRef.current = true;
-          isTurningRef.current = false;
-          moveSpeedRef.current = 0.8;
         }
         
         // Skip normal movement processing in rail mode
@@ -2446,7 +2495,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, onRailMoveComplete, onMagnetismCacheReady }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, onRailMoveComplete, onMagnetismCacheReady }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2691,6 +2740,8 @@ return (
         railPathRef={railPathRef}
         railPathIndexRef={railPathIndexRef}
         railFractionalIndexRef={railFractionalIndexRef}
+        railTurnPhaseRef={railTurnPhaseRef}
+        railTargetAngleRef={railTargetAngleRef}
         onRailMoveComplete={onRailMoveComplete}
         polylineConfig={polylineConfig}
       />
