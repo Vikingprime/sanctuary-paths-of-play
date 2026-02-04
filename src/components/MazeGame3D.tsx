@@ -127,10 +127,12 @@ export const MazeGame3D = ({
   const [polylineConfig, setPolylineConfig] = useState<{
     chaikinIterations: number;
     chaikinCornerExtraIterations: number;
+    chaikinFactor: number;
     cornerPushStrength: number;
   }>({
-  chaikinIterations: 1,
+    chaikinIterations: 1,
     chaikinCornerExtraIterations: 0,
+    chaikinFactor: 0.25,
     cornerPushStrength: 0,
   });
   
