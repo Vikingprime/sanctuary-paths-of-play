@@ -231,13 +231,21 @@ function deduplicateDirectionsByAngle(
 /**
  * Find available directions from current position
  * Uses topology-based junction connectivity instead of distance-based matching
+ * @param actualPlayerX - The actual player X position (not snapped to polyline)
+ * @param actualPlayerZ - The actual player Z position (not snapped to polyline)
  */
 export function findAvailableDirections(
   position: RailPosition,
   animalRotation: number,
   cache: MagnetismCache | null,
+  actualPlayerX?: number,
+  actualPlayerZ?: number,
 ): DirectionOption[] {
   if (!cache?.polylineGraph) return [];
+  
+  // Use actual player position for path start, fall back to polyline position
+  const startX = actualPlayerX ?? position.x;
+  const startZ = actualPlayerZ ?? position.z;
   
   const { polylineGraph } = cache;
   const directions: DirectionOption[] = [];
@@ -307,9 +315,9 @@ export function findAvailableDirections(
         const dirZ = lookAheadPt.z - startPt.z;
         const angle = Math.atan2(dirX, dirZ);
         
-        // Build path starting from current position (not junction center)
+        // Build path starting from actual player position (not snapped polyline point)
         const pathPoints: Point2D[] = [
-          { x: position.x, z: position.z },
+          { x: startX, z: startZ },
           ...points
         ];
         
@@ -344,12 +352,12 @@ export function findAvailableDirections(
       const targetPt = points[points.length - 1];
       const lookAheadIdx = Math.min(ptIdx + 10, points.length - 1);
       const lookAheadPt = points[lookAheadIdx];
-      const dirX = lookAheadPt.x - position.x;
-      const dirZ = lookAheadPt.z - position.z;
+      const dirX = lookAheadPt.x - startX;
+      const dirZ = lookAheadPt.z - startZ;
       const angle = Math.atan2(dirX, dirZ);
       
       const pathPoints: Point2D[] = [
-        { x: position.x, z: position.z },
+        { x: startX, z: startZ },
         ...points.slice(ptIdx)
       ];
       
@@ -373,12 +381,12 @@ export function findAvailableDirections(
       const targetPt = points[0];
       const lookBackIdx = Math.max(0, ptIdx - 10);
       const lookBackPt = points[lookBackIdx];
-      const dirX = lookBackPt.x - position.x;
-      const dirZ = lookBackPt.z - position.z;
+      const dirX = lookBackPt.x - startX;
+      const dirZ = lookBackPt.z - startZ;
       const angle = Math.atan2(dirX, dirZ);
       
       const pathPoints: Point2D[] = [
-        { x: position.x, z: position.z },
+        { x: startX, z: startZ },
         ...points.slice(0, ptIdx + 1).reverse()
       ];
       
@@ -505,6 +513,8 @@ export function RailControls({
         position,
         animalRotation,
         cache,
+        playerX,  // Pass actual player position
+        playerZ,
       );
       setDirections(availableDirs);
     }
