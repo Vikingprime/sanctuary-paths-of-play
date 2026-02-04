@@ -1231,7 +1231,6 @@ const RefBasedPlayer = ({
               rotation: targetAngle,
             };
             railTurnPhaseRef.current = false;
-            console.log('[Rail] Turn complete, starting movement');
           } else {
             // Continue turning
             const turnDir = angleDiff > 0 ? 1 : -1;

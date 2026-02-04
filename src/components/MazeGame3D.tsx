@@ -530,12 +530,7 @@ export const MazeGame3D = ({
 
   // Rail control handlers
   const handleRailDirectionSelect = useCallback((targetX: number, targetZ: number, pathPoints: Point2D[]) => {
-    if (pathPoints.length < 2) {
-      console.warn('[Rail] Path too short:', pathPoints.length);
-      return;
-    }
-    
-    console.log(`[Rail] Direction selected: ${pathPoints.length} points, target=(${targetX.toFixed(2)}, ${targetZ.toFixed(2)})`);
+    if (pathPoints.length < 2) return;
     
     // Calculate initial path direction to turn toward
     const lookAheadIdx = Math.min(10, pathPoints.length - 1);
@@ -548,12 +543,10 @@ export const MazeGame3D = ({
     while (targetRotation < 0) targetRotation += Math.PI * 2;
     while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
     
-    console.log(`[Rail] PathAngle=${(pathAngle * 180 / Math.PI).toFixed(1)}°, targetRotation=${(targetRotation * 180 / Math.PI).toFixed(1)}°`);
-    
     railPathRef.current = pathPoints;
     railPathIndexRef.current = 0;
-    railFractionalIndexRef.current = 0; // Reset fractional progress for smooth traversal
-    railTurnPhaseRef.current = true; // Start in turn phase
+    railFractionalIndexRef.current = 0;
+    railTurnPhaseRef.current = true;
     railTargetAngleRef.current = targetRotation;
     setIsRailMoving(true);
   }, []);
