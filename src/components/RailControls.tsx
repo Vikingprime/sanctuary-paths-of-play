@@ -246,9 +246,6 @@ export function findAvailableDirections(
   // The relationship is: visualRotation = -playerRotation + PI
   const animalFacingAngle = -animalRotation + Math.PI;
   
-  // DEBUG: Log the animal rotation values
-  console.log(`[RailControls] animalRotation=${(animalRotation * 180 / Math.PI).toFixed(1)}°, animalFacingAngle=${(animalFacingAngle * 180 / Math.PI).toFixed(1)}°`);
-  
   // Helper to compute relative angle (for UI positioning)
   // The world uses atan2(x, z) where +angle is counter-clockwise when viewed from above
   // But screen coordinates have +X to the right (clockwise from forward = right)
@@ -261,9 +258,6 @@ export function findAvailableDirections(
     
     // NEGATE to convert from world (CCW+) to screen (CW+) convention
     relativeAngle = -relativeAngle;
-    
-    // DEBUG: Log each direction's angles
-    console.log(`[RailControls] Path: worldAngle=${(targetAngle * 180 / Math.PI).toFixed(1)}° -> relativeAngle=${(relativeAngle * 180 / Math.PI).toFixed(1)}°`);
     
     return relativeAngle;
   };
