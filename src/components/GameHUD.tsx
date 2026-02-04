@@ -296,8 +296,8 @@ interface GameHUDProps {
   /** Callback to unpause magnetism debug */
   onUnpauseMagnetism?: () => void;
   // Polyline smoothing tuning
-  polylineConfig?: { chaikinIterations: number; chaikinCornerExtraIterations: number; cornerPushStrength: number };
-  onPolylineConfigChange?: (config: { chaikinIterations: number; chaikinCornerExtraIterations: number; cornerPushStrength: number }) => void;
+  polylineConfig?: { chaikinIterations: number; chaikinCornerExtraIterations: number; chaikinFactor: number; cornerPushStrength: number };
+  onPolylineConfigChange?: (config: { chaikinIterations: number; chaikinCornerExtraIterations: number; chaikinFactor: number; cornerPushStrength: number }) => void;
 }
 
 export const GameHUD = ({
@@ -1137,6 +1137,32 @@ export const GameHUD = ({
                     onChange={(e) => onPolylineConfigChange({
                       ...polylineConfig,
                       chaikinIterations: parseInt(e.target.value)
+                    })}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+                
+                {/* Chaikin Factor Slider */}
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Chaikin Factor:</span>
+                    <span className={cn(
+                      polylineConfig.chaikinFactor !== 0.25 
+                        ? 'text-orange-400' 
+                        : 'text-cyan-400'
+                    )}>
+                      {polylineConfig.chaikinFactor.toFixed(2)}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.05"
+                    max="0.5"
+                    step="0.01"
+                    value={polylineConfig.chaikinFactor}
+                    onChange={(e) => onPolylineConfigChange({
+                      ...polylineConfig,
+                      chaikinFactor: parseFloat(e.target.value)
                     })}
                     className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
                   />

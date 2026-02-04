@@ -72,6 +72,8 @@ export interface PolylineConfig {
   chaikinIterations: number;
   /** Number of additional Chaikin iterations for corner regions (default: 0) */
   chaikinCornerExtraIterations: number;
+  /** Chaikin cut ratio - where to place new points on each edge (default: 0.25 = standard Chaikin) */
+  chaikinFactor: number;
   /** Preserve N points at each end of segment from smoothing (default: 1) */
   preserveEndpoints: number;
   /** Resample spacing after smoothing (world units, 0 = disable, default: 0.1 * fineCellSize) */
@@ -663,8 +665,12 @@ function pushCornersInward(
  * @param preserveEnds - Number of points at each end to preserve (default: 1)
  * @returns Smoothed polyline
  */
-function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: number = 1): Point2D[] {
+function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: number = 1, factor: number = 0.25): Point2D[] {
   if (points.length <= 2) return [...points];
+  
+  // Clamp factor to valid range (0 exclusive to 0.5 inclusive)
+  const f = Math.max(0.01, Math.min(0.5, factor));
+  const f1 = 1 - f; // Complement (e.g., 0.75 for standard Chaikin)
   
   let current = [...points];
   
@@ -684,16 +690,16 @@ function chaikinSmooth(points: Point2D[], iterations: number = 4, preserveEnds: 
       // Skip the very first edge's first subdivision (we already added point 0)
       if (i > 0) {
         smoothed.push({
-          x: 0.75 * p0.x + 0.25 * p1.x,
-          z: 0.75 * p0.z + 0.25 * p1.z,
+          x: f1 * p0.x + f * p1.x,
+          z: f1 * p0.z + f * p1.z,
         });
       }
       
       // Skip the very last edge's second subdivision (we'll add the last point after)
       if (i < current.length - 2) {
         smoothed.push({
-          x: 0.25 * p0.x + 0.75 * p1.x,
-          z: 0.25 * p0.z + 0.75 * p1.z,
+          x: f * p0.x + f1 * p1.x,
+          z: f * p0.z + f1 * p1.z,
         });
       }
     }
@@ -743,6 +749,7 @@ export function buildSmoothedPolylines(
     rdpEpsilon: config?.rdpEpsilon ?? (0.15 * corridorWidth), // ~0.3 world units
     chaikinIterations: config?.chaikinIterations ?? 1, // DEFAULT 1 iteration for minimal rounding
     chaikinCornerExtraIterations: config?.chaikinCornerExtraIterations ?? 0, // No extra iterations
+    chaikinFactor: config?.chaikinFactor ?? 0.25, // Standard Chaikin cut ratio
     preserveEndpoints: config?.preserveEndpoints ?? 1,
     resampleSpacing: config?.resampleSpacing ?? (0.05 * corridorWidth), // ~0.1 world units
     useCatmullRom: config?.useCatmullRom ?? true,
@@ -773,7 +780,7 @@ export function buildSmoothedPolylines(
     
     // Step 5: Base Chaikin smoothing - rounds all corners
     const totalIterations = cfg.chaikinIterations + cfg.chaikinCornerExtraIterations;
-    points = chaikinSmooth(points, totalIterations, cfg.preserveEndpoints);
+    points = chaikinSmooth(points, totalIterations, cfg.preserveEndpoints, cfg.chaikinFactor);
     
     // Step 6: Catmull-Rom resampling - creates smooth interpolated curve
     if (cfg.useCatmullRom && points.length >= 2) {
