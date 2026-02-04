@@ -114,7 +114,7 @@ interface Maze3DSceneProps {
   showMagnetTarget?: boolean;
   showMagnetVector?: boolean;
   // Polyline smoothing configuration
-  polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null;
+  polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; chaikinFactor?: number; cornerPushStrength?: number } | null;
   // Rail movement mode
   railMode?: boolean;
   railPathRef?: MutableRefObject<Array<{ x: number; z: number }>>;
@@ -1103,6 +1103,8 @@ const RefBasedPlayer = ({
   railPathIndexRef,
   railFractionalIndexRef,
   onRailMoveComplete,
+  // Polyline config for cache rebuilding
+  polylineConfig,
 }: { 
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1131,6 +1133,8 @@ const RefBasedPlayer = ({
   railPathIndexRef?: MutableRefObject<number>;
   railFractionalIndexRef?: MutableRefObject<number>;
   onRailMoveComplete?: () => void;
+  // Polyline config
+  polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; chaikinFactor?: number; cornerPushStrength?: number } | null;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
@@ -1151,15 +1155,25 @@ const RefBasedPlayer = ({
   // Collision state for magnetism weakening
   const collisionIntensityRef = useRef(0);
   
-  // Build magnetism cache when maze changes
+  // Build magnetism cache when maze or polyline config changes
   useMemo(() => {
     if (magnetismConfig?.enabled) {
-      const cache = buildMagnetismCache(maze);
+      const cache = buildMagnetismCache(maze, undefined, polylineConfig);
       magnetismCacheRef.current = cache;
+      // Clear rail path when cache rebuilds (path points are now stale)
+      if (railPathRef) {
+        railPathRef.current = [];
+      }
+      if (railPathIndexRef) {
+        railPathIndexRef.current = 0;
+      }
+      if (railFractionalIndexRef) {
+        railFractionalIndexRef.current = 0;
+      }
       // Notify parent that cache is ready (for rail mode)
       onMagnetismCacheReady?.(cache);
     }
-  }, [maze, magnetismConfig?.enabled, onMagnetismCacheReady]);
+  }, [maze, magnetismConfig?.enabled, polylineConfig, onMagnetismCacheReady, railPathRef, railPathIndexRef, railFractionalIndexRef]);
   
   // Helper: normalize angle to [-PI, PI]
   const normalizeAngle = (angle: number): number => {
@@ -2678,6 +2692,7 @@ return (
         railPathIndexRef={railPathIndexRef}
         railFractionalIndexRef={railFractionalIndexRef}
         onRailMoveComplete={onRailMoveComplete}
+        polylineConfig={polylineConfig}
       />
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
