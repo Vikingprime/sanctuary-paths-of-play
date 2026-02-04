@@ -1861,6 +1861,10 @@ const OverShoulderCameraController = ({
   const hitCellsRef = useRef(new Set<string>());
   const centerRayHitCellsRef = useRef(new Set<string>());
   
+  // Position history for delayed camera follow (rail mode)
+  const RAIL_CAMERA_DELAY_MS = 100;
+  const positionHistory = useRef<{ x: number; z: number; rot: number; time: number }[]>([]);
+  
   // Reset camera state when restartKey changes
   useEffect(() => {
     if (restartKey !== lastRestartKey.current) {
@@ -1902,7 +1906,46 @@ const OverShoulderCameraController = ({
   const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
   
   useFrame(() => {
-    const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
+    const now = performance.now();
+    const rawPlayerX = playerStateRef.current.x;
+    const rawPlayerZ = playerStateRef.current.y;
+    const rawRotation = playerStateRef.current.rotation;
+    
+    // Use delayed position/rotation in rail mode for cinematic camera lag
+    let playerX = rawPlayerX;
+    let playerZ = rawPlayerZ;
+    let playerRotation = rawRotation;
+    
+    if (railMode && RAIL_CAMERA_DELAY_MS > 0) {
+      // Add current position to history
+      positionHistory.current.push({ x: rawPlayerX, z: rawPlayerZ, rot: rawRotation, time: now });
+      
+      const targetTime = now - RAIL_CAMERA_DELAY_MS;
+      
+      // Remove old entries (keep some buffer)
+      while (positionHistory.current.length > 2 && 
+             positionHistory.current[0].time < targetTime - 100) {
+        positionHistory.current.shift();
+      }
+      
+      // Find the entry closest to targetTime
+      if (positionHistory.current.length > 0) {
+        let delayedPos = positionHistory.current[0];
+        for (const entry of positionHistory.current) {
+          if (entry.time <= targetTime) {
+            delayedPos = entry;
+          } else {
+            break;
+          }
+        }
+        playerX = delayedPos.x;
+        playerZ = delayedPos.z;
+        playerRotation = delayedPos.rot;
+      }
+    } else {
+      // Clear history when not in rail mode
+      positionHistory.current = [];
+    }
     
     // In rail mode, camera follows animal's rotation directly for smooth path following
     // In orbit mode, use cameraYawRef, otherwise fall back to player rotation
@@ -1912,13 +1955,13 @@ const OverShoulderCameraController = ({
     
     // Store initial position on first frame (after initialization)
     if (initialized.current && initialPlayerPos.current === null) {
-      initialPlayerPos.current = { x: playerX, z: playerZ };
+      initialPlayerPos.current = { x: rawPlayerX, z: rawPlayerZ };
     }
     
-    // Check if player has moved from their initial spawn position
+    // Check if player has moved from their initial spawn position (use raw position, not delayed)
     if (!hasPlayerMoved.current && initialPlayerPos.current !== null) {
-      const dx = playerX - initialPlayerPos.current.x;
-      const dz = playerZ - initialPlayerPos.current.z;
+      const dx = rawPlayerX - initialPlayerPos.current.x;
+      const dz = rawPlayerZ - initialPlayerPos.current.z;
       const distFromSpawn = Math.sqrt(dx * dx + dz * dz);
       if (distFromSpawn > MOVEMENT_THRESHOLD) {
         hasPlayerMoved.current = true;
@@ -1937,7 +1980,7 @@ const OverShoulderCameraController = ({
     // Initialize on first frame BEFORE any calculations
     if (!initialized.current) {
       smoothRotation.current = targetCameraYaw;
-      initialPlayerPos.current = { x: playerX, z: playerZ };
+      initialPlayerPos.current = { x: rawPlayerX, z: rawPlayerZ };
       const rot = targetCameraYaw;
       // Set camera position immediately without interpolation (start close)
       currentPosition.current.set(
