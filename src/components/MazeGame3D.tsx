@@ -159,10 +159,10 @@ export const MazeGame3D = ({
   // Camera orbit yaw - controlled by joystick X, used for orbit camera
   const cameraYawRef = useRef(startRotation); // Camera yaw angle (orbits around player)
   
-  // Control mode: 'joystick' (default) or 'rail' (on-rail navigation)
-  // In debug mode, default to rail mode
+  // Control mode: 'joystick' or 'rail' (on-rail navigation)
+  // Rail mode is the default for all modes
   type ControlMode = 'joystick' | 'rail';
-  const [controlMode, setControlMode] = useState<ControlMode>(debugMode ? 'rail' : 'joystick');
+  const [controlMode, setControlMode] = useState<ControlMode>('rail');
   
   // Rail control state
   const [isRailMoving, setIsRailMoving] = useState(false);
@@ -569,12 +569,12 @@ export const MazeGame3D = ({
   }, []);
   
   // Callback to receive magnetism cache from Maze3DScene
-  // In debug mode with rail control, snap the animal to the nearest polyline
+  // In rail control mode, snap the animal to the nearest polyline
   const handleMagnetismCacheReady = useCallback((cache: MagnetismCache) => {
     magnetismCacheRef.current = cache;
     
-    // In debug mode with rail control, snap to nearest polyline and face away from nearby endpoints
-    if (debugMode && controlMode === 'rail' && cache?.polylineGraph) {
+    // In rail control mode, snap to nearest polyline and face away from nearby endpoints
+    if (controlMode === 'rail' && cache?.polylineGraph) {
       const { polylineGraph, polylineSpatialHash, polylineBucketSize } = cache;
       const playerX = playerStateRef.current.x;
       const playerZ = playerStateRef.current.y;
@@ -663,7 +663,9 @@ export const MazeGame3D = ({
           // Update UI state
           setPlayerStateForUI({ ...playerStateRef.current });
           
-          console.log(`[Debug Rail] Snapped to polyline seg=${nearestSegIdx} pt=${nearestPtIdx}, facing=${faceForward ? 'forward' : 'backward'}`);
+          if (debugMode) {
+            console.log(`[Rail] Snapped to polyline seg=${nearestSegIdx} pt=${nearestPtIdx}, facing=${faceForward ? 'forward' : 'backward'}`);
+          }
         }
       }
     }
