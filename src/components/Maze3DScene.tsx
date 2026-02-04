@@ -1212,7 +1212,7 @@ const RefBasedPlayer = ({
         const path = railPathRef.current;
         
         // === TURN PHASE: Rotate to face path direction before moving ===
-        if (railTurnPhaseRef?.current && railTargetAngleRef) {
+        if (railTurnPhaseRef?.current && railTargetAngleRef?.current !== undefined) {
           const player = playerStateRef.current;
           const targetAngle = railTargetAngleRef.current;
           
@@ -1231,6 +1231,7 @@ const RefBasedPlayer = ({
               rotation: targetAngle,
             };
             railTurnPhaseRef.current = false;
+            console.log('[Rail] Turn complete, starting movement');
           } else {
             // Continue turning
             const turnDir = angleDiff > 0 ? 1 : -1;
