@@ -2558,7 +2558,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, debugMode = false, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2728,23 +2728,25 @@ return (
         <MapStation key={`station-${i}`} position={pos} />
       ))}
       
-      {/* Medial Axis Skeleton Visualization (debug) */}
-      <MedialAxisVisualization 
-        maze={maze} 
-        visible={skeletonEnabled || overlayGridEnabled || showMagnetTarget || showMagnetVector} 
-        showRidge={false}
-        showHeatmap={overlayGridEnabled}
-        showPrunedSpurs={showPrunedSpurs}
-        height={0.15}
-        pointSize={0.08}
-        spurConfig={spurConfig}
-        onDefaultSpurConfig={onDefaultSpurConfig}
-        polylineConfig={polylineConfig}
-        showMagnetTarget={showMagnetTarget}
-        showMagnetVector={showMagnetVector}
-        magnetismDebugRef={magnetismDebugRef}
-        playerStateRef={playerStateRef}
-      />
+      {/* Medial Axis Skeleton Visualization (debug only) */}
+      {debugMode && (
+        <MedialAxisVisualization 
+          maze={maze} 
+          visible={skeletonEnabled || overlayGridEnabled || showMagnetTarget || showMagnetVector} 
+          showRidge={false}
+          showHeatmap={overlayGridEnabled}
+          showPrunedSpurs={showPrunedSpurs}
+          height={0.15}
+          pointSize={0.08}
+          spurConfig={spurConfig}
+          onDefaultSpurConfig={onDefaultSpurConfig}
+          polylineConfig={polylineConfig}
+          showMagnetTarget={showMagnetTarget}
+          showMagnetVector={showMagnetVector}
+          magnetismDebugRef={magnetismDebugRef}
+          playerStateRef={playerStateRef}
+        />
+      )}
       
       {/* Placed Characters from maze.characters array */}
       {maze.characters?.map((character) => (
