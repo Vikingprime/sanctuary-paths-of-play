@@ -1251,22 +1251,35 @@ const RefBasedPlayer = ({
         const newX = p0.x + (p1.x - p0.x) * t;
         const newZ = p0.z + (p1.z - p0.z) * t;
         
-        // Calculate tangent for rotation (look a few points ahead/behind)
-        const tangentBehind = Math.max(0, currentIdx - 3);
-        const tangentAhead = Math.min(path.length - 1, currentIdx + 5);
-        const behindPt = path[tangentBehind];
-        const aheadPt = path[tangentAhead];
+        // Calculate tangent for rotation using interpolation to avoid discrete jumps
+        // Use fractional progress to smoothly interpolate between tangent windows
+        const LOOK_BEHIND = 3;
+        const LOOK_AHEAD = 5;
         
-        const tangentDx = aheadPt.x - behindPt.x;
-        const tangentDz = aheadPt.z - behindPt.z;
-        const tangentLen = Math.sqrt(tangentDx * tangentDx + tangentDz * tangentDz);
+        // Get tangent at current integer index and next integer index
+        const idx0 = currentIdx;
+        const idx1 = Math.min(currentIdx + 1, path.length - 1);
+        const frac = t; // 0-1 fractional part within current segment
         
-        let visualAngle: number;
-        if (tangentLen > 0.01) {
-          visualAngle = Math.atan2(tangentDx, tangentDz);
-        } else {
-          visualAngle = Math.atan2(p1.x - p0.x, p1.z - p0.z);
-        }
+        // Tangent window for idx0
+        const behind0 = Math.max(0, idx0 - LOOK_BEHIND);
+        const ahead0 = Math.min(path.length - 1, idx0 + LOOK_AHEAD);
+        const dx0 = path[ahead0].x - path[behind0].x;
+        const dz0 = path[ahead0].z - path[behind0].z;
+        const angle0 = Math.atan2(dx0, dz0);
+        
+        // Tangent window for idx1
+        const behind1 = Math.max(0, idx1 - LOOK_BEHIND);
+        const ahead1 = Math.min(path.length - 1, idx1 + LOOK_AHEAD);
+        const dx1 = path[ahead1].x - path[behind1].x;
+        const dz1 = path[ahead1].z - path[behind1].z;
+        const angle1 = Math.atan2(dx1, dz1);
+        
+        // Interpolate between the two tangent angles
+        let angleDiff = angle1 - angle0;
+        if (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        if (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        const visualAngle = angle0 + angleDiff * frac;
         
         let targetRotation = -visualAngle + Math.PI;
         while (targetRotation < 0) targetRotation += Math.PI * 2;
