@@ -1562,6 +1562,40 @@ const RefBasedPlayer = ({
         // Calculate turn correction based on alignment with corridor spine
         // Use visual rotation (matches mesh rotation) for sensing points
         const visualRotation = -player.rotation + Math.PI;
+        
+        // Calculate joystick direction in world space for junction prediction
+        // This allows the magnetism system to choose the best branch at junctions
+        let joystickWorldDirX = 0;
+        let joystickWorldDirZ = 0;
+        
+        // Re-compute mobile/keyboard active state for magnetism context
+        const joyXMag = joystickXRef?.current ?? 0;
+        const joyYMag = joystickYRef?.current ?? 0;
+        const joystickMagForMagnetism = Math.sqrt(joyXMag * joyXMag + joyYMag * joyYMag);
+        const mobileActiveForMagnetism = (mobileTouchActiveRef?.current ?? false) && joystickMagForMagnetism > 0.01;
+        const keyboardActiveForMagnetism = keysPressed.current.has('w') || keysPressed.current.has('s') || 
+                              keysPressed.current.has('a') || keysPressed.current.has('d') ||
+                              keysPressed.current.has('arrowup') || keysPressed.current.has('arrowdown') ||
+                              keysPressed.current.has('arrowleft') || keysPressed.current.has('arrowright');
+        
+        if (mobileActiveForMagnetism && cameraYawRef) {
+          if (joystickMagForMagnetism > 0.1) {
+            // Convert joystick input to world direction
+            // joyY controls forward/backward, joyX controls left/right turn
+            // The movement direction is based on camera yaw
+            const cameraYaw = cameraYawRef.current;
+            const targetAngle = cameraYaw + (joyYMag < 0 ? Math.PI : 0);
+            
+            // Direction the player wants to move (in world space)
+            joystickWorldDirX = Math.sin(targetAngle);
+            joystickWorldDirZ = Math.cos(targetAngle);
+          }
+        } else if (keyboardActiveForMagnetism) {
+          // For keyboard, use the current facing direction as the "joystick" direction
+          joystickWorldDirX = Math.sin(player.rotation);
+          joystickWorldDirZ = Math.cos(player.rotation);
+        }
+        
         const magnetResult = calculateMagnetismTurn(
           player.x,
           player.y,
@@ -1569,7 +1603,9 @@ const RefBasedPlayer = ({
           magnetismCacheRef.current,
           config,
           magnetismTurnStateRef.current,
-          clampedDelta
+          clampedDelta,
+          joystickWorldDirX,
+          joystickWorldDirZ
         );
         
         // Apply turn correction when moving, but WEAKEN during collisions
