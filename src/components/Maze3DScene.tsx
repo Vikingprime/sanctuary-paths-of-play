@@ -1267,8 +1267,10 @@ const RefBasedPlayer = ({
           let progress = railFractionalIndexRef?.current ?? 0;
           
           // On first movement frame, find our actual position on the path to avoid jerk
-          // If progress is 0 and we haven't moved yet, project current position onto path
+          // Skip position update on this frame - just initialize progress
+          let isFirstMovementFrame = false;
           if (progress === 0 && path.length >= 2) {
+            isFirstMovementFrame = true;
             const player = playerStateRef.current;
             let bestDist = Infinity;
             let bestProgress = 0;
@@ -1401,11 +1403,14 @@ const RefBasedPlayer = ({
           while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
           
           // Set position exactly on the path curve
-          playerStateRef.current = {
-            x: newX,
-            y: newZ,
-            rotation: targetRotation,
-          };
+          // Skip position update on first frame to avoid jerk - just let progress initialize
+          if (!isFirstMovementFrame) {
+            playerStateRef.current = {
+              x: newX,
+              y: newZ,
+              rotation: targetRotation,
+            };
+          }
           
           // Check if reached end
           if (progress >= path.length - 1.01) {
