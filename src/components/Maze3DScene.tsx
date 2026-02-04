@@ -1157,6 +1157,12 @@ const RefBasedPlayer = ({
   const lastCellRef = useRef({ x: -1, y: -1 }); // Track last cell for interaction check
   const smoothBankAngle = useRef(0); // For banking/leaning during turns
   
+  // Reset smooth position initialization when restartKey changes
+  // This ensures the animal doesn't "jump" from old position to new snapped position
+  useEffect(() => {
+    positionInitialized.current = false;
+  }, [restartKey]);
+  
   // Animation state refs for PlayerCube
   const isTurningRef = useRef(false); // True when turning in place (no forward movement)
   const moveSpeedRef = useRef(0); // Current movement speed 0-1 (for walk vs gallop)
