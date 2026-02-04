@@ -19,7 +19,7 @@
 import { Maze } from '@/types/game';
 import { GameConfig } from './GameConfig';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from './MedialAxis';
-import { buildSmoothedPolylines, PolylineGraph, PolylineSegment, Point2D, PolylineConfig } from './SkeletonPolyline';
+import { buildSmoothedPolylines, PolylineGraph, PolylineSegment, Point2D, PolylineConfig, Junction } from './SkeletonPolyline';
 
 // ============================================================================
 // TYPES
@@ -767,6 +767,87 @@ export function findNearestPolylinePoint(
 // ============================================================================
 
 /**
+ * Find the best matching branch at a junction based on joystick direction.
+ * Returns the segment index and direction that best matches where the player wants to go.
+ */
+function findBestBranchAtJunction(
+  junctionX: number,
+  junctionZ: number,
+  joystickDirX: number,
+  joystickDirZ: number,
+  cache: MagnetismCache
+): { segmentIndex: number; pointIndex: number; tangentX: number; tangentZ: number } | null {
+  if (!cache.polylineGraph) return null;
+  
+  const { junctions, segments } = cache.polylineGraph;
+  
+  // Find the junction we're at
+  let junction: Junction | null = null;
+  const junctionMatchRadius = 1.5; // Must be within this distance of junction center
+  for (const j of junctions) {
+    const dx = junctionX - j.x;
+    const dz = junctionZ - j.z;
+    if (dx * dx + dz * dz < junctionMatchRadius * junctionMatchRadius) {
+      junction = j;
+      break;
+    }
+  }
+  
+  if (!junction || junction.connections.length === 0) return null;
+  
+  // Find the branch whose direction best matches the joystick direction
+  let bestMatch: { segmentIndex: number; pointIndex: number; tangentX: number; tangentZ: number } | null = null;
+  let bestDot = -Infinity;
+  
+  for (const conn of junction.connections) {
+    const segment = segments[conn.segmentIndex];
+    if (!segment || segment.points.length < 2) continue;
+    
+    // Get direction from junction into this segment
+    // If atStart is true, segment starts at junction, so direction is toward segment.points[1+]
+    // If atStart is false, segment ends at junction, so direction is toward segment.points[end-1-]
+    let dirX: number, dirZ: number;
+    let lookAheadIdx: number;
+    const lookAhead = Math.min(10, Math.floor(segment.points.length / 2)); // Look 10 points or half the segment
+    
+    if (conn.atStart) {
+      // Junction is at start of segment, direction goes toward higher indices
+      lookAheadIdx = Math.min(lookAhead, segment.points.length - 1);
+      const targetPt = segment.points[lookAheadIdx];
+      dirX = targetPt.x - junction.x;
+      dirZ = targetPt.z - junction.z;
+    } else {
+      // Junction is at end of segment, direction goes toward lower indices
+      lookAheadIdx = Math.max(0, segment.points.length - 1 - lookAhead);
+      const targetPt = segment.points[lookAheadIdx];
+      dirX = targetPt.x - junction.x;
+      dirZ = targetPt.z - junction.z;
+    }
+    
+    // Normalize direction
+    const len = Math.sqrt(dirX * dirX + dirZ * dirZ);
+    if (len < 0.001) continue;
+    dirX /= len;
+    dirZ /= len;
+    
+    // Dot product with joystick direction (higher = better match)
+    const dot = dirX * joystickDirX + dirZ * joystickDirZ;
+    
+    if (dot > bestDot) {
+      bestDot = dot;
+      bestMatch = {
+        segmentIndex: conn.segmentIndex,
+        pointIndex: conn.atStart ? lookAheadIdx : lookAheadIdx,
+        tangentX: dirX,
+        tangentZ: dirZ,
+      };
+    }
+  }
+  
+  return bestMatch;
+}
+
+/**
  * Calculate turn-based magnetism correction.
  * 
  * This calculates how much the animal should turn to align with the corridor.
@@ -779,6 +860,8 @@ export function findNearestPolylinePoint(
  * @param config - Magnetism configuration
  * @param state - Turn smoothing state (mutated)
  * @param delta - Frame time in seconds
+ * @param joystickDirX - Optional joystick direction X (world space, for junction prediction)
+ * @param joystickDirZ - Optional joystick direction Z (world space, for junction prediction)
  * @returns Magnetism turn result with correction angle
  */
 export function calculateMagnetismTurn(
@@ -788,7 +871,9 @@ export function calculateMagnetismTurn(
   cache: MagnetismCache,
   config: MagnetismConfig,
   state: MagnetismTurnState,
-  delta: number
+  delta: number,
+  joystickDirX: number = 0,
+  joystickDirZ: number = 0
 ): MagnetismTurnResult {
   const noOpResult: MagnetismTurnResult = {
     turnCorrection: 0,
@@ -930,8 +1015,78 @@ export function calculateMagnetismTurn(
   const endpoint1 = polylineResult.tangentStart;
   const endpoint2 = polylineResult.tangentEnd;
   
-  // If suppressed (near junction/endpoint), skip turn correction
+  // If suppressed (near junction/endpoint), handle based on strength level
+  // At strength 10 (full lock), use joystick direction to predict best branch
+  const isFullLockAtJunction = config.strength >= 9.9;
+  
   if (polylineResult.isSuppressed) {
+    // Check if we have joystick input for branch prediction
+    const hasJoystickInput = Math.abs(joystickDirX) > 0.01 || Math.abs(joystickDirZ) > 0.01;
+    
+    if (isFullLockAtJunction && hasJoystickInput) {
+      // FULL LOCK MODE: Use joystick to predict branch direction
+      const branchResult = findBestBranchAtJunction(
+        frontX, frontZ,
+        joystickDirX, joystickDirZ,
+        cache
+      );
+      
+      if (branchResult) {
+        // Use the predicted branch's tangent for alignment
+        // This keeps the animal locked to the path through the junction
+        const predictedTx = branchResult.tangentX;
+        const predictedTz = branchResult.tangentZ;
+        
+        // Calculate angle diff to predicted tangent direction
+        const facingX = Math.sin(playerRotation);
+        const facingZ = Math.cos(playerRotation);
+        
+        // Align tangent to face forward (same direction as player)
+        const dotFacing = facingX * predictedTx + facingZ * predictedTz;
+        const alignedTx = dotFacing >= 0 ? predictedTx : -predictedTx;
+        const alignedTz = dotFacing >= 0 ? predictedTz : -predictedTz;
+        
+        // Cross product for turn direction
+        const crossProduct = facingX * alignedTz - facingZ * alignedTx;
+        const dotAligned = facingX * alignedTx + facingZ * alignedTz;
+        const angleMagnitude = Math.acos(Math.max(-1, Math.min(1, dotAligned)));
+        const predictedAngleDiff = crossProduct < 0 ? angleMagnitude : -angleMagnitude;
+        
+        // Apply the full angle difference (full lock behavior)
+        state.currentCorrection = predictedAngleDiff;
+        
+        return {
+          turnCorrection: state.currentCorrection,
+          debug: {
+            backX,
+            backZ,
+            frontX,
+            frontZ,
+            spineX: nearest.wx,
+            spineZ: nearest.wz,
+            rawSpineX: nearest.wx,
+            rawSpineZ: nearest.wz,
+            targetX: nearest.wx,
+            targetZ: nearest.wz,
+            tangentX: alignedTx,
+            tangentZ: alignedTz,
+            neighbor1X: endpoint1.wx,
+            neighbor1Z: endpoint1.wz,
+            neighbor2X: endpoint2.wx,
+            neighbor2Z: endpoint2.wz,
+            rawAngleDiff: predictedAngleDiff,
+            isActive: true,
+            strengthMultiplier: 1.0,
+            crossDist: polylineResult.distance,
+            isJunctionSuppressed: false, // Not suppressed - we're predicting!
+            nearestDegree: nearest.degree,
+            appliedTurnCorrection: state.currentCorrection,
+          },
+        };
+      }
+    }
+    
+    // Default suppression behavior (no prediction or lower strength)
     state.currentCorrection *= Math.exp(-config.decayRate * delta);
     return {
       turnCorrection: state.currentCorrection,
