@@ -114,14 +114,14 @@ export const MazeGame3D = ({
   const [shaderFadeEnabled, setShaderFadeEnabled] = useState(true);
   const [skeletonEnabled, setSkeletonEnabled] = useState(false);
   const [overlayGridEnabled, setOverlayGridEnabled] = useState(false);
-  const [showPrunedSpurs, setShowPrunedSpurs] = useState(true);
+  const [showPrunedSpurs, setShowPrunedSpurs] = useState(false); // Debug only
   const [spurConfig, setSpurConfig] = useState<{ maxSpurLen: number; minSpurDistance: number; maxBranchLen: number } | null>(null);
   const [defaultSpurConfig, setDefaultSpurConfig] = useState<{ maxSpurLen: number; minSpurDistance: number; maxBranchLen: number } | null>(null);
   
   // Magnetism configuration state
   const [magnetismConfig, setMagnetismConfig] = useState<MagnetismConfig>(DEFAULT_MAGNETISM_CONFIG);
-  const [showMagnetTarget, setShowMagnetTarget] = useState(true);
-  const [showMagnetVector, setShowMagnetVector] = useState(true);
+  const [showMagnetTarget, setShowMagnetTarget] = useState(false); // Debug only
+  const [showMagnetVector, setShowMagnetVector] = useState(false); // Debug only
   
   // Polyline smoothing configuration for debug tuning
   const [polylineConfig, setPolylineConfig] = useState<{
@@ -1248,8 +1248,8 @@ export const MazeGame3D = ({
         />
       )}
       
-      {/* Control Mode Toggle - shows in top right below HUD */}
-      {!isPreviewing && mobileControlsEnabled && (
+      {/* Control Mode Toggle - only shows in debug mode */}
+      {debugMode && !isPreviewing && mobileControlsEnabled && (
         <button
           onClick={() => {
             setControlMode(prev => {
