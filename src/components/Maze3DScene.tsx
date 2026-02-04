@@ -1833,7 +1833,8 @@ const OverShoulderCameraController = ({
   // Track if player has moved and camera distance
   const initialPlayerPos = useRef<{ x: number; z: number } | null>(null);
   const hasPlayerMoved = useRef(false);
-  const currentDistance = useRef(0.4); // Start very close
+  // In rail mode, start at normal distance to avoid zoom-out jerk on first movement
+  const currentDistance = useRef(railMode ? 2.0 : 0.4);
   const lastRestartKey = useRef(restartKey);
   
   // Autopush state - scalar-based distance easing
@@ -1865,12 +1866,13 @@ const OverShoulderCameraController = ({
       initialized.current = false;
       hasPlayerMoved.current = false;
       initialPlayerPos.current = null;
-      currentDistance.current = 0.4;
+      // In rail mode, start at normal distance to avoid zoom-out jerk on first movement
+      currentDistance.current = railMode ? 2.0 : 0.4;
       currentAutopushDist.current = null;
       // Clear faded cells to prevent stale fade states
       fadedCellsRef.current.clear();
     }
-  }, [restartKey]);
+  }, [restartKey, railMode]);
   
   // Camera settings - over-the-shoulder view balanced for all animals
   const DEBUG_OVERHEAD_VIEW = topDownCamera; // Use prop for toggle
