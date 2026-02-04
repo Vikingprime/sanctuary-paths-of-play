@@ -165,7 +165,7 @@ export const MazeGame3D = ({
   
   // Rail control state
   const [isRailMoving, setIsRailMoving] = useState(false);
-  const [railTurnSpeed, setRailTurnSpeed] = useState(2.5); // Radians per second for pre-turn phase
+  const [railTurnSpeed, setRailTurnSpeed] = useState(6.0); // Radians per second for pre-turn phase
   const railPathRef = useRef<Point2D[]>([]);
   const railPathIndexRef = useRef(0);
   const railFractionalIndexRef = useRef(0); // For smooth arc-length traversal

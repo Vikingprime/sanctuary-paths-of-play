@@ -376,7 +376,7 @@ export const GameHUD = ({
   onUnpauseMagnetism,
   polylineConfig,
   onPolylineConfigChange,
-  railTurnSpeed = 2.5,
+  railTurnSpeed = 6.0,
   onRailTurnSpeedChange,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
@@ -1241,7 +1241,7 @@ export const GameHUD = ({
                   <div className="flex justify-between text-[10px]">
                     <span>Turn Speed:</span>
                     <span className={cn(
-                      railTurnSpeed !== 2.5 
+                      railTurnSpeed !== 6.0 
                         ? 'text-orange-400' 
                         : 'text-cyan-400'
                     )}>
