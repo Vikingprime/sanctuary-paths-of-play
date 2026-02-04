@@ -32,33 +32,6 @@ export const MazePreview = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Find start and end positions
-  const { startCenter, endCenter } = useMemo(() => {
-    const startCells: { x: number; y: number }[] = [];
-    const endCells: { x: number; y: number }[] = [];
-    
-    maze.grid.forEach((row, y) => {
-      row.forEach((cell, x) => {
-        if (cell.isStart) startCells.push({ x, y });
-        if (cell.isEnd) endCells.push({ x, y });
-      });
-    });
-    
-    // Calculate center of start region
-    const startCenter = startCells.length > 0 ? {
-      x: startCells.reduce((sum, c) => sum + c.x, 0) / startCells.length,
-      y: startCells.reduce((sum, c) => sum + c.y, 0) / startCells.length,
-    } : { x: 0, y: 0 };
-    
-    // Calculate center of end region
-    const endCenter = endCells.length > 0 ? {
-      x: endCells.reduce((sum, c) => sum + c.x, 0) / endCells.length,
-      y: endCells.reduce((sum, c) => sum + c.y, 0) / endCells.length,
-    } : { x: 0, y: 0 };
-    
-    return { startCenter, endCenter };
-  }, [maze]);
-
   // Get animal emoji
   const animalEmoji = selectedAnimal?.emoji || '🐷';
 
@@ -74,12 +47,36 @@ export const MazePreview = ({
   const maxCellFromHeight = Math.floor(availableHeight / gridHeight);
   const cellSize = Math.min(28, maxCellFromWidth, maxCellFromHeight);
 
-  // Check if a cell is the center of start or end region
-  const isStartCenter = (x: number, y: number) => 
-    Math.round(startCenter.x) === x && Math.round(startCenter.y) === y;
+  // Calculate bounding box for start and end regions
+  const { startBounds, endBounds } = useMemo(() => {
+    const startCells: { x: number; y: number }[] = [];
+    const endCells: { x: number; y: number }[] = [];
+    
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell.isStart) startCells.push({ x, y });
+        if (cell.isEnd) endCells.push({ x, y });
+      });
+    });
+    
+    const getBounds = (cells: { x: number; y: number }[]) => {
+      if (cells.length === 0) return null;
+      return {
+        minX: Math.min(...cells.map(c => c.x)),
+        maxX: Math.max(...cells.map(c => c.x)),
+        minY: Math.min(...cells.map(c => c.y)),
+        maxY: Math.max(...cells.map(c => c.y)),
+      };
+    };
+    
+    return { startBounds: getBounds(startCells), endBounds: getBounds(endCells) };
+  }, [maze]);
+
+  const isInStartRegion = (x: number, y: number) => 
+    startBounds && x >= startBounds.minX && x <= startBounds.maxX && y >= startBounds.minY && y <= startBounds.maxY;
   
-  const isEndCenter = (x: number, y: number) => 
-    Math.round(endCenter.x) === x && Math.round(endCenter.y) === y;
+  const isInEndRegion = (x: number, y: number) => 
+    endBounds && x >= endBounds.minX && x <= endBounds.maxX && y >= endBounds.minY && y <= endBounds.maxY;
 
   const mazeGrid = (
     <div
@@ -96,40 +93,68 @@ export const MazePreview = ({
         }}
       >
         {maze.grid.map((row, y) =>
-          row.map((cell, x) => (
-            <div
-              key={`${x}-${y}`}
-              className={cn(
-                'relative border-[0.5px] border-sage/20',
-                cell.isWall ? 'bg-earth' : 'bg-wheat/60',
-                cell.isEnd && 'bg-primary/40'
-              )}
-              style={{ width: cellSize, height: cellSize }}
-            >
-              {/* Animal icon at start center only */}
-              {isStartCenter(x, y) && (
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] sm:text-sm z-10">
-                  {animalEmoji}
-                </span>
-              )}
-              {/* Single flag at end center only */}
-              {isEndCenter(x, y) && (
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] sm:text-sm z-10">
-                  🏁
-                </span>
-              )}
-              {cell.isPowerUp && (
-                <span className="absolute inset-0 flex items-center justify-center text-[8px] sm:text-xs">
-                  ⚡
-                </span>
-              )}
-              {cell.isStation && (
-                <span className="absolute inset-0 flex items-center justify-center text-[8px] sm:text-xs">
-                  📍
-                </span>
-              )}
-            </div>
-          ))
+          row.map((cell, x) => {
+            const inStart = isInStartRegion(x, y);
+            const inEnd = isInEndRegion(x, y);
+            
+            return (
+              <div
+                key={`${x}-${y}`}
+                className={cn(
+                  'relative',
+                  // No borders for start/end regions, subtle borders elsewhere
+                  !inStart && !inEnd && 'border-[0.5px] border-sage/20',
+                  cell.isWall ? 'bg-earth' : 'bg-wheat/60',
+                  inStart && 'bg-sage/50',
+                  inEnd && 'bg-primary/40'
+                )}
+                style={{ width: cellSize, height: cellSize }}
+              >
+                {cell.isPowerUp && (
+                  <span className="absolute inset-0 flex items-center justify-center text-[8px] sm:text-xs">
+                    ⚡
+                  </span>
+                )}
+                {cell.isStation && (
+                  <span className="absolute inset-0 flex items-center justify-center text-[8px] sm:text-xs">
+                    📍
+                  </span>
+                )}
+              </div>
+            );
+          })
+        )}
+        
+        {/* Centered animal icon overlay for start region */}
+        {startBounds && (
+          <div
+            className="absolute flex items-center justify-center pointer-events-none z-10"
+            style={{
+              left: startBounds.minX * cellSize,
+              top: startBounds.minY * cellSize,
+              width: (startBounds.maxX - startBounds.minX + 1) * cellSize,
+              height: (startBounds.maxY - startBounds.minY + 1) * cellSize,
+              fontSize: Math.min((startBounds.maxX - startBounds.minX + 1), (startBounds.maxY - startBounds.minY + 1)) * cellSize * 0.7,
+            }}
+          >
+            {animalEmoji}
+          </div>
+        )}
+        
+        {/* Centered flag overlay for end region */}
+        {endBounds && (
+          <div
+            className="absolute flex items-center justify-center pointer-events-none z-10"
+            style={{
+              left: endBounds.minX * cellSize,
+              top: endBounds.minY * cellSize,
+              width: (endBounds.maxX - endBounds.minX + 1) * cellSize,
+              height: (endBounds.maxY - endBounds.minY + 1) * cellSize,
+              fontSize: Math.min((endBounds.maxX - endBounds.minX + 1), (endBounds.maxY - endBounds.minY + 1)) * cellSize * 0.7,
+            }}
+          >
+            🏁
+          </div>
         )}
       </div>
     </div>
