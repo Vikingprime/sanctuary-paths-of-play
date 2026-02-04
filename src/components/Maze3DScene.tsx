@@ -122,6 +122,7 @@ interface Maze3DSceneProps {
   railFractionalIndexRef?: MutableRefObject<number>;
   railTurnPhaseRef?: MutableRefObject<boolean>;
   railTargetAngleRef?: MutableRefObject<number>;
+  railTurnSpeed?: number;
   onRailMoveComplete?: () => void;
   onMagnetismCacheReady?: (cache: MagnetismCache) => void;
 }
@@ -1106,6 +1107,7 @@ const RefBasedPlayer = ({
   railFractionalIndexRef,
   railTurnPhaseRef,
   railTargetAngleRef,
+  railTurnSpeed = 2.5,
   onRailMoveComplete,
   // Polyline config for cache rebuilding
   polylineConfig,
@@ -1138,6 +1140,7 @@ const RefBasedPlayer = ({
   railFractionalIndexRef?: MutableRefObject<number>;
   railTurnPhaseRef?: MutableRefObject<boolean>;
   railTargetAngleRef?: MutableRefObject<number>;
+  railTurnSpeed?: number;
   onRailMoveComplete?: () => void;
   // Polyline config
   polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; chaikinFactor?: number; cornerPushStrength?: number } | null;
@@ -1218,9 +1221,8 @@ const RefBasedPlayer = ({
           while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
           while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
           
-          // Turn speed: 2.5 radians per second (slower than normal for cinematic feel)
-          const RAIL_TURN_SPEED = 2.5;
-          const turnAmount = RAIL_TURN_SPEED * clampedDelta;
+          // Turn speed from prop (default 2.5 radians per second)
+          const turnAmount = railTurnSpeed * clampedDelta;
           
           if (Math.abs(angleDiff) <= turnAmount) {
             // Finished turning - snap to target and start moving
@@ -2495,7 +2497,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, onRailMoveComplete, onMagnetismCacheReady }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2742,6 +2744,7 @@ return (
         railFractionalIndexRef={railFractionalIndexRef}
         railTurnPhaseRef={railTurnPhaseRef}
         railTargetAngleRef={railTargetAngleRef}
+        railTurnSpeed={railTurnSpeed}
         onRailMoveComplete={onRailMoveComplete}
         polylineConfig={polylineConfig}
       />

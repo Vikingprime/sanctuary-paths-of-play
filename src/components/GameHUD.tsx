@@ -298,6 +298,9 @@ interface GameHUDProps {
   // Polyline smoothing tuning
   polylineConfig?: { chaikinIterations: number; chaikinCornerExtraIterations: number; chaikinFactor: number; cornerPushStrength: number };
   onPolylineConfigChange?: (config: { chaikinIterations: number; chaikinCornerExtraIterations: number; chaikinFactor: number; cornerPushStrength: number }) => void;
+  // Rail turn speed
+  railTurnSpeed?: number;
+  onRailTurnSpeedChange?: (speed: number) => void;
 }
 
 export const GameHUD = ({
@@ -373,6 +376,8 @@ export const GameHUD = ({
   onUnpauseMagnetism,
   polylineConfig,
   onPolylineConfigChange,
+  railTurnSpeed = 2.5,
+  onRailTurnSpeedChange,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -1222,6 +1227,39 @@ export const GameHUD = ({
                 
                 <div className="text-[9px] text-gray-500 mt-1">
                   Push corners inward to move path away from walls
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Rail Turn Speed */}
+          {onRailTurnSpeedChange && (
+            <div className="mt-2 pt-2 border-t border-gray-600">
+              <div className="text-[10px] text-gray-400 mb-1">--- Rail Navigation ---</div>
+              <div className="space-y-2">
+                <div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Turn Speed:</span>
+                    <span className={cn(
+                      railTurnSpeed !== 2.5 
+                        ? 'text-orange-400' 
+                        : 'text-cyan-400'
+                    )}>
+                      {railTurnSpeed.toFixed(1)} rad/s
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="6.0"
+                    step="0.1"
+                    value={railTurnSpeed}
+                    onChange={(e) => onRailTurnSpeedChange(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-gray-700 rounded appearance-none cursor-pointer"
+                  />
+                </div>
+                <div className="text-[9px] text-gray-500 mt-1">
+                  How fast the animal turns before rail movement starts
                 </div>
               </div>
             </div>
