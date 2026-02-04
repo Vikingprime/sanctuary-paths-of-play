@@ -1126,7 +1126,7 @@ export const GameHUD = ({
                   <div className="flex justify-between text-[10px]">
                     <span>Chaikin Iters:</span>
                     <span className={cn(
-                      polylineConfig.chaikinIterations !== 6 
+                      polylineConfig.chaikinIterations !== 1 
                         ? 'text-orange-400' 
                         : 'text-cyan-400'
                     )}>
