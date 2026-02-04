@@ -1266,6 +1266,47 @@ const RefBasedPlayer = ({
           // This tracks our exact position along the polyline
           let progress = railFractionalIndexRef?.current ?? 0;
           
+          // On first movement frame, find our actual position on the path to avoid jerk
+          // If progress is 0 and we haven't moved yet, project current position onto path
+          if (progress === 0 && path.length >= 2) {
+            const player = playerStateRef.current;
+            let bestDist = Infinity;
+            let bestProgress = 0;
+            
+            // Find the closest point on the path to our current position
+            for (let i = 0; i < Math.min(path.length - 1, 5); i++) {
+              const p0 = path[i];
+              const p1 = path[i + 1];
+              const segDx = p1.x - p0.x;
+              const segDz = p1.z - p0.z;
+              const segLenSq = segDx * segDx + segDz * segDz;
+              
+              if (segLenSq < 0.0001) continue;
+              
+              // Project player position onto segment
+              const t = Math.max(0, Math.min(1, 
+                ((player.x - p0.x) * segDx + (player.y - p0.z) * segDz) / segLenSq
+              ));
+              
+              const projX = p0.x + segDx * t;
+              const projZ = p0.z + segDz * t;
+              const dist = Math.sqrt((player.x - projX) ** 2 + (player.y - projZ) ** 2);
+              
+              if (dist < bestDist) {
+                bestDist = dist;
+                bestProgress = i + t;
+              }
+            }
+            
+            // Use the projected position if it's reasonably close
+            if (bestDist < 0.5) {
+              progress = bestProgress;
+              if (railFractionalIndexRef) {
+                railFractionalIndexRef.current = progress;
+              }
+            }
+          }
+          
           // Calculate total distance to travel this frame
           const RAIL_SPEED = 2.5; // World units per second
           let remainingDist = RAIL_SPEED * clampedDelta;
@@ -1833,8 +1874,7 @@ const OverShoulderCameraController = ({
   // Track if player has moved and camera distance
   const initialPlayerPos = useRef<{ x: number; z: number } | null>(null);
   const hasPlayerMoved = useRef(false);
-  // In rail mode, start at normal distance to avoid zoom-out jerk on first movement
-  const currentDistance = useRef(railMode ? 2.0 : 0.4);
+  const currentDistance = useRef(0.4);
   const lastRestartKey = useRef(restartKey);
   
   // Autopush state - scalar-based distance easing
@@ -1866,13 +1906,12 @@ const OverShoulderCameraController = ({
       initialized.current = false;
       hasPlayerMoved.current = false;
       initialPlayerPos.current = null;
-      // In rail mode, start at normal distance to avoid zoom-out jerk on first movement
-      currentDistance.current = railMode ? 2.0 : 0.4;
+      currentDistance.current = 0.4;
       currentAutopushDist.current = null;
       // Clear faded cells to prevent stale fade states
       fadedCellsRef.current.clear();
     }
-  }, [restartKey, railMode]);
+  }, [restartKey]);
   
   // Camera settings - over-the-shoulder view balanced for all animals
   const DEBUG_OVERHEAD_VIEW = topDownCamera; // Use prop for toggle
