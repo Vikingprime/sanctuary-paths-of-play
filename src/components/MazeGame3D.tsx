@@ -895,6 +895,12 @@ export const MazeGame3D = ({
     };
     setPlayerStateForUI(playerStateRef.current);
     
+    // Reset rail movement state so player starts stopped with direction arrows
+    setIsRailMoving(false);
+    railPathRef.current = [];
+    railFractionalIndexRef.current = 0;
+    railTurnPhaseRef.current = false;
+    
     // Reset game state
     setTimeLeft(debugMode ? 9999 : maze.timeLimit);
     setPreviewTimeLeft(debugMode ? 0 : maze.previewTime);
@@ -920,7 +926,8 @@ export const MazeGame3D = ({
     // Record the restart attempt in persistent storage
     onRestartProp?.();
     
-    // Increment restart key to force camera reset
+    // Increment restart key to force scene rebuild and re-trigger magnetism cache ready
+    // which will snap the player to the polyline
     setRestartKey(prev => prev + 1);
     
     // Clear keys
