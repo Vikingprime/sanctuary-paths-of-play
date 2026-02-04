@@ -1264,50 +1264,8 @@ const RefBasedPlayer = ({
           
           // Use a continuous progress value instead of integer index
           // This tracks our exact position along the polyline
+          // Path now starts exactly at player position, so no jerk on first frame
           let progress = railFractionalIndexRef?.current ?? 0;
-          
-          // On first movement frame, find our actual position on the path to avoid jerk
-          // Skip position update on this frame - just initialize progress
-          let isFirstMovementFrame = false;
-          if (progress === 0 && path.length >= 2) {
-            isFirstMovementFrame = true;
-            const player = playerStateRef.current;
-            let bestDist = Infinity;
-            let bestProgress = 0;
-            
-            // Find the closest point on the path to our current position
-            for (let i = 0; i < Math.min(path.length - 1, 5); i++) {
-              const p0 = path[i];
-              const p1 = path[i + 1];
-              const segDx = p1.x - p0.x;
-              const segDz = p1.z - p0.z;
-              const segLenSq = segDx * segDx + segDz * segDz;
-              
-              if (segLenSq < 0.0001) continue;
-              
-              // Project player position onto segment
-              const t = Math.max(0, Math.min(1, 
-                ((player.x - p0.x) * segDx + (player.y - p0.z) * segDz) / segLenSq
-              ));
-              
-              const projX = p0.x + segDx * t;
-              const projZ = p0.z + segDz * t;
-              const dist = Math.sqrt((player.x - projX) ** 2 + (player.y - projZ) ** 2);
-              
-              if (dist < bestDist) {
-                bestDist = dist;
-                bestProgress = i + t;
-              }
-            }
-            
-            // Use the projected position if it's reasonably close
-            if (bestDist < 0.5) {
-              progress = bestProgress;
-              if (railFractionalIndexRef) {
-                railFractionalIndexRef.current = progress;
-              }
-            }
-          }
           
           // Calculate total distance to travel this frame
           const RAIL_SPEED = 2.5; // World units per second
@@ -1403,14 +1361,11 @@ const RefBasedPlayer = ({
           while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
           
           // Set position exactly on the path curve
-          // Skip position update on first frame to avoid jerk - just let progress initialize
-          if (!isFirstMovementFrame) {
-            playerStateRef.current = {
-              x: newX,
-              y: newZ,
-              rotation: targetRotation,
-            };
-          }
+          playerStateRef.current = {
+            x: newX,
+            y: newZ,
+            rotation: targetRotation,
+          };
           
           // Check if reached end
           if (progress >= path.length - 1.01) {
