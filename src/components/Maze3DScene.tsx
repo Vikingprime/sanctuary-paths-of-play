@@ -1111,7 +1111,9 @@ const RefBasedPlayer = ({
   onRailMoveComplete,
   // Polyline config for cache rebuilding
   polylineConfig,
-}: { 
+  // Restart key to force cache re-trigger
+  restartKey,
+}: {
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
   isMovingRef: MutableRefObject<boolean>;
@@ -1144,6 +1146,8 @@ const RefBasedPlayer = ({
   onRailMoveComplete?: () => void;
   // Polyline config
   polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; chaikinFactor?: number; cornerPushStrength?: number } | null;
+  // Restart key to force cache re-trigger on restart
+  restartKey?: number;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
@@ -1182,7 +1186,7 @@ const RefBasedPlayer = ({
       // Notify parent that cache is ready (for rail mode)
       onMagnetismCacheReady?.(cache);
     }
-  }, [maze, magnetismConfig?.enabled, polylineConfig, onMagnetismCacheReady, railPathRef, railPathIndexRef, railFractionalIndexRef]);
+  }, [maze, magnetismConfig?.enabled, polylineConfig, onMagnetismCacheReady, railPathRef, railPathIndexRef, railFractionalIndexRef, restartKey]);
   
   // Helper: normalize angle to [-PI, PI]
   const normalizeAngle = (angle: number): number => {
@@ -2810,6 +2814,7 @@ return (
         railTurnSpeed={railTurnSpeed}
         onRailMoveComplete={onRailMoveComplete}
         polylineConfig={polylineConfig}
+        restartKey={restartKey}
       />
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
