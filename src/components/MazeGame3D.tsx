@@ -160,8 +160,9 @@ export const MazeGame3D = ({
   const cameraYawRef = useRef(startRotation); // Camera yaw angle (orbits around player)
   
   // Control mode: 'joystick' (default) or 'rail' (on-rail navigation)
+  // In debug mode, default to rail mode
   type ControlMode = 'joystick' | 'rail';
-  const [controlMode, setControlMode] = useState<ControlMode>('joystick');
+  const [controlMode, setControlMode] = useState<ControlMode>(debugMode ? 'rail' : 'joystick');
   
   // Rail control state
   const [isRailMoving, setIsRailMoving] = useState(false);
@@ -568,9 +569,105 @@ export const MazeGame3D = ({
   }, []);
   
   // Callback to receive magnetism cache from Maze3DScene
+  // In debug mode with rail control, snap the animal to the nearest polyline
   const handleMagnetismCacheReady = useCallback((cache: MagnetismCache) => {
     magnetismCacheRef.current = cache;
-  }, []);
+    
+    // In debug mode with rail control, snap to nearest polyline and face away from nearby endpoints
+    if (debugMode && controlMode === 'rail' && cache?.polylineGraph) {
+      const { polylineGraph, polylineSpatialHash, polylineBucketSize } = cache;
+      const playerX = playerStateRef.current.x;
+      const playerZ = playerStateRef.current.y;
+      
+      // Find nearest polyline point
+      const bucketsToCheck = 5;
+      const centerBx = Math.floor(playerX / polylineBucketSize);
+      const centerBz = Math.floor(playerZ / polylineBucketSize);
+      
+      let nearestSegIdx = -1;
+      let nearestPtIdx = -1;
+      let nearestDistSq = Infinity;
+      let nearestX = playerX;
+      let nearestZ = playerZ;
+      
+      for (let dbx = -bucketsToCheck; dbx <= bucketsToCheck; dbx++) {
+        for (let dbz = -bucketsToCheck; dbz <= bucketsToCheck; dbz++) {
+          const bucketKey = `${centerBx + dbx},${centerBz + dbz}`;
+          const bucket = polylineSpatialHash.get(bucketKey);
+          if (!bucket) continue;
+          
+          for (const point of bucket.points) {
+            const dx = playerX - point.wx;
+            const dz = playerZ - point.wz;
+            const distSq = dx * dx + dz * dz;
+            
+            if (distSq < nearestDistSq) {
+              nearestDistSq = distSq;
+              nearestSegIdx = point.segmentIndex;
+              nearestPtIdx = point.pointIndex;
+              nearestX = point.wx;
+              nearestZ = point.wz;
+            }
+          }
+        }
+      }
+      
+      if (nearestSegIdx >= 0) {
+        const segment = polylineGraph.segments[nearestSegIdx];
+        if (segment && segment.points.length > 1) {
+          // Snap position to nearest polyline point
+          playerStateRef.current.x = nearestX;
+          playerStateRef.current.y = nearestZ;
+          
+          // Check both directions for nearby endpoints (within 3 world units)
+          const ENDPOINT_CHECK_DISTANCE = 3.0;
+          
+          // Calculate distance to endpoints
+          const startPt = segment.points[0];
+          const endPt = segment.points[segment.points.length - 1];
+          
+          const distToStart = Math.sqrt(
+            (nearestX - startPt.x) ** 2 + (nearestZ - startPt.z) ** 2
+          );
+          const distToEnd = Math.sqrt(
+            (nearestX - endPt.x) ** 2 + (nearestZ - endPt.z) ** 2
+          );
+          
+          // Determine which direction to face (away from nearby endpoints)
+          let faceForward = true; // Default: face toward end of segment
+          
+          if (segment.startIsEndpoint && distToStart < ENDPOINT_CHECK_DISTANCE) {
+            // Nearby endpoint at start - face toward end
+            faceForward = true;
+          } else if (segment.endIsEndpoint && distToEnd < ENDPOINT_CHECK_DISTANCE) {
+            // Nearby endpoint at end - face toward start
+            faceForward = false;
+          }
+          
+          // Calculate facing direction
+          const lookAheadIdx = faceForward 
+            ? Math.min(nearestPtIdx + 10, segment.points.length - 1)
+            : Math.max(nearestPtIdx - 10, 0);
+          const lookPt = segment.points[lookAheadIdx];
+          const dirX = lookPt.x - nearestX;
+          const dirZ = lookPt.z - nearestZ;
+          const visualAngle = Math.atan2(dirX, dirZ);
+          
+          // Convert to player rotation format: rotation = -visualAngle + PI
+          let rotation = -visualAngle + Math.PI;
+          while (rotation < 0) rotation += Math.PI * 2;
+          while (rotation >= Math.PI * 2) rotation -= Math.PI * 2;
+          
+          playerStateRef.current.rotation = rotation;
+          
+          // Update UI state
+          setPlayerStateForUI({ ...playerStateRef.current });
+          
+          console.log(`[Debug Rail] Snapped to polyline seg=${nearestSegIdx} pt=${nearestPtIdx}, facing=${faceForward ? 'forward' : 'backward'}`);
+        }
+      }
+    }
+  }, [debugMode, controlMode]);
 
   // Movement is now handled in Maze3DScene's useFrame for sync with rendering
 
