@@ -134,7 +134,7 @@ export const MazePreview = ({
               top: startBounds.minY * cellSize,
               width: (startBounds.maxX - startBounds.minX + 1) * cellSize,
               height: (startBounds.maxY - startBounds.minY + 1) * cellSize,
-              fontSize: Math.min((startBounds.maxX - startBounds.minX + 1), (startBounds.maxY - startBounds.minY + 1)) * cellSize * 0.7,
+              fontSize: Math.max((startBounds.maxX - startBounds.minX + 1), (startBounds.maxY - startBounds.minY + 1)) * cellSize * 1.2,
             }}
           >
             {animalEmoji}
