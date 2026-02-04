@@ -660,6 +660,12 @@ export const MazeGame3D = ({
           
           playerStateRef.current.rotation = rotation;
           
+          // Ensure we start in stopped state so direction arrows are shown
+          setIsRailMoving(false);
+          railPathRef.current = [];
+          railFractionalIndexRef.current = 0;
+          railTurnPhaseRef.current = false;
+          
           // Update UI state
           setPlayerStateForUI({ ...playerStateRef.current });
           
