@@ -33,7 +33,7 @@ export const MazePreview = ({
   }, []);
 
   // Find start and end positions
-  const { startCenter, endCenter, endCells } = useMemo(() => {
+  const { startCenter, endCenter } = useMemo(() => {
     const startCells: { x: number; y: number }[] = [];
     const endCells: { x: number; y: number }[] = [];
     
@@ -56,23 +56,22 @@ export const MazePreview = ({
       y: endCells.reduce((sum, c) => sum + c.y, 0) / endCells.length,
     } : { x: 0, y: 0 };
     
-    return { startCenter, endCenter, endCells };
+    return { startCenter, endCenter };
   }, [maze]);
 
   // Get animal emoji
   const animalEmoji = selectedAnimal?.emoji || '🐷';
 
-  // Calculate cell size based on available space - responsive to viewport
+  // Calculate cell size based on available space
   const gridWidth = maze.grid[0].length;
   const gridHeight = maze.grid.length;
   
-  // In landscape, we rotate the map so swap dimensions for sizing
-  const effectiveWidth = isLandscape ? gridHeight : gridWidth;
-  const effectiveHeight = isLandscape ? gridWidth : gridHeight;
+  // In landscape, give more space to the maze (header is on left side)
+  const availableWidth = isLandscape ? window.innerWidth * 0.6 - 32 : window.innerWidth - 64;
+  const availableHeight = isLandscape ? window.innerHeight - 48 : window.innerHeight - 220;
   
-  // Use vh/vw to determine max size, accounting for padding and other UI elements
-  const maxCellFromWidth = Math.floor((window.innerWidth - 64) / effectiveWidth);
-  const maxCellFromHeight = Math.floor((window.innerHeight - 220) / effectiveHeight);
+  const maxCellFromWidth = Math.floor(availableWidth / gridWidth);
+  const maxCellFromHeight = Math.floor(availableHeight / gridHeight);
   const cellSize = Math.min(28, maxCellFromWidth, maxCellFromHeight);
 
   // Check if a cell is the center of start or end region
@@ -82,6 +81,115 @@ export const MazePreview = ({
   const isEndCenter = (x: number, y: number) => 
     Math.round(endCenter.x) === x && Math.round(endCenter.y) === y;
 
+  const mazeGrid = (
+    <div
+      className="bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0"
+      style={{
+        width: gridWidth * cellSize + 16,
+        height: gridHeight * cellSize + 16,
+      }}
+    >
+      <div
+        className="grid gap-0 relative"
+        style={{
+          gridTemplateColumns: `repeat(${gridWidth}, ${cellSize}px)`,
+        }}
+      >
+        {maze.grid.map((row, y) =>
+          row.map((cell, x) => (
+            <div
+              key={`${x}-${y}`}
+              className={cn(
+                'relative border-[0.5px] border-sage/20',
+                cell.isWall ? 'bg-earth' : 'bg-wheat/60',
+                cell.isEnd && 'bg-primary/40'
+              )}
+              style={{ width: cellSize, height: cellSize }}
+            >
+              {/* Animal icon at start center only */}
+              {isStartCenter(x, y) && (
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] sm:text-sm z-10">
+                  {animalEmoji}
+                </span>
+              )}
+              {/* Single flag at end center only */}
+              {isEndCenter(x, y) && (
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] sm:text-sm z-10">
+                  🏁
+                </span>
+              )}
+              {cell.isPowerUp && (
+                <span className="absolute inset-0 flex items-center justify-center text-[8px] sm:text-xs">
+                  ⚡
+                </span>
+              )}
+              {cell.isStation && (
+                <span className="absolute inset-0 flex items-center justify-center text-[8px] sm:text-xs">
+                  📍
+                </span>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
+  // Landscape layout: side by side
+  if (isLandscape) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-4 gap-6">
+        {/* Top right controls */}
+        <div className="absolute top-2 right-2 flex flex-row gap-2 z-10">
+          {onToggleMute && (
+            <button
+              onClick={onToggleMute}
+              className="bg-card/90 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-lg font-display text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </button>
+          )}
+          {onQuit && (
+            <button
+              onClick={onQuit}
+              className="bg-card/90 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-lg font-display text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ✕ Quit
+            </button>
+          )}
+        </div>
+
+        {/* Left side: Header + Timer */}
+        <div className="flex flex-col items-center justify-center gap-4 flex-shrink-0">
+          <div className="text-center animate-fade-in">
+            <h2 className="font-display text-xl font-bold text-foreground mb-1">
+              Memorize the Path! 🧠
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Study carefully!
+            </p>
+          </div>
+          
+          <div className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full font-display font-bold text-base animate-pulse">
+            Starting in {timeLeft}s
+          </div>
+
+          <div className="text-center text-[10px] text-muted-foreground mt-2">
+            <p>{animalEmoji} Start</p>
+            <p>🏁 Exit</p>
+            <p>⚡ Power-up</p>
+            <p>📍 Map</p>
+          </div>
+        </div>
+
+        {/* Right side: Maze */}
+        {mazeGrid}
+      </div>
+    );
+  }
+
+  // Portrait layout: stacked
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center p-2 sm:p-4 overflow-auto">
       {/* Top right controls */}
@@ -106,12 +214,12 @@ export const MazePreview = ({
         )}
       </div>
 
-      {/* Header - compact in landscape */}
+      {/* Header */}
       <div className="text-center mb-2 sm:mb-6 animate-fade-in">
         <h2 className="font-display text-xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
           Memorize the Path! 🧠
         </h2>
-        <p className="text-xs sm:text-base text-muted-foreground hidden portrait:block sm:block">
+        <p className="text-xs sm:text-base text-muted-foreground">
           Study the maze carefully - you'll need to navigate it in 3D!
         </p>
       </div>
@@ -124,77 +232,9 @@ export const MazePreview = ({
       </div>
 
       {/* Maze Preview */}
-      <div
-        className={cn(
-          "bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0",
-          isLandscape && "rotate-90 origin-center"
-        )}
-        style={{
-          width: gridWidth * cellSize + 16,
-          height: gridHeight * cellSize + 16,
-        }}
-      >
-        <div
-          className="grid gap-0 relative"
-          style={{
-            gridTemplateColumns: `repeat(${gridWidth}, ${cellSize}px)`,
-          }}
-        >
-          {maze.grid.map((row, y) =>
-            row.map((cell, x) => (
-              <div
-                key={`${x}-${y}`}
-                className={cn(
-                  'relative border-[0.5px] border-sage/20',
-                  cell.isWall ? 'bg-earth' : 'bg-wheat/60',
-                  cell.isEnd && 'bg-primary/40'
-                )}
-                style={{ width: cellSize, height: cellSize }}
-              >
-                {/* Animal icon at start center only */}
-                {isStartCenter(x, y) && (
-                  <span 
-                    className="absolute inset-0 flex items-center justify-center text-[10px] sm:text-sm z-10"
-                    style={isLandscape ? { transform: 'rotate(-90deg)' } : undefined}
-                  >
-                    {animalEmoji}
-                  </span>
-                )}
-                {/* Single flag at end center only */}
-                {isEndCenter(x, y) && (
-                  <span 
-                    className="absolute inset-0 flex items-center justify-center text-[10px] sm:text-sm z-10"
-                    style={isLandscape ? { transform: 'rotate(-90deg)' } : undefined}
-                  >
-                    🏁
-                  </span>
-                )}
-                {cell.isPowerUp && (
-                  <span 
-                    className="absolute inset-0 flex items-center justify-center text-[8px] sm:text-xs"
-                    style={isLandscape ? { transform: 'rotate(-90deg)' } : undefined}
-                  >
-                    ⚡
-                  </span>
-                )}
-                {cell.isStation && (
-                  <span 
-                    className="absolute inset-0 flex items-center justify-center text-[8px] sm:text-xs"
-                    style={isLandscape ? { transform: 'rotate(-90deg)' } : undefined}
-                  >
-                    📍
-                  </span>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      {mazeGrid}
 
-      <div 
-        className="mt-2 sm:mt-6 text-center text-[10px] sm:text-sm text-muted-foreground"
-        style={isLandscape ? { marginTop: gridWidth * cellSize / 2 + 24 } : undefined}
-      >
+      <div className="mt-2 sm:mt-6 text-center text-[10px] sm:text-sm text-muted-foreground">
         <p>{animalEmoji} Start | 🏁 Exit | ⚡ Power-up | 📍 Map</p>
       </div>
     </div>
