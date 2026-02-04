@@ -1266,6 +1266,7 @@ const RefBasedPlayer = ({
           // This tracks our exact position along the polyline
           // Path now starts exactly at player position, so no jerk on first frame
           let progress = railFractionalIndexRef?.current ?? 0;
+          const isFirstMovementFrame = progress === 0;
           
           // Calculate total distance to travel this frame
           const RAIL_SPEED = 2.5; // World units per second
@@ -1361,10 +1362,11 @@ const RefBasedPlayer = ({
           while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
           
           // Set position exactly on the path curve
+          // On first frame, keep current rotation to avoid jerk from turn phase ending
           playerStateRef.current = {
             x: newX,
             y: newZ,
-            rotation: targetRotation,
+            rotation: isFirstMovementFrame ? playerStateRef.current.rotation : targetRotation,
           };
           
           // Check if reached end
