@@ -59,8 +59,6 @@ interface CameraVolumeSystemProps {
   enabled?: boolean; // Easy toggle to disable and use overhead
   autopush?: AutopushConfig; // Autopush settings for foliage avoidance
   foliageGroupRef?: React.RefObject<Object3D>; // Reference to corn/foliage group for raycasting
-  followDelay?: number; // Camera follow delay in ms (rail mode)
-  isRailMode?: boolean; // Whether rail mode is active
 }
 
 // Check if player is inside a volume
@@ -90,13 +88,6 @@ const distanceToVolume = (
   return Math.sqrt((playerX - vx) ** 2 + (playerZ - vz) ** 2);
 };
 
-// Position history entry for delayed camera follow
-interface PositionHistoryEntry {
-  x: number;
-  z: number;
-  time: number;
-}
-
 export const CameraVolumeController = ({
   playerPos,
   volumes,
@@ -104,13 +95,8 @@ export const CameraVolumeController = ({
   enabled = true,
   autopush = DEFAULT_AUTOPUSH,
   foliageGroupRef,
-  followDelay = 0,
-  isRailMode = false,
 }: CameraVolumeSystemProps) => {
   const { camera, scene } = useThree();
-  
-  // Position history for delayed follow (rail mode)
-  const positionHistory = useRef<PositionHistoryEntry[]>([]);
   
   // Current interpolated values
   const currentPosition = useRef(new Vector3());
@@ -128,44 +114,8 @@ export const CameraVolumeController = ({
   const tempVec = useRef(new Vector3());
 
   useFrame((state, delta) => {
-    const now = performance.now();
-    const rawPlayerX = playerPos.x + 0.5;
-    const rawPlayerZ = playerPos.y + 0.5;
-    
-    // Handle delayed camera follow for rail mode
-    let playerX = rawPlayerX;
-    let playerZ = rawPlayerZ;
-    
-    if (isRailMode && followDelay > 0) {
-      // Add current position to history
-      positionHistory.current.push({ x: rawPlayerX, z: rawPlayerZ, time: now });
-      
-      // Find position from followDelay ms ago
-      const targetTime = now - followDelay;
-      
-      // Remove old entries (keep some buffer)
-      while (positionHistory.current.length > 2 && 
-             positionHistory.current[0].time < targetTime - 100) {
-        positionHistory.current.shift();
-      }
-      
-      // Find the entry closest to targetTime
-      if (positionHistory.current.length > 0) {
-        let delayedPos = positionHistory.current[0];
-        for (const entry of positionHistory.current) {
-          if (entry.time <= targetTime) {
-            delayedPos = entry;
-          } else {
-            break;
-          }
-        }
-        playerX = delayedPos.x;
-        playerZ = delayedPos.z;
-      }
-    } else {
-      // Clear history when not in rail mode
-      positionHistory.current = [];
-    }
+    const playerX = playerPos.x + 0.5;
+    const playerZ = playerPos.y + 0.5;
 
     let targetOffset = [...DEFAULT_CAMERA.cameraOffset] as [number, number, number];
     let targetLookAtOffset = [...DEFAULT_CAMERA.lookAtOffset] as [number, number, number];
