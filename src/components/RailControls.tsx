@@ -568,13 +568,6 @@ export function RailControls({
   return (
      <div className={`fixed left-1/2 -translate-x-1/2 z-20 ${isLandscape ? 'bottom-2' : 'bottom-20'}`}>
       <div className="relative w-40 h-40">
-        {/* Center indicator */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center">
-            <div className="w-3 h-3 rounded-full bg-primary/30 animate-pulse" />
-          </div>
-        </div>
-        
         {/* Direction buttons - positioned at actual path angles */}
         {directions.map((dir, idx) => (
           <RadialDirectionButton
