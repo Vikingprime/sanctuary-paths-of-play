@@ -255,18 +255,17 @@ export const MazePreview = ({
   const displayHeight = isLandscape ? gridWidth : gridHeight;
 
   const mazeGrid = (
-    <div
-       className="bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0 relative"
-      style={{
-        width: displayWidth * cellSize + 16,
-        height: displayHeight * cellSize + 16,
-      }}
-    >
+    <div className="flex flex-col items-center gap-3 animate-fade-in">
+      {/* Memorize instruction text */}
+      <div className="font-display text-lg sm:text-xl font-bold text-primary">
+        Memorize the maze!
+      </div>
+      
+      {/* Maze grid - no wrapper padding/border */}
       <div
-        className="grid gap-0 relative"
+        className="grid gap-0 relative rounded-lg overflow-hidden shadow-warm-lg flex-shrink-0"
         style={{
           gridTemplateColumns: `repeat(${displayWidth}, ${cellSize}px)`,
-          margin: '8px',
         }}
       >
         {/* Render cells in transformed order for landscape */}
