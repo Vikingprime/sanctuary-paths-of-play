@@ -76,19 +76,24 @@ export const MazeIntroSequence = ({
   useEffect(() => {
     if (!isShowingMazePreview) return;
 
+    // Use timestamp-based approach for reliable timing
+    const startTime = Date.now();
+    const duration = maze.previewTime;
+    
     const timer = setInterval(() => {
-      setMazePreviewCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const remaining = Math.max(0, duration - elapsed);
+      
+      setMazePreviewCountdown(remaining);
+      
+      if (remaining <= 0) {
+        clearInterval(timer);
           onComplete();
-          return 0;
         }
-        return prev - 1;
-      });
-    }, 1000);
+    }, 100); // Check every 100ms for smoother updates
 
     return () => clearInterval(timer);
-  }, [isShowingMazePreview, onComplete]);
+  }, [isShowingMazePreview, onComplete, maze.previewTime]);
 
   // Skip intro button
   const handleSkip = useCallback(() => {
