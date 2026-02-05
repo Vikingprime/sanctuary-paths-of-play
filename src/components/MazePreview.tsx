@@ -32,6 +32,11 @@ export const MazePreview = ({
   // Pulsing animation state (for scale effect)
   const [pulseScale, setPulseScale] = useState(1);
 
+  // Check if maze has any stations (moved up before useEffect that uses it)
+  const hasStations = useMemo(() => {
+    return maze.grid.some(row => row.some(cell => cell.isStation));
+  }, [maze]);
+
   useEffect(() => {
     const handleResize = () => {
       setIsLandscape(window.innerWidth > window.innerHeight);
@@ -41,20 +46,21 @@ export const MazePreview = ({
   }, []);
 
   // Tutorial phase progression: 1.5s per phase
+  // 2.5s per phase for better visibility
   useEffect(() => {
     phaseStartTimeRef.current = Date.now();
     
     const advancePhase = () => {
       setTutorialPhase(prev => {
         if (prev === 'player') return 'finish';
-        if (prev === 'finish') return 'stations';
+        if (prev === 'finish') return hasStations ? 'stations' : 'done';
         return 'done';
       });
     };
 
-    const timer = setTimeout(advancePhase, 1500);
+    const timer = setTimeout(advancePhase, 2500);
     return () => clearTimeout(timer);
-  }, [tutorialPhase]);
+  }, [tutorialPhase, hasStations]);
 
   // Pulse animation loop (runs during active phases)
   useEffect(() => {
@@ -66,20 +72,15 @@ export const MazePreview = ({
     let animFrame: number;
     const animate = () => {
       const elapsed = Date.now() - phaseStartTimeRef.current;
-      // Oscillate between 0.8 and 1.3 scale with 400ms period
-      const t = (elapsed % 400) / 400;
-      const scale = 0.8 + 0.5 * Math.sin(t * Math.PI);
+      // Oscillate between 0.7 and 1.4 scale with 500ms period for more dramatic effect
+      const t = (elapsed % 500) / 500;
+      const scale = 0.7 + 0.7 * Math.sin(t * Math.PI);
       setPulseScale(scale);
       animFrame = requestAnimationFrame(animate);
     };
     animFrame = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animFrame);
   }, [tutorialPhase]);
-
-  // Check if maze has any stations
-  const hasStations = useMemo(() => {
-    return maze.grid.some(row => row.some(cell => cell.isStation));
-  }, [maze]);
 
   // Get animal emoji
   const animalEmoji = selectedAnimal?.emoji || '🐷';
@@ -133,43 +134,24 @@ export const MazePreview = ({
   const isInEndRegion = (x: number, y: number) => 
     endBounds && x >= endBounds.minX && x <= endBounds.maxX && y >= endBounds.minY && y <= endBounds.maxY;
 
-  // Find a path cell near start for player icon positioning
-  const playerPathPosition = useMemo(() => {
+  // Calculate center of start region for player icon positioning
+  const playerCenterPosition = useMemo(() => {
     if (!startBounds) return null;
-    
-    // Search for a path cell adjacent to or within the start region
-    const searchCells: { x: number; y: number }[] = [];
-    
-    // First, check cells within the start region
-    for (let y = startBounds.minY; y <= startBounds.maxY; y++) {
-      for (let x = startBounds.minX; x <= startBounds.maxX; x++) {
-        if (!maze.grid[y]?.[x]?.isWall && !maze.grid[y]?.[x]?.isStart) {
-          searchCells.push({ x, y });
-        }
-      }
-    }
-    
-    // Then check cells adjacent to start region
-    for (let y = startBounds.minY - 1; y <= startBounds.maxY + 1; y++) {
-      for (let x = startBounds.minX - 1; x <= startBounds.maxX + 1; x++) {
-        const cell = maze.grid[y]?.[x];
-        if (cell && !cell.isWall && !cell.isStart && !cell.isEnd) {
-          searchCells.push({ x, y });
-        }
-      }
-    }
-    
-    // Return first valid path cell, or center of start region as fallback
-    if (searchCells.length > 0) {
-      return searchCells[0];
-    }
-    
-    // Fallback to center of start bounds
+    // Center of start bounds (in cell coordinates)
     return {
       x: (startBounds.minX + startBounds.maxX) / 2,
       y: (startBounds.minY + startBounds.maxY) / 2,
     };
-  }, [maze, startBounds]);
+  }, [startBounds]);
+
+  // Calculate center of end region for finish icon positioning
+  const finishCenterPosition = useMemo(() => {
+    if (!endBounds) return null;
+    return {
+      x: (endBounds.minX + endBounds.maxX) / 2,
+      y: (endBounds.minY + endBounds.maxY) / 2,
+    };
+  }, [endBounds]);
 
   // Find all station positions for the tutorial
   const stationPositions = useMemo(() => {
@@ -250,62 +232,76 @@ export const MazePreview = ({
         )}
         
         {/* Centered animal icon overlay for start region */}
-        {playerPathPosition && (
+        {playerCenterPosition && (
           <div
             className="absolute flex flex-col items-center justify-center pointer-events-none z-10"
-            style={{
-              left: transformCoord(playerPathPosition.x, playerPathPosition.y).tx * cellSize,
-              top: transformCoord(playerPathPosition.x, playerPathPosition.y).ty * cellSize,
-              width: cellSize,
-              height: cellSize,
-              transform: tutorialPhase === 'player' ? `scale(${pulseScale})` : 'scale(0.8)',
-              transition: tutorialPhase === 'player' ? 'none' : 'transform 0.3s ease-out',
-            }}
+            style={(() => {
+              // Transform center position to display coordinates
+              const transformed = transformCoord(playerCenterPosition.x, playerCenterPosition.y);
+              // Position at exact center (add 0.5 cell offset since coords are cell centers)
+              const centerX = (transformed.tx + 0.5) * cellSize;
+              const centerY = (transformed.ty + 0.5) * cellSize;
+              // Icon size: 2.5x cell size for high visibility
+              const iconSize = cellSize * 2.5;
+              return {
+                left: centerX - iconSize / 2,
+                top: centerY - iconSize / 2,
+                width: iconSize,
+                height: iconSize,
+                transform: tutorialPhase === 'player' ? `scale(${pulseScale})` : 'scale(0.6)',
+                transition: tutorialPhase === 'player' ? 'none' : 'transform 0.3s ease-out',
+              };
+            })()}
           >
             {/* Green circle indicator */}
             {tutorialPhase === 'player' && (
               <div 
                 className="absolute rounded-full bg-secondary/50 border-2 border-secondary"
                 style={{
-                  width: cellSize * 1.8,
-                  height: cellSize * 1.8,
+                  width: '120%',
+                  height: '120%',
                   opacity: 0.6 + 0.4 * Math.sin((pulseScale - 0.8) / 0.5 * Math.PI),
                 }}
               />
             )}
-            <span style={{ fontSize: cellSize * 0.7 }}>{animalEmoji}</span>
+            <span style={{ fontSize: cellSize * 2 }}>{animalEmoji}</span>
           </div>
         )}
 
         {/* "You" label for player */}
-        {tutorialPhase === 'player' && playerPathPosition && (
+        {tutorialPhase === 'player' && playerCenterPosition && (
           <div
             className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
-            style={{
-              left: transformCoord(playerPathPosition.x, playerPathPosition.y).tx * cellSize + cellSize / 2,
-              top: transformCoord(playerPathPosition.x, playerPathPosition.y).ty * cellSize - cellSize * 0.8,
-              transform: 'translateX(-50%)',
-              fontSize: Math.max(10, cellSize * 0.35),
-            }}
+            style={(() => {
+              const transformed = transformCoord(playerCenterPosition.x, playerCenterPosition.y);
+              const centerX = (transformed.tx + 0.5) * cellSize;
+              const centerY = (transformed.ty + 0.5) * cellSize;
+              return {
+                left: centerX,
+                top: centerY - cellSize * 1.8,
+                transform: `translateX(-50%) scale(${pulseScale * 0.8 + 0.2})`,
+                fontSize: Math.max(12, cellSize * 0.5),
+              };
+            })()}
           >
             You
           </div>
         )}
         
         {/* Centered flag overlay for end region */}
-        {endBounds && (
+        {finishCenterPosition && (
           <div
             className="absolute flex items-center justify-center pointer-events-none z-10"
             style={(() => {
-              const topLeft = transformCoord(endBounds.minX, endBounds.minY);
-              const bottomRight = transformCoord(endBounds.maxX, endBounds.maxY);
-              const left = Math.min(topLeft.tx, bottomRight.tx) * cellSize;
-              const top = Math.min(topLeft.ty, bottomRight.ty) * cellSize;
-              const width = (Math.abs(bottomRight.tx - topLeft.tx) + 1) * cellSize;
-              const height = (Math.abs(bottomRight.ty - topLeft.ty) + 1) * cellSize;
+              const transformed = transformCoord(finishCenterPosition.x, finishCenterPosition.y);
+              const centerX = (transformed.tx + 0.5) * cellSize;
+              const centerY = (transformed.ty + 0.5) * cellSize;
+              const iconSize = cellSize * 2.5;
               return {
-                left, top, width, height,
-                fontSize: Math.min(width, height) * 0.7,
+                left: centerX - iconSize / 2,
+                top: centerY - iconSize / 2,
+                width: iconSize,
+                height: iconSize,
                 transform: tutorialPhase === 'finish' ? `scale(${pulseScale})` : 'scale(1)',
                 transition: tutorialPhase === 'finish' ? 'none' : 'transform 0.3s ease-out',
               };
@@ -316,36 +312,29 @@ export const MazePreview = ({
               <div 
                 className="absolute rounded-full bg-secondary/50 border-2 border-secondary"
                 style={{
-                  width: Math.min(
-                    (Math.abs(transformCoord(endBounds.maxX, endBounds.maxY).tx - transformCoord(endBounds.minX, endBounds.minY).tx) + 1) * cellSize,
-                    (Math.abs(transformCoord(endBounds.maxX, endBounds.maxY).ty - transformCoord(endBounds.minX, endBounds.minY).ty) + 1) * cellSize
-                  ) * 1.5,
-                  height: Math.min(
-                    (Math.abs(transformCoord(endBounds.maxX, endBounds.maxY).tx - transformCoord(endBounds.minX, endBounds.minY).tx) + 1) * cellSize,
-                    (Math.abs(transformCoord(endBounds.maxX, endBounds.maxY).ty - transformCoord(endBounds.minX, endBounds.minY).ty) + 1) * cellSize
-                  ) * 1.5,
+                  width: '120%',
+                  height: '120%',
                   opacity: 0.6 + 0.4 * Math.sin((pulseScale - 0.8) / 0.5 * Math.PI),
                 }}
               />
             )}
-            🏁
+            <span style={{ fontSize: cellSize * 2 }}>🏁</span>
           </div>
         )}
 
         {/* "Finish" label */}
-        {tutorialPhase === 'finish' && endBounds && (
+        {tutorialPhase === 'finish' && finishCenterPosition && (
           <div
             className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
             style={(() => {
-              const topLeft = transformCoord(endBounds.minX, endBounds.minY);
-              const bottomRight = transformCoord(endBounds.maxX, endBounds.maxY);
-              const centerX = (Math.min(topLeft.tx, bottomRight.tx) + (Math.abs(bottomRight.tx - topLeft.tx) + 1) / 2) * cellSize;
-              const top = Math.min(topLeft.ty, bottomRight.ty) * cellSize - cellSize * 0.6;
+              const transformed = transformCoord(finishCenterPosition.x, finishCenterPosition.y);
+              const centerX = (transformed.tx + 0.5) * cellSize;
+              const centerY = (transformed.ty + 0.5) * cellSize;
               return {
                 left: centerX,
-                top,
-                transform: 'translateX(-50%)',
-                fontSize: Math.max(10, cellSize * 0.35),
+                top: centerY - cellSize * 1.8,
+                transform: `translateX(-50%) scale(${pulseScale * 0.8 + 0.2})`,
+                fontSize: Math.max(12, cellSize * 0.5),
               };
             })()}
           >
@@ -357,15 +346,16 @@ export const MazePreview = ({
         {stationPositions.map((pos, idx) => {
           const transformed = transformCoord(pos.x, pos.y);
           const isAnimating = tutorialPhase === 'stations';
+          const iconSize = cellSize * 2;
           return (
             <div
               key={`station-${idx}`}
               className="absolute flex items-center justify-center pointer-events-none z-10"
               style={{
-                left: transformed.tx * cellSize,
-                top: transformed.ty * cellSize,
-                width: cellSize,
-                height: cellSize,
+                left: (transformed.tx + 0.5) * cellSize - iconSize / 2,
+                top: (transformed.ty + 0.5) * cellSize - iconSize / 2,
+                width: iconSize,
+                height: iconSize,
                 transform: isAnimating ? `scale(${pulseScale})` : 'scale(1)',
                 transition: isAnimating ? 'none' : 'transform 0.3s ease-out',
               }}
@@ -374,13 +364,13 @@ export const MazePreview = ({
                 <div 
                   className="absolute rounded-full bg-secondary/50 border-2 border-secondary"
                   style={{
-                    width: cellSize * 1.5,
-                    height: cellSize * 1.5,
+                    width: '120%',
+                    height: '120%',
                     opacity: 0.6 + 0.4 * Math.sin((pulseScale - 0.8) / 0.5 * Math.PI),
                   }}
                 />
               )}
-              <span style={{ fontSize: cellSize * 0.6 }}>📍</span>
+              <span style={{ fontSize: cellSize * 1.5 }}>📍</span>
             </div>
           );
         })}
@@ -389,12 +379,15 @@ export const MazePreview = ({
         {tutorialPhase === 'stations' && hasStations && stationPositions.length > 0 && (
           <div
             className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md whitespace-nowrap"
-            style={{
-              left: transformCoord(stationPositions[0].x, stationPositions[0].y).tx * cellSize + cellSize / 2,
-              top: transformCoord(stationPositions[0].x, stationPositions[0].y).ty * cellSize - cellSize * 0.6,
-              transform: 'translateX(-50%)',
-              fontSize: Math.max(10, cellSize * 0.35),
-            }}
+            style={(() => {
+              const transformed = transformCoord(stationPositions[0].x, stationPositions[0].y);
+              return {
+                left: (transformed.tx + 0.5) * cellSize,
+                top: (transformed.ty + 0.5) * cellSize - cellSize * 1.5,
+                transform: `translateX(-50%) scale(${pulseScale * 0.8 + 0.2})`,
+                fontSize: Math.max(12, cellSize * 0.5),
+              };
+            })()}
           >
             Map towers
           </div>
