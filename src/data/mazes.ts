@@ -23,7 +23,7 @@ export const mazes: Maze[] = [
     name: 'Sunny Meadow',
     difficulty: 'easy',
     timeLimit: 30,
-    previewTime: 5,
+    previewTime: 8,
     medalTimes: {
       gold: 15,
       silver: 20,
@@ -76,7 +76,7 @@ export const mazes: Maze[] = [
     name: 'Cornfield Challenge',
     difficulty: 'medium',
     timeLimit: 45,
-    previewTime: 6,
+    previewTime: 10,
     medalTimes: { gold: 15, silver: 25, bronze: 40 },
     characters: [
       {
@@ -124,7 +124,7 @@ export const mazes: Maze[] = [
     name: 'Harvest Moon',
     difficulty: 'hard',
     timeLimit: 90,
-    previewTime: 8,
+    previewTime: 15,
     medalTimes: {
       gold: 50,
       silver: 65,
