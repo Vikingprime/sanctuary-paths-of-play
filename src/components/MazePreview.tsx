@@ -327,13 +327,15 @@ export const MazePreview = ({
             })()}
           >
             {/* Green circle indicator like map tower */}
-            <div 
-              className="absolute rounded-full bg-secondary/40 border-2 border-secondary"
-              style={{
-                width: cellSize * 2.8,
-                height: cellSize * 2.8,
-              }}
-            />
+            {tutorialPhase === 'player' && (
+              <div 
+                className="absolute rounded-full bg-secondary/40 border-2 border-secondary"
+                style={{
+                  width: cellSize * 2.8,
+                  height: cellSize * 2.8,
+                }}
+              />
+            )}
             <span style={{ fontSize: cellSize * 2.2 }}>{animalEmoji}</span>
           </div>
         )}
@@ -378,13 +380,15 @@ export const MazePreview = ({
             })()}
           >
             {/* Green circle indicator like map tower */}
-            <div 
-              className="absolute rounded-full bg-secondary/40 border-2 border-secondary"
-              style={{
-                width: cellSize * 2.8,
-                height: cellSize * 2.8,
-              }}
-            />
+            {tutorialPhase === 'finish' && (
+              <div 
+                className="absolute rounded-full bg-secondary/40 border-2 border-secondary"
+                style={{
+                  width: cellSize * 2.8,
+                  height: cellSize * 2.8,
+                }}
+              />
+            )}
             <span style={{ fontSize: cellSize * 2 }}>🏁</span>
           </div>
         )}
