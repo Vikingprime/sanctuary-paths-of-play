@@ -94,18 +94,13 @@ export const CompassOverlay = ({
       className={`absolute top-20 left-4 z-30 pointer-events-none transition-opacity duration-1000 ${fading ? 'opacity-0' : 'opacity-100'}`}
     >
       <div className="bg-card/80 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg flex items-center gap-2">
-        {/* Simple rotating navigation arrow */}
-        <div 
-          className="transition-transform duration-150 ease-out"
-          style={{ transform: `rotate(${-compassRotationDeg}deg)` }}
-        >
-          <Navigation 
-            className="w-5 h-5 text-secondary fill-secondary/30" 
-            strokeWidth={2.5}
-          />
-        </div>
+        {/* Arrow pointing UP = "you are facing this direction" */}
+        <Navigation 
+          className="w-5 h-5 text-secondary fill-secondary/30" 
+          strokeWidth={2.5}
+        />
         
-        {/* Direction label */}
+        {/* Direction label - shows which way you're facing */}
         <span className="text-sm font-display font-semibold text-foreground min-w-[24px]">
           {directionLabel}
         </span>
