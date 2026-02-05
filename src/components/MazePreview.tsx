@@ -134,20 +134,62 @@ export const MazePreview = ({
   const isInEndRegion = (x: number, y: number) => 
     endBounds && x >= endBounds.minX && x <= endBounds.maxX && y >= endBounds.minY && y <= endBounds.maxY;
 
-  // Calculate center of start region for player icon positioning
-  const playerCenterPosition = useMemo(() => {
+  // Find a 2x2 block of path cells near the start for player positioning
+  // The animal will be centered at the intersection of these 4 cells
+  const playerBlock = useMemo(() => {
     if (!startBounds) return null;
-    // Center of start bounds - for a 2-cell-wide corridor, this gives us the grid line
-    // e.g., cells 1 and 2 → center at 1.5 → pixel position (1.5 + 0.5) * cellSize = 2 * cellSize (on grid line)
-    // But we need to find the path, not the start zone. The path should be adjacent to start.
-    // For now, use the center of the start region
-    return {
-      // Add 0.5 to convert bounds center to actual center position
-      // (minX + maxX + 1) / 2 gives center accounting for cell width
-      x: (startBounds.minX + startBounds.maxX + 1) / 2,
-      y: (startBounds.minY + startBounds.maxY + 1) / 2,
+    
+    // Helper to check if a cell is a valid path (not wall, not start, not end)
+    const isPath = (x: number, y: number) => {
+      const cell = maze.grid[y]?.[x];
+      return cell && !cell.isWall;
     };
-  }, [startBounds]);
+    
+    // Helper to check if a 2x2 block starting at (x,y) is all path cells
+    const isValid2x2 = (x: number, y: number) => {
+      return isPath(x, y) && isPath(x + 1, y) && isPath(x, y + 1) && isPath(x + 1, y + 1);
+    };
+    
+    // Search for a valid 2x2 block, starting from within/adjacent to start region
+    // Priority: cells adjacent to start region first, then expanding outward
+    const searchRadius = 5;
+    for (let r = 0; r <= searchRadius; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // Only check perimeter at each radius
+          const testX = startBounds.minX + dx;
+          const testY = startBounds.minY + dy;
+          if (isValid2x2(testX, testY)) {
+            return {
+              // Return the 4 cells and the center position
+              cells: [
+                { x: testX, y: testY },
+                { x: testX + 1, y: testY },
+                { x: testX, y: testY + 1 },
+                { x: testX + 1, y: testY + 1 },
+              ],
+              // Center is at the intersection of all 4 cells
+              centerX: testX + 1,
+              centerY: testY + 1,
+            };
+          }
+        }
+      }
+    }
+    
+    // Fallback: just use center of start bounds
+    return {
+      cells: [],
+      centerX: (startBounds.minX + startBounds.maxX + 1) / 2,
+      centerY: (startBounds.minY + startBounds.maxY + 1) / 2,
+    };
+  }, [maze, startBounds]);
+
+  // Check if a cell is part of the player highlight block
+  const isInPlayerBlock = (x: number, y: number) => {
+    if (!playerBlock) return false;
+    return playerBlock.cells.some(c => c.x === x && c.y === y);
+  };
 
   // Calculate center of end region for finish icon positioning
   const finishCenterPosition = useMemo(() => {
@@ -217,7 +259,9 @@ export const MazePreview = ({
                   !inStart && !inEnd && 'border-[0.5px] border-sage/20',
                   cell.isWall ? 'bg-earth' : 'bg-wheat/60',
                   inStart && 'bg-sage/50',
-                  inEnd && 'bg-primary/40'
+                  inEnd && 'bg-primary/40',
+                  // Highlight player block cells in green during player phase
+                  tutorialPhase === 'player' && isInPlayerBlock(origX, origY) && 'bg-secondary/60'
                 )}
                 style={{ width: cellSize, height: cellSize }}
               >
@@ -237,53 +281,42 @@ export const MazePreview = ({
         )}
         
         {/* Centered animal icon overlay for start region */}
-        {playerCenterPosition && (
+        {playerBlock && (
           <div
             className="absolute flex flex-col items-center justify-center pointer-events-none z-10"
             style={(() => {
               // Transform center position to display coordinates
-              const transformed = transformCoord(playerCenterPosition.x, playerCenterPosition.y);
-              // Position at exact center - coords already include the +0.5 offset
+              const transformed = transformCoord(playerBlock.centerX, playerBlock.centerY);
+              // Position at exact center (the intersection of 4 cells)
               const centerX = transformed.tx * cellSize;
               const centerY = transformed.ty * cellSize;
-              // Icon size: 2.5x cell size for high visibility
-              const iconSize = cellSize * 2.5;
+              // Icon size: 2x cell size to fit nicely in the 2x2 block
+              const iconSize = cellSize * 2;
               return {
                 left: centerX - iconSize / 2,
                 top: centerY - iconSize / 2,
                 width: iconSize,
                 height: iconSize,
-                transform: tutorialPhase === 'player' ? `scale(${pulseScale})` : 'scale(0.6)',
+                transform: tutorialPhase === 'player' ? `scale(${pulseScale})` : 'scale(0.7)',
                 transition: tutorialPhase === 'player' ? 'none' : 'transform 0.3s ease-out',
               };
             })()}
           >
-            {/* Green circle indicator */}
-            {tutorialPhase === 'player' && (
-              <div 
-                className="absolute rounded-full bg-secondary/50 border-2 border-secondary"
-                style={{
-                  width: '120%',
-                  height: '120%',
-                  opacity: 0.6 + 0.4 * Math.sin((pulseScale - 0.8) / 0.5 * Math.PI),
-                }}
-              />
-            )}
-            <span style={{ fontSize: cellSize * 2 }}>{animalEmoji}</span>
+            <span style={{ fontSize: cellSize * 1.6 }}>{animalEmoji}</span>
           </div>
         )}
 
         {/* "You" label for player */}
-        {tutorialPhase === 'player' && playerCenterPosition && (
+        {tutorialPhase === 'player' && playerBlock && (
           <div
             className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
             style={(() => {
-              const transformed = transformCoord(playerCenterPosition.x, playerCenterPosition.y);
+              const transformed = transformCoord(playerBlock.centerX, playerBlock.centerY);
               const centerX = transformed.tx * cellSize;
               const centerY = transformed.ty * cellSize;
               return {
                 left: centerX,
-                top: centerY - cellSize * 1.8,
+                top: centerY - cellSize * 1.5,
                 transform: `translateX(-50%) scale(${pulseScale * 0.8 + 0.2})`,
                 fontSize: Math.max(12, cellSize * 0.5),
               };
