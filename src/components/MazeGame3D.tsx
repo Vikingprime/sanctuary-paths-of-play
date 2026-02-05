@@ -301,12 +301,14 @@ export const MazeGame3D = ({
     const tick = () => {
       if (previewStartTimeRef.current === null) return;
       
-      const elapsed = Math.floor((Date.now() - previewStartTimeRef.current) / 1000);
-      const remaining = Math.max(0, previewDurationRef.current - elapsed);
+      const elapsedMs = Date.now() - previewStartTimeRef.current;
+      const elapsedSeconds = elapsedMs / 1000;
+      // Use ceiling to show the number of seconds until completion (e.g. 0.1s elapsed = 10s remaining if duration is 10)
+      const remaining = Math.max(0, Math.ceil(previewDurationRef.current - elapsedSeconds));
       
       setPreviewTimeLeft(remaining);
       
-      if (remaining <= 0) {
+      if (elapsedSeconds >= previewDurationRef.current) {
         setIsPreviewing(false);
       } else {
         previewAnimFrameRef.current = requestAnimationFrame(tick);

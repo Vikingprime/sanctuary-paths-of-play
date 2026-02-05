@@ -1,7 +1,7 @@
-import { Maze, MazeCell, Animal } from '@/types/game';
+import { Maze, Animal } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { Volume2, VolumeX } from 'lucide-react';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 
 interface MazePreviewProps {
   maze: Maze;
@@ -24,6 +24,14 @@ export const MazePreview = ({
 }: MazePreviewProps) => {
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
 
+  // Tutorial animation phase: 'player' | 'finish' | 'stations' | 'done'
+  type TutorialPhase = 'player' | 'finish' | 'stations' | 'done';
+  const [tutorialPhase, setTutorialPhase] = useState<TutorialPhase>('player');
+  const phaseStartTimeRef = useRef<number>(Date.now());
+
+  // Pulsing animation state (for scale effect)
+  const [pulseScale, setPulseScale] = useState(1);
+
   useEffect(() => {
     const handleResize = () => {
       setIsLandscape(window.innerWidth > window.innerHeight);
@@ -32,6 +40,47 @@ export const MazePreview = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Tutorial phase progression: 1.5s per phase
+  useEffect(() => {
+    phaseStartTimeRef.current = Date.now();
+    
+    const advancePhase = () => {
+      setTutorialPhase(prev => {
+        if (prev === 'player') return 'finish';
+        if (prev === 'finish') return 'stations';
+        return 'done';
+      });
+    };
+
+    const timer = setTimeout(advancePhase, 1500);
+    return () => clearTimeout(timer);
+  }, [tutorialPhase]);
+
+  // Pulse animation loop (runs during active phases)
+  useEffect(() => {
+    if (tutorialPhase === 'done') {
+      setPulseScale(1);
+      return;
+    }
+
+    let animFrame: number;
+    const animate = () => {
+      const elapsed = Date.now() - phaseStartTimeRef.current;
+      // Oscillate between 0.8 and 1.3 scale with 400ms period
+      const t = (elapsed % 400) / 400;
+      const scale = 0.8 + 0.5 * Math.sin(t * Math.PI);
+      setPulseScale(scale);
+      animFrame = requestAnimationFrame(animate);
+    };
+    animFrame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animFrame);
+  }, [tutorialPhase]);
+
+  // Check if maze has any stations
+  const hasStations = useMemo(() => {
+    return maze.grid.some(row => row.some(cell => cell.isStation));
+  }, [maze]);
+
   // Get animal emoji
   const animalEmoji = selectedAnimal?.emoji || '🐷';
 
@@ -39,12 +88,9 @@ export const MazePreview = ({
   const gridWidth = maze.grid[0].length;
   const gridHeight = maze.grid.length;
   
-  // In landscape, give more space to the maze (header is on left side)
-   // In landscape, we rotate the maze 90deg so swap width/height for cell calculation
-   // For landscape: the maze will be rotated, so calculate available space based on final visual dimensions
-   // In landscape: give 82% of width to the maze, leave 18% for the compact left panel
-   const availableWidth = isLandscape ? window.innerWidth * 0.80 : window.innerWidth - 64;
-   const availableHeight = isLandscape ? window.innerHeight - 32 : window.innerHeight - 220;
+  // In landscape: give 88% of width to the maze for a much larger display
+  const availableWidth = isLandscape ? window.innerWidth * 0.88 : window.innerWidth - 64;
+  const availableHeight = isLandscape ? window.innerHeight - 24 : window.innerHeight - 220;
   
   // In landscape, we swap dimensions due to 90° rotation
   const displayWidthForCalc = isLandscape ? gridHeight : gridWidth;
@@ -52,8 +98,8 @@ export const MazePreview = ({
   
   const maxCellFromWidth = Math.floor(availableWidth / displayWidthForCalc);
   const maxCellFromHeight = Math.floor(availableHeight / displayHeightForCalc);
-  // Allow larger cells in landscape mode (up to 42px)
-  const maxCellSize = isLandscape ? 42 : 28;
+  // Allow larger cells in landscape mode (up to 56px for bigger map)
+  const maxCellSize = isLandscape ? 56 : 28;
   const cellSize = Math.min(maxCellSize, maxCellFromWidth, maxCellFromHeight);
 
   // Calculate bounding box for start and end regions
@@ -86,6 +132,57 @@ export const MazePreview = ({
   
   const isInEndRegion = (x: number, y: number) => 
     endBounds && x >= endBounds.minX && x <= endBounds.maxX && y >= endBounds.minY && y <= endBounds.maxY;
+
+  // Find a path cell near start for player icon positioning
+  const playerPathPosition = useMemo(() => {
+    if (!startBounds) return null;
+    
+    // Search for a path cell adjacent to or within the start region
+    const searchCells: { x: number; y: number }[] = [];
+    
+    // First, check cells within the start region
+    for (let y = startBounds.minY; y <= startBounds.maxY; y++) {
+      for (let x = startBounds.minX; x <= startBounds.maxX; x++) {
+        if (!maze.grid[y]?.[x]?.isWall && !maze.grid[y]?.[x]?.isStart) {
+          searchCells.push({ x, y });
+        }
+      }
+    }
+    
+    // Then check cells adjacent to start region
+    for (let y = startBounds.minY - 1; y <= startBounds.maxY + 1; y++) {
+      for (let x = startBounds.minX - 1; x <= startBounds.maxX + 1; x++) {
+        const cell = maze.grid[y]?.[x];
+        if (cell && !cell.isWall && !cell.isStart && !cell.isEnd) {
+          searchCells.push({ x, y });
+        }
+      }
+    }
+    
+    // Return first valid path cell, or center of start region as fallback
+    if (searchCells.length > 0) {
+      return searchCells[0];
+    }
+    
+    // Fallback to center of start bounds
+    return {
+      x: (startBounds.minX + startBounds.maxX) / 2,
+      y: (startBounds.minY + startBounds.maxY) / 2,
+    };
+  }, [maze, startBounds]);
+
+  // Find all station positions for the tutorial
+  const stationPositions = useMemo(() => {
+    const positions: { x: number; y: number }[] = [];
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell.isStation) {
+          positions.push({ x, y });
+        }
+      });
+    });
+    return positions;
+  }, [maze]);
 
   // Transform coordinates for landscape mode (90° counter-clockwise rotation)
   // Original: (x, y) -> Rotated: (y, gridWidth - 1 - x)
@@ -153,30 +250,52 @@ export const MazePreview = ({
         )}
         
         {/* Centered animal icon overlay for start region */}
-        {startBounds && (
+        {playerPathPosition && (
           <div
-             className="absolute flex items-center justify-center pointer-events-none z-10"
-            style={(() => {
-              const topLeft = transformCoord(startBounds.minX, startBounds.minY);
-              const bottomRight = transformCoord(startBounds.maxX, startBounds.maxY);
-              const left = Math.min(topLeft.tx, bottomRight.tx) * cellSize;
-              const top = Math.min(topLeft.ty, bottomRight.ty) * cellSize;
-              const width = (Math.abs(bottomRight.tx - topLeft.tx) + 1) * cellSize;
-              const height = (Math.abs(bottomRight.ty - topLeft.ty) + 1) * cellSize;
-              return {
-                left, top, width, height,
-                fontSize: Math.max(width, height) * 1.2,
-              };
-            })()}
+            className="absolute flex flex-col items-center justify-center pointer-events-none z-10"
+            style={{
+              left: transformCoord(playerPathPosition.x, playerPathPosition.y).tx * cellSize,
+              top: transformCoord(playerPathPosition.x, playerPathPosition.y).ty * cellSize,
+              width: cellSize,
+              height: cellSize,
+              transform: tutorialPhase === 'player' ? `scale(${pulseScale})` : 'scale(0.8)',
+              transition: tutorialPhase === 'player' ? 'none' : 'transform 0.3s ease-out',
+            }}
           >
-            {animalEmoji}
+            {/* Green circle indicator */}
+            {tutorialPhase === 'player' && (
+              <div 
+                className="absolute rounded-full bg-secondary/50 border-2 border-secondary"
+                style={{
+                  width: cellSize * 1.8,
+                  height: cellSize * 1.8,
+                  opacity: 0.6 + 0.4 * Math.sin((pulseScale - 0.8) / 0.5 * Math.PI),
+                }}
+              />
+            )}
+            <span style={{ fontSize: cellSize * 0.7 }}>{animalEmoji}</span>
+          </div>
+        )}
+
+        {/* "You" label for player */}
+        {tutorialPhase === 'player' && playerPathPosition && (
+          <div
+            className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
+            style={{
+              left: transformCoord(playerPathPosition.x, playerPathPosition.y).tx * cellSize + cellSize / 2,
+              top: transformCoord(playerPathPosition.x, playerPathPosition.y).ty * cellSize - cellSize * 0.8,
+              transform: 'translateX(-50%)',
+              fontSize: Math.max(10, cellSize * 0.35),
+            }}
+          >
+            You
           </div>
         )}
         
         {/* Centered flag overlay for end region */}
         {endBounds && (
           <div
-             className="absolute flex items-center justify-center pointer-events-none z-10"
+            className="absolute flex items-center justify-center pointer-events-none z-10"
             style={(() => {
               const topLeft = transformCoord(endBounds.minX, endBounds.minY);
               const bottomRight = transformCoord(endBounds.maxX, endBounds.maxY);
@@ -187,10 +306,97 @@ export const MazePreview = ({
               return {
                 left, top, width, height,
                 fontSize: Math.min(width, height) * 0.7,
+                transform: tutorialPhase === 'finish' ? `scale(${pulseScale})` : 'scale(1)',
+                transition: tutorialPhase === 'finish' ? 'none' : 'transform 0.3s ease-out',
               };
             })()}
           >
+            {/* Green circle indicator for finish */}
+            {tutorialPhase === 'finish' && (
+              <div 
+                className="absolute rounded-full bg-secondary/50 border-2 border-secondary"
+                style={{
+                  width: Math.min(
+                    (Math.abs(transformCoord(endBounds.maxX, endBounds.maxY).tx - transformCoord(endBounds.minX, endBounds.minY).tx) + 1) * cellSize,
+                    (Math.abs(transformCoord(endBounds.maxX, endBounds.maxY).ty - transformCoord(endBounds.minX, endBounds.minY).ty) + 1) * cellSize
+                  ) * 1.5,
+                  height: Math.min(
+                    (Math.abs(transformCoord(endBounds.maxX, endBounds.maxY).tx - transformCoord(endBounds.minX, endBounds.minY).tx) + 1) * cellSize,
+                    (Math.abs(transformCoord(endBounds.maxX, endBounds.maxY).ty - transformCoord(endBounds.minX, endBounds.minY).ty) + 1) * cellSize
+                  ) * 1.5,
+                  opacity: 0.6 + 0.4 * Math.sin((pulseScale - 0.8) / 0.5 * Math.PI),
+                }}
+              />
+            )}
             🏁
+          </div>
+        )}
+
+        {/* "Finish" label */}
+        {tutorialPhase === 'finish' && endBounds && (
+          <div
+            className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
+            style={(() => {
+              const topLeft = transformCoord(endBounds.minX, endBounds.minY);
+              const bottomRight = transformCoord(endBounds.maxX, endBounds.maxY);
+              const centerX = (Math.min(topLeft.tx, bottomRight.tx) + (Math.abs(bottomRight.tx - topLeft.tx) + 1) / 2) * cellSize;
+              const top = Math.min(topLeft.ty, bottomRight.ty) * cellSize - cellSize * 0.6;
+              return {
+                left: centerX,
+                top,
+                transform: 'translateX(-50%)',
+                fontSize: Math.max(10, cellSize * 0.35),
+              };
+            })()}
+          >
+            Finish
+          </div>
+        )}
+
+        {/* Station icons with tutorial animation */}
+        {stationPositions.map((pos, idx) => {
+          const transformed = transformCoord(pos.x, pos.y);
+          const isAnimating = tutorialPhase === 'stations';
+          return (
+            <div
+              key={`station-${idx}`}
+              className="absolute flex items-center justify-center pointer-events-none z-10"
+              style={{
+                left: transformed.tx * cellSize,
+                top: transformed.ty * cellSize,
+                width: cellSize,
+                height: cellSize,
+                transform: isAnimating ? `scale(${pulseScale})` : 'scale(1)',
+                transition: isAnimating ? 'none' : 'transform 0.3s ease-out',
+              }}
+            >
+              {isAnimating && (
+                <div 
+                  className="absolute rounded-full bg-secondary/50 border-2 border-secondary"
+                  style={{
+                    width: cellSize * 1.5,
+                    height: cellSize * 1.5,
+                    opacity: 0.6 + 0.4 * Math.sin((pulseScale - 0.8) / 0.5 * Math.PI),
+                  }}
+                />
+              )}
+              <span style={{ fontSize: cellSize * 0.6 }}>📍</span>
+            </div>
+          );
+        })}
+
+        {/* "Map towers" label - show above first station */}
+        {tutorialPhase === 'stations' && hasStations && stationPositions.length > 0 && (
+          <div
+            className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md whitespace-nowrap"
+            style={{
+              left: transformCoord(stationPositions[0].x, stationPositions[0].y).tx * cellSize + cellSize / 2,
+              top: transformCoord(stationPositions[0].x, stationPositions[0].y).ty * cellSize - cellSize * 0.6,
+              transform: 'translateX(-50%)',
+              fontSize: Math.max(10, cellSize * 0.35),
+            }}
+          >
+            Map towers
           </div>
         )}
       </div>
@@ -200,43 +406,38 @@ export const MazePreview = ({
   // Landscape layout: side by side
   if (isLandscape) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-2 gap-3">
+      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-1 gap-2">
         {/* Top right controls */}
-        <div className="absolute top-2 right-2 flex flex-row gap-2 z-10">
+        <div className="absolute top-1 right-1 flex flex-row gap-1 z-10">
           {onToggleMute && (
             <button
               onClick={onToggleMute}
-              className="bg-card/90 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-lg font-display text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              className="bg-card/90 backdrop-blur-sm rounded-lg px-2 py-1 shadow-lg font-display text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
               title={isMuted ? 'Unmute' : 'Mute'}
             >
-              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              {isMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
             </button>
           )}
           {onQuit && (
             <button
               onClick={onQuit}
-              className="bg-card/90 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-lg font-display text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="bg-card/90 backdrop-blur-sm rounded-lg px-2 py-1 shadow-lg font-display text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
-              ✕ Quit
+              ✕
             </button>
           )}
         </div>
 
         {/* Left side: Header + Timer */}
-        <div className="flex flex-col items-center justify-center gap-2 flex-shrink-0 w-[18%] min-w-[120px]">
-          <div className="text-center animate-fade-in px-3">
-            <h2 className="font-display text-lg font-bold text-foreground leading-tight">
-              Memorize! 🧠
+        <div className="flex flex-col items-center justify-center gap-1 flex-shrink-0 w-[12%] min-w-[80px]">
+          <div className="text-center animate-fade-in px-1">
+            <h2 className="font-display text-sm font-bold text-foreground leading-tight">
+              🧠
             </h2>
           </div>
           
-          <div className="bg-primary text-primary-foreground px-4 py-1 rounded-full font-display font-bold text-lg animate-pulse">
+          <div className="bg-primary text-primary-foreground px-3 py-0.5 rounded-full font-display font-bold text-base animate-pulse">
             {timeLeft}s
-          </div>
-
-          <div className="text-center text-xs text-muted-foreground leading-snug mt-2 space-y-1">
-            <p>{animalEmoji} → 🏁</p>
-            <p>⚡ Power | 📍 Map</p>
           </div>
         </div>
 
