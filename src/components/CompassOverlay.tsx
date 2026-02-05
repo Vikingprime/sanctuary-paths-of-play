@@ -95,8 +95,9 @@ export const CompassOverlay = ({
     >
       <div className="bg-card/80 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg flex items-center gap-2">
         {/* Arrow pointing UP = "you are facing this direction" */}
+        {/* Navigation icon defaults to top-right, so rotate -45° to point up */}
         <Navigation 
-          className="w-5 h-5 text-secondary fill-secondary/30" 
+          className="w-5 h-5 text-secondary fill-secondary/30 -rotate-45" 
           strokeWidth={2.5}
         />
         
