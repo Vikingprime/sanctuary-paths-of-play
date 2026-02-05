@@ -42,12 +42,19 @@ export const MazePreview = ({
   // In landscape, give more space to the maze (header is on left side)
    // In landscape, we rotate the maze 90deg so swap width/height for cell calculation
    // For landscape: the maze will be rotated, so calculate available space based on final visual dimensions
-   const availableWidth = isLandscape ? window.innerWidth * 0.55 : window.innerWidth - 64;
-   const availableHeight = isLandscape ? window.innerHeight - 80 : window.innerHeight - 220;
+   // In landscape: give 75% of width to the maze, leave 25% for the compact left panel
+   const availableWidth = isLandscape ? window.innerWidth * 0.72 : window.innerWidth - 64;
+   const availableHeight = isLandscape ? window.innerHeight - 40 : window.innerHeight - 220;
   
-  const maxCellFromWidth = Math.floor(availableWidth / gridWidth);
-  const maxCellFromHeight = Math.floor(availableHeight / gridHeight);
-  const cellSize = Math.min(28, maxCellFromWidth, maxCellFromHeight);
+  // In landscape, we swap dimensions due to 90° rotation
+  const displayWidthForCalc = isLandscape ? gridHeight : gridWidth;
+  const displayHeightForCalc = isLandscape ? gridWidth : gridHeight;
+  
+  const maxCellFromWidth = Math.floor(availableWidth / displayWidthForCalc);
+  const maxCellFromHeight = Math.floor(availableHeight / displayHeightForCalc);
+  // Allow larger cells in landscape mode (up to 36px)
+  const maxCellSize = isLandscape ? 36 : 28;
+  const cellSize = Math.min(maxCellSize, maxCellFromWidth, maxCellFromHeight);
 
   // Calculate bounding box for start and end regions
   const { startBounds, endBounds } = useMemo(() => {
@@ -193,7 +200,7 @@ export const MazePreview = ({
   // Landscape layout: side by side
   if (isLandscape) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-4 gap-6">
+      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-2 gap-3">
         {/* Top right controls */}
         <div className="absolute top-2 right-2 flex flex-row gap-2 z-10">
           {onToggleMute && (
@@ -216,25 +223,20 @@ export const MazePreview = ({
         </div>
 
         {/* Left side: Header + Timer */}
-        <div className="flex flex-col items-center justify-center gap-4 flex-shrink-0">
-          <div className="text-center animate-fade-in">
-            <h2 className="font-display text-xl font-bold text-foreground mb-1">
+        <div className="flex flex-col items-center justify-center gap-2 flex-shrink-0 w-[22%] min-w-[120px]">
+          <div className="text-center animate-fade-in px-2">
+            <h2 className="font-display text-base font-bold text-foreground leading-tight">
               Memorize the Path! 🧠
             </h2>
-            <p className="text-xs text-muted-foreground">
-              Study carefully!
-            </p>
           </div>
           
-          <div className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full font-display font-bold text-base animate-pulse">
+          <div className="bg-primary text-primary-foreground px-3 py-1 rounded-full font-display font-bold text-sm animate-pulse">
             Starting in {timeLeft}s
           </div>
 
-          <div className="text-center text-[10px] text-muted-foreground mt-2">
-            <p>{animalEmoji} Start</p>
-            <p>🏁 Exit</p>
-            <p>⚡ Power-up</p>
-            <p>📍 Map</p>
+          <div className="text-center text-[9px] text-muted-foreground leading-relaxed">
+            <p>{animalEmoji} Start | 🏁 Exit</p>
+            <p>⚡ Power | 📍 Map</p>
           </div>
         </div>
 
