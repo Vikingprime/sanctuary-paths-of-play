@@ -382,6 +382,48 @@ export const MazeGame3D = ({
     };
   }, [isPreviewing, gameOver, activeDialogue, maze.timeLimit, debugMode]);
 
+  // Screen Wake Lock to prevent dimming during gameplay
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  
+  useEffect(() => {
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator && !isPreviewing && !gameOver) {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {
+        // Wake lock request failed - silently ignore
+      }
+    };
+    
+    const releaseWakeLock = () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    };
+    
+    if (!isPreviewing && !gameOver) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+    
+    // Re-acquire wake lock when page becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isPreviewing && !gameOver) {
+        requestWakeLock();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      releaseWakeLock();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isPreviewing, gameOver]);
+
   // Check if all required dialogues for a given dialogue are completed
   const areRequirementsMet = useCallback((dialogue: DialogueTrigger): boolean => {
     if (!dialogue.requires || dialogue.requires.length === 0) return true;

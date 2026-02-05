@@ -42,9 +42,9 @@ export const MazePreview = ({
   // In landscape, give more space to the maze (header is on left side)
    // In landscape, we rotate the maze 90deg so swap width/height for cell calculation
    // For landscape: the maze will be rotated, so calculate available space based on final visual dimensions
-   // In landscape: give 75% of width to the maze, leave 25% for the compact left panel
-   const availableWidth = isLandscape ? window.innerWidth * 0.72 : window.innerWidth - 64;
-   const availableHeight = isLandscape ? window.innerHeight - 40 : window.innerHeight - 220;
+   // In landscape: give 82% of width to the maze, leave 18% for the compact left panel
+   const availableWidth = isLandscape ? window.innerWidth * 0.80 : window.innerWidth - 64;
+   const availableHeight = isLandscape ? window.innerHeight - 32 : window.innerHeight - 220;
   
   // In landscape, we swap dimensions due to 90° rotation
   const displayWidthForCalc = isLandscape ? gridHeight : gridWidth;
@@ -52,8 +52,8 @@ export const MazePreview = ({
   
   const maxCellFromWidth = Math.floor(availableWidth / displayWidthForCalc);
   const maxCellFromHeight = Math.floor(availableHeight / displayHeightForCalc);
-  // Allow larger cells in landscape mode (up to 36px)
-  const maxCellSize = isLandscape ? 36 : 28;
+  // Allow larger cells in landscape mode (up to 42px)
+  const maxCellSize = isLandscape ? 42 : 28;
   const cellSize = Math.min(maxCellSize, maxCellFromWidth, maxCellFromHeight);
 
   // Calculate bounding box for start and end regions
@@ -223,20 +223,20 @@ export const MazePreview = ({
         </div>
 
         {/* Left side: Header + Timer */}
-        <div className="flex flex-col items-center justify-center gap-2 flex-shrink-0 w-[22%] min-w-[120px]">
+        <div className="flex flex-col items-center justify-center gap-1 flex-shrink-0 w-[16%] min-w-[100px]">
           <div className="text-center animate-fade-in px-2">
-            <h2 className="font-display text-base font-bold text-foreground leading-tight">
-              Memorize the Path! 🧠
+            <h2 className="font-display text-sm font-bold text-foreground leading-tight">
+              Memorize! 🧠
             </h2>
           </div>
           
-          <div className="bg-primary text-primary-foreground px-3 py-1 rounded-full font-display font-bold text-sm animate-pulse">
-            Starting in {timeLeft}s
+          <div className="bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-display font-bold text-xs animate-pulse">
+            {timeLeft}s
           </div>
 
-          <div className="text-center text-[9px] text-muted-foreground leading-relaxed">
-            <p>{animalEmoji} Start | 🏁 Exit</p>
-            <p>⚡ Power | 📍 Map</p>
+          <div className="text-center text-[8px] text-muted-foreground leading-snug mt-1">
+            <p>{animalEmoji}→🏁</p>
+            <p>⚡📍</p>
           </div>
         </div>
 
