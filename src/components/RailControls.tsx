@@ -467,10 +467,10 @@ const RadialDirectionButton = ({
         ${disabled 
           ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' 
           : isTurnAround
-            ? 'bg-amber-500/40 hover:bg-amber-500/60 text-white shadow-lg hover:scale-110 backdrop-blur-sm'
-            : 'bg-primary/40 hover:bg-primary/60 text-white shadow-lg hover:scale-110 backdrop-blur-sm'
+            ? 'bg-amber-500/20 hover:bg-amber-500/40 text-white/70 shadow-lg hover:scale-110 backdrop-blur-sm'
+            : 'bg-primary/20 hover:bg-primary/40 text-white/70 shadow-lg hover:scale-110 backdrop-blur-sm'
         }
-        border-2 ${disabled ? 'border-gray-600' : isTurnAround ? 'border-amber-300/50' : 'border-white/30'}
+        border ${disabled ? 'border-gray-600/50' : isTurnAround ? 'border-amber-200/30' : 'border-white/20'}
       `}
     >
       {isTurnAround ? (
@@ -553,10 +553,10 @@ export function RailControls({
           className="
             w-16 h-16 rounded-full
             flex items-center justify-center
-            bg-amber-500/40 hover:bg-amber-500/60
-            text-white shadow-xl hover:scale-110 backdrop-blur-sm
+            bg-amber-500/20 hover:bg-amber-500/40
+            text-white/70 shadow-xl hover:scale-110 backdrop-blur-sm
             transition-all duration-200
-            border-2 border-amber-300/50
+            border border-amber-200/30
           "
         >
           <Square className="w-8 h-8 fill-current" />
@@ -570,8 +570,8 @@ export function RailControls({
       <div className="relative w-40 h-40">
         {/* Center indicator */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-12 h-12 rounded-full bg-background/40 border-2 border-white/30 flex items-center justify-center backdrop-blur-sm">
-            <div className="w-4 h-4 rounded-full bg-primary animate-pulse" />
+          <div className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center">
+            <div className="w-3 h-3 rounded-full bg-primary/30 animate-pulse" />
           </div>
         </div>
         
