@@ -1361,12 +1361,28 @@ const RefBasedPlayer = ({
           while (targetRotation < 0) targetRotation += Math.PI * 2;
           while (targetRotation >= Math.PI * 2) targetRotation -= Math.PI * 2;
           
+          // Smooth rotation interpolation to avoid jitter
+          // Lerp toward target rotation with high smoothing factor
+          let finalRotation = targetRotation;
+          if (!isFirstMovementFrame) {
+            const currentRot = playerStateRef.current.rotation;
+            let rotDiff = targetRotation - currentRot;
+            // Handle wrap-around
+            while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+            while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+            // Smooth with high lerp factor (0.15) for responsive but smooth turns
+            const ROTATION_SMOOTH = 0.15;
+            finalRotation = currentRot + rotDiff * ROTATION_SMOOTH;
+            // Normalize
+            while (finalRotation < 0) finalRotation += Math.PI * 2;
+            while (finalRotation >= Math.PI * 2) finalRotation -= Math.PI * 2;
+          }
+          
           // Set position exactly on the path curve
-          // On first frame, keep current rotation to avoid jerk from turn phase ending
           playerStateRef.current = {
             x: newX,
             y: newZ,
-            rotation: isFirstMovementFrame ? playerStateRef.current.rotation : targetRotation,
+            rotation: isFirstMovementFrame ? playerStateRef.current.rotation : finalRotation,
           };
           
           // Check if reached end
