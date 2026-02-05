@@ -243,6 +243,12 @@ export const MazePreview = ({
     return { tx: y, ty: gridWidth - 1 - x };
   };
   
+  // Transform for CENTER positions (not cell indices) - uses gridWidth instead of gridWidth-1
+  const transformCenter = (x: number, y: number) => {
+    if (!isLandscape) return { tx: x, ty: y };
+    return { tx: y, ty: gridWidth - x };
+  };
+  
   // In landscape, we swap grid dimensions for display
   const displayWidth = isLandscape ? gridHeight : gridWidth;
   const displayHeight = isLandscape ? gridWidth : gridHeight;
@@ -281,11 +287,7 @@ export const MazePreview = ({
                   // No borders for start/end regions, subtle borders elsewhere
                   !inStart && !inEnd && 'border-[0.5px] border-sage/20',
                   cell.isWall ? 'bg-earth' : 'bg-wheat/60',
-                  inEnd && 'bg-primary/40',
-                  // Highlight player block cells in green during player phase
-                  tutorialPhase === 'player' && isInPlayerBlock(origX, origY) && 'bg-secondary/60',
-                  // Highlight finish block cells during finish phase
-                  tutorialPhase === 'finish' && inEnd && 'bg-secondary/60'
+                  inEnd && 'bg-primary/40'
                 )}
                 style={{ width: cellSize, height: cellSize }}
               >
@@ -309,12 +311,10 @@ export const MazePreview = ({
           <div
             className="absolute flex flex-col items-center justify-center pointer-events-none z-10"
             style={(() => {
-              // Transform center position to display coordinates
-              const transformed = transformCoord(playerBlock.centerX, playerBlock.centerY);
-              // Position at exact center (the intersection of 4 cells)
+              // Transform center position to display coordinates using center transform
+              const transformed = transformCenter(playerBlock.centerX, playerBlock.centerY);
               const centerX = transformed.tx * cellSize;
               const centerY = transformed.ty * cellSize;
-              // Icon size: 2x cell size to fit nicely in the 2x2 block
               const iconSize = cellSize * 2;
               return {
                 left: centerX - iconSize / 2,
@@ -326,6 +326,16 @@ export const MazePreview = ({
               };
             })()}
           >
+            {/* Green circle indicator like map tower */}
+            {tutorialPhase === 'player' && (
+              <div 
+                className="absolute rounded-full bg-secondary/40 border-2 border-secondary"
+                style={{
+                  width: cellSize * 2.2,
+                  height: cellSize * 2.2,
+                }}
+              />
+            )}
             <span style={{ fontSize: cellSize * 1.6 }}>{animalEmoji}</span>
           </div>
         )}
@@ -335,7 +345,7 @@ export const MazePreview = ({
           <div
             className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
             style={(() => {
-              const transformed = transformCoord(playerBlock.centerX, playerBlock.centerY);
+              const transformed = transformCenter(playerBlock.centerX, playerBlock.centerY);
               const centerX = transformed.tx * cellSize;
               const centerY = transformed.ty * cellSize;
               return {
@@ -355,7 +365,7 @@ export const MazePreview = ({
           <div
             className="absolute flex items-center justify-center pointer-events-none z-10"
             style={(() => {
-              const transformed = transformCoord(finishBlock.centerX, finishBlock.centerY);
+              const transformed = transformCenter(finishBlock.centerX, finishBlock.centerY);
               const centerX = transformed.tx * cellSize;
               const centerY = transformed.ty * cellSize;
               const iconSize = cellSize * 2;
@@ -369,6 +379,16 @@ export const MazePreview = ({
               };
             })()}
           >
+            {/* Green circle indicator like map tower */}
+            {tutorialPhase === 'finish' && (
+              <div 
+                className="absolute rounded-full bg-secondary/40 border-2 border-secondary"
+                style={{
+                  width: cellSize * 2.2,
+                  height: cellSize * 2.2,
+                }}
+              />
+            )}
             <span style={{ fontSize: cellSize * 1.6 }}>🏁</span>
           </div>
         )}
@@ -378,7 +398,7 @@ export const MazePreview = ({
           <div
             className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
             style={(() => {
-              const transformed = transformCoord(finishBlock.centerX, finishBlock.centerY);
+              const transformed = transformCenter(finishBlock.centerX, finishBlock.centerY);
               const centerX = transformed.tx * cellSize;
               const centerY = transformed.ty * cellSize;
               return {
