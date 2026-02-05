@@ -255,16 +255,43 @@ export const MazePreview = ({
 
   const mazeGrid = (
     <div
-       className="bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0"
+       className="bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0 relative"
       style={{
-        width: displayWidth * cellSize + 16,
-        height: displayHeight * cellSize + 16,
+        width: displayWidth * cellSize + 16 + 40, // Extra space for compass labels
+        height: displayHeight * cellSize + 16 + 40,
       }}
     >
+      {/* Compass directions - positioned around the map */}
+      {/* In landscape mode, the map is rotated 90° CCW, so directions shift */}
+      <div 
+        className="absolute font-display font-bold text-secondary text-sm sm:text-base"
+        style={{ top: 4, left: '50%', transform: 'translateX(-50%)' }}
+      >
+        {isLandscape ? 'W' : 'N'}
+      </div>
+      <div 
+        className="absolute font-display font-bold text-secondary text-sm sm:text-base"
+        style={{ bottom: 4, left: '50%', transform: 'translateX(-50%)' }}
+      >
+        {isLandscape ? 'E' : 'S'}
+      </div>
+      <div 
+        className="absolute font-display font-bold text-secondary text-sm sm:text-base"
+        style={{ left: 4, top: '50%', transform: 'translateY(-50%)' }}
+      >
+        {isLandscape ? 'N' : 'W'}
+      </div>
+      <div 
+        className="absolute font-display font-bold text-secondary text-sm sm:text-base"
+        style={{ right: 4, top: '50%', transform: 'translateY(-50%)' }}
+      >
+        {isLandscape ? 'S' : 'E'}
+      </div>
       <div
         className="grid gap-0 relative"
         style={{
           gridTemplateColumns: `repeat(${displayWidth}, ${cellSize}px)`,
+          margin: '20px', // Space for compass labels
         }}
       >
         {/* Render cells in transformed order for landscape */}
@@ -298,7 +325,7 @@ export const MazePreview = ({
                 )}
                 {cell.isStation && (
                   <span className="absolute inset-0 flex items-center justify-center text-[8px] sm:text-xs">
-                    📍
+                    🗺️
                   </span>
                 )}
               </div>
@@ -343,16 +370,16 @@ export const MazePreview = ({
         {/* "You" label for player */}
         {tutorialPhase === 'player' && playerBlock && (
           <div
-            className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
+            className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-3 py-1 rounded-lg shadow-md"
             style={(() => {
               const transformed = transformCenter(playerBlock.centerX, playerBlock.centerY);
               const centerX = transformed.tx * cellSize;
               const centerY = transformed.ty * cellSize;
               return {
                 left: centerX,
-                top: centerY - cellSize * 1.5,
+                top: centerY - cellSize * 1.8,
                 transform: `translateX(-50%) scale(${pulseScale * 0.8 + 0.2})`,
-                fontSize: Math.max(12, cellSize * 0.5),
+                fontSize: Math.max(16, cellSize * 0.7),
               };
             })()}
           >
@@ -396,16 +423,16 @@ export const MazePreview = ({
         {/* "Finish" label */}
         {tutorialPhase === 'finish' && finishBlock && (
           <div
-            className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
+            className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-3 py-1 rounded-lg shadow-md"
             style={(() => {
               const transformed = transformCenter(finishBlock.centerX, finishBlock.centerY);
               const centerX = transformed.tx * cellSize;
               const centerY = transformed.ty * cellSize;
               return {
                 left: centerX,
-                top: centerY - cellSize * 1.5,
+                top: centerY - cellSize * 1.8,
                 transform: `translateX(-50%) scale(${pulseScale * 0.8 + 0.2})`,
-                fontSize: Math.max(12, cellSize * 0.5),
+                fontSize: Math.max(16, cellSize * 0.7),
               };
             })()}
           >
@@ -441,7 +468,7 @@ export const MazePreview = ({
                   }}
                 />
               )}
-              <span style={{ fontSize: cellSize * 1.5 }}>📍</span>
+              <span style={{ fontSize: cellSize * 1.5 }}>🗺️</span>
             </div>
           );
         })}
@@ -449,14 +476,14 @@ export const MazePreview = ({
         {/* "Map towers" label - show above first station */}
         {tutorialPhase === 'stations' && hasStations && stationPositions.length > 0 && (
           <div
-            className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md whitespace-nowrap"
+            className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-3 py-1 rounded-lg shadow-md whitespace-nowrap"
             style={(() => {
               const transformed = transformCoord(stationPositions[0].x, stationPositions[0].y);
               return {
                 left: (transformed.tx + 0.5) * cellSize,
-                top: (transformed.ty + 0.5) * cellSize - cellSize * 1.5,
+                top: (transformed.ty + 0.5) * cellSize - cellSize * 1.8,
                 transform: `translateX(-50%) scale(${pulseScale * 0.8 + 0.2})`,
-                fontSize: Math.max(12, cellSize * 0.5),
+                fontSize: Math.max(16, cellSize * 0.7),
               };
             })()}
           >
@@ -557,7 +584,7 @@ export const MazePreview = ({
       {mazeGrid}
 
       <div className="mt-2 sm:mt-6 text-center text-[10px] sm:text-sm text-muted-foreground">
-        <p>{animalEmoji} Start | 🏁 Exit | ⚡ Power-up | 📍 Map</p>
+        <p>{animalEmoji} Start | 🏁 Exit | ⚡ Power-up | 🗺️ Map</p>
       </div>
     </div>
   );

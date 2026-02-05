@@ -30,15 +30,32 @@ export const MiniMap = ({ maze, playerPos, isVisible, onClose, timeLeft }: MiniM
         </div>
 
         <div
-          className="bg-sage/20 rounded-xl p-3 mx-auto"
+          className="bg-sage/20 rounded-xl p-3 mx-auto relative"
           style={{
-            width: maze.grid[0].length * cellSize + 24,
+            width: maze.grid[0].length * cellSize + 24 + 32, // Extra space for compass labels
+            paddingTop: 24, // Space for N
+            paddingBottom: 24, // Space for S
           }}
         >
+          {/* Compass directions */}
+          <div className="absolute font-display font-bold text-secondary text-sm" style={{ top: 4, left: '50%', transform: 'translateX(-50%)' }}>
+            N
+          </div>
+          <div className="absolute font-display font-bold text-secondary text-sm" style={{ bottom: 4, left: '50%', transform: 'translateX(-50%)' }}>
+            S
+          </div>
+          <div className="absolute font-display font-bold text-secondary text-sm" style={{ left: 4, top: '50%', transform: 'translateY(-50%)' }}>
+            W
+          </div>
+          <div className="absolute font-display font-bold text-secondary text-sm" style={{ right: 4, top: '50%', transform: 'translateY(-50%)' }}>
+            E
+          </div>
+          
           <div
-            className="grid gap-0"
+            className="grid gap-0 mx-auto"
             style={{
               gridTemplateColumns: `repeat(${maze.grid[0].length}, ${cellSize}px)`,
+              width: maze.grid[0].length * cellSize,
             }}
           >
             {maze.grid.map((row, y) =>

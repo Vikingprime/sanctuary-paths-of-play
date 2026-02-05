@@ -7,6 +7,7 @@ import { GameHUD, SensitivityConfig, DEFAULT_SENSITIVITY } from './GameHUD';
 import { MobileControls } from './MobileControls';
 import { RailControls } from './RailControls';
 import { MazeIntroSequence } from './MazeIntroSequence';
+import { CompassOverlay } from './CompassOverlay';
 import { Button } from '@/components/ui/button';
 import { Confetti } from '@/components/Confetti';
 import { animals } from '@/data/animals';
@@ -94,6 +95,7 @@ export const MazeGame3D = ({
   const [restartKey, setRestartKey] = useState(0); // Increment to force camera reset
   const [completionResult, setCompletionResult] = useState<CompletionResult | null>(null);
   const [finalTime, setFinalTime] = useState(0); // Time used to complete
+  const [showCompass, setShowCompass] = useState(false); // Show compass at game start
   // Debug toggles
   const [topDownCamera, setTopDownCamera] = useState(false);
   const [groundLevelCamera, setGroundLevelCamera] = useState(false);
@@ -383,6 +385,13 @@ export const MazeGame3D = ({
       }
     };
   }, [isPreviewing, gameOver, activeDialogue, maze.timeLimit, debugMode]);
+
+  // Show compass when game starts (preview ends)
+  useEffect(() => {
+    if (!isPreviewing && !isShowingIntro && !gameOver) {
+      setShowCompass(true);
+    }
+  }, [isPreviewing, isShowingIntro, gameOver]);
 
   // Screen Wake Lock to prevent dimming during gameplay
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -1276,6 +1285,15 @@ export const MazeGame3D = ({
           onPolylineConfigChange={setPolylineConfig}
           railTurnSpeed={railTurnSpeed}
           onRailTurnSpeedChange={setRailTurnSpeed}
+        />
+      )}
+
+      {/* Compass overlay - shows briefly when game starts */}
+      {!isPreviewing && (
+        <CompassOverlay 
+          show={showCompass} 
+          duration={4000}
+          onHide={() => setShowCompass(false)}
         />
       )}
 
