@@ -40,8 +40,9 @@ export const MazePreview = ({
   const gridHeight = maze.grid.length;
   
   // In landscape, give more space to the maze (header is on left side)
-  const availableWidth = isLandscape ? window.innerWidth * 0.6 - 32 : window.innerWidth - 64;
-  const availableHeight = isLandscape ? window.innerHeight - 48 : window.innerHeight - 220;
+   // In landscape, we rotate the maze 90deg so swap width/height for cell calculation
+   const availableWidth = isLandscape ? window.innerHeight - 48 : window.innerWidth - 64;
+   const availableHeight = isLandscape ? window.innerWidth * 0.65 - 32 : window.innerHeight - 220;
   
   const maxCellFromWidth = Math.floor(availableWidth / gridWidth);
   const maxCellFromHeight = Math.floor(availableHeight / gridHeight);
@@ -80,7 +81,7 @@ export const MazePreview = ({
 
   const mazeGrid = (
     <div
-      className="bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0"
+       className={`bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0 ${isLandscape ? 'rotate-90 origin-center' : ''}`}
       style={{
         width: gridWidth * cellSize + 16,
         height: gridHeight * cellSize + 16,
@@ -128,7 +129,7 @@ export const MazePreview = ({
         {/* Centered animal icon overlay for start region */}
         {startBounds && (
           <div
-            className="absolute flex items-center justify-center pointer-events-none z-10"
+             className={`absolute flex items-center justify-center pointer-events-none z-10 ${isLandscape ? '-rotate-90' : ''}`}
             style={{
               left: startBounds.minX * cellSize,
               top: startBounds.minY * cellSize,
@@ -144,7 +145,7 @@ export const MazePreview = ({
         {/* Centered flag overlay for end region */}
         {endBounds && (
           <div
-            className="absolute flex items-center justify-center pointer-events-none z-10"
+             className={`absolute flex items-center justify-center pointer-events-none z-10 ${isLandscape ? '-rotate-90' : ''}`}
             style={{
               left: endBounds.minX * cellSize,
               top: endBounds.minY * cellSize,
