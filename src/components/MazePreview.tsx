@@ -506,8 +506,8 @@ export const MazePreview = ({
             {timeLeft}s
           </div>
           
-          {/* Compass rose for orientation */}
-          <CompassRose size={70} className="mt-2" />
+          {/* Compass rose for orientation - rotated 90° CCW to match landscape grid rotation */}
+          <CompassRose size={70} className="mt-2" rotation={-90} />
         </div>
 
         {/* Right side: Maze */}
