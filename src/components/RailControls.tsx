@@ -467,10 +467,10 @@ const RadialDirectionButton = ({
         ${disabled 
           ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' 
           : isTurnAround
-            ? 'bg-amber-600/80 hover:bg-amber-500 text-white shadow-lg hover:scale-110'
-            : 'bg-primary/80 hover:bg-primary text-white shadow-lg hover:scale-110'
+            ? 'bg-amber-500/40 hover:bg-amber-500/60 text-white shadow-lg hover:scale-110 backdrop-blur-sm'
+            : 'bg-primary/40 hover:bg-primary/60 text-white shadow-lg hover:scale-110 backdrop-blur-sm'
         }
-        border-2 ${disabled ? 'border-gray-600' : isTurnAround ? 'border-amber-400' : 'border-primary-foreground/30'}
+        border-2 ${disabled ? 'border-gray-600' : isTurnAround ? 'border-amber-300/50' : 'border-white/30'}
       `}
     >
       {isTurnAround ? (
@@ -553,10 +553,10 @@ export function RailControls({
           className="
             w-16 h-16 rounded-full
             flex items-center justify-center
-            bg-red-600/90 hover:bg-red-500
-            text-white shadow-xl hover:scale-110
+            bg-amber-500/40 hover:bg-amber-500/60
+            text-white shadow-xl hover:scale-110 backdrop-blur-sm
             transition-all duration-200
-            border-2 border-red-400
+            border-2 border-amber-300/50
           "
         >
           <Square className="w-8 h-8 fill-current" />
@@ -566,11 +566,11 @@ export function RailControls({
   }
   
   return (
-     <div className={`fixed left-1/2 -translate-x-1/2 z-20 ${isLandscape ? 'bottom-4' : 'bottom-20'}`}>
+     <div className={`fixed left-1/2 -translate-x-1/2 z-20 ${isLandscape ? 'bottom-2' : 'bottom-20'}`}>
       <div className="relative w-40 h-40">
         {/* Center indicator */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-12 h-12 rounded-full bg-background/80 border-2 border-muted flex items-center justify-center">
+          <div className="w-12 h-12 rounded-full bg-background/40 border-2 border-white/30 flex items-center justify-center backdrop-blur-sm">
             <div className="w-4 h-4 rounded-full bg-primary animate-pulse" />
           </div>
         </div>

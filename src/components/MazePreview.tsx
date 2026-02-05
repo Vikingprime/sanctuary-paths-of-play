@@ -41,8 +41,9 @@ export const MazePreview = ({
   
   // In landscape, give more space to the maze (header is on left side)
    // In landscape, we rotate the maze 90deg so swap width/height for cell calculation
-   const availableWidth = isLandscape ? window.innerHeight - 48 : window.innerWidth - 64;
-   const availableHeight = isLandscape ? window.innerWidth * 0.65 - 32 : window.innerHeight - 220;
+   // For landscape: the maze will be rotated, so calculate available space based on final visual dimensions
+   const availableWidth = isLandscape ? window.innerWidth * 0.55 : window.innerWidth - 64;
+   const availableHeight = isLandscape ? window.innerHeight - 80 : window.innerHeight - 220;
   
   const maxCellFromWidth = Math.floor(availableWidth / gridWidth);
   const maxCellFromHeight = Math.floor(availableHeight / gridHeight);
@@ -81,11 +82,8 @@ export const MazePreview = ({
 
   const mazeGrid = (
     <div
-       className={`bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0 ${isLandscape ? 'rotate-90 origin-center' : ''}`}
-      style={isLandscape ? {
-        width: gridHeight * cellSize + 16,
-        height: gridWidth * cellSize + 16,
-      } : {
+       className="bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0"
+      style={{
         width: gridWidth * cellSize + 16,
         height: gridHeight * cellSize + 16,
       }}
@@ -132,7 +130,7 @@ export const MazePreview = ({
         {/* Centered animal icon overlay for start region */}
         {startBounds && (
           <div
-             className={`absolute flex items-center justify-center pointer-events-none z-10 ${isLandscape ? '-rotate-90' : ''}`}
+             className="absolute flex items-center justify-center pointer-events-none z-10"
             style={{
               left: startBounds.minX * cellSize,
               top: startBounds.minY * cellSize,
@@ -148,7 +146,7 @@ export const MazePreview = ({
         {/* Centered flag overlay for end region */}
         {endBounds && (
           <div
-             className={`absolute flex items-center justify-center pointer-events-none z-10 ${isLandscape ? '-rotate-90' : ''}`}
+             className="absolute flex items-center justify-center pointer-events-none z-10"
             style={{
               left: endBounds.minX * cellSize,
               top: endBounds.minY * cellSize,
