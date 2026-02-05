@@ -137,10 +137,15 @@ export const MazePreview = ({
   // Calculate center of start region for player icon positioning
   const playerCenterPosition = useMemo(() => {
     if (!startBounds) return null;
-    // Center of start bounds (in cell coordinates)
+    // Center of start bounds - for a 2-cell-wide corridor, this gives us the grid line
+    // e.g., cells 1 and 2 → center at 1.5 → pixel position (1.5 + 0.5) * cellSize = 2 * cellSize (on grid line)
+    // But we need to find the path, not the start zone. The path should be adjacent to start.
+    // For now, use the center of the start region
     return {
-      x: (startBounds.minX + startBounds.maxX) / 2,
-      y: (startBounds.minY + startBounds.maxY) / 2,
+      // Add 0.5 to convert bounds center to actual center position
+      // (minX + maxX + 1) / 2 gives center accounting for cell width
+      x: (startBounds.minX + startBounds.maxX + 1) / 2,
+      y: (startBounds.minY + startBounds.maxY + 1) / 2,
     };
   }, [startBounds]);
 
@@ -148,8 +153,8 @@ export const MazePreview = ({
   const finishCenterPosition = useMemo(() => {
     if (!endBounds) return null;
     return {
-      x: (endBounds.minX + endBounds.maxX) / 2,
-      y: (endBounds.minY + endBounds.maxY) / 2,
+      x: (endBounds.minX + endBounds.maxX + 1) / 2,
+      y: (endBounds.minY + endBounds.maxY + 1) / 2,
     };
   }, [endBounds]);
 
@@ -238,9 +243,9 @@ export const MazePreview = ({
             style={(() => {
               // Transform center position to display coordinates
               const transformed = transformCoord(playerCenterPosition.x, playerCenterPosition.y);
-              // Position at exact center (add 0.5 cell offset since coords are cell centers)
-              const centerX = (transformed.tx + 0.5) * cellSize;
-              const centerY = (transformed.ty + 0.5) * cellSize;
+              // Position at exact center - coords already include the +0.5 offset
+              const centerX = transformed.tx * cellSize;
+              const centerY = transformed.ty * cellSize;
               // Icon size: 2.5x cell size for high visibility
               const iconSize = cellSize * 2.5;
               return {
@@ -274,8 +279,8 @@ export const MazePreview = ({
             className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
             style={(() => {
               const transformed = transformCoord(playerCenterPosition.x, playerCenterPosition.y);
-              const centerX = (transformed.tx + 0.5) * cellSize;
-              const centerY = (transformed.ty + 0.5) * cellSize;
+              const centerX = transformed.tx * cellSize;
+              const centerY = transformed.ty * cellSize;
               return {
                 left: centerX,
                 top: centerY - cellSize * 1.8,
@@ -294,8 +299,8 @@ export const MazePreview = ({
             className="absolute flex items-center justify-center pointer-events-none z-10"
             style={(() => {
               const transformed = transformCoord(finishCenterPosition.x, finishCenterPosition.y);
-              const centerX = (transformed.tx + 0.5) * cellSize;
-              const centerY = (transformed.ty + 0.5) * cellSize;
+              const centerX = transformed.tx * cellSize;
+              const centerY = transformed.ty * cellSize;
               const iconSize = cellSize * 2.5;
               return {
                 left: centerX - iconSize / 2,
@@ -328,8 +333,8 @@ export const MazePreview = ({
             className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
             style={(() => {
               const transformed = transformCoord(finishCenterPosition.x, finishCenterPosition.y);
-              const centerX = (transformed.tx + 0.5) * cellSize;
-              const centerY = (transformed.ty + 0.5) * cellSize;
+              const centerX = transformed.tx * cellSize;
+              const centerY = transformed.ty * cellSize;
               return {
                 left: centerX,
                 top: centerY - cellSize * 1.8,
