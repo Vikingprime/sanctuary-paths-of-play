@@ -1006,6 +1006,13 @@ export const MazeGame3D = ({
   // Show preview overlay on top of the 3D scene (which renders in background)
   const showPreviewOverlay = isPreviewing && sceneReady;
 
+  // Stable callback for intro sequence completion - prevents timer restarts
+  const handleIntroComplete = useCallback(() => {
+    setIsShowingIntro(false);
+    // Skip the preview since intro sequence already showed a preview
+    setIsPreviewing(false);
+  }, []);
+
   // Medal emoji mapping
   const medalEmoji: Record<string, string> = {
     gold: '🥇',
@@ -1104,11 +1111,7 @@ export const MazeGame3D = ({
       <MazeIntroSequence
         maze={maze}
         introDialogues={maze.introDialogues}
-        onComplete={() => {
-          setIsShowingIntro(false);
-          // Skip the preview since intro sequence already showed a preview
-          setIsPreviewing(false);
-        }}
+        onComplete={handleIntroComplete}
         isMuted={isMuted}
       />
     );

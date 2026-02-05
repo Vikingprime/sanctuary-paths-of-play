@@ -72,7 +72,13 @@ export const MazeIntroSequence = ({
     }
   }, [isLastDialogue, isTransitioning]);
 
-  // Maze preview countdown
+  // Ref to store onComplete callback - avoids timer restart when callback reference changes
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  // Maze preview countdown - using ref pattern for stable timing
   useEffect(() => {
     if (!isShowingMazePreview) return;
 
@@ -88,12 +94,12 @@ export const MazeIntroSequence = ({
       
       if (remaining <= 0) {
         clearInterval(timer);
-          onComplete();
-        }
+        onCompleteRef.current(); // Call via ref to avoid dependency
+      }
     }, 100); // Check every 100ms for smoother updates
 
     return () => clearInterval(timer);
-  }, [isShowingMazePreview, onComplete, maze.previewTime]);
+  }, [isShowingMazePreview, maze.previewTime]); // onComplete removed from deps
 
   // Skip intro button
   const handleSkip = useCallback(() => {
