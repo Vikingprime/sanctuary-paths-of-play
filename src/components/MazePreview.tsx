@@ -82,7 +82,10 @@ export const MazePreview = ({
   const mazeGrid = (
     <div
        className={`bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0 ${isLandscape ? 'rotate-90 origin-center' : ''}`}
-      style={{
+      style={isLandscape ? {
+        width: gridHeight * cellSize + 16,
+        height: gridWidth * cellSize + 16,
+      } : {
         width: gridWidth * cellSize + 16,
         height: gridHeight * cellSize + 16,
       }}
