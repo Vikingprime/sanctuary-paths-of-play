@@ -276,15 +276,15 @@ export const MazeGame3D = ({
   const animationFrameRef = useRef<number>();
 
   // Preview countdown - use timestamp-based approach for reliable timing
-  const previewTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const previewAnimFrameRef = useRef<number | null>(null);
   const previewStartTimeRef = useRef<number | null>(null);
   const previewDurationRef = useRef<number>(0);
   
   useEffect(() => {
-    // Clear any existing timer first
-    if (previewTimerRef.current) {
-      clearInterval(previewTimerRef.current);
-      previewTimerRef.current = null;
+    // Cancel any existing animation frame first
+    if (previewAnimFrameRef.current) {
+      cancelAnimationFrame(previewAnimFrameRef.current);
+      previewAnimFrameRef.current = null;
     }
     
     if (!isPreviewing) {
@@ -297,8 +297,8 @@ export const MazeGame3D = ({
     previewStartTimeRef.current = Date.now();
     previewDurationRef.current = duration;
 
-    // Use faster interval (100ms) with timestamp-based calculation for accurate display
-    previewTimerRef.current = setInterval(() => {
+    // Use requestAnimationFrame for reliable timing that won't be throttled
+    const tick = () => {
       if (previewStartTimeRef.current === null) return;
       
       const elapsed = Math.floor((Date.now() - previewStartTimeRef.current) / 1000);
@@ -307,18 +307,18 @@ export const MazeGame3D = ({
       setPreviewTimeLeft(remaining);
       
       if (remaining <= 0) {
-        if (previewTimerRef.current) {
-          clearInterval(previewTimerRef.current);
-          previewTimerRef.current = null;
-        }
         setIsPreviewing(false);
+      } else {
+        previewAnimFrameRef.current = requestAnimationFrame(tick);
       }
-    }, 100); // Check every 100ms for smoother updates
+    };
+    
+    previewAnimFrameRef.current = requestAnimationFrame(tick);
 
     return () => {
-      if (previewTimerRef.current) {
-        clearInterval(previewTimerRef.current);
-        previewTimerRef.current = null;
+      if (previewAnimFrameRef.current) {
+        cancelAnimationFrame(previewAnimFrameRef.current);
+        previewAnimFrameRef.current = null;
       }
     };
   }, [isPreviewing, debugMode, maze.previewTime]);
