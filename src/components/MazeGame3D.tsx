@@ -1292,8 +1292,9 @@ export const MazeGame3D = ({
       {!isPreviewing && (
         <CompassOverlay 
           show={showCompass} 
-          duration={4000}
+          duration={5000}
           onHide={() => setShowCompass(false)}
+          playerStateRef={playerStateRef}
         />
       )}
 

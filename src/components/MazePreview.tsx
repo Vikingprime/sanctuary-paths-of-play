@@ -2,6 +2,7 @@ import { Maze, Animal } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { Volume2, VolumeX } from 'lucide-react';
 import { useMemo, useState, useEffect, useRef } from 'react';
+import { CompassRose } from './CompassRose';
 
 interface MazePreviewProps {
   maze: Maze;
@@ -257,41 +258,15 @@ export const MazePreview = ({
     <div
        className="bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0 relative"
       style={{
-        width: displayWidth * cellSize + 16 + 40, // Extra space for compass labels
-        height: displayHeight * cellSize + 16 + 40,
+        width: displayWidth * cellSize + 16,
+        height: displayHeight * cellSize + 16,
       }}
     >
-      {/* Compass directions - positioned around the map */}
-      {/* In landscape mode, the map is rotated 90° CCW, so directions shift */}
-      <div 
-        className="absolute font-display font-bold text-secondary text-sm sm:text-base"
-        style={{ top: 4, left: '50%', transform: 'translateX(-50%)' }}
-      >
-        {isLandscape ? 'W' : 'N'}
-      </div>
-      <div 
-        className="absolute font-display font-bold text-secondary text-sm sm:text-base"
-        style={{ bottom: 4, left: '50%', transform: 'translateX(-50%)' }}
-      >
-        {isLandscape ? 'E' : 'S'}
-      </div>
-      <div 
-        className="absolute font-display font-bold text-secondary text-sm sm:text-base"
-        style={{ left: 4, top: '50%', transform: 'translateY(-50%)' }}
-      >
-        {isLandscape ? 'N' : 'W'}
-      </div>
-      <div 
-        className="absolute font-display font-bold text-secondary text-sm sm:text-base"
-        style={{ right: 4, top: '50%', transform: 'translateY(-50%)' }}
-      >
-        {isLandscape ? 'S' : 'E'}
-      </div>
       <div
         className="grid gap-0 relative"
         style={{
           gridTemplateColumns: `repeat(${displayWidth}, ${cellSize}px)`,
-          margin: '20px', // Space for compass labels
+          margin: '8px',
         }}
       >
         {/* Render cells in transformed order for landscape */}
@@ -519,8 +494,8 @@ export const MazePreview = ({
           )}
         </div>
 
-        {/* Left side: Header + Timer */}
-        <div className="flex flex-col items-center justify-center gap-1 flex-shrink-0 w-[12%] min-w-[80px]">
+        {/* Left side: Header + Timer + Compass */}
+        <div className="flex flex-col items-center justify-center gap-2 flex-shrink-0 w-[12%] min-w-[80px]">
           <div className="text-center animate-fade-in px-1">
             <h2 className="font-display text-sm font-bold text-foreground leading-tight">
               🧠
@@ -530,6 +505,9 @@ export const MazePreview = ({
           <div className="bg-primary text-primary-foreground px-3 py-0.5 rounded-full font-display font-bold text-base animate-pulse">
             {timeLeft}s
           </div>
+          
+          {/* Compass rose for orientation */}
+          <CompassRose size={70} className="mt-2" />
         </div>
 
         {/* Right side: Maze */}
@@ -580,8 +558,11 @@ export const MazePreview = ({
         </div>
       </div>
 
-      {/* Maze Preview */}
-      {mazeGrid}
+      {/* Maze Preview with Compass */}
+      <div className="flex items-center gap-4">
+        <CompassRose size={60} />
+        {mazeGrid}
+      </div>
 
       <div className="mt-2 sm:mt-6 text-center text-[10px] sm:text-sm text-muted-foreground">
         <p>{animalEmoji} Start | 🏁 Exit | ⚡ Power-up | 🗺️ Map</p>
