@@ -185,68 +185,27 @@ export const MazePreview = ({
     };
   }, [maze, startBounds]);
 
-  // Find a 2x2 block of path cells near the end for finish positioning
+  // Find the center of the end region for finish positioning
+  // Unlike player, we want to center on the actual end cells
   const finishBlock = useMemo(() => {
     if (!endBounds) return null;
     
-    const isPath = (x: number, y: number) => {
-      const cell = maze.grid[y]?.[x];
-      // For end region, allow end cells to be part of the path
-      return cell && !cell.isWall;
-    };
-    
-    const isValid2x2 = (x: number, y: number) => {
-      return isPath(x, y) && isPath(x + 1, y) && isPath(x, y + 1) && isPath(x + 1, y + 1);
-    };
-    
-    // Search for a valid 2x2 block starting from within the end region
-    // First try to find a block where the top-left is within or adjacent to end
-    const searchRadius = 5;
-    
-    // Start by checking blocks that overlap with the end region
-    for (let testY = endBounds.minY - 1; testY <= endBounds.maxY; testY++) {
-      for (let testX = endBounds.minX - 1; testX <= endBounds.maxX; testX++) {
-        if (isValid2x2(testX, testY)) {
-          return {
-            cells: [
-              { x: testX, y: testY },
-              { x: testX + 1, y: testY },
-              { x: testX, y: testY + 1 },
-              { x: testX + 1, y: testY + 1 },
-            ],
-            centerX: testX + 1,
-            centerY: testY + 1,
-          };
+    // Collect all end cells
+    const endCells: { x: number; y: number }[] = [];
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell.isEnd) {
+          endCells.push({ x, y });
         }
-      }
-    }
+      });
+    });
     
-    // Expand search outward
-    for (let r = 0; r <= searchRadius; r++) {
-      for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
-          const testX = endBounds.minX + dx;
-          const testY = endBounds.minY + dy;
-          if (isValid2x2(testX, testY)) {
-            return {
-              cells: [
-                { x: testX, y: testY },
-                { x: testX + 1, y: testY },
-                { x: testX, y: testY + 1 },
-                { x: testX + 1, y: testY + 1 },
-              ],
-              centerX: testX + 1,
-              centerY: testY + 1,
-            };
-          }
-        }
-      }
-    }
-    
-    // If no 2x2 found, use center of the end bounds directly
+    // Calculate true center of all end cells
+    // For a 2x3 region, this will be at the center intersection
     return {
-      cells: [],
+      cells: endCells,
+      // Center at the middle of the end region
+      // +1 accounts for cell width (left edge to right edge)
       centerX: (endBounds.minX + endBounds.maxX + 1) / 2,
       centerY: (endBounds.minY + endBounds.maxY + 1) / 2,
     };
@@ -326,7 +285,7 @@ export const MazePreview = ({
                   // Highlight player block cells in green during player phase
                   tutorialPhase === 'player' && isInPlayerBlock(origX, origY) && 'bg-secondary/60',
                   // Highlight finish block cells during finish phase
-                  tutorialPhase === 'finish' && isInFinishBlock(origX, origY) && 'bg-secondary/60'
+                  tutorialPhase === 'finish' && inEnd && 'bg-secondary/60'
                 )}
                 style={{ width: cellSize, height: cellSize }}
               >
