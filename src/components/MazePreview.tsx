@@ -223,20 +223,20 @@ export const MazePreview = ({
         </div>
 
         {/* Left side: Header + Timer */}
-        <div className="flex flex-col items-center justify-center gap-1 flex-shrink-0 w-[16%] min-w-[100px]">
-          <div className="text-center animate-fade-in px-2">
-            <h2 className="font-display text-sm font-bold text-foreground leading-tight">
+        <div className="flex flex-col items-center justify-center gap-2 flex-shrink-0 w-[18%] min-w-[120px]">
+          <div className="text-center animate-fade-in px-3">
+            <h2 className="font-display text-lg font-bold text-foreground leading-tight">
               Memorize! 🧠
             </h2>
           </div>
           
-          <div className="bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-display font-bold text-xs animate-pulse">
+          <div className="bg-primary text-primary-foreground px-4 py-1 rounded-full font-display font-bold text-lg animate-pulse">
             {timeLeft}s
           </div>
 
-          <div className="text-center text-[8px] text-muted-foreground leading-snug mt-1">
-            <p>{animalEmoji}→🏁</p>
-            <p>⚡📍</p>
+          <div className="text-center text-xs text-muted-foreground leading-snug mt-2 space-y-1">
+            <p>{animalEmoji} → 🏁</p>
+            <p>⚡ Power | 📍 Map</p>
           </div>
         </div>
 
