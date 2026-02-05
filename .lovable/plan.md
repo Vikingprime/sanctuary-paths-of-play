@@ -1,42 +1,100 @@
 
-# Rail Movement Shaking Fix - Implementation Complete
+# Fix: Timer Stuck at 15 Before Jumping to 10
 
-## Root Cause Identified
+## Problem Summary
 
-The shaking was caused by the animal moving **toward** waypoints in straight lines rather than following the actual curved path. This created a zigzag pattern as the animal took shortcuts between densely-packed path points.
+The 15-second countdown timer in the intro sequence freezes at "15" for several seconds before suddenly jumping to "10". This happens because the timer keeps restarting every time the parent component re-renders.
 
-## Solution Implemented
+## Root Cause
 
-Replaced the "move toward waypoint" approach with **arc-length traversal**:
+The countdown timer in `MazeIntroSequence.tsx` has `onComplete` as a dependency in its `useEffect`. However, in `MazeGame3D.tsx`, the `onComplete` callback is passed as an **inline arrow function**:
 
-1. **Fractional index interpolation**: Instead of moving toward the next point, we maintain a fractional path index and advance it based on speed/segment length
-2. **Linear interpolation between points**: Position is calculated as `lerp(pathPoint[i], pathPoint[i+1], fractionalPart)`
-3. **Instant position lock**: Position lerp factor of 1.0 in rail mode eliminates all smoothing lag
+```typescript
+onComplete={() => {
+  setIsShowingIntro(false);
+  setIsPreviewing(false);
+}}
+```
 
-## Changes Made
+Every parent re-render creates a new function reference, which triggers the timer's `useEffect` to restart, resetting the start time and effectively freezing the display.
 
-### src/components/Maze3DScene.tsx
-- Added `railFractionalIndexRef` prop for smooth arc-length traversal
-- Replaced movement-toward-waypoint logic with interpolation-along-path logic
-- Position now stays exactly on the path curve at all times
+---
 
-### src/components/MazeGame3D.tsx
-- Added `railFractionalIndexRef = useRef(0)` for fractional path tracking
-- Passed new ref to Maze3DCanvas
+## Solution
+
+### Step 1: Stabilize the callback in `MazeGame3D.tsx`
+
+Wrap the `onComplete` callback in `useCallback` to ensure it has a stable reference across re-renders:
+
+```typescript
+const handleIntroComplete = useCallback(() => {
+  setIsShowingIntro(false);
+  setIsPreviewing(false);
+}, []);
+```
+
+Then pass this stable reference:
+
+```typescript
+<MazeIntroSequence
+  maze={maze}
+  introDialogues={maze.introDialogues}
+  onComplete={handleIntroComplete}  // Stable reference
+  isMuted={isMuted}
+/>
+```
+
+### Step 2: Remove `onComplete` from timer dependencies (defensive fix)
+
+In `MazeIntroSequence.tsx`, the timer effect should not depend on `onComplete` since it only calls it once at the end. Use a ref to store the callback:
+
+```typescript
+const onCompleteRef = useRef(onComplete);
+
+// Keep ref updated
+useEffect(() => {
+  onCompleteRef.current = onComplete;
+}, [onComplete]);
+
+// Timer effect - no longer depends on onComplete
+useEffect(() => {
+  if (!isShowingMazePreview) return;
+
+  const startTime = Date.now();
+  const duration = maze.previewTime;
+  
+  const timer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const remaining = Math.max(0, duration - elapsed);
+    
+    setMazePreviewCountdown(remaining);
+    
+    if (remaining <= 0) {
+      clearInterval(timer);
+      onCompleteRef.current();  // Call via ref
+    }
+  }, 100);
+
+  return () => clearInterval(timer);
+}, [isShowingMazePreview, maze.previewTime]);  // onComplete removed
+```
+
+---
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/components/MazeGame3D.tsx` | Wrap intro completion handler in `useCallback` |
+| `src/components/MazeIntroSequence.tsx` | Use ref pattern to avoid timer restart on callback change |
+
+---
 
 ## Technical Details
 
-Old approach (caused jitter):
-```
-direction = normalize(targetWaypoint - currentPosition)
-newPosition = currentPosition + direction * speed * dt
-```
+**Why both fixes?**
 
-New approach (smooth):
-```
-fractionalIndex += (speed * dt) / segmentLength
-t = fractionalIndex - floor(fractionalIndex)
-newPosition = lerp(path[floor(idx)], path[floor(idx)+1], t)
-```
+1. **`useCallback` in parent** - Prevents unnecessary re-creations of the callback function
+2. **Ref pattern in child** - Makes the timer robust against any future callback instability (defensive programming)
 
-The animal now glides smoothly along the exact curve defined by the path points.
+Together, these ensure the countdown ticks reliably every second without restarts or jumps.
