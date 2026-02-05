@@ -80,28 +80,46 @@ export const MazePreview = ({
   const isInEndRegion = (x: number, y: number) => 
     endBounds && x >= endBounds.minX && x <= endBounds.maxX && y >= endBounds.minY && y <= endBounds.maxY;
 
+  // Transform coordinates for landscape mode (90° counter-clockwise rotation)
+  // Original: (x, y) -> Rotated: (y, gridWidth - 1 - x)
+  const transformCoord = (x: number, y: number) => {
+    if (!isLandscape) return { tx: x, ty: y };
+    return { tx: y, ty: gridWidth - 1 - x };
+  };
+  
+  // In landscape, we swap grid dimensions for display
+  const displayWidth = isLandscape ? gridHeight : gridWidth;
+  const displayHeight = isLandscape ? gridWidth : gridHeight;
+
   const mazeGrid = (
     <div
        className="bg-sage/30 rounded-xl sm:rounded-2xl p-2 sm:p-4 shadow-warm-lg animate-fade-in flex-shrink-0"
       style={{
-        width: gridWidth * cellSize + 16,
-        height: gridHeight * cellSize + 16,
+        width: displayWidth * cellSize + 16,
+        height: displayHeight * cellSize + 16,
       }}
     >
       <div
         className="grid gap-0 relative"
         style={{
-          gridTemplateColumns: `repeat(${gridWidth}, ${cellSize}px)`,
+          gridTemplateColumns: `repeat(${displayWidth}, ${cellSize}px)`,
         }}
       >
-        {maze.grid.map((row, y) =>
-          row.map((cell, x) => {
-            const inStart = isInStartRegion(x, y);
-            const inEnd = isInEndRegion(x, y);
+        {/* Render cells in transformed order for landscape */}
+        {Array.from({ length: displayHeight }).map((_, displayY) =>
+          Array.from({ length: displayWidth }).map((_, displayX) => {
+            // Reverse transform to get original coordinates
+            const origX = isLandscape ? gridWidth - 1 - displayY : displayX;
+            const origY = isLandscape ? displayX : displayY;
+            const cell = maze.grid[origY]?.[origX];
+            if (!cell) return null;
+            
+            const inStart = isInStartRegion(origX, origY);
+            const inEnd = isInEndRegion(origX, origY);
             
             return (
               <div
-                key={`${x}-${y}`}
+                key={`${displayX}-${displayY}`}
                 className={cn(
                   'relative',
                   // No borders for start/end regions, subtle borders elsewhere
@@ -131,13 +149,18 @@ export const MazePreview = ({
         {startBounds && (
           <div
              className="absolute flex items-center justify-center pointer-events-none z-10"
-            style={{
-              left: startBounds.minX * cellSize,
-              top: startBounds.minY * cellSize,
-              width: (startBounds.maxX - startBounds.minX + 1) * cellSize,
-              height: (startBounds.maxY - startBounds.minY + 1) * cellSize,
-              fontSize: Math.max((startBounds.maxX - startBounds.minX + 1), (startBounds.maxY - startBounds.minY + 1)) * cellSize * 1.2,
-            }}
+            style={(() => {
+              const topLeft = transformCoord(startBounds.minX, startBounds.minY);
+              const bottomRight = transformCoord(startBounds.maxX, startBounds.maxY);
+              const left = Math.min(topLeft.tx, bottomRight.tx) * cellSize;
+              const top = Math.min(topLeft.ty, bottomRight.ty) * cellSize;
+              const width = (Math.abs(bottomRight.tx - topLeft.tx) + 1) * cellSize;
+              const height = (Math.abs(bottomRight.ty - topLeft.ty) + 1) * cellSize;
+              return {
+                left, top, width, height,
+                fontSize: Math.max(width, height) * 1.2,
+              };
+            })()}
           >
             {animalEmoji}
           </div>
@@ -147,13 +170,18 @@ export const MazePreview = ({
         {endBounds && (
           <div
              className="absolute flex items-center justify-center pointer-events-none z-10"
-            style={{
-              left: endBounds.minX * cellSize,
-              top: endBounds.minY * cellSize,
-              width: (endBounds.maxX - endBounds.minX + 1) * cellSize,
-              height: (endBounds.maxY - endBounds.minY + 1) * cellSize,
-              fontSize: Math.min((endBounds.maxX - endBounds.minX + 1), (endBounds.maxY - endBounds.minY + 1)) * cellSize * 0.7,
-            }}
+            style={(() => {
+              const topLeft = transformCoord(endBounds.minX, endBounds.minY);
+              const bottomRight = transformCoord(endBounds.maxX, endBounds.maxY);
+              const left = Math.min(topLeft.tx, bottomRight.tx) * cellSize;
+              const top = Math.min(topLeft.ty, bottomRight.ty) * cellSize;
+              const width = (Math.abs(bottomRight.tx - topLeft.tx) + 1) * cellSize;
+              const height = (Math.abs(bottomRight.ty - topLeft.ty) + 1) * cellSize;
+              return {
+                left, top, width, height,
+                fontSize: Math.min(width, height) * 0.7,
+              };
+            })()}
           >
             🏁
           </div>
