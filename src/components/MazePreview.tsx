@@ -191,6 +191,7 @@ export const MazePreview = ({
     
     const isPath = (x: number, y: number) => {
       const cell = maze.grid[y]?.[x];
+      // For end region, allow end cells to be part of the path
       return cell && !cell.isWall;
     };
     
@@ -198,8 +199,29 @@ export const MazePreview = ({
       return isPath(x, y) && isPath(x + 1, y) && isPath(x, y + 1) && isPath(x + 1, y + 1);
     };
     
-    // Search for a valid 2x2 block near end region
+    // Search for a valid 2x2 block starting from within the end region
+    // First try to find a block where the top-left is within or adjacent to end
     const searchRadius = 5;
+    
+    // Start by checking blocks that overlap with the end region
+    for (let testY = endBounds.minY - 1; testY <= endBounds.maxY; testY++) {
+      for (let testX = endBounds.minX - 1; testX <= endBounds.maxX; testX++) {
+        if (isValid2x2(testX, testY)) {
+          return {
+            cells: [
+              { x: testX, y: testY },
+              { x: testX + 1, y: testY },
+              { x: testX, y: testY + 1 },
+              { x: testX + 1, y: testY + 1 },
+            ],
+            centerX: testX + 1,
+            centerY: testY + 1,
+          };
+        }
+      }
+    }
+    
+    // Expand search outward
     for (let r = 0; r <= searchRadius; r++) {
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
@@ -222,6 +244,7 @@ export const MazePreview = ({
       }
     }
     
+    // If no 2x2 found, use center of the end bounds directly
     return {
       cells: [],
       centerX: (endBounds.minX + endBounds.maxX + 1) / 2,
@@ -299,7 +322,6 @@ export const MazePreview = ({
                   // No borders for start/end regions, subtle borders elsewhere
                   !inStart && !inEnd && 'border-[0.5px] border-sage/20',
                   cell.isWall ? 'bg-earth' : 'bg-wheat/60',
-                  inStart && 'bg-sage/50',
                   inEnd && 'bg-primary/40',
                   // Highlight player block cells in green during player phase
                   tutorialPhase === 'player' && isInPlayerBlock(origX, origY) && 'bg-secondary/60',
