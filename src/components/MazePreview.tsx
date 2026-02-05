@@ -185,20 +185,61 @@ export const MazePreview = ({
     };
   }, [maze, startBounds]);
 
+  // Find a 2x2 block of path cells near the end for finish positioning
+  const finishBlock = useMemo(() => {
+    if (!endBounds) return null;
+    
+    const isPath = (x: number, y: number) => {
+      const cell = maze.grid[y]?.[x];
+      return cell && !cell.isWall;
+    };
+    
+    const isValid2x2 = (x: number, y: number) => {
+      return isPath(x, y) && isPath(x + 1, y) && isPath(x, y + 1) && isPath(x + 1, y + 1);
+    };
+    
+    // Search for a valid 2x2 block near end region
+    const searchRadius = 5;
+    for (let r = 0; r <= searchRadius; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+          const testX = endBounds.minX + dx;
+          const testY = endBounds.minY + dy;
+          if (isValid2x2(testX, testY)) {
+            return {
+              cells: [
+                { x: testX, y: testY },
+                { x: testX + 1, y: testY },
+                { x: testX, y: testY + 1 },
+                { x: testX + 1, y: testY + 1 },
+              ],
+              centerX: testX + 1,
+              centerY: testY + 1,
+            };
+          }
+        }
+      }
+    }
+    
+    return {
+      cells: [],
+      centerX: (endBounds.minX + endBounds.maxX + 1) / 2,
+      centerY: (endBounds.minY + endBounds.maxY + 1) / 2,
+    };
+  }, [maze, endBounds]);
+
   // Check if a cell is part of the player highlight block
   const isInPlayerBlock = (x: number, y: number) => {
     if (!playerBlock) return false;
     return playerBlock.cells.some(c => c.x === x && c.y === y);
   };
 
-  // Calculate center of end region for finish icon positioning
-  const finishCenterPosition = useMemo(() => {
-    if (!endBounds) return null;
-    return {
-      x: (endBounds.minX + endBounds.maxX + 1) / 2,
-      y: (endBounds.minY + endBounds.maxY + 1) / 2,
-    };
-  }, [endBounds]);
+  // Check if a cell is part of the finish highlight block
+  const isInFinishBlock = (x: number, y: number) => {
+    if (!finishBlock) return false;
+    return finishBlock.cells.some(c => c.x === x && c.y === y);
+  };
 
   // Find all station positions for the tutorial
   const stationPositions = useMemo(() => {
@@ -261,7 +302,9 @@ export const MazePreview = ({
                   inStart && 'bg-sage/50',
                   inEnd && 'bg-primary/40',
                   // Highlight player block cells in green during player phase
-                  tutorialPhase === 'player' && isInPlayerBlock(origX, origY) && 'bg-secondary/60'
+                  tutorialPhase === 'player' && isInPlayerBlock(origX, origY) && 'bg-secondary/60',
+                  // Highlight finish block cells during finish phase
+                  tutorialPhase === 'finish' && isInFinishBlock(origX, origY) && 'bg-secondary/60'
                 )}
                 style={{ width: cellSize, height: cellSize }}
               >
@@ -327,14 +370,14 @@ export const MazePreview = ({
         )}
         
         {/* Centered flag overlay for end region */}
-        {finishCenterPosition && (
+        {finishBlock && (
           <div
             className="absolute flex items-center justify-center pointer-events-none z-10"
             style={(() => {
-              const transformed = transformCoord(finishCenterPosition.x, finishCenterPosition.y);
+              const transformed = transformCoord(finishBlock.centerX, finishBlock.centerY);
               const centerX = transformed.tx * cellSize;
               const centerY = transformed.ty * cellSize;
-              const iconSize = cellSize * 2.5;
+              const iconSize = cellSize * 2;
               return {
                 left: centerX - iconSize / 2,
                 top: centerY - iconSize / 2,
@@ -345,32 +388,21 @@ export const MazePreview = ({
               };
             })()}
           >
-            {/* Green circle indicator for finish */}
-            {tutorialPhase === 'finish' && (
-              <div 
-                className="absolute rounded-full bg-secondary/50 border-2 border-secondary"
-                style={{
-                  width: '120%',
-                  height: '120%',
-                  opacity: 0.6 + 0.4 * Math.sin((pulseScale - 0.8) / 0.5 * Math.PI),
-                }}
-              />
-            )}
-            <span style={{ fontSize: cellSize * 2 }}>🏁</span>
+            <span style={{ fontSize: cellSize * 1.6 }}>🏁</span>
           </div>
         )}
 
         {/* "Finish" label */}
-        {tutorialPhase === 'finish' && finishCenterPosition && (
+        {tutorialPhase === 'finish' && finishBlock && (
           <div
             className="absolute pointer-events-none z-20 font-display font-bold text-secondary-foreground bg-secondary/90 px-2 py-0.5 rounded-lg shadow-md"
             style={(() => {
-              const transformed = transformCoord(finishCenterPosition.x, finishCenterPosition.y);
+              const transformed = transformCoord(finishBlock.centerX, finishBlock.centerY);
               const centerX = transformed.tx * cellSize;
               const centerY = transformed.ty * cellSize;
               return {
                 left: centerX,
-                top: centerY - cellSize * 1.8,
+                top: centerY - cellSize * 1.5,
                 transform: `translateX(-50%) scale(${pulseScale * 0.8 + 0.2})`,
                 fontSize: Math.max(12, cellSize * 0.5),
               };
