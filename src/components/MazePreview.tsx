@@ -255,10 +255,15 @@ export const MazePreview = ({
   const displayHeight = isLandscape ? gridWidth : gridHeight;
 
   const mazeGrid = (
-    <div className="flex flex-col items-center gap-3 animate-fade-in">
-      {/* Memorize instruction text */}
-      <div className="font-display text-lg sm:text-xl font-bold text-primary">
-        Memorize the maze!
+    <div className="flex flex-col items-center gap-2 animate-fade-in">
+      {/* Memorize instruction text with timer */}
+      <div className="flex items-center gap-3">
+        <span className="font-display text-lg sm:text-xl font-bold text-foreground">
+          Memorize the maze!
+        </span>
+        <span className="bg-primary text-primary-foreground px-3 py-0.5 rounded-full font-display font-bold text-sm sm:text-base animate-pulse">
+          {timeLeft}s
+        </span>
       </div>
       
       {/* Maze grid - no wrapper padding/border */}
