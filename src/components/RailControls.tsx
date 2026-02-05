@@ -492,7 +492,17 @@ export function RailControls({
   isMoving,
   enabled,
 }: RailControlsProps) {
-  const [directions, setDirections] = useState<DirectionOption[]>([]);
+   const [directions, setDirections] = useState<DirectionOption[]>([]);
+   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
+   
+   // Track orientation changes
+   useEffect(() => {
+     const handleResize = () => {
+       setIsLandscape(window.innerWidth > window.innerHeight);
+     };
+     window.addEventListener('resize', handleResize);
+     return () => window.removeEventListener('resize', handleResize);
+   }, []);
   
   // Find current position and available directions
   useEffect(() => {
@@ -533,7 +543,7 @@ export function RailControls({
   // When moving, only show stop button
   if (isMoving) {
     return (
-      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-20">
+       <div className={`fixed left-1/2 -translate-x-1/2 z-20 ${isLandscape ? 'bottom-4' : 'bottom-20'}`}>
         <button
           onClick={onStop}
           className="
@@ -552,7 +562,7 @@ export function RailControls({
   }
   
   return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-20">
+     <div className={`fixed left-1/2 -translate-x-1/2 z-20 ${isLandscape ? 'bottom-4' : 'bottom-20'}`}>
       <div className="relative w-40 h-40">
         {/* Center indicator */}
         <div className="absolute inset-0 flex items-center justify-center">
