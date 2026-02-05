@@ -356,9 +356,11 @@ export function findAvailableDirections(
       const dirZ = lookAheadPt.z - startZ;
       const angle = Math.atan2(dirX, dirZ);
       
+      // Start from the point AHEAD of the nearest point, not the nearest point itself
+      // This prevents briefly moving backward to reach the polyline
       const pathPoints: Point2D[] = [
         { x: startX, z: startZ },
-        ...points.slice(ptIdx)
+        ...points.slice(ptIdx + 1)
       ];
       
       const pathLength = calculatePathLength(pathPoints);
@@ -385,9 +387,11 @@ export function findAvailableDirections(
       const dirZ = lookBackPt.z - startZ;
       const angle = Math.atan2(dirX, dirZ);
       
+      // Start from the point BEFORE the nearest point (going backward)
+      // This prevents briefly moving forward to reach the polyline before reversing
       const pathPoints: Point2D[] = [
         { x: startX, z: startZ },
-        ...points.slice(0, ptIdx + 1).reverse()
+        ...points.slice(0, ptIdx).reverse()
       ];
       
       const pathLength = calculatePathLength(pathPoints);
