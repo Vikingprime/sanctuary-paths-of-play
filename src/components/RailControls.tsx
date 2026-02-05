@@ -574,7 +574,7 @@ export function RailControls({
         {/* Direction buttons - positioned at actual path angles */}
         {directions.map((dir, idx) => (
           <RadialDirectionButton
-            key={idx}
+            key={`${dir.relativeAngle.toFixed(2)}-${dir.isTurnAround}`}
             relativeAngle={dir.relativeAngle}
             onClick={() => handleDirectionClick(dir)}
             isTurnAround={dir.isTurnAround}
