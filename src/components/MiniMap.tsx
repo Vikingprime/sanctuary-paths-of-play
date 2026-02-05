@@ -1,5 +1,6 @@
 import { Maze } from '@/types/game';
 import { cn } from '@/lib/utils';
+import { CompassRose } from './CompassRose';
 
 interface MiniMapProps {
   maze: Maze;
@@ -29,65 +30,54 @@ export const MiniMap = ({ maze, playerPos, isVisible, onClose, timeLeft }: MiniM
           </p>
         </div>
 
-        <div
-          className="bg-sage/20 rounded-xl p-3 mx-auto relative"
-          style={{
-            width: maze.grid[0].length * cellSize + 24 + 32, // Extra space for compass labels
-            paddingTop: 24, // Space for N
-            paddingBottom: 24, // Space for S
-          }}
-        >
-          {/* Compass directions */}
-          <div className="absolute font-display font-bold text-secondary text-sm" style={{ top: 4, left: '50%', transform: 'translateX(-50%)' }}>
-            N
-          </div>
-          <div className="absolute font-display font-bold text-secondary text-sm" style={{ bottom: 4, left: '50%', transform: 'translateX(-50%)' }}>
-            S
-          </div>
-          <div className="absolute font-display font-bold text-secondary text-sm" style={{ left: 4, top: '50%', transform: 'translateY(-50%)' }}>
-            W
-          </div>
-          <div className="absolute font-display font-bold text-secondary text-sm" style={{ right: 4, top: '50%', transform: 'translateY(-50%)' }}>
-            E
-          </div>
+        <div className="flex items-center justify-center gap-4">
+          {/* Compass rose to the left of the map */}
+          <CompassRose size={60} />
           
           <div
-            className="grid gap-0 mx-auto"
+            className="bg-sage/20 rounded-xl p-3"
             style={{
-              gridTemplateColumns: `repeat(${maze.grid[0].length}, ${cellSize}px)`,
-              width: maze.grid[0].length * cellSize,
+              width: maze.grid[0].length * cellSize + 24,
             }}
           >
-            {maze.grid.map((row, y) =>
-              row.map((cell, x) => (
-                <div
-                  key={`${x}-${y}`}
-                  className={cn(
-                    'relative',
-                    cell.isWall ? 'bg-earth' : 'bg-wheat/50',
-                    cell.isEnd && 'bg-sage/70'
-                  )}
-                  style={{ width: cellSize, height: cellSize }}
-                >
-                  {playerPos.x === x && playerPos.y === y && (
-                    <span
-                      className="absolute inset-0 flex items-center justify-center animate-pulse"
-                      style={{ fontSize: cellSize * 0.7 }}
-                    >
-                      📍
-                    </span>
-                  )}
-                  {cell.isEnd && playerPos.x !== x && playerPos.y !== y && (
-                    <span
-                      className="absolute inset-0 flex items-center justify-center"
-                      style={{ fontSize: cellSize * 0.6 }}
-                    >
-                      🏁
-                    </span>
-                  )}
-                </div>
-              ))
-            )}
+            <div
+              className="grid gap-0 mx-auto"
+              style={{
+                gridTemplateColumns: `repeat(${maze.grid[0].length}, ${cellSize}px)`,
+                width: maze.grid[0].length * cellSize,
+              }}
+            >
+              {maze.grid.map((row, y) =>
+                row.map((cell, x) => (
+                  <div
+                    key={`${x}-${y}`}
+                    className={cn(
+                      'relative',
+                      cell.isWall ? 'bg-earth' : 'bg-wheat/50',
+                      cell.isEnd && 'bg-sage/70'
+                    )}
+                    style={{ width: cellSize, height: cellSize }}
+                  >
+                    {playerPos.x === x && playerPos.y === y && (
+                      <span
+                        className="absolute inset-0 flex items-center justify-center animate-pulse"
+                        style={{ fontSize: cellSize * 0.7 }}
+                      >
+                        📍
+                      </span>
+                    )}
+                    {cell.isEnd && playerPos.x !== x && playerPos.y !== y && (
+                      <span
+                        className="absolute inset-0 flex items-center justify-center"
+                        style={{ fontSize: cellSize * 0.6 }}
+                      >
+                        🏁
+                      </span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 
