@@ -256,8 +256,9 @@ export const MazePreview = ({
 
   const mazeGrid = (
     <div className="flex flex-col items-center gap-2 animate-fade-in">
-      {/* Memorize instruction text with timer */}
-      <div className="flex items-center gap-3">
+      {/* Memorize instruction text with brain icon and timer */}
+      <div className="flex items-center gap-2">
+        <span className="text-lg sm:text-xl">🧠</span>
         <span className="font-display text-lg sm:text-xl font-bold text-foreground">
           Memorize the maze!
         </span>
@@ -498,20 +499,10 @@ export const MazePreview = ({
           )}
         </div>
 
-        {/* Left side: Header + Timer + Compass */}
+        {/* Left side: Compass only */}
         <div className="flex flex-col items-center justify-center gap-2 flex-shrink-0 w-[12%] min-w-[80px]">
-          <div className="text-center animate-fade-in px-1">
-            <h2 className="font-display text-sm font-bold text-foreground leading-tight">
-              🧠
-            </h2>
-          </div>
-          
-          <div className="bg-primary text-primary-foreground px-3 py-0.5 rounded-full font-display font-bold text-base animate-pulse">
-            {timeLeft}s
-          </div>
-          
           {/* Compass rose for orientation - rotated 90° CCW to match landscape grid rotation */}
-          <CompassRose size={70} className="mt-2" rotation={-90} />
+          <CompassRose size={70} rotation={-90} />
         </div>
 
         {/* Right side: Maze */}
