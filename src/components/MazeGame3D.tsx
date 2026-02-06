@@ -599,6 +599,24 @@ export const MazeGame3D = ({
     setActiveDialogue(null);
     setDialogueMessageIndex(0);
     
+    // For story mode: check if all required dialogues are now complete
+    // If so, end the chapter immediately (no need to reach end cell)
+    if (isStoryMode && maze.endConditions?.requiredDialogues) {
+      // Check if we just completed the last required dialogue
+      const allDialoguesTriggered = maze.endConditions.requiredDialogues.every(
+        id => triggeredDialogues.has(id) || id === currentDialogueId
+      );
+      
+      if (allDialoguesTriggered) {
+        setHasWon(true);
+        setGameOver(true);
+        const timeUsed = maze.timeLimit - timeLeft;
+        setFinalTime(timeUsed);
+        onComplete(timeUsed).then(setCompletionResult);
+        return;
+      }
+    }
+    
     // After dialogue ends, check if player is currently on an end cell
     const playerX = Math.floor(playerStateRef.current.x);
     const playerY = Math.floor(playerStateRef.current.y);
