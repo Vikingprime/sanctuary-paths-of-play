@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AnimalType, Maze, MedalType } from '@/types/game';
+import { GameMode, StoryProgress } from '@/types/quest';
 import { animals } from '@/data/animals';
 import { useMazeStorage } from '@/hooks/useMazeStorage';
 import { AnimalCard } from '@/components/AnimalCard';
@@ -8,14 +9,17 @@ import { MazeGame3D } from '@/components/MazeGame3D';
 import { ProgressTracker } from '@/components/ProgressTracker';
 import { Header } from '@/components/Header';
 import { HowToPlayPanel } from '@/components/HowToPlayPanel';
+import { ModeSelectScreen } from '@/components/ModeSelectScreen';
+import { StoryLevelSelect } from '@/components/StoryLevelSelect';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useSave } from '@/hooks/useSave';
 import { useBackButton } from '@/hooks/useBackButton';
 import { Volume2, VolumeX } from 'lucide-react';
+import { storyMazes, storyMazeToMaze, StoryMaze, storyChapters } from '@/data/storyMazes';
 
-type GameScreen = 'home' | 'levels' | 'playing';
+type GameScreen = 'home' | 'mode_select' | 'levels' | 'story_levels' | 'playing';
 
 const Index = () => {
   const { save, loading, refresh, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
@@ -23,6 +27,17 @@ const Index = () => {
   const [screen, setScreen] = useState<GameScreen>('home');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
+  const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
+  const [selectedStoryMaze, setSelectedStoryMaze] = useState<StoryMaze | null>(null);
+  
+  // Story progress (would be persisted in save system in full implementation)
+  const [storyProgress, setStoryProgress] = useState<StoryProgress>({
+    currentChapterId: 'chapter_1',
+    currentQuestId: 'quest_missing_ring',
+    completedQuests: [],
+    completedChapters: [],
+    activeObjectives: {},
+  });
   const [mealProgress, setMealProgress] = useState(35);
 
   // Get mazes from storage
@@ -41,13 +56,33 @@ const Index = () => {
 
   const handleStartGame = () => {
     if (selectedAnimal) {
+      setScreen('mode_select');
+    }
+  };
+
+  const handleModeSelect = (mode: GameMode) => {
+    setSelectedMode(mode);
+    if (mode === 'story') {
+      setScreen('story_levels');
+    } else {
       setScreen('levels');
     }
   };
 
   const handleLevelSelect = async (maze: Maze) => {
     setSelectedMaze(maze);
+    setSelectedStoryMaze(null);
     // Record the attempt when starting a maze
+    await startAttempt(maze.id);
+    setScreen('playing');
+  };
+
+  const handleStoryLevelSelect = async (storyMaze: StoryMaze) => {
+    setSelectedStoryMaze(storyMaze);
+    // Convert to regular maze for game engine
+    const maze = storyMazeToMaze(storyMaze);
+    setSelectedMaze(maze);
+    // Record the attempt
     await startAttempt(maze.id);
     setScreen('playing');
   };
@@ -60,6 +95,17 @@ const Index = () => {
       const completionResult = await completeLevel(selectedMaze.id, timeUsed, selectedMaze);
       result = completionResult;
       console.log('Medal earned:', result.medal, 'Stars earned:', result.currencyEarned, 'Best time:', result.isBestTime);
+    }
+    
+    // For story mode, mark quest as complete
+    if (selectedStoryMaze && selectedMode === 'story') {
+      const questId = selectedStoryMaze.quest.id;
+      if (!storyProgress.completedQuests.includes(questId)) {
+        setStoryProgress(prev => ({
+          ...prev,
+          completedQuests: [...prev.completedQuests, questId],
+        }));
+      }
     }
     
     // Update meal progress based on stars earned
@@ -75,26 +121,41 @@ const Index = () => {
   };
 
   const handleBackToLevels = () => {
-    setScreen('levels');
+    if (selectedMode === 'story') {
+      setScreen('story_levels');
+    } else {
+      setScreen('levels');
+    }
     setSelectedMaze(null);
+    setSelectedStoryMaze(null);
+  };
+
+  const handleBackToModeSelect = () => {
+    setScreen('mode_select');
+    setSelectedMaze(null);
+    setSelectedStoryMaze(null);
   };
 
   const handleBackToHome = () => {
     setScreen('home');
     setSelectedMaze(null);
+    setSelectedStoryMaze(null);
+    setSelectedMode(null);
   };
 
   // Hardware back button handler
   const handleHardwareBack = useCallback(() => {
-    if (screen === 'levels') {
+    if (screen === 'levels' || screen === 'story_levels') {
+      handleBackToModeSelect();
+    } else if (screen === 'mode_select') {
       handleBackToHome();
     }
     // Note: 'playing' screen handles its own back button in MazeGame3D
     // 'home' screen - do nothing (let system handle it)
   }, [screen]);
 
-  // Enable back button handling for levels screen
-  useBackButton(handleHardwareBack, screen === 'levels');
+  // Enable back button handling for levels and mode select screens
+  useBackButton(handleHardwareBack, screen === 'levels' || screen === 'story_levels' || screen === 'mode_select');
   if (screen === 'playing' && selectedAnimal && selectedMaze) {
     return (
       <MazeGame3D
@@ -111,6 +172,19 @@ const Index = () => {
         onBackToLevels={handleBackToLevels}
         onRestart={async () => {
           await startAttempt(selectedMaze.id);
+        }}
+        // Pass story mode props
+        isStoryMode={selectedMode === 'story'}
+        storyMaze={selectedStoryMaze}
+        storyProgress={storyProgress}
+        onObjectiveComplete={(objectiveId) => {
+          setStoryProgress(prev => ({
+            ...prev,
+            activeObjectives: {
+              ...prev.activeObjectives,
+              [objectiveId]: true,
+            },
+          }));
         }}
       />
     );
@@ -255,15 +329,35 @@ const Index = () => {
           </div>
         )}
 
+        {screen === 'mode_select' && selectedAnimal && (
+          <ModeSelectScreen
+            onSelectMode={handleModeSelect}
+            onBack={handleBackToHome}
+            storyProgress={{
+              currentChapter: storyChapters.find(c => c.id === storyProgress.currentChapterId)?.title || 'Chapter 1',
+              completedQuests: storyProgress.completedQuests.length,
+              totalQuests: storyChapters.reduce((sum, c) => sum + c.quests.length, 0),
+            }}
+          />
+        )}
+
         {screen === 'levels' && selectedAnimal && (
           <LevelSelect
             mazes={mazes}
             onSelect={handleLevelSelect}
-            onBack={handleBackToHome}
+            onBack={handleBackToModeSelect}
             save={save}
             isMazeUnlocked={isMazeUnlocked}
             unlockMazeWithCurrency={unlockMazeWithCurrency}
             onRefreshSave={refresh}
+          />
+        )}
+
+        {screen === 'story_levels' && selectedAnimal && (
+          <StoryLevelSelect
+            onSelect={handleStoryLevelSelect}
+            onBack={handleBackToModeSelect}
+            storyProgress={storyProgress}
           />
         )}
       </main>

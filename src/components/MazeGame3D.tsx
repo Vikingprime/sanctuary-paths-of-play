@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Maze, AnimalType, MedalType, DialogueTrigger } from '@/types/game';
+import { StoryProgress } from '@/types/quest';
+import { StoryMaze, StoryDialogue } from '@/data/storyMazes';
 import { Maze3DCanvas, PerformanceInfo } from './Maze3DScene';
 import { MazePreview } from './MazePreview';
 import { MiniMap } from './MiniMap';
@@ -8,6 +10,7 @@ import { MobileControls } from './MobileControls';
 import { RailControls } from './RailControls';
 import { MazeIntroSequence } from './MazeIntroSequence';
 import { CompassOverlay } from './CompassOverlay';
+import { QuestLogOverlay } from './QuestLogOverlay';
 import { Button } from '@/components/ui/button';
 import { Confetti } from '@/components/Confetti';
 import { animals } from '@/data/animals';
@@ -48,6 +51,11 @@ interface MazeGame3DProps {
   onQuit: () => void;
   onBackToLevels: () => void;
   onRestart?: () => Promise<void>; // Called to record restart attempt
+  // Story mode props
+  isStoryMode?: boolean;
+  storyMaze?: StoryMaze | null;
+  storyProgress?: StoryProgress;
+  onObjectiveComplete?: (objectiveId: string) => void;
 }
 
 export const MazeGame3D = ({
@@ -60,6 +68,11 @@ export const MazeGame3D = ({
   onQuit,
   onBackToLevels,
   onRestart: onRestartProp,
+  // Story mode props
+  isStoryMode = false,
+  storyMaze = null,
+  storyProgress,
+  onObjectiveComplete,
 }: MazeGame3DProps) => {
   // Initialize from pure game logic
   const startPos = findStartPosition(maze);
@@ -184,6 +197,9 @@ export const MazeGame3D = ({
   const [activeDialogue, setActiveDialogue] = useState<DialogueTrigger | null>(null);
   const [triggeredDialogues, setTriggeredDialogues] = useState<Set<string>>(new Set());
   const [dialogueMessageIndex, setDialogueMessageIndex] = useState(0); // For multi-message dialogues
+  
+  // Quest objective tracking for story mode
+  const [completedObjectives, setCompletedObjectives] = useState<Set<string>>(new Set());
   
   // Helper to find the speaker position for a dialogue
   const findSpeakerPositionForDialogue = useCallback((dialogue: DialogueTrigger | null): { x: number; y: number } | null => {
@@ -550,6 +566,20 @@ export const MazeGame3D = ({
       return;
     }
     
+    // Process quest action if this is a story dialogue
+    if (isStoryMode && storyMaze) {
+      const storyDialogue = storyMaze.dialogues.find(d => d.id === activeDialogue.id) as StoryDialogue | undefined;
+      if (storyDialogue?.questAction) {
+        const action = storyDialogue.questAction;
+        if (action.type === 'complete_objective' && action.objectiveId) {
+          // Mark objective as complete locally
+          setCompletedObjectives(prev => new Set([...prev, action.objectiveId!]));
+          // Notify parent
+          onObjectiveComplete?.(action.objectiveId);
+        }
+      }
+    }
+    
     // All messages in this dialogue shown, check for chained dialogue
     const currentDialogueId = activeDialogue.id;
     const nextDialogue = findNextChainedDialogue(currentDialogueId);
@@ -579,7 +609,7 @@ export const MazeGame3D = ({
       onComplete(timeUsed).then(setCompletionResult);
       pendingEndGameRef.current = false;
     }
-  }, [activeDialogue, dialogueMessageIndex, maze.grid, maze.timeLimit, timeLeft, onComplete, findNextChainedDialogue, canEndLevel]);
+  }, [activeDialogue, dialogueMessageIndex, maze.grid, maze.timeLimit, timeLeft, onComplete, findNextChainedDialogue, canEndLevel, isStoryMode, storyMaze, onObjectiveComplete]);
 
   // Rail control handlers
   const handleRailDirectionSelect = useCallback((targetX: number, targetZ: number, pathPoints: Point2D[]) => {
@@ -1298,6 +1328,14 @@ export const MazeGame3D = ({
           duration={5000}
           onHide={() => setShowCompass(false)}
           playerStateRef={playerStateRef}
+        />
+      )}
+
+      {/* Quest Log Overlay - only in story mode */}
+      {!isPreviewing && isStoryMode && storyMaze && (
+        <QuestLogOverlay
+          quest={storyMaze.quest}
+          completedObjectives={completedObjectives}
         />
       )}
 
