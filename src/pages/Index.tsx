@@ -16,10 +16,11 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useSave } from '@/hooks/useSave';
 import { useBackButton } from '@/hooks/useBackButton';
-import { Volume2, VolumeX } from 'lucide-react';
+import { Volume2, VolumeX, ArrowLeft } from 'lucide-react';
 import { storyMazes, storyMazeToMaze, StoryMaze, storyChapters } from '@/data/storyMazes';
 
-type GameScreen = 'home' | 'mode_select' | 'levels' | 'story_levels' | 'playing';
+// Flow: home -> mode_select -> animal_select -> levels/story_levels -> playing
+type GameScreen = 'home' | 'mode_select' | 'animal_select' | 'levels' | 'story_levels' | 'playing';
 
 const Index = () => {
   const { save, loading, refresh, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
@@ -33,7 +34,7 @@ const Index = () => {
   // Story progress (would be persisted in save system in full implementation)
   const [storyProgress, setStoryProgress] = useState<StoryProgress>({
     currentChapterId: 'chapter_1',
-    currentQuestId: 'quest_missing_ring',
+    currentQuestId: 'quest_ch1_missing_ring',
     completedQuests: [],
     completedChapters: [],
     activeObjectives: {},
@@ -50,19 +51,23 @@ const Index = () => {
     }
   }, [save.player.currentAnimal]);
 
-  const handleAnimalSelect = (animalId: AnimalType) => {
-    setSelectedAnimal(animalId);
-  };
-
   const handleStartGame = () => {
-    if (selectedAnimal) {
-      setScreen('mode_select');
-    }
+    setScreen('mode_select');
   };
 
   const handleModeSelect = (mode: GameMode) => {
     setSelectedMode(mode);
-    if (mode === 'story') {
+    setScreen('animal_select');
+  };
+
+  const handleAnimalSelect = (animalId: AnimalType) => {
+    setSelectedAnimal(animalId);
+  };
+
+  const handleAnimalConfirm = () => {
+    if (!selectedAnimal || !selectedMode) return;
+    
+    if (selectedMode === 'story') {
       setScreen('story_levels');
     } else {
       setScreen('levels');
@@ -72,29 +77,24 @@ const Index = () => {
   const handleLevelSelect = async (maze: Maze) => {
     setSelectedMaze(maze);
     setSelectedStoryMaze(null);
-    // Record the attempt when starting a maze
     await startAttempt(maze.id);
     setScreen('playing');
   };
 
   const handleStoryLevelSelect = async (storyMaze: StoryMaze) => {
     setSelectedStoryMaze(storyMaze);
-    // Convert to regular maze for game engine
     const maze = storyMazeToMaze(storyMaze);
     setSelectedMaze(maze);
-    // Record the attempt
     await startAttempt(maze.id);
     setScreen('playing');
   };
 
   const handleGameComplete = async (timeUsed: number) => {
-    // Save level completion and get result
     let result = { medal: null as MedalType, currencyEarned: 0, isBestTime: false, bestTime: null as number | null };
     
     if (selectedMaze) {
       const completionResult = await completeLevel(selectedMaze.id, timeUsed, selectedMaze);
       result = completionResult;
-      console.log('Medal earned:', result.medal, 'Stars earned:', result.currencyEarned, 'Best time:', result.isBestTime);
     }
     
     // For story mode, mark quest as complete
@@ -108,7 +108,7 @@ const Index = () => {
       }
     }
     
-    // Update meal progress based on stars earned
+    // Update meal progress
     const newProgress = mealProgress + result.currencyEarned;
     if (newProgress >= 100) {
       await unlockMeal();
@@ -130,10 +130,13 @@ const Index = () => {
     setSelectedStoryMaze(null);
   };
 
+  const handleBackToAnimalSelect = () => {
+    setScreen('animal_select');
+  };
+
   const handleBackToModeSelect = () => {
     setScreen('mode_select');
-    setSelectedMaze(null);
-    setSelectedStoryMaze(null);
+    setSelectedAnimal(null);
   };
 
   const handleBackToHome = () => {
@@ -141,21 +144,22 @@ const Index = () => {
     setSelectedMaze(null);
     setSelectedStoryMaze(null);
     setSelectedMode(null);
+    setSelectedAnimal(null);
   };
 
   // Hardware back button handler
   const handleHardwareBack = useCallback(() => {
     if (screen === 'levels' || screen === 'story_levels') {
+      handleBackToAnimalSelect();
+    } else if (screen === 'animal_select') {
       handleBackToModeSelect();
     } else if (screen === 'mode_select') {
       handleBackToHome();
     }
-    // Note: 'playing' screen handles its own back button in MazeGame3D
-    // 'home' screen - do nothing (let system handle it)
   }, [screen]);
 
-  // Enable back button handling for levels and mode select screens
-  useBackButton(handleHardwareBack, screen === 'levels' || screen === 'story_levels' || screen === 'mode_select');
+  useBackButton(handleHardwareBack, screen === 'levels' || screen === 'story_levels' || screen === 'mode_select' || screen === 'animal_select');
+
   if (screen === 'playing' && selectedAnimal && selectedMaze) {
     return (
       <MazeGame3D
@@ -173,7 +177,6 @@ const Index = () => {
         onRestart={async () => {
           await startAttempt(selectedMaze.id);
         }}
-        // Pass story mode props
         isStoryMode={selectedMode === 'story'}
         storyMaze={selectedStoryMaze}
         storyProgress={storyProgress}
@@ -204,8 +207,8 @@ const Index = () => {
       />
       <main className="container max-w-4xl mx-auto px-4 py-8">
         {screen === 'home' && (
-          <div className="space-y-4 md:space-y-6">
-            {/* Hero Section - Compact on mobile */}
+          <div className="space-y-6 md:space-y-8">
+            {/* Hero Section */}
             <div className="text-center space-y-2 md:space-y-4 animate-fade-in">
               <div className="text-4xl md:text-6xl mb-2 md:mb-4">🐷🐮🐔</div>
               <h1 className="font-display text-3xl md:text-5xl font-bold text-gradient">
@@ -217,32 +220,12 @@ const Index = () => {
               </p>
             </div>
 
-            {/* Animal Selection - Compact on mobile */}
-            <div className="space-y-2 md:space-y-4">
-              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground text-center">
-                Choose Your Animal
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-                {animals.map((animal, index) => (
-                  <AnimalCard
-                    key={animal.id}
-                    animal={animal}
-                    isSelected={selectedAnimal === animal.id}
-                    isLocked={!save.player.unlockedAnimals.includes(animal.id)}
-                    onClick={() => handleAnimalSelect(animal.id)}
-                    delay={index + 1}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Start Button - Always visible, sticky on mobile */}
-            <div className="flex flex-col items-center gap-3 md:gap-4 animate-fade-in-delay-3 sticky bottom-4 md:static bg-background/95 backdrop-blur-sm py-3 md:py-0 -mx-4 px-4 md:mx-0 md:px-0 md:bg-transparent z-10">
+            {/* Start Button */}
+            <div className="flex flex-col items-center gap-4 animate-fade-in-delay-1">
               <Button
                 variant="sunset"
                 size="xl"
                 onClick={handleStartGame}
-                disabled={!selectedAnimal}
                 className="min-w-48"
               >
                 Start Adventure 🌾
@@ -282,7 +265,7 @@ const Index = () => {
             </div>
 
             {/* Progress Tracker */}
-            <div className="max-w-sm mx-auto animate-fade-in-delay-3">
+            <div className="max-w-sm mx-auto animate-fade-in-delay-2">
               <ProgressTracker
                 mealsUnlocked={save.player.totalMealsUnlocked}
                 currentProgress={mealProgress}
@@ -290,7 +273,7 @@ const Index = () => {
               />
             </div>
 
-            {/* How it works - quick overview */}
+            {/* How it works */}
             <div className="bg-card rounded-2xl p-6 shadow-warm animate-fade-in-delay-3">
               <h3 className="font-display text-lg font-bold text-foreground mb-4 text-center">
                 Quick Overview
@@ -329,7 +312,7 @@ const Index = () => {
           </div>
         )}
 
-        {screen === 'mode_select' && selectedAnimal && (
+        {screen === 'mode_select' && (
           <ModeSelectScreen
             onSelectMode={handleModeSelect}
             onBack={handleBackToHome}
@@ -341,11 +324,62 @@ const Index = () => {
           />
         )}
 
+        {screen === 'animal_select' && selectedMode && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Back button */}
+            <Button
+              variant="ghost"
+              onClick={handleBackToModeSelect}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+
+            {/* Title */}
+            <div className="text-center space-y-2">
+              <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
+                Choose Your Animal
+              </h1>
+              <p className="text-muted-foreground">
+                Who will explore the {selectedMode === 'story' ? 'story' : 'maze'} with you?
+              </p>
+            </div>
+
+            {/* Animal Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
+              {animals.map((animal, index) => (
+                <AnimalCard
+                  key={animal.id}
+                  animal={animal}
+                  isSelected={selectedAnimal === animal.id}
+                  isLocked={!save.player.unlockedAnimals.includes(animal.id)}
+                  onClick={() => handleAnimalSelect(animal.id)}
+                  delay={index + 1}
+                />
+              ))}
+            </div>
+
+            {/* Continue Button */}
+            <div className="flex justify-center">
+              <Button
+                variant="sunset"
+                size="lg"
+                onClick={handleAnimalConfirm}
+                disabled={!selectedAnimal}
+                className="min-w-40"
+              >
+                Continue →
+              </Button>
+            </div>
+          </div>
+        )}
+
         {screen === 'levels' && selectedAnimal && (
           <LevelSelect
             mazes={mazes}
             onSelect={handleLevelSelect}
-            onBack={handleBackToModeSelect}
+            onBack={handleBackToAnimalSelect}
             save={save}
             isMazeUnlocked={isMazeUnlocked}
             unlockMazeWithCurrency={unlockMazeWithCurrency}
@@ -356,7 +390,7 @@ const Index = () => {
         {screen === 'story_levels' && selectedAnimal && (
           <StoryLevelSelect
             onSelect={handleStoryLevelSelect}
-            onBack={handleBackToModeSelect}
+            onBack={handleBackToAnimalSelect}
             storyProgress={storyProgress}
           />
         )}
