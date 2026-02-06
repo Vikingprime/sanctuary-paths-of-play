@@ -61,7 +61,7 @@ const chapter1Maze: StoryMaze = {
       emoji: '🐀',
       model: 'Pig.glb', // Placeholder until we have Rat model
       animation: 'idle',
-      position: { x: 12, y: 10 },
+      position: { x: 10, y: 10 }, // Moved to valid path position
       hiddenFromPreview: true,
       questRelevant: 'find_remy',
     }
@@ -153,7 +153,7 @@ const chapter1Maze: StoryMaze = {
           message: "Tell Sam about my cousins. He'll know where to find them!",
         },
       ],
-      cells: [{ x: 11, y: 10 }, { x: 12, y: 10 }, { x: 12, y: 11 }, { x: 11, y: 11 }, { x: 13, y: 10 }],
+      cells: [{ x: 9, y: 10 }, { x: 10, y: 10 }, { x: 10, y: 11 }, { x: 9, y: 11 }, { x: 11, y: 10 }, { x: 11, y: 11 }, { x: 8, y: 10 }, { x: 8, y: 11 }],
       speakerCharacterId: 'remy_rat',
       requires: ['sam_ch1_intro'],
       questAction: { type: 'complete_objective', objectiveId: 'find_remy' },

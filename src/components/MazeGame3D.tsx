@@ -321,10 +321,14 @@ export const MazeGame3D = ({
       
       const elapsedMs = Date.now() - previewStartTimeRef.current;
       const elapsedSeconds = elapsedMs / 1000;
-      // Use ceiling to show the number of seconds until completion (e.g. 0.1s elapsed = 10s remaining if duration is 10)
-      const remaining = Math.max(0, Math.ceil(previewDurationRef.current - elapsedSeconds));
+      // Use floor for proper countdown (10, 9, 8... not ceiling which delays the first tick)
+      const remaining = Math.max(0, Math.floor(previewDurationRef.current - elapsedSeconds + 1));
       
-      setPreviewTimeLeft(remaining);
+      setPreviewTimeLeft(prev => {
+        // Only update state if value actually changed (prevents unnecessary re-renders)
+        if (prev !== remaining) return remaining;
+        return prev;
+      });
       
       if (elapsedSeconds >= previewDurationRef.current) {
         setIsPreviewing(false);
