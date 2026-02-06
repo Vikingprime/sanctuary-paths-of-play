@@ -82,10 +82,10 @@ const chapter1Maze: StoryMaze = {
       {
         id: 'find_remy',
         type: 'talk_to',
-        description: 'Find someone who might know something',
+        description: 'Find Remy the Rat in the corn maze',
         targetCharacterId: 'remy_rat',
         completed: false,
-        hidden: true,
+        hidden: false, // Now visible in quest log
       },
       {
         id: 'report_ch1',

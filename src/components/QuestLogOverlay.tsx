@@ -19,7 +19,7 @@ export const QuestLogOverlay = ({
   );
 
   return (
-    <div className={`absolute top-4 left-4 z-20 pointer-events-auto ${className}`}>
+    <div className={`absolute top-32 left-4 z-20 pointer-events-auto ${className}`}>
       <div className="bg-card/90 backdrop-blur-sm rounded-xl shadow-lg border border-border/50 max-w-xs">
         {/* Quest Title */}
         <div className="px-4 py-3 border-b border-border/50">
