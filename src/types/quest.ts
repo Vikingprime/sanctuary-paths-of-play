@@ -23,6 +23,9 @@ export interface Quest {
     medal?: boolean;
   };
   nextQuestId?: string; // Chain to next quest
+  // Optional hints for special puzzle quests
+  riddleHint?: string; // For riddle-based quests (shown in quest log)
+  trailHint?: string; // For trail-following quests
 }
 
 export interface StoryChapter {

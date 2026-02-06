@@ -1,77 +1,81 @@
-import { Quest, QuestObjective } from '@/types/quest';
-import { CheckCircle2, Circle, MapPin } from 'lucide-react';
+import { Quest, QuestObjective, StoryProgress } from '@/types/quest';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Check, Circle, HelpCircle } from 'lucide-react';
 
 interface QuestLogOverlayProps {
   quest: Quest;
   completedObjectives: Set<string>;
-  currentObjectiveId?: string;
   className?: string;
 }
 
 export const QuestLogOverlay = ({
   quest,
   completedObjectives,
-  currentObjectiveId,
   className = '',
 }: QuestLogOverlayProps) => {
-  // Filter to only show non-hidden objectives or completed ones
-  const visibleObjectives = quest.objectives.filter(
-    obj => !obj.hidden || completedObjectives.has(obj.id)
-  );
-
-  // Find the first incomplete objective to highlight
-  const activeObjective = visibleObjectives.find(
-    obj => !completedObjectives.has(obj.id)
+  // Filter out hidden objectives that aren't completed yet
+  const visibleObjectives = quest.objectives.filter(obj => 
+    !obj.hidden || completedObjectives.has(obj.id)
   );
 
   return (
-    <div
-      className={`absolute top-4 left-4 z-20 pointer-events-none ${className}`}
-    >
-      <div className="bg-card/90 backdrop-blur-sm rounded-xl shadow-lg max-w-xs overflow-hidden">
-        {/* Quest title header */}
-        <div className="bg-primary/20 px-3 py-2 border-b border-border/50">
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-primary" />
-            <h3 className="font-display font-bold text-sm text-foreground truncate">
-              {quest.title}
-            </h3>
+    <div className={`absolute top-4 left-4 z-20 pointer-events-auto ${className}`}>
+      <div className="bg-card/90 backdrop-blur-sm rounded-xl shadow-lg border border-border/50 max-w-xs">
+        {/* Quest Title */}
+        <div className="px-4 py-3 border-b border-border/50">
+          <h3 className="font-display font-bold text-foreground text-sm flex items-center gap-2">
+            📜 {quest.title}
+          </h3>
+        </div>
+
+        {/* Objectives */}
+        <ScrollArea className="max-h-48">
+          <div className="px-4 py-3 space-y-2">
+            {visibleObjectives.map((objective) => {
+              const isCompleted = completedObjectives.has(objective.id);
+              
+              return (
+                <div
+                  key={objective.id}
+                  className={`flex items-start gap-2 text-xs ${
+                    isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'
+                  }`}
+                >
+                  {isCompleted ? (
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <Circle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                  )}
+                  <span>{objective.description}</span>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        </ScrollArea>
 
-        {/* Objectives list */}
-        <div className="px-3 py-2 space-y-1.5">
-          {visibleObjectives.map((objective) => {
-            const isCompleted = completedObjectives.has(objective.id);
-            const isActive = objective.id === activeObjective?.id;
-
-            return (
-              <div
-                key={objective.id}
-                className={`flex items-start gap-2 text-xs transition-all duration-300 ${
-                  isCompleted
-                    ? 'text-muted-foreground line-through opacity-60'
-                    : isActive
-                    ? 'text-foreground'
-                    : 'text-muted-foreground'
-                }`}
-              >
-                {isCompleted ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-secondary flex-shrink-0 mt-0.5" />
-                ) : (
-                  <Circle
-                    className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${
-                      isActive ? 'text-primary animate-pulse' : 'text-muted-foreground'
-                    }`}
-                  />
-                )}
-                <span className={isActive ? 'font-medium' : ''}>
-                  {objective.description}
-                </span>
+        {/* Riddle Hint (for puzzle quests) */}
+        {quest.riddleHint && (
+          <div className="px-4 py-3 border-t border-border/50 bg-primary/5">
+            <div className="flex items-start gap-2">
+              <HelpCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-muted-foreground italic whitespace-pre-line">
+                {quest.riddleHint}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          </div>
+        )}
+
+        {/* Trail Hint (for future smell trail feature) */}
+        {quest.trailHint && (
+          <div className="px-4 py-3 border-t border-border/50 bg-secondary/5">
+            <div className="flex items-start gap-2">
+              <span className="text-sm">👃</span>
+              <div className="text-xs text-muted-foreground italic">
+                {quest.trailHint}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
