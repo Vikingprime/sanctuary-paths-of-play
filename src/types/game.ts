@@ -22,6 +22,7 @@ export interface MazeCell {
   isStation?: boolean;
   isStart?: boolean;
   isEnd?: boolean;
+  isBerry?: boolean; // Berry collectible location
   powerUpType?: 'speed' | 'time' | 'key';
   brand?: string;
 }

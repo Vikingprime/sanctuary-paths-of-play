@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Maze, MazeCell } from '@/types/game';
 import { mazes as defaultMazes } from '@/data/mazes';
+import { storyMazes, storyMazeToMaze } from '@/data/storyMazes';
 
 // Helper to create a maze grid from layout strings
 export const createGrid = (layout: string[]): MazeCell[][] => {
@@ -13,6 +14,7 @@ export const createGrid = (layout: string[]): MazeCell[][] => {
       isEnd: cell === 'E',
       isPowerUp: cell === 'P',
       isStation: cell === 'H',
+      isBerry: cell === 'B', // Berry collectible
       powerUpType: cell === 'P' ? 'time' : undefined,
       brand: cell === 'P' ? 'T-Mobile' : undefined,
     }))
@@ -28,6 +30,7 @@ export const gridToLayout = (grid: MazeCell[][]): string[] => {
       if (cell.isEnd) return 'E';
       if (cell.isPowerUp) return 'P';
       if (cell.isStation) return 'H';
+      if (cell.isBerry) return 'B';
       return ' ';
     }).join('')
   );
@@ -41,10 +44,19 @@ const difficultyOrder: Record<string, number> = {
 };
 
 export function useMazeStorage() {
-  // Get all mazes sorted by difficulty, then by id
+  // Get all mazes sorted by difficulty, then by id (includes story mazes)
   const getAllMazes = useMemo(() => {
-    return (): Maze[] => {
-      return [...defaultMazes].sort((a, b) => {
+    return (includeStoryMazes = false): Maze[] => {
+      const allMazes: Maze[] = [...defaultMazes];
+      
+      // Include story mazes if requested (for editor)
+      if (includeStoryMazes) {
+        storyMazes.forEach(sm => {
+          allMazes.push(storyMazeToMaze(sm));
+        });
+      }
+      
+      return allMazes.sort((a, b) => {
         const diffA = difficultyOrder[a.difficulty] || 99;
         const diffB = difficultyOrder[b.difficulty] || 99;
         if (diffA !== diffB) return diffA - diffB;
@@ -55,7 +67,15 @@ export function useMazeStorage() {
 
   const getMaze = useMemo(() => {
     return (id: number): Maze | undefined => {
-      return defaultMazes.find(m => m.id === id);
+      // Check default mazes first
+      const defaultMaze = defaultMazes.find(m => m.id === id);
+      if (defaultMaze) return defaultMaze;
+      
+      // Check story mazes
+      const storyMaze = storyMazes.find(m => m.id === id);
+      if (storyMaze) return storyMazeToMaze(storyMaze);
+      
+      return undefined;
     };
   }, []);
 

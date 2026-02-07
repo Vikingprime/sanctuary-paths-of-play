@@ -12,6 +12,7 @@ const createGrid = (layout: string[]): MazeCell[][] => {
       isEnd: cell === 'E',
       isPowerUp: cell === 'P',
       isStation: cell === 'H',
+      isBerry: cell === 'B', // Berry collectible
       powerUpType: cell === 'P' ? 'time' : undefined,
     }))
   );
@@ -61,7 +62,7 @@ const chapter1Maze: StoryMaze = {
       emoji: '🐀',
       model: 'Pig.glb', // Placeholder until we have Rat model
       animation: 'idle',
-      position: { x: 10, y: 10 }, // Moved to valid path position
+      position: { x: 5, y: 10 }, // Centered on main corridor path
       hiddenFromPreview: true,
       questRelevant: 'find_remy',
     }
@@ -153,7 +154,7 @@ const chapter1Maze: StoryMaze = {
           message: "Tell Sam about my cousins. He'll know where to find them!",
         },
       ],
-      cells: [{ x: 9, y: 10 }, { x: 10, y: 10 }, { x: 10, y: 11 }, { x: 9, y: 11 }, { x: 11, y: 10 }, { x: 11, y: 11 }, { x: 8, y: 10 }, { x: 8, y: 11 }],
+      cells: [{ x: 3, y: 10 }, { x: 4, y: 10 }, { x: 5, y: 10 }, { x: 6, y: 10 }, { x: 7, y: 10 }, { x: 8, y: 10 }, { x: 9, y: 10 }, { x: 3, y: 11 }, { x: 4, y: 11 }, { x: 5, y: 11 }, { x: 6, y: 11 }, { x: 7, y: 11 }, { x: 8, y: 11 }, { x: 9, y: 11 }],
       speakerCharacterId: 'remy_rat',
       requires: ['sam_ch1_intro'],
       questAction: { type: 'complete_objective', objectiveId: 'find_remy' },
@@ -196,7 +197,7 @@ const chapter1Maze: StoryMaze = {
     '##            ####',
     '######  ##      ##',
     '######  ##      ##',
-    '##      ##  ######',
+    '##   B  ##  ######',
     '##      ##  ######',
     '##  ##########  ##',
     '##  ##########  ##',

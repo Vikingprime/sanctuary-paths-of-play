@@ -1,19 +1,23 @@
+import { useNavigate } from 'react-router-dom';
 import { StoryProgress } from '@/types/quest';
 import { StoryMaze, storyChapters, getChapterMaze } from '@/data/storyMazes';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Lock, Check, BookOpen } from 'lucide-react';
+import { ArrowLeft, Lock, Check, BookOpen, Edit } from 'lucide-react';
 
 interface StoryLevelSelectProps {
   onSelect: (storyMaze: StoryMaze) => void;
   onBack: () => void;
   storyProgress: StoryProgress;
+  debugMode?: boolean;
 }
 
 export const StoryLevelSelect = ({
   onSelect,
   onBack,
   storyProgress,
+  debugMode = false,
 }: StoryLevelSelectProps) => {
+  const navigate = useNavigate();
   const isChapterUnlocked = (chapterId: string): boolean => {
     const chapter = storyChapters.find(c => c.id === chapterId);
     if (!chapter) return false;
@@ -136,17 +140,32 @@ export const StoryLevelSelect = ({
                   )}
                 </div>
 
-                {/* Play indicator */}
-                {unlocked && !completed && (
-                  <div className="text-primary font-semibold text-sm flex-shrink-0">
-                    Play →
-                  </div>
-                )}
-                {completed && (
-                  <div className="text-green-600 font-semibold text-sm flex-shrink-0">
-                    Replay →
-                  </div>
-                )}
+                {/* Play/Edit indicators */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {debugMode && maze && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/editor?mazeId=${maze.id}`);
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {unlocked && !completed && (
+                    <div className="text-primary font-semibold text-sm">
+                      Play →
+                    </div>
+                  )}
+                  {completed && (
+                    <div className="text-green-600 font-semibold text-sm">
+                      Replay →
+                    </div>
+                  )}
+                </div>
               </div>
             </button>
           );
