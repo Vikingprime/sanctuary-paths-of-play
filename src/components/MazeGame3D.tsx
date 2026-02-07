@@ -11,6 +11,7 @@ import { RailControls } from './RailControls';
 import { MazeIntroSequence } from './MazeIntroSequence';
 import { CompassOverlay } from './CompassOverlay';
 import { QuestLogOverlay } from './QuestLogOverlay';
+import { BerryHUD } from './BerryHUD';
 import { Button } from '@/components/ui/button';
 import { Confetti } from '@/components/Confetti';
 import { animals } from '@/data/animals';
@@ -56,6 +57,15 @@ interface MazeGame3DProps {
   storyMaze?: StoryMaze | null;
   storyProgress?: StoryProgress;
   onObjectiveComplete?: (objectiveId: string) => void;
+  // Berry system props
+  berryCount?: number;
+  onBerryCollect?: (count?: number) => void;
+  onBerryFeed?: () => void;
+  friendshipProgress?: {
+    currentTier: { id: string; name: string; pointsRequired: number };
+    nextTier: { id: string; name: string; pointsRequired: number } | null;
+    progress: number;
+  };
 }
 
 export const MazeGame3D = ({
@@ -73,6 +83,11 @@ export const MazeGame3D = ({
   storyMaze = null,
   storyProgress,
   onObjectiveComplete,
+  // Berry system props
+  berryCount = 0,
+  onBerryCollect,
+  onBerryFeed,
+  friendshipProgress,
 }: MazeGame3DProps) => {
   // Initialize from pure game logic
   const startPos = findStartPosition(maze);
@@ -1350,6 +1365,19 @@ export const MazeGame3D = ({
           duration={5000}
           onHide={() => setShowCompass(false)}
           playerStateRef={playerStateRef}
+        />
+      )}
+
+      {/* Berry HUD - shows berry count with drag-to-feed */}
+      {!isPreviewing && berryCount > 0 && (
+        <BerryHUD
+          berryCount={berryCount}
+          onDragEnd={(targetAnimalId) => {
+            if (targetAnimalId && onBerryFeed) {
+              onBerryFeed();
+            }
+          }}
+          className="absolute top-20 right-4 z-30"
         />
       )}
 

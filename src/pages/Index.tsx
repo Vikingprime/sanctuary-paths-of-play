@@ -3,6 +3,7 @@ import { AnimalType, Maze, MedalType } from '@/types/game';
 import { GameMode, StoryProgress } from '@/types/quest';
 import { animals } from '@/data/animals';
 import { useMazeStorage } from '@/hooks/useMazeStorage';
+import { useBerrySystem } from '@/hooks/useBerrySystem';
 import { AnimalCard } from '@/components/AnimalCard';
 import { LevelSelect } from '@/components/LevelSelect';
 import { MazeGame3D } from '@/components/MazeGame3D';
@@ -25,6 +26,7 @@ type GameScreen = 'home' | 'mode_select' | 'animal_select' | 'levels' | 'story_l
 const Index = () => {
   const { save, loading, refresh, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
   const { getAllMazes, isLoaded: mazesLoaded } = useMazeStorage();
+  const { berryCount, collectBerry, feedBerry, getFriendship, getProgress, addTestBerries } = useBerrySystem();
   const [screen, setScreen] = useState<GameScreen>('home');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
@@ -189,6 +191,11 @@ const Index = () => {
             },
           }));
         }}
+        // Berry system props
+        berryCount={berryCount}
+        onBerryCollect={collectBerry}
+        onBerryFeed={() => feedBerry(selectedAnimal)}
+        friendshipProgress={getProgress(selectedAnimal)}
       />
     );
   }
@@ -392,6 +399,7 @@ const Index = () => {
             onSelect={handleStoryLevelSelect}
             onBack={handleBackToAnimalSelect}
             storyProgress={storyProgress}
+            debugMode={save.settings.debugMode}
           />
         )}
       </main>
