@@ -1,41 +1,64 @@
 import { Canvas } from '@react-three/fiber';
-import { useGLTF, OrbitControls } from '@react-three/drei';
-import { Suspense } from 'react';
+import { useGLTF } from '@react-three/drei';
+import { Suspense, memo } from 'react';
+import * as THREE from 'three';
 
 interface AppleHUDModelProps {
   size?: number;
 }
 
-const AppleModel = () => {
+// Memoized Apple mesh component
+const AppleMesh = memo(() => {
   const { scene } = useGLTF('/models/Apple_Red.glb');
+  
+  // Clone and position the scene
+  const clonedScene = scene.clone();
+  clonedScene.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.material = child.material.clone();
+    }
+  });
   
   return (
     <primitive 
-      object={scene.clone()} 
-      scale={[2.5, 2.5, 2.5]}
+      object={clonedScene} 
+      scale={2.5}
       rotation={[0, Math.PI * 0.25, 0]}
+      position={[0, 0, 0]}
     />
   );
-};
+});
+
+AppleMesh.displayName = 'AppleMesh';
 
 // Preload the model
 useGLTF.preload('/models/Apple_Red.glb');
 
-export const AppleHUDModel = ({ size = 80 }: AppleHUDModelProps) => {
+export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
   return (
-    <div style={{ width: size, height: size }} className="pointer-events-none">
+    <div 
+      style={{ width: size, height: size }} 
+      className="pointer-events-none"
+    >
       <Canvas
         camera={{ position: [0, 0, 5], fov: 35 }}
-        gl={{ alpha: true, antialias: true }}
+        gl={{ 
+          alpha: true, 
+          antialias: true,
+          powerPreference: 'high-performance',
+        }}
+        frameloop="demand"
         style={{ background: 'transparent' }}
       >
-        <ambientLight intensity={1.2} />
-        <directionalLight position={[5, 5, 5]} intensity={1.5} />
-        <directionalLight position={[-3, 2, 4]} intensity={0.8} />
+        <ambientLight intensity={1.5} />
+        <directionalLight position={[5, 5, 5]} intensity={2} />
+        <directionalLight position={[-3, 2, 4]} intensity={1} />
         <Suspense fallback={null}>
-          <AppleModel />
+          <AppleMesh />
         </Suspense>
       </Canvas>
     </div>
   );
-};
+});
+
+AppleHUDModel.displayName = 'AppleHUDModel';
