@@ -105,52 +105,24 @@ export const ItemPanel = ({
   
   return (
     <>
-      {/* Collapsible Item Panel */}
-      <Collapsible open={isOpen} onOpenChange={setIsOpen} className={className}>
-        <div
-          ref={panelRef}
-          className="bg-card/80 backdrop-blur-sm rounded-xl shadow-lg pointer-events-auto overflow-hidden"
-        >
-          {/* Collapsible Header/Trigger */}
-          <CollapsibleTrigger className="w-full flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🍎</span>
-              <span className="font-display font-semibold text-foreground text-sm">
-                ×{appleCount}
-              </span>
-            </div>
-            {isOpen ? (
-              <ChevronUp className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            )}
-          </CollapsibleTrigger>
-          
-          {/* Collapsible Content */}
-          <CollapsibleContent>
-            <div className="px-3 pb-3 pt-1">
-              {/* Apple slot - draggable */}
-              <div
-                className={cn(
-                  'flex flex-col items-center gap-1 p-2 transition-all cursor-grab active:cursor-grabbing select-none',
-                  appleCount > 0 
-                    ? 'hover:scale-105' 
-                    : 'opacity-50 cursor-not-allowed'
-                )}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onMouseDown={handleMouseDown}
-              >
-                <span className="text-5xl">🍎</span>
-                <span className="font-display font-bold text-foreground text-base">
-                  ×{appleCount}
-                </span>
-              </div>
-            </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
+      {/* Simple floating apple - no box */}
+      <div
+        ref={panelRef}
+        className={cn(
+          'flex items-center gap-2 pointer-events-auto cursor-grab active:cursor-grabbing select-none transition-all',
+          appleCount > 0 ? 'hover:scale-105' : 'opacity-50 cursor-not-allowed',
+          className
+        )}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+      >
+        <span className="text-6xl drop-shadow-lg">🍎</span>
+        <span className="font-display font-bold text-white text-xl drop-shadow-md">
+          ×{appleCount}
+        </span>
+      </div>
       
       {/* Dragging apple indicator */}
       {isDragging && (
