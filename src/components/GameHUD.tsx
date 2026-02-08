@@ -302,6 +302,14 @@ interface GameHUDProps {
   // Rail turn speed
   railTurnSpeed?: number;
   onRailTurnSpeedChange?: (speed: number) => void;
+  // Apple/Item system props
+  appleCount?: number;
+  onAppleDrop?: () => void;
+  friendshipProgress?: {
+    currentTier: { id: string; name: string; pointsRequired: number };
+    nextTier: { id: string; name: string; pointsRequired: number } | null;
+    progress: number;
+  };
 }
 
 export const GameHUD = ({
