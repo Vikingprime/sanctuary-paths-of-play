@@ -27,7 +27,7 @@ const DebugBox = () => {
 
 // Memoized Apple mesh component with auto-rotation
 const AppleMesh = memo(() => {
-  const { scene } = useGLTF('/models/Apple_Red.glb');
+  const { scene } = useGLTF('/models/Apple_HUD.glb');
   const groupRef = useRef<THREE.Group>(null);
   
   useEffect(() => {
@@ -66,7 +66,7 @@ const AppleMesh = memo(() => {
 AppleMesh.displayName = 'AppleMesh';
 
 // Preload the model
-useGLTF.preload('/models/Apple_Red.glb');
+useGLTF.preload('/models/Apple_HUD.glb');
 
 export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
   const [showDebug, setShowDebug] = useState(false);
