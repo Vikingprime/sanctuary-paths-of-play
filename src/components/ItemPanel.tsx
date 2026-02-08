@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface ItemPanelProps {
   appleCount: number;
@@ -11,16 +13,19 @@ interface ItemPanelProps {
     progress: number;
   };
   className?: string;
+  defaultOpen?: boolean;
 }
 
-// Right-side item panel for gameplay with draggable apples
+// Collapsible item panel for gameplay with draggable apples
 export const ItemPanel = ({
   appleCount,
   onAppleDrop,
   animalBounds,
   friendshipProgress,
   className,
+  defaultOpen = true,
 }: ItemPanelProps) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [isDragging, setIsDragging] = useState(false);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const [showFeedback, setShowFeedback] = useState(false);
@@ -106,65 +111,79 @@ export const ItemPanel = ({
   
   return (
     <>
-      {/* Item Panel */}
-      <div
-        ref={panelRef}
-        className={cn(
-          'bg-card/90 backdrop-blur-sm rounded-xl p-3 shadow-lg flex flex-col gap-3 pointer-events-auto',
-          className
-        )}
-      >
-        {/* Title */}
-        <div className="text-xs font-display font-semibold text-muted-foreground uppercase tracking-wide">
-          Items
-        </div>
-        
-        {/* Apple slot */}
+      {/* Collapsible Item Panel */}
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} className={className}>
         <div
-          className={cn(
-            'flex flex-col items-center gap-1 p-2 rounded-lg border-2 border-dashed transition-all cursor-grab active:cursor-grabbing select-none',
-            appleCount > 0 
-              ? 'border-primary/50 bg-primary/10 hover:bg-primary/20' 
-              : 'border-muted opacity-50 cursor-not-allowed'
-          )}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onMouseDown={handleMouseDown}
+          ref={panelRef}
+          className="bg-card/80 backdrop-blur-sm rounded-xl shadow-lg pointer-events-auto overflow-hidden"
         >
-          <span className="text-2xl">🍎</span>
-          <span className="font-display font-bold text-foreground text-sm">
-            ×{appleCount}
-          </span>
-          {appleCount > 0 && (
-            <span className="text-[10px] text-muted-foreground text-center leading-tight">
-              Drag to feed
-            </span>
-          )}
-        </div>
-        
-        {/* Friendship progress */}
-        {friendshipProgress && (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="text-muted-foreground">
-                {friendshipProgress.currentTier.name}
+          {/* Collapsible Header/Trigger */}
+          <CollapsibleTrigger className="w-full flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🍎</span>
+              <span className="font-display font-semibold text-foreground text-sm">
+                ×{appleCount}
               </span>
-              {friendshipProgress.nextTier && (
-                <span className="text-primary">
-                  → {friendshipProgress.nextTier.name}
+            </div>
+            {isOpen ? (
+              <ChevronUp className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            )}
+          </CollapsibleTrigger>
+          
+          {/* Collapsible Content */}
+          <CollapsibleContent>
+            <div className="px-3 pb-3 pt-1 flex flex-col gap-3">
+              {/* Apple slot - draggable */}
+              <div
+                className={cn(
+                  'flex flex-col items-center gap-1 p-2 rounded-lg border-2 border-dashed transition-all cursor-grab active:cursor-grabbing select-none',
+                  appleCount > 0 
+                    ? 'border-primary/50 bg-primary/10 hover:bg-primary/20' 
+                    : 'border-muted opacity-50 cursor-not-allowed'
+                )}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onMouseDown={handleMouseDown}
+              >
+                <span className="text-2xl">🍎</span>
+                <span className="font-display font-bold text-foreground text-sm">
+                  ×{appleCount}
                 </span>
+                {appleCount > 0 && (
+                  <span className="text-[10px] text-muted-foreground text-center leading-tight">
+                    Drag to feed
+                  </span>
+                )}
+              </div>
+              
+              {/* Friendship progress */}
+              {friendshipProgress && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-muted-foreground">
+                      {friendshipProgress.currentTier.name}
+                    </span>
+                    {friendshipProgress.nextTier && (
+                      <span className="text-primary">
+                        → {friendshipProgress.nextTier.name}
+                      </span>
+                    )}
+                  </div>
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{ width: `${friendshipProgress.progress * 100}%` }}
+                    />
+                  </div>
+                </div>
               )}
             </div>
-            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${friendshipProgress.progress * 100}%` }}
-              />
-            </div>
-          </div>
-        )}
-      </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
       
       {/* Dragging apple indicator */}
       {isDragging && (

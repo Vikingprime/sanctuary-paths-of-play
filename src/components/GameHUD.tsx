@@ -3,6 +3,7 @@ import { AnimalType } from '@/types/game';
 import { animals } from '@/data/animals';
 import { cn } from '@/lib/utils';
 import { PerformanceInfo } from './Maze3DScene';
+import { ItemPanel } from './ItemPanel';
 import { Volume2, VolumeX, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { SpurConfig } from '@/game/MedialAxis';
 import { MagnetismConfig, DEFAULT_MAGNETISM_CONFIG, MagnetismTurnResult } from '@/game/CorridorMagnetism';
@@ -301,6 +302,14 @@ interface GameHUDProps {
   // Rail turn speed
   railTurnSpeed?: number;
   onRailTurnSpeedChange?: (speed: number) => void;
+  // Apple/Item system props
+  appleCount?: number;
+  onAppleDrop?: () => void;
+  friendshipProgress?: {
+    currentTier: { id: string; name: string; pointsRequired: number };
+    nextTier: { id: string; name: string; pointsRequired: number } | null;
+    progress: number;
+  };
 }
 
 export const GameHUD = ({
@@ -378,6 +387,10 @@ export const GameHUD = ({
   onPolylineConfigChange,
   railTurnSpeed = 6.0,
   onRailTurnSpeedChange,
+  // Apple/Item system
+  appleCount = 0,
+  onAppleDrop,
+  friendshipProgress,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -457,6 +470,16 @@ export const GameHUD = ({
           >
             ✕ <span className="hidden landscape:hidden sm:inline">Quit</span>
           </button>
+          
+          {/* Item Panel - below control buttons */}
+          {onAppleDrop && (
+            <ItemPanel
+              appleCount={appleCount}
+              onAppleDrop={onAppleDrop}
+              friendshipProgress={friendshipProgress}
+              defaultOpen={true}
+            />
+          )}
           
           {/* Debug toggle indicator - shows expand button when collapsed */}
           {debugMode && rightPanelCollapsed && (

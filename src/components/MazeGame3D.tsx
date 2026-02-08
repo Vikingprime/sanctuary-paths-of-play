@@ -1355,6 +1355,10 @@ export const MazeGame3D = ({
           onPolylineConfigChange={setPolylineConfig}
           railTurnSpeed={railTurnSpeed}
           onRailTurnSpeedChange={setRailTurnSpeed}
+          // Apple/Item system
+          appleCount={appleCount}
+          onAppleDrop={() => onAppleFeed?.()}
+          friendshipProgress={friendshipProgress}
         />
       )}
 
@@ -1368,15 +1372,7 @@ export const MazeGame3D = ({
         />
       )}
 
-      {/* Item Panel - right side with draggable apples */}
-      {!isPreviewing && !gameOver && (
-        <ItemPanel
-          appleCount={appleCount}
-          onAppleDrop={() => onAppleFeed?.()}
-          friendshipProgress={friendshipProgress}
-          className="absolute top-20 right-4 z-30"
-        />
-      )}
+      {/* Item Panel is now rendered within GameHUD */}
 
       {/* Quest Log Overlay - only in story mode */}
       {!isPreviewing && isStoryMode && storyMaze && (
