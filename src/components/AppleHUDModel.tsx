@@ -1,48 +1,16 @@
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF, Center, Box } from '@react-three/drei';
-import { Suspense, memo, useRef, useState, useEffect } from 'react';
+import { useGLTF, Center } from '@react-three/drei';
+import { Suspense, memo, useRef } from 'react';
 import * as THREE from 'three';
 
 interface AppleHUDModelProps {
   size?: number;
 }
 
-// Debug: Simple red box to verify Canvas renders
-const DebugBox = () => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  
-  useFrame((_, delta) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y += delta * 0.5;
-    }
-  });
-  
-  return (
-    <mesh ref={meshRef}>
-      <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color="red" />
-    </mesh>
-  );
-};
-
 // Memoized Apple mesh component with auto-rotation
 const AppleMesh = memo(() => {
   const { scene } = useGLTF('/models/Apple_HUD.glb');
   const groupRef = useRef<THREE.Group>(null);
-  
-  useEffect(() => {
-    // Debug: Log the model bounds
-    const box = new THREE.Box3().setFromObject(scene);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    console.log('[AppleHUD] Model bounds:', { 
-      width: size.x, 
-      height: size.y, 
-      depth: size.z,
-      min: box.min,
-      max: box.max
-    });
-  }, [scene]);
   
   // Slow rotation for visual interest
   useFrame((_, delta) => {
@@ -52,7 +20,7 @@ const AppleMesh = memo(() => {
   });
   
   return (
-    <group ref={groupRef} scale={2}>
+    <group ref={groupRef} scale={30}>
       <Center>
         <primitive 
           object={scene.clone()} 
@@ -69,7 +37,6 @@ AppleMesh.displayName = 'AppleMesh';
 useGLTF.preload('/models/Apple_HUD.glb');
 
 export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
-  const [showDebug, setShowDebug] = useState(false);
   
   return (
     <div 
@@ -77,15 +44,13 @@ export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
         width: `${size}px`, 
         height: `${size}px`,
         position: 'relative',
-        border: '1px solid red', // Debug: show container bounds
       }} 
       className="pointer-events-none"
-      onClick={() => setShowDebug(prev => !prev)}
     >
       <Canvas
         orthographic
         camera={{ 
-          zoom: 1,
+          zoom: 40,
           position: [0, 0, 10],
           near: 0.1,
           far: 1000,
@@ -107,7 +72,7 @@ export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
         <directionalLight position={[5, 5, 5]} intensity={3} />
         <directionalLight position={[-3, 2, 4]} intensity={2} />
         <Suspense fallback={null}>
-          {showDebug ? <DebugBox /> : <AppleMesh />}
+          <AppleMesh />
         </Suspense>
       </Canvas>
     </div>
