@@ -1,32 +1,34 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { AppleHUDModel } from './AppleHUDModel';
 
 interface ItemPanelProps {
-  appleCount: number;
+  appleCount?: number;
   onAppleDrop: () => void;
   animalBounds?: { x: number; y: number; width: number; height: number } | null;
   className?: string;
-  defaultOpen?: boolean;
 }
 
-// Collapsible item panel for gameplay with draggable apples
+// Simple floating apple panel for gameplay with draggable apples
 export const ItemPanel = ({
   appleCount = 100, // Debug: default to 100 apples
   onAppleDrop,
   animalBounds,
   className,
-  defaultOpen = true,
 }: ItemPanelProps) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [isDragging, setIsDragging] = useState(false);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const [showFeedback, setShowFeedback] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   
+  // Use ref to track latest appleCount for callbacks
+  const appleCountRef = useRef(appleCount);
+  useEffect(() => {
+    appleCountRef.current = appleCount;
+  }, [appleCount]);
+  
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (appleCount <= 0) return;
+    if (appleCountRef.current <= 0) return;
     
     const touch = e.touches[0];
     setIsDragging(true);
@@ -63,7 +65,7 @@ export const ItemPanel = ({
   
   // Mouse support for desktop
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (appleCount <= 0) return;
+    if (appleCountRef.current <= 0) return;
     
     setIsDragging(true);
     setDragPosition({ x: e.clientX, y: e.clientY });
@@ -103,14 +105,17 @@ export const ItemPanel = ({
     };
   }, [isDragging, dragPosition, animalBounds, onAppleDrop]);
   
+  // Display count - use prop directly for rendering
+  const displayCount = appleCount;
+  
   return (
     <>
-      {/* Simple floating apple - no box */}
+      {/* Simple floating apple - no box, fully opaque */}
       <div
         ref={panelRef}
         className={cn(
-          'flex items-center gap-2 pointer-events-auto cursor-grab active:cursor-grabbing select-none transition-all',
-          appleCount > 0 ? 'hover:scale-105' : 'opacity-50 cursor-not-allowed',
+          'flex items-center gap-1 pointer-events-auto cursor-grab active:cursor-grabbing select-none transition-transform',
+          displayCount > 0 ? 'hover:scale-105' : 'cursor-not-allowed',
           className
         )}
         onTouchStart={handleTouchStart}
@@ -118,22 +123,28 @@ export const ItemPanel = ({
         onTouchEnd={handleTouchEnd}
         onMouseDown={handleMouseDown}
       >
-        <span className="text-6xl drop-shadow-lg">🍎</span>
-        <span className="font-display font-bold text-white text-xl drop-shadow-md">
-          ×{appleCount}
+        <AppleHUDModel size={64} />
+        <span 
+          className="font-display font-bold text-xl"
+          style={{ 
+            color: '#ffffff',
+            textShadow: '2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)'
+          }}
+        >
+          ×{displayCount}
         </span>
       </div>
       
       {/* Dragging apple indicator */}
       {isDragging && (
         <div
-          className="fixed z-[100] pointer-events-none animate-pulse"
+          className="fixed z-[100] pointer-events-none"
           style={{
-            left: dragPosition.x - 24,
-            top: dragPosition.y - 24,
+            left: dragPosition.x - 32,
+            top: dragPosition.y - 32,
           }}
         >
-          <span className="text-5xl drop-shadow-lg">🍎</span>
+          <AppleHUDModel size={64} />
         </div>
       )}
       
