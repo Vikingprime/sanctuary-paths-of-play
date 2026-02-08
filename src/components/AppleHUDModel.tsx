@@ -1,18 +1,34 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, Center } from '@react-three/drei';
-import { Suspense, memo, useRef } from 'react';
+import { Suspense, memo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 
 interface AppleHUDModelProps {
   size?: number;
 }
 
-// Memoized Apple mesh component with auto-rotation
-const AppleMesh = memo(() => {
-  const { scene } = useGLTF('/models/Apple_HUD.glb');
+// Simple fallback sphere that's always visible
+const FallbackSphere = () => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  useFrame((_, delta) => {
+    if (meshRef.current) {
+      meshRef.current.rotation.y += delta * 0.5;
+    }
+  });
+  
+  return (
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[1, 16, 16]} />
+      <meshStandardMaterial color="#ff4444" />
+    </mesh>
+  );
+};
+
+// Simple apple shape using basic geometry (fallback while GLB issues are debugged)
+const AppleMesh = () => {
   const groupRef = useRef<THREE.Group>(null);
   
-  // Slow rotation for visual interest
   useFrame((_, delta) => {
     if (groupRef.current) {
       groupRef.current.rotation.y += delta * 0.5;
@@ -20,24 +36,27 @@ const AppleMesh = memo(() => {
   });
   
   return (
-    <group ref={groupRef} scale={30}>
-      <Center>
-        <primitive 
-          object={scene.clone()} 
-          scale={1}
-        />
-      </Center>
+    <group ref={groupRef}>
+      {/* Apple body */}
+      <mesh position={[0, 0, 0]}>
+        <sphereGeometry args={[1, 32, 32]} />
+        <meshStandardMaterial color="#e74c3c" />
+      </mesh>
+      {/* Apple stem */}
+      <mesh position={[0, 1.1, 0]}>
+        <cylinderGeometry args={[0.08, 0.08, 0.4, 8]} />
+        <meshStandardMaterial color="#5d4037" />
+      </mesh>
+      {/* Apple leaf */}
+      <mesh position={[0.2, 1.2, 0]} rotation={[0, 0, 0.3]}>
+        <sphereGeometry args={[0.2, 8, 8]} />
+        <meshStandardMaterial color="#27ae60" />
+      </mesh>
     </group>
   );
-});
-
-AppleMesh.displayName = 'AppleMesh';
-
-// Preload the model
-useGLTF.preload('/models/Apple_HUD.glb');
+};
 
 export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
-  
   return (
     <div 
       style={{ 
@@ -66,12 +85,12 @@ export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
           height: '100%',
           background: 'transparent',
         }}
-        onCreated={() => console.log('[AppleHUD] Canvas created successfully')}
+        onCreated={() => console.log('[AppleHUD] Canvas created')}
       >
         <ambientLight intensity={3} />
         <directionalLight position={[5, 5, 5]} intensity={3} />
         <directionalLight position={[-3, 2, 4]} intensity={2} />
-        <Suspense fallback={null}>
+        <Suspense fallback={<FallbackSphere />}>
           <AppleMesh />
         </Suspense>
       </Canvas>
