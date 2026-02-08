@@ -22,9 +22,9 @@ const AppleMesh = memo(() => {
   return (
     <primitive 
       object={clonedScene} 
-      scale={3.5}
+      scale={50}
       rotation={[0, Math.PI * 0.25, 0]}
-      position={[0, -0.3, 0]}
+      position={[0, 0, 0]}
     />
   );
 });
@@ -41,7 +41,7 @@ export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
       className="pointer-events-none relative"
     >
       <Canvas
-        camera={{ position: [0, 0, 4], fov: 40 }}
+        camera={{ position: [0, 0, 2], fov: 50 }}
         gl={{ 
           alpha: true, 
           antialias: true,
