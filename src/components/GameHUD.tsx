@@ -387,6 +387,10 @@ export const GameHUD = ({
   onPolylineConfigChange,
   railTurnSpeed = 6.0,
   onRailTurnSpeedChange,
+  // Apple/Item system
+  appleCount = 0,
+  onAppleDrop,
+  friendshipProgress,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
