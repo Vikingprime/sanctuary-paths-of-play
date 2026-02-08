@@ -1,31 +1,33 @@
-import { Canvas } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
-import { Suspense, memo } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { useGLTF, Center } from '@react-three/drei';
+import { Suspense, memo, useRef } from 'react';
 import * as THREE from 'three';
 
 interface AppleHUDModelProps {
   size?: number;
 }
 
-// Memoized Apple mesh component
+// Memoized Apple mesh component with auto-rotation
 const AppleMesh = memo(() => {
   const { scene } = useGLTF('/models/Apple_Red.glb');
+  const groupRef = useRef<THREE.Group>(null);
   
-  // Clone and position the scene
-  const clonedScene = scene.clone();
-  clonedScene.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      child.material = child.material.clone();
+  // Slow rotation for visual interest
+  useFrame((_, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.5;
     }
   });
   
   return (
-    <primitive 
-      object={clonedScene} 
-      scale={50}
-      rotation={[0, Math.PI * 0.25, 0]}
-      position={[0, 0, 0]}
-    />
+    <group ref={groupRef}>
+      <Center>
+        <primitive 
+          object={scene.clone()} 
+          scale={100}
+        />
+      </Center>
+    </group>
   );
 });
 
@@ -37,11 +39,21 @@ useGLTF.preload('/models/Apple_Red.glb');
 export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
   return (
     <div 
-      style={{ width: `${size}px`, height: `${size}px`, minWidth: `${size}px`, minHeight: `${size}px` }} 
-      className="pointer-events-none relative"
+      style={{ 
+        width: size, 
+        height: size,
+        display: 'block',
+      }} 
+      className="pointer-events-none"
     >
       <Canvas
-        camera={{ position: [0, 0, 2], fov: 50 }}
+        orthographic
+        camera={{ 
+          zoom: 20,
+          position: [0, 0, 100],
+          near: 0.1,
+          far: 1000,
+        }}
         gl={{ 
           alpha: true, 
           antialias: true,
@@ -50,16 +62,11 @@ export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
         frameloop="always"
         style={{ 
           background: 'transparent',
-          width: '100%',
-          height: '100%',
-          position: 'absolute',
-          top: 0,
-          left: 0,
         }}
       >
-        <ambientLight intensity={2} />
-        <directionalLight position={[5, 5, 5]} intensity={2.5} />
-        <directionalLight position={[-3, 2, 4]} intensity={1.5} />
+        <ambientLight intensity={3} />
+        <directionalLight position={[5, 5, 5]} intensity={3} />
+        <directionalLight position={[-3, 2, 4]} intensity={2} />
         <Suspense fallback={null}>
           <AppleMesh />
         </Suspense>
