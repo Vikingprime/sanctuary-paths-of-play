@@ -7,21 +7,15 @@ interface ItemPanelProps {
   appleCount: number;
   onAppleDrop: () => void;
   animalBounds?: { x: number; y: number; width: number; height: number } | null;
-  friendshipProgress?: {
-    currentTier: { id: string; name: string; pointsRequired: number };
-    nextTier: { id: string; name: string; pointsRequired: number } | null;
-    progress: number;
-  };
   className?: string;
   defaultOpen?: boolean;
 }
 
 // Collapsible item panel for gameplay with draggable apples
 export const ItemPanel = ({
-  appleCount,
+  appleCount = 100, // Debug: default to 100 apples
   onAppleDrop,
   animalBounds,
-  friendshipProgress,
   className,
   defaultOpen = true,
 }: ItemPanelProps) => {
@@ -134,52 +128,25 @@ export const ItemPanel = ({
           
           {/* Collapsible Content */}
           <CollapsibleContent>
-            <div className="px-3 pb-3 pt-1 flex flex-col gap-3">
+            <div className="px-3 pb-3 pt-1">
               {/* Apple slot - draggable */}
               <div
                 className={cn(
-                  'flex flex-col items-center gap-1 p-2 rounded-lg border-2 border-dashed transition-all cursor-grab active:cursor-grabbing select-none',
+                  'flex flex-col items-center gap-1 p-2 transition-all cursor-grab active:cursor-grabbing select-none',
                   appleCount > 0 
-                    ? 'border-primary/50 bg-primary/10 hover:bg-primary/20' 
-                    : 'border-muted opacity-50 cursor-not-allowed'
+                    ? 'hover:scale-105' 
+                    : 'opacity-50 cursor-not-allowed'
                 )}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onMouseDown={handleMouseDown}
               >
-                <span className="text-2xl">🍎</span>
-                <span className="font-display font-bold text-foreground text-sm">
+                <span className="text-5xl">🍎</span>
+                <span className="font-display font-bold text-foreground text-base">
                   ×{appleCount}
                 </span>
-                {appleCount > 0 && (
-                  <span className="text-[10px] text-muted-foreground text-center leading-tight">
-                    Drag to feed
-                  </span>
-                )}
               </div>
-              
-              {/* Friendship progress */}
-              {friendshipProgress && (
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">
-                      {friendshipProgress.currentTier.name}
-                    </span>
-                    {friendshipProgress.nextTier && (
-                      <span className="text-primary">
-                        → {friendshipProgress.nextTier.name}
-                      </span>
-                    )}
-                  </div>
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary transition-all duration-300"
-                      style={{ width: `${friendshipProgress.progress * 100}%` }}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           </CollapsibleContent>
         </div>

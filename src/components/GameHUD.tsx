@@ -476,7 +476,6 @@ export const GameHUD = ({
             <ItemPanel
               appleCount={appleCount}
               onAppleDrop={onAppleDrop}
-              friendshipProgress={friendshipProgress}
               defaultOpen={true}
             />
           )}
