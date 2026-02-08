@@ -1,6 +1,6 @@
 // Item system types
 
-export type ItemType = 'berry' | 'temporary_boost';
+export type ItemType = 'apple' | 'temporary_boost';
 
 export interface BaseItem {
   id: string;
@@ -10,13 +10,13 @@ export interface BaseItem {
   icon: string; // emoji
 }
 
-// Berry - permanent collectible that can be fed to animals
-export interface Berry extends BaseItem {
-  type: 'berry';
+// Apple - permanent collectible that can be fed to animals
+export interface Apple extends BaseItem {
+  type: 'apple';
 }
 
-// Player's inventory of berries
-export interface BerryInventory {
+// Player's inventory of apples
+export interface AppleInventory {
   count: number;
   totalCollected: number; // Lifetime count
 }
@@ -25,7 +25,7 @@ export interface BerryInventory {
 export interface AnimalFriendship {
   animalId: string;
   friendPoints: number;
-  berriesGiven: number;
+  applesGiven: number;
   unlockedDialogues: string[]; // IDs of unlocked dialogue tiers
 }
 
@@ -47,8 +47,8 @@ export const FRIENDSHIP_TIERS: FriendshipTier[] = [
   { id: 'soulmate', name: 'Soulmate', pointsRequired: 50, dialogueId: 'soulmate' },
 ];
 
-// Points per berry fed
-export const POINTS_PER_BERRY = 1;
+// Points per apple fed
+export const POINTS_PER_APPLE = 1;
 
 // Get current friendship tier for an animal
 export const getFriendshipTier = (points: number): FriendshipTier => {

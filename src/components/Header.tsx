@@ -1,13 +1,10 @@
-import { Button } from '@/components/ui/button';
-
 interface HeaderProps {
   totalMeals: number;
   stars: number;
-  goldMedals: number;
-  silverMedals: number;
+  appleCount: number;
 }
 
-export const Header = ({ totalMeals, stars, goldMedals, silverMedals }: HeaderProps) => {
+export const Header = ({ totalMeals, stars, appleCount }: HeaderProps) => {
   return (
     <header className="w-full py-4 px-6 flex items-center justify-between bg-card/80 backdrop-blur-sm border-b border-border">
       <div className="flex items-center gap-3">
@@ -24,15 +21,9 @@ export const Header = ({ totalMeals, stars, goldMedals, silverMedals }: HeaderPr
 
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1.5 rounded-full">
-          <span>🥇</span>
+          <span>🍎</span>
           <span className="font-display font-semibold text-foreground text-sm">
-            {goldMedals}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1.5 rounded-full">
-          <span>🥈</span>
-          <span className="font-display font-semibold text-foreground text-sm">
-            {silverMedals}
+            {appleCount}
           </span>
         </div>
         <div className="flex items-center gap-1.5 bg-muted px-2.5 py-1.5 rounded-full">

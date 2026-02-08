@@ -3,7 +3,7 @@ import { AnimalType, Maze, MedalType } from '@/types/game';
 import { GameMode, StoryProgress } from '@/types/quest';
 import { animals } from '@/data/animals';
 import { useMazeStorage } from '@/hooks/useMazeStorage';
-import { useBerrySystem } from '@/hooks/useBerrySystem';
+import { useAppleSystem } from '@/hooks/useAppleSystem';
 import { AnimalCard } from '@/components/AnimalCard';
 import { LevelSelect } from '@/components/LevelSelect';
 import { MazeGame3D } from '@/components/MazeGame3D';
@@ -26,7 +26,7 @@ type GameScreen = 'home' | 'mode_select' | 'animal_select' | 'levels' | 'story_l
 const Index = () => {
   const { save, loading, refresh, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
   const { getAllMazes, isLoaded: mazesLoaded } = useMazeStorage();
-  const { berryCount, collectBerry, feedBerry, getFriendship, getProgress, addTestBerries } = useBerrySystem();
+  const { appleCount, collectApple, feedApple, getFriendship, getProgress, addTestApples } = useAppleSystem();
   const [screen, setScreen] = useState<GameScreen>('home');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
@@ -191,26 +191,21 @@ const Index = () => {
             },
           }));
         }}
-        // Berry system props
-        berryCount={berryCount}
-        onBerryCollect={collectBerry}
-        onBerryFeed={() => feedBerry(selectedAnimal)}
+        // Apple system props
+        appleCount={appleCount}
+        onAppleCollect={collectApple}
+        onAppleFeed={() => feedApple(selectedAnimal)}
         friendshipProgress={getProgress(selectedAnimal)}
       />
     );
   }
-
-  // Calculate medal counts from levels
-  const goldMedals = Object.values(save.levels).filter(l => l.medal === 'gold').length;
-  const silverMedals = Object.values(save.levels).filter(l => l.medal === 'silver').length;
 
   return (
     <div className="min-h-screen bg-background">
       <Header 
         totalMeals={save.player.totalMealsUnlocked} 
         stars={save.player.currency} 
-        goldMedals={goldMedals}
-        silverMedals={silverMedals}
+        appleCount={appleCount}
       />
       <main className="container max-w-4xl mx-auto px-4 py-8">
         {screen === 'home' && (
