@@ -52,11 +52,11 @@ const AppleMesh = memo(() => {
   });
   
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} scale={2}>
       <Center>
         <primitive 
           object={scene.clone()} 
-          scale={500}
+          scale={1}
         />
       </Center>
     </group>
@@ -74,9 +74,9 @@ export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
   return (
     <div 
       style={{ 
-        width: size, 
-        height: size,
-        display: 'block',
+        width: `${size}px`, 
+        height: `${size}px`,
+        position: 'relative',
         border: '1px solid red', // Debug: show container bounds
       }} 
       className="pointer-events-none"
@@ -85,8 +85,8 @@ export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
       <Canvas
         orthographic
         camera={{ 
-          zoom: 20,
-          position: [0, 0, 100],
+          zoom: 1,
+          position: [0, 0, 10],
           near: 0.1,
           far: 1000,
         }}
@@ -97,6 +97,8 @@ export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
         }}
         frameloop="always"
         style={{ 
+          width: '100%',
+          height: '100%',
           background: 'transparent',
         }}
         onCreated={() => console.log('[AppleHUD] Canvas created successfully')}
