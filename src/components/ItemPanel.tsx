@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { AppleHUDModel } from './AppleHUDModel';
 
 interface ItemPanelProps {
   appleCount?: number;
@@ -122,7 +123,7 @@ export const ItemPanel = ({
         onTouchEnd={handleTouchEnd}
         onMouseDown={handleMouseDown}
       >
-        <span className="text-5xl" style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.5))' }}>🍎</span>
+        <AppleHUDModel size={64} />
         <span 
           className="font-display font-bold text-2xl"
           style={{ 
@@ -139,11 +140,11 @@ export const ItemPanel = ({
         <div
           className="fixed z-[100] pointer-events-none"
           style={{
-            left: dragPosition.x - 24,
-            top: dragPosition.y - 24,
+            left: dragPosition.x - 32,
+            top: dragPosition.y - 32,
           }}
         >
-          <span className="text-4xl" style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.5))' }}>🍎</span>
+          <AppleHUDModel size={64} />
         </div>
       )}
       
