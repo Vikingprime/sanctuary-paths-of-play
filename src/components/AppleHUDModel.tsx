@@ -22,9 +22,9 @@ const AppleMesh = memo(() => {
   return (
     <primitive 
       object={clonedScene} 
-      scale={2.5}
+      scale={3.5}
       rotation={[0, Math.PI * 0.25, 0]}
-      position={[0, 0, 0]}
+      position={[0, -0.3, 0]}
     />
   );
 });
@@ -37,22 +37,29 @@ useGLTF.preload('/models/Apple_Red.glb');
 export const AppleHUDModel = memo(({ size = 80 }: AppleHUDModelProps) => {
   return (
     <div 
-      style={{ width: size, height: size }} 
-      className="pointer-events-none"
+      style={{ width: `${size}px`, height: `${size}px`, minWidth: `${size}px`, minHeight: `${size}px` }} 
+      className="pointer-events-none relative"
     >
       <Canvas
-        camera={{ position: [0, 0, 5], fov: 35 }}
+        camera={{ position: [0, 0, 4], fov: 40 }}
         gl={{ 
           alpha: true, 
           antialias: true,
           powerPreference: 'high-performance',
         }}
-        frameloop="demand"
-        style={{ background: 'transparent' }}
+        frameloop="always"
+        style={{ 
+          background: 'transparent',
+          width: '100%',
+          height: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+        }}
       >
-        <ambientLight intensity={1.5} />
-        <directionalLight position={[5, 5, 5]} intensity={2} />
-        <directionalLight position={[-3, 2, 4]} intensity={1} />
+        <ambientLight intensity={2} />
+        <directionalLight position={[5, 5, 5]} intensity={2.5} />
+        <directionalLight position={[-3, 2, 4]} intensity={1.5} />
         <Suspense fallback={null}>
           <AppleMesh />
         </Suspense>
