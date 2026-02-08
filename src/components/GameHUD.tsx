@@ -3,6 +3,7 @@ import { AnimalType } from '@/types/game';
 import { animals } from '@/data/animals';
 import { cn } from '@/lib/utils';
 import { PerformanceInfo } from './Maze3DScene';
+import { ItemPanel } from './ItemPanel';
 import { Volume2, VolumeX, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { SpurConfig } from '@/game/MedialAxis';
 import { MagnetismConfig, DEFAULT_MAGNETISM_CONFIG, MagnetismTurnResult } from '@/game/CorridorMagnetism';
