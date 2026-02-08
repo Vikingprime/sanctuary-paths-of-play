@@ -471,6 +471,16 @@ export const GameHUD = ({
             ✕ <span className="hidden landscape:hidden sm:inline">Quit</span>
           </button>
           
+          {/* Item Panel - below control buttons */}
+          {onAppleDrop && (
+            <ItemPanel
+              appleCount={appleCount}
+              onAppleDrop={onAppleDrop}
+              friendshipProgress={friendshipProgress}
+              defaultOpen={true}
+            />
+          )}
+          
           {/* Debug toggle indicator - shows expand button when collapsed */}
           {debugMode && rightPanelCollapsed && (
             <button 
