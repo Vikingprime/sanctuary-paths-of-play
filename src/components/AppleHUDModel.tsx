@@ -24,7 +24,7 @@ const AppleMesh = memo(() => {
       <Center>
         <primitive 
           object={scene.clone()} 
-          scale={500}
+          scale={2000}
         />
       </Center>
     </group>
