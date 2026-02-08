@@ -474,9 +474,8 @@ export const GameHUD = ({
           {/* Item Panel - below control buttons */}
           {onAppleDrop && (
             <ItemPanel
-              appleCount={appleCount}
+              appleCount={100}
               onAppleDrop={onAppleDrop}
-              defaultOpen={true}
             />
           )}
           
