@@ -1355,6 +1355,10 @@ export const MazeGame3D = ({
           onPolylineConfigChange={setPolylineConfig}
           railTurnSpeed={railTurnSpeed}
           onRailTurnSpeedChange={setRailTurnSpeed}
+          // Apple/Item system
+          appleCount={appleCount}
+          onAppleDrop={() => onAppleFeed?.()}
+          friendshipProgress={friendshipProgress}
         />
       )}
 
