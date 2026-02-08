@@ -1,4 +1,4 @@
-import { AnimalType, Animal } from '@/types/game';
+import { Animal } from '@/types/game';
 import { getFriendshipTier, getNextFriendshipTier, AnimalFriendship } from '@/types/items';
 import { cn } from '@/lib/utils';
 
@@ -49,7 +49,7 @@ export const FriendshipDisplay = ({
       {/* Stats */}
       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
         <span>❤️ {friendship.friendPoints} points</span>
-        <span>🍓 {friendship.berriesGiven} berries given</span>
+        <span>🍎 {friendship.applesGiven} apples given</span>
       </div>
       
       {/* Progress bar */}

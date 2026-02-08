@@ -1,29 +1,29 @@
 import { useState, useCallback, useEffect } from 'react';
 import { 
-  BerryInventory, 
+  AppleInventory, 
   AnimalFriendship, 
-  POINTS_PER_BERRY,
+  POINTS_PER_APPLE,
   getFriendshipTier,
   getNextFriendshipTier,
 } from '@/types/items';
 import { AnimalType } from '@/types/game';
 
-const BERRY_STORAGE_KEY = 'foggy-farm-berries';
+const APPLE_STORAGE_KEY = 'foggy-farm-apples';
 const FRIENDSHIP_STORAGE_KEY = 'foggy-farm-friendships';
 
-interface BerrySystemState {
-  inventory: BerryInventory;
+interface AppleSystemState {
+  inventory: AppleInventory;
   friendships: Record<string, AnimalFriendship>;
 }
 
 // Load state from localStorage
-const loadState = (): BerrySystemState => {
+const loadState = (): AppleSystemState => {
   try {
-    const berryData = localStorage.getItem(BERRY_STORAGE_KEY);
+    const appleData = localStorage.getItem(APPLE_STORAGE_KEY);
     const friendshipData = localStorage.getItem(FRIENDSHIP_STORAGE_KEY);
     
     return {
-      inventory: berryData ? JSON.parse(berryData) : { count: 0, totalCollected: 0 },
+      inventory: appleData ? JSON.parse(appleData) : { count: 0, totalCollected: 0 },
       friendships: friendshipData ? JSON.parse(friendshipData) : {},
     };
   } catch {
@@ -35,25 +35,25 @@ const loadState = (): BerrySystemState => {
 };
 
 // Save state to localStorage
-const saveState = (state: BerrySystemState) => {
+const saveState = (state: AppleSystemState) => {
   try {
-    localStorage.setItem(BERRY_STORAGE_KEY, JSON.stringify(state.inventory));
+    localStorage.setItem(APPLE_STORAGE_KEY, JSON.stringify(state.inventory));
     localStorage.setItem(FRIENDSHIP_STORAGE_KEY, JSON.stringify(state.friendships));
   } catch {
     // Storage full or unavailable
   }
 };
 
-export function useBerrySystem() {
-  const [state, setState] = useState<BerrySystemState>(loadState);
+export function useAppleSystem() {
+  const [state, setState] = useState<AppleSystemState>(loadState);
   
   // Persist changes
   useEffect(() => {
     saveState(state);
   }, [state]);
   
-  // Collect a berry (from maze or reward ad)
-  const collectBerry = useCallback((count = 1) => {
+  // Collect an apple (from maze or reward ad)
+  const collectApple = useCallback((count = 1) => {
     setState(prev => ({
       ...prev,
       inventory: {
@@ -63,19 +63,19 @@ export function useBerrySystem() {
     }));
   }, []);
   
-  // Feed a berry to an animal
-  const feedBerry = useCallback((animalId: AnimalType) => {
+  // Feed an apple to an animal
+  const feedApple = useCallback((animalId: AnimalType) => {
     setState(prev => {
       if (prev.inventory.count <= 0) return prev;
       
       const currentFriendship = prev.friendships[animalId] || {
         animalId,
         friendPoints: 0,
-        berriesGiven: 0,
+        applesGiven: 0,
         unlockedDialogues: [],
       };
       
-      const newPoints = currentFriendship.friendPoints + POINTS_PER_BERRY;
+      const newPoints = currentFriendship.friendPoints + POINTS_PER_APPLE;
       const newTier = getFriendshipTier(newPoints);
       const oldTier = getFriendshipTier(currentFriendship.friendPoints);
       
@@ -96,7 +96,7 @@ export function useBerrySystem() {
           [animalId]: {
             animalId,
             friendPoints: newPoints,
-            berriesGiven: currentFriendship.berriesGiven + 1,
+            applesGiven: currentFriendship.applesGiven + 1,
             unlockedDialogues,
           },
         },
@@ -109,7 +109,7 @@ export function useBerrySystem() {
     return state.friendships[animalId] || {
       animalId,
       friendPoints: 0,
-      berriesGiven: 0,
+      applesGiven: 0,
       unlockedDialogues: [],
     };
   }, [state.friendships]);
@@ -146,28 +146,28 @@ export function useBerrySystem() {
   }, [getFriendship]);
   
   // Reset for testing
-  const resetBerrySystem = useCallback(() => {
+  const resetAppleSystem = useCallback(() => {
     setState({
       inventory: { count: 0, totalCollected: 0 },
       friendships: {},
     });
   }, []);
   
-  // Add berries for testing
-  const addTestBerries = useCallback((count: number) => {
-    collectBerry(count);
-  }, [collectBerry]);
+  // Add apples for testing
+  const addTestApples = useCallback((count: number) => {
+    collectApple(count);
+  }, [collectApple]);
   
   return {
-    berryCount: state.inventory.count,
-    totalBerriesCollected: state.inventory.totalCollected,
+    appleCount: state.inventory.count,
+    totalApplesCollected: state.inventory.totalCollected,
     friendships: state.friendships,
-    collectBerry,
-    feedBerry,
+    collectApple,
+    feedApple,
     getFriendship,
     isDialogueUnlocked,
     getProgress,
-    resetBerrySystem,
-    addTestBerries,
+    resetAppleSystem,
+    addTestApples,
   };
 }

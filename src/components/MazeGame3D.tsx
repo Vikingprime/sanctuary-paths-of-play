@@ -11,7 +11,7 @@ import { RailControls } from './RailControls';
 import { MazeIntroSequence } from './MazeIntroSequence';
 import { CompassOverlay } from './CompassOverlay';
 import { QuestLogOverlay } from './QuestLogOverlay';
-import { BerryHUD } from './BerryHUD';
+import { ItemPanel } from './ItemPanel';
 import { Button } from '@/components/ui/button';
 import { Confetti } from '@/components/Confetti';
 import { animals } from '@/data/animals';
@@ -57,10 +57,10 @@ interface MazeGame3DProps {
   storyMaze?: StoryMaze | null;
   storyProgress?: StoryProgress;
   onObjectiveComplete?: (objectiveId: string) => void;
-  // Berry system props
-  berryCount?: number;
-  onBerryCollect?: (count?: number) => void;
-  onBerryFeed?: () => void;
+  // Apple system props
+  appleCount?: number;
+  onAppleCollect?: (count?: number) => void;
+  onAppleFeed?: () => void;
   friendshipProgress?: {
     currentTier: { id: string; name: string; pointsRequired: number };
     nextTier: { id: string; name: string; pointsRequired: number } | null;
@@ -83,10 +83,10 @@ export const MazeGame3D = ({
   storyMaze = null,
   storyProgress,
   onObjectiveComplete,
-  // Berry system props
-  berryCount = 0,
-  onBerryCollect,
-  onBerryFeed,
+  // Apple system props
+  appleCount = 0,
+  onAppleCollect,
+  onAppleFeed,
   friendshipProgress,
 }: MazeGame3DProps) => {
   // Initialize from pure game logic
@@ -1368,15 +1368,12 @@ export const MazeGame3D = ({
         />
       )}
 
-      {/* Berry HUD - shows berry count with drag-to-feed */}
-      {!isPreviewing && berryCount > 0 && (
-        <BerryHUD
-          berryCount={berryCount}
-          onDragEnd={(targetAnimalId) => {
-            if (targetAnimalId && onBerryFeed) {
-              onBerryFeed();
-            }
-          }}
+      {/* Item Panel - right side with draggable apples */}
+      {!isPreviewing && !gameOver && (
+        <ItemPanel
+          appleCount={appleCount}
+          onAppleDrop={() => onAppleFeed?.()}
+          friendshipProgress={friendshipProgress}
           className="absolute top-20 right-4 z-30"
         />
       )}
