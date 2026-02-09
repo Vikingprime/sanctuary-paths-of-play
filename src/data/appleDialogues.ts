@@ -1,7 +1,10 @@
 // Apple feeding dialogues for each animal
 // These are triggered when feeding apples to animals during gameplay
 
-import { AnimalAppleDialogues, AppleDialogueMessage } from '@/types/appleDialogue';
+import { AnimalAppleDialogues, AppleDialogueMessage, AppleDialogue } from '@/types/appleDialogue';
+
+// Re-export for editor use
+export type { AnimalAppleDialogues, AppleDialogue };
 
 export const animalAppleDialogues: AnimalAppleDialogues[] = [
   {

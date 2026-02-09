@@ -6,11 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMazeStorage, createGrid, gridToLayout } from '@/hooks/useMazeStorage';
 import { Maze } from '@/types/game';
 import { useBackButton } from '@/hooks/useBackButton';
+import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue } from '@/data/appleDialogues';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -130,6 +132,10 @@ const MazeEditor: React.FC = () => {
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
   const [showMazeList, setShowMazeList] = useState(true);
+  const [showAppleDialoguePanel, setShowAppleDialoguePanel] = useState(false);
+  const [editableAppleDialogues, setEditableAppleDialogues] = useState<AnimalAppleDialogues[]>(() => 
+    JSON.parse(JSON.stringify(animalAppleDialogues))
+  );
 
   // Hardware back button - navigate back to home
   useBackButton(() => navigate('/'), true);
@@ -726,6 +732,18 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                   </Button>
                 </div>
 
+                {/* Apple Dialogues Toggle */}
+                <div className="pt-2">
+                  <Button 
+                    onClick={() => setShowAppleDialoguePanel(!showAppleDialoguePanel)} 
+                    variant="outline" 
+                    className="w-full"
+                  >
+                    <Apple className="w-4 h-4 mr-2" />
+                    Apple Dialogues
+                  </Button>
+                </div>
+
                 {/* Validation Warnings */}
                 {(() => {
                   const warnings = getValidationWarnings();
@@ -1079,6 +1097,215 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Apple Dialogue Panel */}
+        {showAppleDialoguePanel && (
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center justify-between">
+                <span>🍎 Apple Feeding Dialogues</span>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(editableAppleDialogues, null, 2));
+                      toast.success('Apple dialogues copied to clipboard!');
+                    }}
+                  >
+                    <Copy className="w-4 h-4 mr-1" /> Copy JSON
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setShowAppleDialoguePanel(false)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Edit progressive apple dialogues per animal. Copy the JSON and paste into src/data/appleDialogues.ts
+              </p>
+              <Tabs defaultValue={editableAppleDialogues[0]?.animalId || 'pig'}>
+                <TabsList className="mb-4">
+                  {editableAppleDialogues.map(animal => (
+                    <TabsTrigger key={animal.animalId} value={animal.animalId}>
+                      {animal.animalId === 'pig' && '🐷'}
+                      {animal.animalId === 'cow' && '🐮'}
+                      {animal.animalId === 'bird' && '🐔'}
+                      {' '}{animal.animalId}
+                    </TabsTrigger>
+                  ))}
+                  <TabsTrigger value="add-new">+ Add Animal</TabsTrigger>
+                </TabsList>
+                
+                {editableAppleDialogues.map(animal => (
+                  <TabsContent key={animal.animalId} value={animal.animalId} className="space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold">Dialogues for {animal.animalId}</h3>
+                      <Button 
+                        size="sm" 
+                        onClick={() => {
+                          const newDialogue: AppleDialogue = {
+                            id: `${animal.animalId}-apple-${animal.dialogues.length + 1}`,
+                            appleNumber: animal.dialogues.length + 1,
+                            messages: [{ speaker: 'Animal', speakerEmoji: '🐾', message: 'Thank you for the apple!' }],
+                          };
+                          setEditableAppleDialogues(prev => 
+                            prev.map(a => a.animalId === animal.animalId 
+                              ? { ...a, dialogues: [...a.dialogues, newDialogue] }
+                              : a
+                            )
+                          );
+                        }}
+                      >
+                        <Plus className="w-4 h-4 mr-1" /> Add Apple Tier
+                      </Button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {animal.dialogues.map((dialogue, dIndex) => (
+                        <Card key={dialogue.id} className="p-3 border-l-4 border-red-400">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold text-sm">🍎 Apple #{dialogue.appleNumber}</span>
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              onClick={() => {
+                                setEditableAppleDialogues(prev =>
+                                  prev.map(a => a.animalId === animal.animalId
+                                    ? { ...a, dialogues: a.dialogues.filter((_, i) => i !== dIndex) }
+                                    : a
+                                  )
+                                );
+                              }}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            {dialogue.messages.map((msg, mIndex) => (
+                              <div key={mIndex} className="space-y-1 p-2 bg-muted rounded">
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="Speaker"
+                                    value={msg.speaker}
+                                    onChange={e => {
+                                      const newMessages = [...dialogue.messages];
+                                      newMessages[mIndex] = { ...msg, speaker: e.target.value };
+                                      setEditableAppleDialogues(prev =>
+                                        prev.map(a => a.animalId === animal.animalId
+                                          ? { ...a, dialogues: a.dialogues.map((d, i) => i === dIndex ? { ...d, messages: newMessages } : d) }
+                                          : a
+                                        )
+                                      );
+                                    }}
+                                    className="flex-1 text-xs"
+                                  />
+                                  <Input
+                                    placeholder="🐷"
+                                    value={msg.speakerEmoji}
+                                    onChange={e => {
+                                      const newMessages = [...dialogue.messages];
+                                      newMessages[mIndex] = { ...msg, speakerEmoji: e.target.value };
+                                      setEditableAppleDialogues(prev =>
+                                        prev.map(a => a.animalId === animal.animalId
+                                          ? { ...a, dialogues: a.dialogues.map((d, i) => i === dIndex ? { ...d, messages: newMessages } : d) }
+                                          : a
+                                        )
+                                      );
+                                    }}
+                                    className="w-12 text-xs"
+                                  />
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8"
+                                    onClick={() => {
+                                      const newMessages = dialogue.messages.filter((_, i) => i !== mIndex);
+                                      setEditableAppleDialogues(prev =>
+                                        prev.map(a => a.animalId === animal.animalId
+                                          ? { ...a, dialogues: a.dialogues.map((d, i) => i === dIndex ? { ...d, messages: newMessages } : d) }
+                                          : a
+                                        )
+                                      );
+                                    }}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                                <Textarea
+                                  placeholder="Message..."
+                                  value={msg.message}
+                                  onChange={e => {
+                                    const newMessages = [...dialogue.messages];
+                                    newMessages[mIndex] = { ...msg, message: e.target.value };
+                                    setEditableAppleDialogues(prev =>
+                                      prev.map(a => a.animalId === animal.animalId
+                                        ? { ...a, dialogues: a.dialogues.map((d, i) => i === dIndex ? { ...d, messages: newMessages } : d) }
+                                        : a
+                                      )
+                                    );
+                                  }}
+                                  className="text-xs"
+                                  rows={2}
+                                />
+                              </div>
+                            ))}
+                            
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full text-xs"
+                              onClick={() => {
+                                const newMessages = [...dialogue.messages, { speaker: 'Animal', speakerEmoji: '🐾', message: '' }];
+                                setEditableAppleDialogues(prev =>
+                                  prev.map(a => a.animalId === animal.animalId
+                                    ? { ...a, dialogues: a.dialogues.map((d, i) => i === dIndex ? { ...d, messages: newMessages } : d) }
+                                    : a
+                                  )
+                                );
+                              }}
+                            >
+                              + Add Message
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </TabsContent>
+                ))}
+                
+                <TabsContent value="add-new" className="space-y-4">
+                  <div className="p-4 border rounded-lg">
+                    <Label>Add a new animal</Label>
+                    <div className="flex gap-2 mt-2">
+                      <Select
+                        onValueChange={(value) => {
+                          if (!editableAppleDialogues.find(a => a.animalId === value)) {
+                            setEditableAppleDialogues(prev => [
+                              ...prev,
+                              { animalId: value as 'pig' | 'cow' | 'bird', dialogues: [] }
+                            ]);
+                            toast.success(`Added ${value} to apple dialogues`);
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select animal..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {['pig', 'cow', 'bird'].filter(a => !editableAppleDialogues.find(e => e.animalId === a)).map(a => (
+                            <SelectItem key={a} value={a}>{a}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         )}
