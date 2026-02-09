@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Maze, AnimalType, MedalType, DialogueTrigger } from '@/types/game';
 import { StoryProgress } from '@/types/quest';
 import { StoryMaze, StoryDialogue } from '@/data/storyMazes';
+import { AppleDialogueMessage } from '@/types/appleDialogue';
 import { Maze3DCanvas, PerformanceInfo } from './Maze3DScene';
 import { MazePreview } from './MazePreview';
 import { MiniMap } from './MiniMap';
@@ -60,7 +61,19 @@ interface MazeGame3DProps {
   // Apple system props
   appleCount?: number;
   onAppleCollect?: (count?: number) => void;
-  onAppleFeed?: () => void;
+  onAppleFeed?: (animalId: AnimalType) => { 
+    success: boolean; 
+    dialogue?: AppleDialogueMessage[]; 
+    dialogueId?: string;
+    reason?: string;
+  };
+  canFeedApple?: (animalId: AnimalType) => { canFeed: boolean; reason?: string };
+  pendingAppleDialogue?: {
+    animalId: AnimalType;
+    messages: AppleDialogueMessage[];
+    dialogueId: string;
+  } | null;
+  onAppleDialogueComplete?: () => void;
   friendshipProgress?: {
     currentTier: { id: string; name: string; pointsRequired: number };
     nextTier: { id: string; name: string; pointsRequired: number } | null;
@@ -87,6 +100,9 @@ export const MazeGame3D = ({
   appleCount = 0,
   onAppleCollect,
   onAppleFeed,
+  canFeedApple,
+  pendingAppleDialogue,
+  onAppleDialogueComplete,
   friendshipProgress,
 }: MazeGame3DProps) => {
   // Initialize from pure game logic
@@ -212,6 +228,12 @@ export const MazeGame3D = ({
   const [activeDialogue, setActiveDialogue] = useState<DialogueTrigger | null>(null);
   const [triggeredDialogues, setTriggeredDialogues] = useState<Set<string>>(new Set());
   const [dialogueMessageIndex, setDialogueMessageIndex] = useState(0); // For multi-message dialogues
+  
+  // Apple dialogue state (separate from maze dialogues)
+  const [activeAppleDialogue, setActiveAppleDialogue] = useState<{
+    messages: AppleDialogueMessage[];
+    currentIndex: number;
+  } | null>(null);
   
   // Quest objective tracking for story mode
   const [completedObjectives, setCompletedObjectives] = useState<Set<string>>(new Set());
@@ -375,18 +397,20 @@ export const MazeGame3D = ({
     
     if (isPreviewing || gameOver) return;
     
-    // Track when dialogue starts to pause timer
-    if (activeDialogue && dialoguePauseStartRef.current === null) {
+    // Track when any dialogue starts to pause timer (including apple dialogue)
+    const isInDialogue = activeDialogue !== null || activeAppleDialogue !== null;
+    
+    if (isInDialogue && dialoguePauseStartRef.current === null) {
       dialoguePauseStartRef.current = Date.now();
     }
     
-    // When dialogue ends, add the paused duration
-    if (!activeDialogue && dialoguePauseStartRef.current !== null) {
+    // When all dialogues end, add the paused duration
+    if (!isInDialogue && dialoguePauseStartRef.current !== null) {
       pausedTimeRef.current += Date.now() - dialoguePauseStartRef.current;
       dialoguePauseStartRef.current = null;
     }
     
-    if (activeDialogue) return; // Don't run timer during dialogue
+    if (isInDialogue) return; // Don't run timer during any dialogue
     
     // Initialize start time on first run
     if (gameStartTimeRef.current === null) {
@@ -419,7 +443,7 @@ export const MazeGame3D = ({
         gameTimerRef.current = null;
       }
     };
-  }, [isPreviewing, gameOver, activeDialogue, maze.timeLimit, debugMode]);
+  }, [isPreviewing, gameOver, activeDialogue, activeAppleDialogue, maze.timeLimit, debugMode]);
 
   // Show compass when game starts (preview ends)
   useEffect(() => {
@@ -522,6 +546,20 @@ export const MazeGame3D = ({
 
       // Station triggering is now handled by proximity check, not cell interaction
       
+      // If there's a pending apple dialogue, show it before any regular dialogue
+      if (pendingAppleDialogue && !activeAppleDialogue) {
+        setActiveAppleDialogue({
+          messages: pendingAppleDialogue.messages,
+          currentIndex: 0,
+        });
+        
+        // If this is also an end cell, mark pending end
+        if (result.reachedEnd) {
+          pendingEndGameRef.current = true;
+        }
+        return;
+      }
+      
       // Check for any dialogue at this cell (pass current triggered set for fresh check)
       const dialogue = checkDialogueAtCell(gridX, gridY, triggeredDialogues);
       
@@ -552,7 +590,7 @@ export const MazeGame3D = ({
         onComplete(timeUsed).then(setCompletionResult);
       }
     },
-    [maze, collectedPowerUps, timeLeft, onComplete, checkDialogueAtCell, canEndLevel]
+    [maze, collectedPowerUps, timeLeft, onComplete, checkDialogueAtCell, canEndLevel, pendingAppleDialogue, activeAppleDialogue]
   );
   
   // Find the next chained dialogue after the current one
@@ -687,6 +725,37 @@ export const MazeGame3D = ({
       setIsRailMoving(true);
     }
   }, []);
+  
+  // Handle apple drop - attempt to feed apple to animal and trigger dialogue
+  const handleAppleDrop = useCallback(() => {
+    // Don't allow feeding during active dialogue
+    if (activeDialogue || activeAppleDialogue) {
+      console.log('[Apple] Cannot feed during active dialogue');
+      return;
+    }
+    
+    // Check if can feed
+    const canFeedResult = canFeedApple?.(animalType);
+    if (!canFeedResult?.canFeed) {
+      console.log('[Apple] Cannot feed:', canFeedResult?.reason);
+      return;
+    }
+    
+    // Try to feed the apple
+    const result = onAppleFeed?.(animalType);
+    if (!result?.success) {
+      console.log('[Apple] Feed failed:', result?.reason);
+      return;
+    }
+    
+    // If there's dialogue to show, set it up
+    if (result.dialogue && result.dialogue.length > 0) {
+      setActiveAppleDialogue({
+        messages: result.dialogue,
+        currentIndex: 0,
+      });
+    }
+  }, [activeDialogue, activeAppleDialogue, canFeedApple, onAppleFeed, animalType]);
   
   // Callback to receive magnetism cache from Maze3DScene
   // In rail control mode, snap the animal to the nearest polyline
@@ -1036,6 +1105,7 @@ export const MazeGame3D = ({
     setMapCountdown(null);
     setMapViewTimeLeft(null);
     setActiveDialogue(null);
+    setActiveAppleDialogue(null);
     setTriggeredDialogues(new Set());
     
     // Reset timing refs
@@ -1357,7 +1427,7 @@ export const MazeGame3D = ({
           onRailTurnSpeedChange={setRailTurnSpeed}
           // Apple/Item system
           appleCount={appleCount}
-          onAppleDrop={() => onAppleFeed?.()}
+          onAppleDrop={handleAppleDrop}
           friendshipProgress={friendshipProgress}
         />
       )}
@@ -1515,6 +1585,53 @@ export const MazeGame3D = ({
               </div>
               <Button
                 onClick={handleDialogueContinue}
+                className="mt-3 sm:mt-4 w-full py-2 sm:py-3"
+              >
+                Continue
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Apple Dialogue Overlay - for feeding animals */}
+      {activeAppleDialogue && (() => {
+        const currentMessage = activeAppleDialogue.messages[activeAppleDialogue.currentIndex];
+        if (!currentMessage) return null;
+        
+        return (
+          <div className="fixed inset-0 z-30 flex items-end justify-center p-2 sm:p-4 pointer-events-none animate-fade-in">
+            <div className="bg-card/80 backdrop-blur-md rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-warm-lg max-w-lg w-full mb-4 sm:mb-8 pointer-events-auto border-2 border-primary/30">
+              <div className="flex items-start gap-3 sm:gap-4">
+                <div className="text-3xl sm:text-4xl flex-shrink-0">
+                  {currentMessage.speakerEmoji}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                    <h4 className="font-display font-bold text-foreground text-sm sm:text-base">
+                      {currentMessage.speaker}
+                    </h4>
+                    <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">🍎 +1 Friend</span>
+                  </div>
+                  <p className="text-foreground/90 text-sm sm:text-lg leading-relaxed">
+                    {currentMessage.message}
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => {
+                  // Check if there are more messages
+                  if (activeAppleDialogue.currentIndex < activeAppleDialogue.messages.length - 1) {
+                    setActiveAppleDialogue({
+                      ...activeAppleDialogue,
+                      currentIndex: activeAppleDialogue.currentIndex + 1,
+                    });
+                  } else {
+                    // All messages shown, complete the dialogue
+                    setActiveAppleDialogue(null);
+                    onAppleDialogueComplete?.();
+                  }
+                }}
                 className="mt-3 sm:mt-4 w-full py-2 sm:py-3"
               >
                 Continue

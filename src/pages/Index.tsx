@@ -26,7 +26,17 @@ type GameScreen = 'home' | 'mode_select' | 'animal_select' | 'levels' | 'story_l
 const Index = () => {
   const { save, loading, refresh, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
   const { getAllMazes, isLoaded: mazesLoaded } = useMazeStorage();
-  const { appleCount, collectApple, feedApple, getFriendship, getProgress, addTestApples } = useAppleSystem();
+  const { 
+    appleCount, 
+    collectApple, 
+    feedApple, 
+    canFeedApple,
+    getFriendship, 
+    getProgress, 
+    addTestApples,
+    pendingAppleDialogue,
+    completePendingDialogue,
+  } = useAppleSystem();
   const [screen, setScreen] = useState<GameScreen>('home');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
@@ -194,7 +204,10 @@ const Index = () => {
         // Apple system props
         appleCount={appleCount}
         onAppleCollect={collectApple}
-        onAppleFeed={() => feedApple(selectedAnimal)}
+        onAppleFeed={feedApple}
+        canFeedApple={canFeedApple}
+        pendingAppleDialogue={pendingAppleDialogue}
+        onAppleDialogueComplete={completePendingDialogue}
         friendshipProgress={getProgress(selectedAnimal)}
       />
     );
