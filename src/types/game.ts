@@ -54,6 +54,16 @@ export interface MazeCharacter {
   animation: string;
   position: { x: number; y: number };
   alwaysFacePlayer?: boolean; // If true, character always rotates to face player (default: false, only faces during dialogue)
+  // Per-animal dialogue sequence - defines the order of apple and normal dialogues
+  dialogueSequence?: DialogueSequenceItem[];
+}
+
+// Defines a single item in a per-animal dialogue sequence
+export interface DialogueSequenceItem {
+  type: 'apple' | 'normal';
+  // For apple: the apple dialogue number (1, 2, 3, etc.)
+  // For normal: the dialogue ID from maze.dialogues
+  id: string | number;
 }
 
 export interface DialogueTrigger {
