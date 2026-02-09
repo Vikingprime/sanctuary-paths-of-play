@@ -32,6 +32,7 @@ const Index = () => {
     feedApple, 
     canFeedApple,
     getFriendship, 
+    getApplesGivenCount,
     getProgress, 
     addTestApples,
     pendingAppleDialogue,
@@ -206,6 +207,7 @@ const Index = () => {
         onAppleCollect={collectApple}
         onAppleFeed={feedApple}
         canFeedApple={canFeedApple}
+        getApplesGivenCount={getApplesGivenCount}
         pendingAppleDialogue={pendingAppleDialogue}
         onAppleDialogueComplete={completePendingDialogue}
         friendshipProgress={getProgress(selectedAnimal)}

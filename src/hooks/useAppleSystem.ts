@@ -8,7 +8,8 @@ import {
 } from '@/types/items';
 import { AnimalType } from '@/types/game';
 import { AppleDialogueMessage, canBeFedApples } from '@/types/appleDialogue';
-import { getNextAppleDialogue } from '@/data/appleDialogues';
+import { getNextAppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
+import { animals } from '@/data/animals';
 
 const APPLE_STORAGE_KEY = 'foggy-farm-apples';
 const FRIENDSHIP_STORAGE_KEY = 'foggy-farm-friendships';
@@ -112,11 +113,13 @@ export function useAppleSystem() {
   }, [state.pendingAppleDialogue, state.inventory.count]);
   
   // Feed an apple to an animal - returns the dialogue to show (if any)
-  const feedApple = useCallback((animalId: AnimalType): {
+  // appleDialogueIndex is the 0-based index of which apple dialogue to trigger (based on interleaved ordering)
+  const feedApple = useCallback((animalId: AnimalType, appleDialogueIndex?: number): {
     success: boolean;
     dialogue?: AppleDialogueMessage[];
     dialogueId?: string;
     reason?: string;
+    noDialogueLeft?: boolean;
   } => {
     const canFeedResult = canFeedApple(animalId);
     if (!canFeedResult.canFeed) {
@@ -131,8 +134,28 @@ export function useAppleSystem() {
       unlockedDialogues: [],
     };
     
+    // Determine which apple dialogue to trigger
+    // If appleDialogueIndex is provided, use that (for interleaved ordering)
+    // Otherwise use the applesGiven count (legacy behavior)
+    const effectiveAppleNumber = appleDialogueIndex !== undefined 
+      ? appleDialogueIndex 
+      : currentFriendship.applesGiven;
+    
+    // Check if there are any remaining apple dialogues
+    const totalAppleDialogues = getAppleDialogueCount(animalId);
+    if (effectiveAppleNumber >= totalAppleDialogues) {
+      // No more apple dialogue left - reject the transaction
+      const animalData = animals.find(a => a.id === animalId);
+      const animalName = animalData?.name || animalId;
+      return { 
+        success: false, 
+        reason: `${animalName} doesn't want any more apples`,
+        noDialogueLeft: true,
+      };
+    }
+    
     // Get the next apple dialogue for this animal
-    const nextDialogue = getNextAppleDialogue(animalId, currentFriendship.applesGiven);
+    const nextDialogue = getNextAppleDialogue(animalId, effectiveAppleNumber);
     
     // Calculate new friendship values
     const newPoints = currentFriendship.friendPoints + POINTS_PER_APPLE;
@@ -203,6 +226,10 @@ export function useAppleSystem() {
     };
   }, [state.friendships]);
   
+  // Get the number of apples already given to a specific animal
+  const getApplesGivenCount = useCallback((animalId: AnimalType): number => {
+    return state.friendships[animalId]?.applesGiven ?? 0;
+  }, [state.friendships]);
   // Check if a specific dialogue tier is unlocked
   const isDialogueUnlocked = useCallback((animalId: AnimalType, dialogueId: string): boolean => {
     const friendship = state.friendships[animalId];
@@ -259,6 +286,7 @@ export function useAppleSystem() {
     completePendingDialogue,
     getPendingDialogue,
     getFriendship,
+    getApplesGivenCount,
     isDialogueUnlocked,
     getProgress,
     resetAppleSystem,

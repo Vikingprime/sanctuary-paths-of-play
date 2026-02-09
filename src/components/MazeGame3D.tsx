@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Maze, AnimalType, MedalType, DialogueTrigger } from '@/types/game';
+import { Maze, AnimalType, MedalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { StoryProgress } from '@/types/quest';
 import { StoryMaze, StoryDialogue } from '@/data/storyMazes';
-import { AppleDialogueMessage } from '@/types/appleDialogue';
+import { AppleDialogueMessage, canBeFedApples } from '@/types/appleDialogue';
 import { Maze3DCanvas, PerformanceInfo } from './Maze3DScene';
 import { MazePreview } from './MazePreview';
 import { MiniMap } from './MiniMap';
 import { GameHUD, SensitivityConfig, DEFAULT_SENSITIVITY } from './GameHUD';
 import { MobileControls } from './MobileControls';
+import { toast } from 'sonner';
 import { RailControls } from './RailControls';
 import { MazeIntroSequence } from './MazeIntroSequence';
 import { CompassOverlay } from './CompassOverlay';
@@ -61,13 +62,15 @@ interface MazeGame3DProps {
   // Apple system props
   appleCount?: number;
   onAppleCollect?: (count?: number) => void;
-  onAppleFeed?: (animalId: AnimalType) => { 
+  onAppleFeed?: (animalId: AnimalType, appleDialogueIndex?: number) => { 
     success: boolean; 
     dialogue?: AppleDialogueMessage[]; 
     dialogueId?: string;
     reason?: string;
+    noDialogueLeft?: boolean;
   };
   canFeedApple?: (animalId: AnimalType) => { canFeed: boolean; reason?: string };
+  getApplesGivenCount?: (animalId: AnimalType) => number;
   pendingAppleDialogue?: {
     animalId: AnimalType;
     messages: AppleDialogueMessage[];
@@ -101,6 +104,7 @@ export const MazeGame3D = ({
   onAppleCollect,
   onAppleFeed,
   canFeedApple,
+  getApplesGivenCount,
   pendingAppleDialogue,
   onAppleDialogueComplete,
   friendshipProgress,
@@ -726,25 +730,83 @@ export const MazeGame3D = ({
     }
   }, []);
   
-  // Handle apple drop - attempt to feed apple to animal and trigger dialogue
+  // Find nearby feedable animal character (within proximity range)
+  const findNearbyFeedableAnimal = useCallback((): { character: MazeCharacter; animalId: AnimalType } | null => {
+    const FEED_PROXIMITY_RADIUS = 1.5; // Must be within 1.5 units to feed
+    const playerX = playerStateRef.current.x;
+    const playerY = playerStateRef.current.y;
+    
+    // Check maze.characters for nearby feedable animals
+    const characters = maze.characters || [];
+    for (const character of characters) {
+      // Check if this character is a feedable animal type
+      if (!canBeFedApples(character.id)) continue;
+      
+      // Check proximity
+      const dx = playerX - character.position.x;
+      const dy = playerY - character.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance <= FEED_PROXIMITY_RADIUS) {
+        return { character, animalId: character.id as AnimalType };
+      }
+    }
+    
+    return null;
+  }, [maze.characters]);
+  
+  // Calculate the apple dialogue index based on interleaved ordering
+  // This counts how many apple dialogues should have been triggered based on
+  // the order: apple -> normal -> apple -> normal etc.
+  // If normal dialogues are completed first, apple dialogues skip to catch up
+  const calculateAppleDialogueIndex = useCallback((targetAnimalId: AnimalType): number => {
+    // Count triggered dialogues that are "before" the next apple dialogue in the ordering
+    // For now, we use a simple approach: just use the applesGiven count
+    // This can be extended for more complex interleaving if needed
+    const applesGiven = getApplesGivenCount?.(targetAnimalId) ?? 0;
+    return applesGiven;
+  }, [getApplesGivenCount]);
+  
+  // Handle apple drop - attempt to feed apple to nearby animal and trigger dialogue
   const handleAppleDrop = useCallback(() => {
     // Don't allow feeding during active dialogue
     if (activeDialogue || activeAppleDialogue) {
       console.log('[Apple] Cannot feed during active dialogue');
+      toast.error("Can't feed while talking!");
       return;
     }
+    
+    // Find nearby feedable animal
+    const nearbyAnimal = findNearbyFeedableAnimal();
+    if (!nearbyAnimal) {
+      console.log('[Apple] No feedable animal nearby');
+      toast.error("Get closer to an animal to feed them!");
+      return;
+    }
+    
+    const { animalId } = nearbyAnimal;
     
     // Check if can feed
-    const canFeedResult = canFeedApple?.(animalType);
+    const canFeedResult = canFeedApple?.(animalId);
     if (!canFeedResult?.canFeed) {
       console.log('[Apple] Cannot feed:', canFeedResult?.reason);
+      toast.error(canFeedResult?.reason || "Can't feed right now");
       return;
     }
     
+    // Calculate which apple dialogue to trigger (interleaved ordering)
+    const appleDialogueIndex = calculateAppleDialogueIndex(animalId);
+    
     // Try to feed the apple
-    const result = onAppleFeed?.(animalType);
+    const result = onAppleFeed?.(animalId, appleDialogueIndex);
     if (!result?.success) {
       console.log('[Apple] Feed failed:', result?.reason);
+      // Show specific message if no dialogue left
+      if (result?.noDialogueLeft) {
+        toast.info(result.reason || "This animal doesn't want more apples");
+      } else {
+        toast.error(result?.reason || "Couldn't feed apple");
+      }
       return;
     }
     
@@ -755,7 +817,7 @@ export const MazeGame3D = ({
         currentIndex: 0,
       });
     }
-  }, [activeDialogue, activeAppleDialogue, canFeedApple, onAppleFeed, animalType]);
+  }, [activeDialogue, activeAppleDialogue, canFeedApple, onAppleFeed, findNearbyFeedableAnimal, calculateAppleDialogueIndex]);
   
   // Callback to receive magnetism cache from Maze3DScene
   // In rail control mode, snap the animal to the nearest polyline
