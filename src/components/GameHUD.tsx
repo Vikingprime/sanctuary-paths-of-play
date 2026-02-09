@@ -474,7 +474,7 @@ export const GameHUD = ({
           {/* Item Panel - below control buttons */}
           {onAppleDrop && (
             <ItemPanel
-              appleCount={100}
+              appleCount={appleCount}
               onAppleDrop={onAppleDrop}
             />
           )}
