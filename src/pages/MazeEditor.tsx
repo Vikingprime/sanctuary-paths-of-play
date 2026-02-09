@@ -10,9 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMazeStorage, createGrid, gridToLayout } from '@/hooks/useMazeStorage';
-import { Maze } from '@/types/game';
+import { Maze, DialogueSequenceItem } from '@/types/game';
 import { useBackButton } from '@/hooks/useBackButton';
-import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue } from '@/data/appleDialogues';
+import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
+import { canBeFedApples } from '@/types/appleDialogue';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -29,6 +30,7 @@ interface CharacterConfig {
   model: string;
   animation: string;
   position: { x: number; y: number } | null;
+  dialogueSequence?: DialogueSequenceItem[]; // Per-animal dialogue sequence
 }
 
 interface DialogueConfig {
@@ -398,14 +400,19 @@ const MazeEditor: React.FC = () => {
     
     const charactersSchema = characters.filter(c => c.position).length > 0 ? `
   characters: [
-${characters.filter(c => c.position).map(c => `    {
+${characters.filter(c => c.position).map(c => {
+  const dialogueSeqStr = c.dialogueSequence && c.dialogueSequence.length > 0
+    ? `\n      dialogueSequence: [${c.dialogueSequence.map(item => `{ type: '${item.type}', id: '${item.id}' }`).join(', ')}],`
+    : '';
+  return `    {
       id: '${c.id}',
       name: '${c.name}',
       emoji: '${c.emoji}',
       model: '${c.model}',
       animation: '${c.animation}',
-      position: { x: ${c.position!.x}, y: ${c.position!.y} },
-    }`).join(',\n')}
+      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}
+    }`;
+}).join(',\n')}
   ],` : '';
     
     const dialogueSchema = dialogues.length > 0 ? `
@@ -936,6 +943,81 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             {char.position ? `(${char.position.x}, ${char.position.y})` : 'Place'}
                           </Button>
                         </div>
+                        
+                        {/* Dialogue Sequence Editor - only for feedable animals */}
+                        {canBeFedApples(char.id) && (
+                          <div className="mt-3 pt-3 border-t border-border">
+                            <Label className="text-xs font-semibold">Dialogue Sequence</Label>
+                            <p className="text-xs text-muted-foreground mb-2">
+                              Order of apple (🍎) and normal dialogues
+                            </p>
+                            
+                            {/* Current sequence */}
+                            <div className="flex flex-wrap gap-1 mb-2 min-h-[28px] p-1 bg-muted rounded">
+                              {(char.dialogueSequence || []).map((item, idx) => (
+                                <div 
+                                  key={idx} 
+                                  className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${
+                                    item.type === 'apple' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                                  }`}
+                                >
+                                  {item.type === 'apple' ? '🍎' : '💬'}{item.id}
+                                  <button 
+                                    className="hover:text-red-600 ml-1"
+                                    onClick={() => {
+                                      const newSeq = [...(char.dialogueSequence || [])];
+                                      newSeq.splice(idx, 1);
+                                      updateCharacter(char.id, { dialogueSequence: newSeq });
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                              {(!char.dialogueSequence || char.dialogueSequence.length === 0) && (
+                                <span className="text-xs text-muted-foreground italic">Empty - add items below</span>
+                              )}
+                            </div>
+                            
+                            {/* Add items */}
+                            <div className="flex gap-1 flex-wrap">
+                              {/* Apple dialogue buttons */}
+                              {Array.from({ length: getAppleDialogueCount(char.id) }, (_, i) => i + 1).map(num => (
+                                <Button
+                                  key={`apple-${num}`}
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs px-2 py-0.5 h-6"
+                                  onClick={() => {
+                                    const newSeq = [...(char.dialogueSequence || []), { type: 'apple' as const, id: num.toString() }];
+                                    updateCharacter(char.id, { dialogueSequence: newSeq });
+                                  }}
+                                >
+                                  🍎{num}
+                                </Button>
+                              ))}
+                              
+                              {/* Normal dialogue buttons - linked to this character */}
+                              {dialogues
+                                .filter(d => d.speakerCharacterId === char.id)
+                                .map(d => (
+                                  <Button
+                                    key={`normal-${d.id}`}
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-xs px-2 py-0.5 h-6"
+                                    onClick={() => {
+                                      const newSeq = [...(char.dialogueSequence || []), { type: 'normal' as const, id: d.id }];
+                                      updateCharacter(char.id, { dialogueSequence: newSeq });
+                                    }}
+                                  >
+                                    💬{d.speaker.slice(0, 8)}
+                                  </Button>
+                                ))
+                              }
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </Card>
                   ))}

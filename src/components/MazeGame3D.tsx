@@ -756,16 +756,54 @@ export const MazeGame3D = ({
   }, [maze.characters]);
   
   // Calculate the apple dialogue index based on interleaved ordering
-  // This counts how many apple dialogues should have been triggered based on
-  // the order: apple -> normal -> apple -> normal etc.
-  // If normal dialogues are completed first, apple dialogues skip to catch up
-  const calculateAppleDialogueIndex = useCallback((targetAnimalId: AnimalType): number => {
-    // Count triggered dialogues that are "before" the next apple dialogue in the ordering
-    // For now, we use a simple approach: just use the applesGiven count
-    // This can be extended for more complex interleaving if needed
+  // This uses the character's dialogueSequence to determine which apple dialogue should trigger next
+  // based on which normal dialogues have already been completed
+  const calculateAppleDialogueIndex = useCallback((targetAnimalId: AnimalType, targetCharacter: MazeCharacter): number => {
+    const sequence = targetCharacter.dialogueSequence;
+    
+    // If no sequence defined, fall back to simple applesGiven count
+    if (!sequence || sequence.length === 0) {
+      const applesGiven = getApplesGivenCount?.(targetAnimalId) ?? 0;
+      return applesGiven;
+    }
+    
+    // Count how many apple dialogues have been "unlocked" based on the sequence
+    // An apple dialogue is unlocked when all preceding items in the sequence are completed
     const applesGiven = getApplesGivenCount?.(targetAnimalId) ?? 0;
-    return applesGiven;
-  }, [getApplesGivenCount]);
+    let appleDialogueIndex = 0;
+    let appleCount = 0;
+    
+    for (const item of sequence) {
+      if (item.type === 'apple') {
+        // This is an apple dialogue slot
+        if (appleCount < applesGiven) {
+          // This apple has already been given
+          appleCount++;
+          continue;
+        }
+        // This is the next apple to give
+        appleDialogueIndex = appleCount;
+        break;
+      } else {
+        // This is a normal dialogue - check if it's been triggered
+        const isTriggered = triggeredDialogues.has(item.id.toString());
+        if (!isTriggered) {
+          // A normal dialogue before this apple hasn't been triggered yet
+          // The player should complete this dialogue first, but we still allow apple feeding
+          // by returning the current apple index
+          appleDialogueIndex = appleCount;
+          break;
+        }
+      }
+    }
+    
+    // If we've gone through the whole sequence, use the final apple count
+    if (appleDialogueIndex === 0 && appleCount >= applesGiven) {
+      appleDialogueIndex = applesGiven;
+    }
+    
+    return appleDialogueIndex;
+  }, [getApplesGivenCount, triggeredDialogues]);
   
   // Handle apple drop - attempt to feed apple to nearby animal and trigger dialogue
   const handleAppleDrop = useCallback(() => {
@@ -784,7 +822,7 @@ export const MazeGame3D = ({
       return;
     }
     
-    const { animalId } = nearbyAnimal;
+    const { character, animalId } = nearbyAnimal;
     
     // Check if can feed
     const canFeedResult = canFeedApple?.(animalId);
@@ -795,7 +833,7 @@ export const MazeGame3D = ({
     }
     
     // Calculate which apple dialogue to trigger (interleaved ordering)
-    const appleDialogueIndex = calculateAppleDialogueIndex(animalId);
+    const appleDialogueIndex = calculateAppleDialogueIndex(animalId, character);
     
     // Try to feed the apple
     const result = onAppleFeed?.(animalId, appleDialogueIndex);
