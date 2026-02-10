@@ -1,100 +1,50 @@
 
-# Fix: Timer Stuck at 15 Before Jumping to 10
 
-## Problem Summary
+# Fix: Preview Timer Freezes Due to Heavy Background Computation
 
-The 15-second countdown timer in the intro sequence freezes at "15" for several seconds before suddenly jumping to "10". This happens because the timer keeps restarting every time the parent component re-renders.
+## Problem
 
-## Root Cause
+When the maze preview countdown starts (showing "15", "10", etc.), the 3D scene renders simultaneously in the background. The `buildMagnetismCache` function (which internally runs `computeMedialAxis`) executes synchronously during the React render cycle, blocking the main thread for 1-2+ seconds. During this time, the `requestAnimationFrame`-based timer cannot tick, causing the countdown to visually freeze before jumping ahead.
 
-The countdown timer in `MazeIntroSequence.tsx` has `onComplete` as a dependency in its `useEffect`. However, in `MazeGame3D.tsx`, the `onComplete` callback is passed as an **inline arrow function**:
-
-```typescript
-onComplete={() => {
-  setIsShowingIntro(false);
-  setIsPreviewing(false);
-}}
-```
-
-Every parent re-render creates a new function reference, which triggers the timer's `useEffect` to restart, resetting the start time and effectively freezing the display.
-
----
+The console logs confirm this -- the MedialAxis computation runs 6+ times in rapid succession (~2 seconds), during which the timer is blocked.
 
 ## Solution
 
-### Step 1: Stabilize the callback in `MazeGame3D.tsx`
+Defer the 3D scene rendering by a short delay after the preview starts. This lets the timer establish its ticking rhythm before the heavy computation kicks in. When the heavy work runs, the timestamp-based timer will jump slightly but recover -- much less jarring than freezing from the very start.
 
-Wrap the `onComplete` callback in `useCallback` to ensure it has a stable reference across re-renders:
+## Changes
 
-```typescript
-const handleIntroComplete = useCallback(() => {
-  setIsShowingIntro(false);
-  setIsPreviewing(false);
-}, []);
+### 1. `src/components/MazeGame3D.tsx` -- Delay 3D scene mount during preview
+
+Add a `sceneRenderReady` state that becomes `true` 800ms after the component mounts or after a restart. Only render `Maze3DCanvas` when this flag is true. This gives the preview timer time to start ticking visibly before heavy computation begins.
+
 ```
+// New state
+const [sceneRenderReady, setSceneRenderReady] = useState(false);
 
-Then pass this stable reference:
-
-```typescript
-<MazeIntroSequence
-  maze={maze}
-  introDialogues={maze.introDialogues}
-  onComplete={handleIntroComplete}  // Stable reference
-  isMuted={isMuted}
-/>
-```
-
-### Step 2: Remove `onComplete` from timer dependencies (defensive fix)
-
-In `MazeIntroSequence.tsx`, the timer effect should not depend on `onComplete` since it only calls it once at the end. Use a ref to store the callback:
-
-```typescript
-const onCompleteRef = useRef(onComplete);
-
-// Keep ref updated
+// Delay scene rendering to let timer start ticking first
 useEffect(() => {
-  onCompleteRef.current = onComplete;
-}, [onComplete]);
-
-// Timer effect - no longer depends on onComplete
-useEffect(() => {
-  if (!isShowingMazePreview) return;
-
-  const startTime = Date.now();
-  const duration = maze.previewTime;
-  
-  const timer = setInterval(() => {
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    const remaining = Math.max(0, duration - elapsed);
-    
-    setMazePreviewCountdown(remaining);
-    
-    if (remaining <= 0) {
-      clearInterval(timer);
-      onCompleteRef.current();  // Call via ref
-    }
-  }, 100);
-
-  return () => clearInterval(timer);
-}, [isShowingMazePreview, maze.previewTime]);  // onComplete removed
+  if (!isPreviewing) {
+    setSceneRenderReady(true); // If not previewing, render immediately
+    return;
+  }
+  setSceneRenderReady(false);
+  const t = setTimeout(() => setSceneRenderReady(true), 800);
+  return () => clearTimeout(t);
+}, [isPreviewing, restartKey]);
 ```
 
----
+Then conditionally render the canvas:
+```
+{sceneRenderReady && <Maze3DCanvas ... />}
+```
 
-## Files to Modify
+### 2. `src/components/Maze3DScene.tsx` -- Stabilize `useMemo` dependencies
+
+The `buildMagnetismCache` useMemo includes `onMagnetismCacheReady` in its dependency array (line 1195), which can cause unnecessary recomputation if the callback reference changes. Remove it from dependencies and call it via a ref pattern instead, similar to how the intro timer was fixed.
 
 | File | Change |
-|------|--------|
-| `src/components/MazeGame3D.tsx` | Wrap intro completion handler in `useCallback` |
-| `src/components/MazeIntroSequence.tsx` | Use ref pattern to avoid timer restart on callback change |
+|---|---|
+| `src/components/MazeGame3D.tsx` | Add delayed scene rendering to prevent timer freeze |
+| `src/components/Maze3DScene.tsx` | Stabilize `buildMagnetismCache` useMemo dependencies with ref pattern |
 
----
-
-## Technical Details
-
-**Why both fixes?**
-
-1. **`useCallback` in parent** - Prevents unnecessary re-creations of the callback function
-2. **Ref pattern in child** - Makes the timer robust against any future callback instability (defensive programming)
-
-Together, these ensure the countdown ticks reliably every second without restarts or jumps.
