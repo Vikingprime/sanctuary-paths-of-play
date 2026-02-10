@@ -62,17 +62,17 @@ interface MazeGame3DProps {
   // Apple system props
   appleCount?: number;
   onAppleCollect?: (count?: number) => void;
-  onAppleFeed?: (animalId: AnimalType, appleDialogueIndex?: number) => { 
+  onAppleFeed?: (characterId: string, appleDialogueIndex?: number) => { 
     success: boolean; 
     dialogue?: AppleDialogueMessage[]; 
     dialogueId?: string;
     reason?: string;
     noDialogueLeft?: boolean;
   };
-  canFeedApple?: (animalId: AnimalType) => { canFeed: boolean; reason?: string };
-  getApplesGivenCount?: (animalId: AnimalType) => number;
+  canFeedApple?: (characterId: string) => { canFeed: boolean; reason?: string };
+  getApplesGivenCount?: (characterId: string) => number;
   pendingAppleDialogue?: {
-    animalId: AnimalType;
+    animalId: string; // NPC character ID
     messages: AppleDialogueMessage[];
     dialogueId: string;
   } | null;
@@ -731,7 +731,7 @@ export const MazeGame3D = ({
   }, []);
   
   // Find nearby feedable animal character (within proximity range)
-  const findNearbyFeedableAnimal = useCallback((): { character: MazeCharacter; animalId: AnimalType } | null => {
+  const findNearbyFeedableAnimal = useCallback((): { character: MazeCharacter; animalId: string } | null => {
     const FEED_PROXIMITY_RADIUS = 1.5; // Must be within 1.5 units to feed
     const playerX = playerStateRef.current.x;
     const playerY = playerStateRef.current.y;
@@ -739,7 +739,7 @@ export const MazeGame3D = ({
     // Check maze.characters for nearby feedable animals
     const characters = maze.characters || [];
     for (const character of characters) {
-      // Check if this character is a feedable animal type
+      // Check if this character is a feedable NPC (not player animals, not humans)
       if (!canBeFedApples(character.id)) continue;
       
       // Check proximity
@@ -748,7 +748,7 @@ export const MazeGame3D = ({
       const distance = Math.sqrt(dx * dx + dy * dy);
       
       if (distance <= FEED_PROXIMITY_RADIUS) {
-        return { character, animalId: character.id as AnimalType };
+        return { character, animalId: character.id };
       }
     }
     
@@ -758,7 +758,7 @@ export const MazeGame3D = ({
   // Calculate the apple dialogue index based on interleaved ordering
   // This uses the character's dialogueSequence to determine which apple dialogue should trigger next
   // based on which normal dialogues have already been completed
-  const calculateAppleDialogueIndex = useCallback((targetAnimalId: AnimalType, targetCharacter: MazeCharacter): number => {
+  const calculateAppleDialogueIndex = useCallback((targetAnimalId: string, targetCharacter: MazeCharacter): number => {
     const sequence = targetCharacter.dialogueSequence;
     
     // If no sequence defined, fall back to simple applesGiven count

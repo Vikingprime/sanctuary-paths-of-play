@@ -210,7 +210,7 @@ const Index = () => {
         getApplesGivenCount={getApplesGivenCount}
         pendingAppleDialogue={pendingAppleDialogue}
         onAppleDialogueComplete={completePendingDialogue}
-        friendshipProgress={getProgress(selectedAnimal)}
+        friendshipProgress={undefined}
       />
     );
   }
