@@ -947,9 +947,9 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         {/* Dialogue Sequence Editor - only for feedable animals */}
                         {canBeFedApples(char.id) && (
                           <div className="mt-3 pt-3 border-t border-border">
-                            <Label className="text-xs font-semibold">Dialogue Sequence</Label>
+                            <Label className="text-xs font-semibold">Dialogue Sequence (Interaction Order)</Label>
                             <p className="text-xs text-muted-foreground mb-2">
-                              Order of apple (🍎) and normal dialogues
+                              Define the exact order this animal's interactions happen. Click buttons below to append items. 🍎 = player must feed an apple, 💬 = a normal dialogue triggers. Example: 🍎1 → 💬talk → 🍎2 means: first feed triggers apple dialogue 1, then normal dialogue unlocks, then second feed triggers apple dialogue 2.
                             </p>
                             
                             {/* Current sequence */}
