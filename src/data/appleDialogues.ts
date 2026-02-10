@@ -1,5 +1,5 @@
-// Apple feeding dialogues for each animal
-// These are triggered when feeding apples to animals during gameplay
+// Apple feeding dialogues for each NPC character
+// These are triggered when feeding apples to NPC characters during gameplay
 
 import { AnimalAppleDialogues, AppleDialogueMessage, AppleDialogue } from '@/types/appleDialogue';
 

@@ -1,7 +1,5 @@
 // Apple feeding dialogue system
-// Dialogues triggered when feeding apples to animals
-
-import { AnimalType } from './game';
+// Dialogues triggered when feeding apples to NPC characters
 
 export interface AppleDialogueMessage {
   speaker: string;
@@ -16,12 +14,18 @@ export interface AppleDialogue {
 }
 
 export interface AnimalAppleDialogues {
-  animalId: AnimalType;
+  animalId: string; // NPC character ID (e.g. 'remy_rat'), not player animal type
   dialogues: AppleDialogue[];
 }
 
-// Check if an animal type can be fed apples (only actual animals, not humans/NPCs)
-export const canBeFedApples = (characterType: string): boolean => {
-  const feedableAnimals: string[] = ['pig', 'cow', 'bird'];
-  return feedableAnimals.includes(characterType);
+// Characters that should NEVER be feedable (humans, non-animal NPCs)
+const NON_FEEDABLE_CHARACTERS: string[] = [
+  'sanctuary_sam', 'sanctuary_sam_ch1', 'char_stella',
+  // Player animal types are also not feedable
+  'pig', 'cow', 'bird',
+];
+
+// Check if a character can be fed apples (any character not in the exclusion list)
+export const canBeFedApples = (characterId: string): boolean => {
+  return !NON_FEEDABLE_CHARACTERS.includes(characterId);
 };

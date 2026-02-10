@@ -6,7 +6,6 @@ import {
   getFriendshipTier,
   getNextFriendshipTier,
 } from '@/types/items';
-import { AnimalType } from '@/types/game';
 import { AppleDialogueMessage, canBeFedApples } from '@/types/appleDialogue';
 import { getNextAppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
 import { animals } from '@/data/animals';
@@ -20,7 +19,7 @@ interface AppleSystemState {
   friendships: Record<string, AnimalFriendship>;
   // Track pending apple dialogue that must be shown before feeding more
   pendingAppleDialogue: {
-    animalId: AnimalType;
+    animalId: string; // NPC character ID
     messages: AppleDialogueMessage[];
     dialogueId: string;
   } | null;
@@ -88,7 +87,7 @@ export function useAppleSystem() {
   }, []);
   
   // Check if an animal can be fed (must be feedable animal type and no pending dialogue)
-  const canFeedApple = useCallback((animalId: AnimalType): { canFeed: boolean; reason?: string } => {
+  const canFeedApple = useCallback((animalId: string): { canFeed: boolean; reason?: string } => {
     // Check if this is a feedable animal type
     if (!canBeFedApples(animalId)) {
       return { canFeed: false, reason: 'This character cannot be fed apples' };
@@ -114,7 +113,7 @@ export function useAppleSystem() {
   
   // Feed an apple to an animal - returns the dialogue to show (if any)
   // appleDialogueIndex is the 0-based index of which apple dialogue to trigger (based on interleaved ordering)
-  const feedApple = useCallback((animalId: AnimalType, appleDialogueIndex?: number): {
+  const feedApple = useCallback((animalId: string, appleDialogueIndex?: number): {
     success: boolean;
     dialogue?: AppleDialogueMessage[];
     dialogueId?: string;
@@ -217,7 +216,7 @@ export function useAppleSystem() {
   }, [state.pendingAppleDialogue]);
   
   // Get friendship for a specific animal
-  const getFriendship = useCallback((animalId: AnimalType): AnimalFriendship => {
+  const getFriendship = useCallback((animalId: string): AnimalFriendship => {
     return state.friendships[animalId] || {
       animalId,
       friendPoints: 0,
@@ -227,18 +226,18 @@ export function useAppleSystem() {
   }, [state.friendships]);
   
   // Get the number of apples already given to a specific animal
-  const getApplesGivenCount = useCallback((animalId: AnimalType): number => {
+  const getApplesGivenCount = useCallback((animalId: string): number => {
     return state.friendships[animalId]?.applesGiven ?? 0;
   }, [state.friendships]);
   // Check if a specific dialogue tier is unlocked
-  const isDialogueUnlocked = useCallback((animalId: AnimalType, dialogueId: string): boolean => {
+  const isDialogueUnlocked = useCallback((animalId: string, dialogueId: string): boolean => {
     const friendship = state.friendships[animalId];
     if (!friendship) return dialogueId === 'greeting'; // Base dialogue always available
     return friendship.unlockedDialogues.includes(dialogueId) || dialogueId === 'greeting';
   }, [state.friendships]);
   
   // Get progress to next tier
-  const getProgress = useCallback((animalId: AnimalType): { 
+  const getProgress = useCallback((animalId: string): { 
     currentTier: ReturnType<typeof getFriendshipTier>;
     nextTier: ReturnType<typeof getNextFriendshipTier>;
     progress: number; // 0-1
