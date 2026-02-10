@@ -5,15 +5,13 @@ import { AppleHUDModel } from './AppleHUDModel';
 interface ItemPanelProps {
   appleCount?: number;
   onAppleDrop: () => void;
-  animalBounds?: { x: number; y: number; width: number; height: number } | null;
   className?: string;
 }
 
 // Simple floating apple panel for gameplay with draggable apples
 export const ItemPanel = ({
-  appleCount = 100, // Debug: default to 100 apples
+  appleCount = 100,
   onAppleDrop,
-  animalBounds,
   className,
 }: ItemPanelProps) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -45,20 +43,10 @@ export const ItemPanel = ({
   const handleTouchEnd = () => {
     if (!isDragging) return;
     
-    // Check if dropped on animal
-    if (animalBounds) {
-      const { x, y, width, height } = animalBounds;
-      if (
-        dragPosition.x >= x &&
-        dragPosition.x <= x + width &&
-        dragPosition.y >= y &&
-        dragPosition.y <= y + height
-      ) {
-        onAppleDrop();
-        setShowFeedback(true);
-        setTimeout(() => setShowFeedback(false), 1000);
-      }
-    }
+    // Always attempt to feed - proximity check is done in the game logic
+    onAppleDrop();
+    setShowFeedback(true);
+    setTimeout(() => setShowFeedback(false), 1000);
     
     setIsDragging(false);
   };
@@ -79,19 +67,10 @@ export const ItemPanel = ({
     };
     
     const handleMouseUp = () => {
-      if (animalBounds) {
-        const { x, y, width, height } = animalBounds;
-        if (
-          dragPosition.x >= x &&
-          dragPosition.x <= x + width &&
-          dragPosition.y >= y &&
-          dragPosition.y <= y + height
-        ) {
-          onAppleDrop();
-          setShowFeedback(true);
-          setTimeout(() => setShowFeedback(false), 1000);
-        }
-      }
+      // Always attempt to feed - proximity check is done in the game logic
+      onAppleDrop();
+      setShowFeedback(true);
+      setTimeout(() => setShowFeedback(false), 1000);
       
       setIsDragging(false);
     };
@@ -103,7 +82,7 @@ export const ItemPanel = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragPosition, animalBounds, onAppleDrop]);
+  }, [isDragging, onAppleDrop]);
   
   // Display count - use prop directly for rendering
   const displayCount = appleCount;
