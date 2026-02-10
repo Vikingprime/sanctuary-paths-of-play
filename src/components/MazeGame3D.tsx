@@ -767,42 +767,40 @@ export const MazeGame3D = ({
       return applesGiven;
     }
     
-    // Count how many apple dialogues have been "unlocked" based on the sequence
-    // An apple dialogue is unlocked when all preceding items in the sequence are completed
+    // Walk through the sequence to find the next apple slot the player should trigger.
+    // An item is "done" if:
+    //   - type 'apple': the cumulative apple count so far is < applesGiven
+    //   - type 'normal': the dialogue id has been triggered
+    // The first un-done 'apple' item gives us the appleDialogueIndex (its 0-based apple ordinal).
+    // If we hit an un-done 'normal' item, we block — the player needs to do that dialogue first,
+    // but we still return the next apple index so feeding shows "get closer" / proximity gate.
+    
     const applesGiven = getApplesGivenCount?.(targetAnimalId) ?? 0;
-    let appleDialogueIndex = 0;
-    let appleCount = 0;
+    let appleOrdinal = 0; // counts apple-type items encountered so far
     
     for (const item of sequence) {
       if (item.type === 'apple') {
-        // This is an apple dialogue slot
-        if (appleCount < applesGiven) {
-          // This apple has already been given
-          appleCount++;
+        if (appleOrdinal < applesGiven) {
+          // This apple was already fed — skip it
+          appleOrdinal++;
           continue;
         }
-        // This is the next apple to give
-        appleDialogueIndex = appleCount;
-        break;
+        // This is the next apple to give — return its ordinal
+        return appleOrdinal;
       } else {
-        // This is a normal dialogue - check if it's been triggered
+        // Normal dialogue — check if it's been triggered
         const isTriggered = triggeredDialogues.has(item.id.toString());
         if (!isTriggered) {
-          // A normal dialogue before this apple hasn't been triggered yet
-          // The player should complete this dialogue first, but we still allow apple feeding
-          // by returning the current apple index
-          appleDialogueIndex = appleCount;
-          break;
+          // Normal dialogue not yet done — but still return the next apple ordinal
+          // so the system can show "talk to them first" or allow feeding if desired
+          return appleOrdinal;
         }
+        // Normal dialogue already done — skip it and continue
       }
     }
     
-    // If we've gone through the whole sequence, use the final apple count
-    if (appleDialogueIndex === 0 && appleCount >= applesGiven) {
-      appleDialogueIndex = applesGiven;
-    }
-    
-    return appleDialogueIndex;
+    // Exhausted the entire sequence — return total apple count (will be rejected as "no more dialogues")
+    return appleOrdinal;
   }, [getApplesGivenCount, triggeredDialogues]);
   
   // Handle apple drop - attempt to feed apple to nearby animal and trigger dialogue
