@@ -568,6 +568,7 @@ export const MazeGame3D = ({
       const dialogue = checkDialogueAtCell(gridX, gridY, triggeredDialogues);
       
       if (dialogue) {
+        console.log('[Dialogue] Triggered:', dialogue.id, 'speaker:', dialogue.speaker, 'at cell:', gridX, gridY);
         setActiveDialogue(dialogue);
         setDialogueMessageIndex(0); // Reset to first message
         setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
@@ -1205,6 +1206,8 @@ export const MazeGame3D = ({
     setActiveDialogue(null);
     setActiveAppleDialogue(null);
     setTriggeredDialogues(new Set());
+    setCompletedObjectives(new Set());
+    setDialogueMessageIndex(0);
     
     // Reset timing refs
     gameStartTimeRef.current = null;
