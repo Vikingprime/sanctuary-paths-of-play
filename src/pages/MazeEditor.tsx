@@ -1460,18 +1460,19 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                           if (!editableAppleDialogues.find(a => a.animalId === value)) {
                             setEditableAppleDialogues(prev => [
                               ...prev,
-                              { animalId: value as 'pig' | 'cow' | 'bird', dialogues: [] }
+                              { animalId: value, dialogues: [] }
                             ]);
-                            toast.success(`Added ${value} to apple dialogues`);
+                            const char = characters.find(c => c.id === value);
+                            toast.success(`Added ${char ? char.name : value} to apple dialogues`);
                           }
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select animal..." />
+                          <SelectValue placeholder="Select character..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {['pig', 'cow', 'bird'].filter(a => !editableAppleDialogues.find(e => e.animalId === a)).map(a => (
-                            <SelectItem key={a} value={a}>{a}</SelectItem>
+                          {characters.filter(c => c.position && canBeFedApples(c.id) && !editableAppleDialogues.find(e => e.animalId === c.id)).map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.emoji} {c.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
