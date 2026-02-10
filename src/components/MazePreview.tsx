@@ -256,17 +256,6 @@ export const MazePreview = ({
 
   const mazeGrid = (
     <div className="flex flex-col items-center gap-2 animate-fade-in">
-      {/* Memorize instruction text with brain icon and timer */}
-      <div className="flex items-center gap-2">
-        <span className="text-lg sm:text-xl">🧠</span>
-        <span className="font-display text-lg sm:text-xl font-bold text-foreground">
-          Memorize the maze!
-        </span>
-        <span className="bg-primary text-primary-foreground px-3 py-0.5 rounded-full font-display font-bold text-sm sm:text-base animate-pulse">
-          {timeLeft}s
-        </span>
-      </div>
-      
       {/* Maze grid - no wrapper padding/border */}
       <div
         className="grid gap-0 relative rounded-lg overflow-hidden shadow-warm-lg flex-shrink-0"
