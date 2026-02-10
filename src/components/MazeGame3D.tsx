@@ -129,6 +129,7 @@ export const MazeGame3D = ({
   const [isPreviewing, setIsPreviewing] = useState(!debugMode);
   const [isShowingIntro, setIsShowingIntro] = useState(!debugMode && (maze.introDialogues?.length ?? 0) > 0);
   const [sceneReady, setSceneReady] = useState(false);
+  const [sceneRenderReady, setSceneRenderReady] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [mapStationAvailable, setMapStationAvailable] = useState(false);
   const [showMapOptions, setShowMapOptions] = useState(false);
@@ -333,6 +334,17 @@ export const MazeGame3D = ({
   }, [verboseLogging]);
   const keysPressed = useRef<Set<string>>(new Set());
   const animationFrameRef = useRef<number>();
+
+  // Delay 3D scene mount during preview to let timer start ticking first
+  useEffect(() => {
+    if (!isPreviewing) {
+      setSceneRenderReady(true);
+      return;
+    }
+    setSceneRenderReady(false);
+    const t = setTimeout(() => setSceneRenderReady(true), 800);
+    return () => clearTimeout(t);
+  }, [isPreviewing, restartKey]);
 
   // Preview countdown - use timestamp-based approach for reliable timing
   const previewAnimFrameRef = useRef<number | null>(null);
@@ -1357,8 +1369,8 @@ export const MazeGame3D = ({
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden">
-      {/* 3D Scene - always renders, movement paused during preview */}
-      <Maze3DCanvas
+      {/* 3D Scene - deferred during preview to let timer tick first */}
+      {sceneRenderReady && <Maze3DCanvas
         maze={maze}
         animalType={animalType}
         playerStateRef={playerStateRef}
@@ -1429,7 +1441,7 @@ export const MazeGame3D = ({
         railTargetAngleRef={railTargetAngleRef}
         railTurnSpeed={railTurnSpeed}
         onRailMoveComplete={handleRailStop}
-      />
+      />}
 
       {/* Preview overlay - shows on top while scene loads in background */}
       {isPreviewing && (
