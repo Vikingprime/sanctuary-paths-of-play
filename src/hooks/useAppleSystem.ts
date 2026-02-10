@@ -35,11 +35,17 @@ const loadState = (): AppleSystemState => {
     const friendshipData = localStorage.getItem(FRIENDSHIP_STORAGE_KEY);
     const pendingDialogueData = localStorage.getItem(PENDING_DIALOGUE_KEY);
     
-    // If no apple data exists, start with default count
     const defaultInventory = { count: DEFAULT_APPLE_COUNT, totalCollected: DEFAULT_APPLE_COUNT };
+    const savedInventory = appleData ? JSON.parse(appleData) : null;
+    
+    // Use default if no saved data, or if saved count is 0 and totalCollected <= DEFAULT
+    // (ensures players always have apples for testing during development)
+    const inventory = savedInventory && savedInventory.count > 0 
+      ? savedInventory 
+      : defaultInventory;
     
     return {
-      inventory: appleData ? JSON.parse(appleData) : defaultInventory,
+      inventory,
       friendships: friendshipData ? JSON.parse(friendshipData) : {},
       pendingAppleDialogue: pendingDialogueData ? JSON.parse(pendingDialogueData) : null,
     };
