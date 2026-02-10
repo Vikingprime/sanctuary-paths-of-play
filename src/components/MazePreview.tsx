@@ -492,7 +492,7 @@ export const MazePreview = ({
 
         {/* Story mode header - shown in landscape only for story mode */}
         {isStoryMode && (
-          <div className="absolute top-1 left-1/2 -translate-x-1/2 z-10 text-center">
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 text-center">
             <h2 className="font-display text-sm font-bold text-foreground">
               Memorize the Path! 🧠
             </h2>
