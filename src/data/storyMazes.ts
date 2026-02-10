@@ -65,6 +65,11 @@ const chapter1Maze: StoryMaze = {
       position: { x: 5, y: 10 }, // Centered on main corridor path
       hiddenFromPreview: true,
       questRelevant: 'find_remy',
+      dialogueSequence: [
+        { type: 'normal', id: 'remy_ch1_encounter' },
+        { type: 'apple', id: '1' },
+        { type: 'apple', id: '2' },
+      ],
     }
   ],
   quest: {
@@ -627,6 +632,7 @@ export const storyMazeToMaze = (storyMaze: StoryMaze): Maze => {
       animation: sc.animation,
       position: sc.position,
       alwaysFacePlayer: true,
+      dialogueSequence: sc.dialogueSequence,
     })),
   ];
 
