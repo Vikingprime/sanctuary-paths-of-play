@@ -1174,6 +1174,10 @@ const RefBasedPlayer = ({
   // Collision state for magnetism weakening
   const collisionIntensityRef = useRef(0);
   
+  // Ref pattern for onMagnetismCacheReady to avoid triggering useMemo recomputation
+  const onMagnetismCacheReadyRef = useRef(onMagnetismCacheReady);
+  onMagnetismCacheReadyRef.current = onMagnetismCacheReady;
+  
   // Build magnetism cache when maze or polyline config changes
   useMemo(() => {
     if (magnetismConfig?.enabled) {
@@ -1190,9 +1194,9 @@ const RefBasedPlayer = ({
         railFractionalIndexRef.current = 0;
       }
       // Notify parent that cache is ready (for rail mode)
-      onMagnetismCacheReady?.(cache);
+      onMagnetismCacheReadyRef.current?.(cache);
     }
-  }, [maze, magnetismConfig?.enabled, polylineConfig, onMagnetismCacheReady, railPathRef, railPathIndexRef, railFractionalIndexRef, restartKey]);
+  }, [maze, magnetismConfig?.enabled, polylineConfig, railPathRef, railPathIndexRef, railFractionalIndexRef, restartKey]);
   
   // Helper: normalize angle to [-PI, PI]
   const normalizeAngle = (angle: number): number => {
