@@ -12,6 +12,7 @@ interface MazePreviewProps {
   isMuted?: boolean;
   onToggleMute?: () => void;
   selectedAnimal?: Animal;
+  isStoryMode?: boolean;
 }
 
 export const MazePreview = ({ 
@@ -21,7 +22,8 @@ export const MazePreview = ({
   onQuit,
   isMuted = false,
   onToggleMute,
-  selectedAnimal
+  selectedAnimal,
+  isStoryMode = false,
 }: MazePreviewProps) => {
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
 
@@ -487,6 +489,18 @@ export const MazePreview = ({
             </button>
           )}
         </div>
+
+        {/* Story mode header - shown in landscape only for story mode */}
+        {isStoryMode && (
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 z-10 text-center">
+            <h2 className="font-display text-sm font-bold text-foreground">
+              Memorize the Path! 🧠
+            </h2>
+            <div className="bg-primary text-primary-foreground px-3 py-0.5 rounded-full font-display font-bold text-sm animate-pulse mt-0.5">
+              Starting in {timeLeft}s
+            </div>
+          </div>
+        )}
 
         {/* Left side: Compass only */}
         <div className="flex flex-col items-center justify-center gap-2 flex-shrink-0 w-[12%] min-w-[80px]">

@@ -1441,6 +1441,7 @@ export const MazeGame3D = ({
             isMuted={isMuted}
             onToggleMute={handleToggleMute}
             selectedAnimal={animals.find(a => a.id === animalType)}
+            isStoryMode={isStoryMode}
           />
         </div>
       )}
