@@ -733,7 +733,7 @@ export const MazeGame3D = ({
   
   // Find nearby feedable animal character (within proximity range)
   const findNearbyFeedableAnimal = useCallback((): { character: MazeCharacter; animalId: string } | null => {
-    const FEED_PROXIMITY_RADIUS = 1.5; // Must be within 1.5 units to feed
+    const FEED_PROXIMITY_RADIUS = 4.5; // Must be within 4.5 units to feed (3x original)
     const playerX = playerStateRef.current.x;
     const playerY = playerStateRef.current.y;
     
