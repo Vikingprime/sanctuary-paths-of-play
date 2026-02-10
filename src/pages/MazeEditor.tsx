@@ -1323,7 +1323,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                           const newDialogue: AppleDialogue = {
                             id: `${animal.animalId}-apple-${animal.dialogues.length + 1}`,
                             appleNumber: animal.dialogues.length + 1,
-                            messages: [{ speaker: 'Animal', speakerEmoji: '🐾', message: 'Thank you for the apple!' }],
+                            messages: [{ speaker: (() => { const c = characters.find(c => c.id === animal.animalId); return c?.name ?? 'Animal'; })(), speakerEmoji: (() => { const c = characters.find(c => c.id === animal.animalId); return c?.emoji ?? '🐾'; })(), message: 'Thank you for the apple!' }],
                           };
                           setEditableAppleDialogues(prev => 
                             prev.map(a => a.animalId === animal.animalId 
@@ -1433,7 +1433,8 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                               variant="outline"
                               className="w-full text-xs"
                               onClick={() => {
-                                const newMessages = [...dialogue.messages, { speaker: 'Animal', speakerEmoji: '🐾', message: '' }];
+                                const charInfo = characters.find(c => c.id === animal.animalId);
+                                const newMessages = [...dialogue.messages, { speaker: charInfo?.name ?? 'Animal', speakerEmoji: charInfo?.emoji ?? '🐾', message: '' }];
                                 setEditableAppleDialogues(prev =>
                                   prev.map(a => a.animalId === animal.animalId
                                     ? { ...a, dialogues: a.dialogues.map((d, i) => i === dIndex ? { ...d, messages: newMessages } : d) }
