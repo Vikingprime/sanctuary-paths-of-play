@@ -68,4 +68,5 @@ export interface StoryCharacter {
   position: { x: number; y: number };
   hiddenFromPreview: boolean; // Always true for quest NPCs
   questRelevant?: string; // Which quest objective this relates to
+  dialogueSequence?: import('./game').DialogueSequenceItem[]; // Per-animal dialogue sequence
 }
