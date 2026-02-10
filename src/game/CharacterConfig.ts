@@ -65,6 +65,12 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     height: 0.35,
     debugPlaneColor: '#ffff00',
   },
+  'Rat.glb': {
+    scale: 0.005,
+    yOffset: 0.20,
+    height: 0.3,
+    debugPlaneColor: '#888888',
+  },
 } as const;
 
 /**
