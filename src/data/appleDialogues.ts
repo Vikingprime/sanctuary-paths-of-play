@@ -7,13 +7,25 @@ import { AnimalAppleDialogues, AppleDialogueMessage, AppleDialogue } from '@/typ
 export type { AnimalAppleDialogues, AppleDialogue };
 
 export const animalAppleDialogues: AnimalAppleDialogues[] = [
-  // Add NPC-specific apple dialogues here, e.g.:
-  // {
-  //   animalId: 'remy_rat',
-  //   dialogues: [
-  //     { id: 'remy-apple-1', appleNumber: 1, messages: [{ speaker: 'Remy the Rat', speakerEmoji: '🐀', message: 'A apple? For me?' }] },
-  //   ],
-  // },
+  {
+    animalId: 'remy_rat',
+    dialogues: [
+      {
+        id: 'remy_rat-apple-1',
+        appleNumber: 1,
+        messages: [
+          { speaker: 'Remy', speakerEmoji: '🐀', message: "An apple! How delicious! So delicious I want to tell you about Fiona..." },
+        ],
+      },
+      {
+        id: 'remy_rat-apple-2',
+        appleNumber: 2,
+        messages: [
+          { speaker: 'Remy', speakerEmoji: '🐀', message: "A certain skunk hides under the moonlight at the corner of the corn mazes. I'd talk to her for more information. " },
+        ],
+      },
+    ],
+  },
 ];
 
 // Get dialogues for a specific animal
