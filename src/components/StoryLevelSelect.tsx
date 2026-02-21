@@ -38,7 +38,17 @@ function layoutAct(act: StoryAct): { nodes: LayoutNode[]; edges: Edge[]; width: 
   const nodeMap = new Map<string, StoryNode>();
   act.nodes.forEach(n => nodeMap.set(n.id, n));
 
-  // BFS to compute depth
+  // Build parent map (which nodes unlock this node)
+  const parentMap = new Map<string, string[]>();
+  act.nodes.forEach(n => {
+    (n.unlocks || []).forEach(childId => {
+      const parents = parentMap.get(childId) || [];
+      parents.push(n.id);
+      parentMap.set(childId, parents);
+    });
+  });
+
+  // BFS to compute depth (max depth from all parents)
   const depthMap = new Map<string, number>();
   const queue: string[] = [act.startNodeId];
   depthMap.set(act.startNodeId, 0);
@@ -50,7 +60,6 @@ function layoutAct(act: StoryAct): { nodes: LayoutNode[]; edges: Edge[]; width: 
     const d = depthMap.get(id)!;
     (node.unlocks || []).forEach(childId => {
       const existing = depthMap.get(childId);
-      // For requiresAll convergence, use the max depth of all parents + 1
       if (existing === undefined || d + 1 > existing) {
         depthMap.set(childId, d + 1);
       }
@@ -65,28 +74,85 @@ function layoutAct(act: StoryAct): { nodes: LayoutNode[]; edges: Edge[]; width: 
     layers.push(act.nodes.filter(n => depthMap.get(n.id) === d));
   }
 
-  // Assign positions
-  const layoutNodes = new Map<string, LayoutNode>();
+  // Position nodes: first pass - assign x based on index in layer
+  const posMap = new Map<string, { x: number; y: number }>();
+  
+  // First, position all layers with even spacing
   let totalWidth = 0;
-
-  layers.forEach((layerNodes, depth) => {
-    const layerWidth = layerNodes.length * SIBLING_GAP_X;
-    totalWidth = Math.max(totalWidth, layerWidth);
+  layers.forEach(layerNodes => {
+    totalWidth = Math.max(totalWidth, layerNodes.length * SIBLING_GAP_X);
   });
-
   totalWidth = Math.max(totalWidth, SIBLING_GAP_X) + PADDING_X * 2;
 
+  // Initial even layout
   layers.forEach((layerNodes, depth) => {
     const count = layerNodes.length;
     const startX = (totalWidth - count * SIBLING_GAP_X) / 2 + SIBLING_GAP_X / 2;
     layerNodes.forEach((node, i) => {
-      layoutNodes.set(node.id, {
-        node,
+      posMap.set(node.id, {
         x: startX + i * SIBLING_GAP_X,
         y: PADDING_TOP + depth * LAYER_GAP_Y + NODE_H / 2,
-        depth,
       });
     });
+  });
+
+  // Second pass: reposition nodes to center under their parents
+  // Process top-down so parents are already positioned
+  for (let d = 1; d <= maxDepth; d++) {
+    const layerNodes = layers[d];
+    layerNodes.forEach(node => {
+      const parents = parentMap.get(node.id) || [];
+      if (parents.length > 0) {
+        const parentXs = parents.map(pid => posMap.get(pid)?.x ?? 0);
+        const avgParentX = parentXs.reduce((a, b) => a + b, 0) / parentXs.length;
+        const pos = posMap.get(node.id)!;
+        // If this node has exactly one parent and is the only child of that parent,
+        // align directly under the parent
+        const parent = parents.length === 1 ? nodeMap.get(parents[0]) : null;
+        if (parent && (parent.unlocks?.length ?? 0) === 1) {
+          pos.x = posMap.get(parent.id)!.x;
+        } else {
+          pos.x = avgParentX;
+        }
+      }
+    });
+
+    // Resolve overlaps within this layer
+    const sorted = [...layerNodes].sort((a, b) => (posMap.get(a.id)!.x) - (posMap.get(b.id)!.x));
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = posMap.get(sorted[i - 1].id)!;
+      const curr = posMap.get(sorted[i].id)!;
+      if (curr.x - prev.x < SIBLING_GAP_X) {
+        curr.x = prev.x + SIBLING_GAP_X;
+      }
+    }
+    // Re-center the layer
+    if (sorted.length > 0) {
+      const minX = posMap.get(sorted[0].id)!.x;
+      const maxX = posMap.get(sorted[sorted.length - 1].id)!.x;
+      const layerCenter = (minX + maxX) / 2;
+      const desiredCenter = totalWidth / 2;
+      const offset = desiredCenter - layerCenter;
+      sorted.forEach(n => { posMap.get(n.id)!.x += offset; });
+    }
+  }
+
+  // Recalculate total width to fit all nodes
+  const allXs = Array.from(posMap.values()).map(p => p.x);
+  const minNodeX = Math.min(...allXs) - NODE_W / 2 - PADDING_X;
+  const maxNodeX = Math.max(...allXs) + NODE_W / 2 + PADDING_X;
+  const finalWidth = Math.max(maxNodeX - minNodeX, totalWidth);
+  
+  // Offset if needed
+  if (minNodeX < 0) {
+    const shift = -minNodeX;
+    posMap.forEach(p => { p.x += shift; });
+  }
+
+  const layoutNodes = new Map<string, LayoutNode>();
+  posMap.forEach((pos, id) => {
+    const node = nodeMap.get(id)!;
+    layoutNodes.set(id, { node, x: pos.x, y: pos.y, depth: depthMap.get(id)! });
   });
 
   // Build edges
@@ -105,7 +171,7 @@ function layoutAct(act: StoryAct): { nodes: LayoutNode[]; edges: Edge[]; width: 
   return {
     nodes: Array.from(layoutNodes.values()),
     edges,
-    width: totalWidth,
+    width: Math.max(finalWidth, totalWidth),
     height,
   };
 }
