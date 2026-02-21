@@ -219,6 +219,7 @@ export const StoryLevelSelect = ({
     const firstIncomplete = storyActs.find(a => !isActComplete(a, storyProgress.completedQuests));
     return firstIncomplete?.id ?? storyActs[0]?.id ?? null;
   });
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const completedNodes = storyProgress.completedQuests;
 
@@ -238,149 +239,139 @@ export const StoryLevelSelect = ({
     if (maze) onSelect(maze);
   };
 
+  const renderNodeDetail = (act: StoryAct) => {
+    if (!selectedNodeId) return null;
+    const node = act.nodes.find(n => n.id === selectedNodeId);
+    if (!node) return null;
+    const isDone = completedNodes.includes(node.id);
+    const isUnlocked = isNodeUnlocked(node, completedNodes);
+    const canPlay = isUnlocked && node.implemented && !!node.mazeId;
+
+    return (
+      <div className="mx-4 mt-3 p-4 rounded-xl border border-primary/30 bg-card animate-fade-in">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl">{node.emoji}</span>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-display font-bold text-foreground">{node.title}</h3>
+            <p className="text-sm text-muted-foreground mt-1">{node.description}</p>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {node.timed && (
+                <span className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                  <Clock className="w-3 h-3" /> Timed
+                </span>
+              )}
+              {isDone && (
+                <span className="inline-flex items-center gap-1 text-xs bg-green-500/10 text-green-700 px-2 py-0.5 rounded-full">
+                  <Check className="w-3 h-3" /> Completed
+                </span>
+              )}
+              {!isUnlocked && (
+                <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
+                  <Lock className="w-3 h-3" /> Locked
+                </span>
+              )}
+              {isUnlocked && !isDone && !node.implemented && (
+                <span className="text-xs text-muted-foreground">Coming Soon</span>
+              )}
+            </div>
+          </div>
+          {canPlay && !isDone && (
+            <Button size="sm" onClick={() => handleNodeClick(node)} className="flex-shrink-0">
+              <Play className="w-4 h-4 mr-1" /> Play
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderGraph = (act: StoryAct) => {
     const layout = layoutAct(act);
 
     return (
-      <div className="overflow-x-auto overflow-y-hidden -mx-4 px-4">
-        <svg
-          width={layout.width}
-          height={layout.height}
-          viewBox={`0 0 ${layout.width} ${layout.height}`}
-          className="mx-auto block"
-          style={{ minWidth: Math.min(layout.width, 300) }}
-        >
-          {/* Edges */}
-          {layout.edges.map((edge, i) => {
-            const fromDone = completedNodes.includes(edge.from.node.id);
-            const toDone = completedNodes.includes(edge.to.node.id);
-            const toUnlocked = isNodeUnlocked(edge.to.node, completedNodes);
-            return (
-              <path
-                key={i}
-                d={edgePath(edge.from, edge.to, layout.nodes)}
-                fill="none"
-                stroke={
-                  toDone
-                    ? 'hsl(var(--primary))' 
-                    : fromDone && toUnlocked
-                      ? 'hsl(var(--primary) / 0.5)'
-                      : 'hsl(var(--muted-foreground) / 0.2)'
-                }
-                strokeWidth={toDone ? 3 : 2}
-                strokeDasharray={!fromDone && !toDone ? '6 4' : undefined}
-                className="transition-all duration-500"
-              />
-            );
-          })}
-
-          {/* Nodes */}
-          {layout.nodes.map(ln => {
-            const { node, x, y } = ln;
-            const isDone = completedNodes.includes(node.id);
-            const isUnlocked = isNodeUnlocked(node, completedNodes);
-            const canPlay = isUnlocked && node.implemented && !!node.mazeId;
-            const nx = x - NODE_W / 2;
-            const ny = y - NODE_H / 2;
-
-            return (
-              <g
-                key={node.id}
-                onClick={() => canPlay && handleNodeClick(node)}
-                className={canPlay ? 'cursor-pointer' : !isUnlocked ? 'opacity-40' : ''}
-                role="button"
-                tabIndex={canPlay ? 0 : -1}
-              >
-                {/* Card background */}
-                <rect
-                  x={nx}
-                  y={ny}
-                  width={NODE_W}
-                  height={NODE_H}
-                  rx={12}
-                  fill={
-                    isDone
-                      ? 'hsl(142 71% 45% / 0.12)'
-                      : isUnlocked
-                        ? 'hsl(var(--card))'
-                        : 'hsl(var(--muted) / 0.3)'
-                  }
+      <>
+        <div className="overflow-x-auto overflow-y-hidden -mx-4 px-4">
+          <svg
+            width={layout.width}
+            height={layout.height}
+            viewBox={`0 0 ${layout.width} ${layout.height}`}
+            className="mx-auto block"
+            style={{ minWidth: Math.min(layout.width, 300) }}
+          >
+            {/* Edges */}
+            {layout.edges.map((edge, i) => {
+              const fromDone = completedNodes.includes(edge.from.node.id);
+              const toDone = completedNodes.includes(edge.to.node.id);
+              const toUnlocked = isNodeUnlocked(edge.to.node, completedNodes);
+              return (
+                <path
+                  key={i}
+                  d={edgePath(edge.from, edge.to, layout.nodes)}
+                  fill="none"
                   stroke={
-                    isDone
-                      ? 'hsl(142 71% 45% / 0.5)'
-                      : isUnlocked && canPlay
+                    toDone
+                      ? 'hsl(var(--primary))' 
+                      : fromDone && toUnlocked
                         ? 'hsl(var(--primary) / 0.5)'
-                        : 'hsl(var(--border) / 0.4)'
+                        : 'hsl(var(--muted-foreground) / 0.2)'
                   }
-                  strokeWidth={isDone ? 2 : 1.5}
-                  className={canPlay && !isDone ? 'hover:stroke-[hsl(var(--primary))]' : ''}
+                  strokeWidth={toDone ? 3 : 2}
+                  strokeDasharray={!fromDone && !toDone ? '6 4' : undefined}
+                  className="transition-all duration-500"
                 />
+              );
+            })}
 
-                {/* Emoji circle */}
-                <circle
-                  cx={nx + 24}
-                  cy={y}
-                  r={14}
-                  fill={
-                    isDone
-                      ? 'hsl(142 71% 45%)'
-                      : isUnlocked
-                        ? 'hsl(var(--primary) / 0.15)'
-                        : 'hsl(var(--muted))'
-                  }
-                />
-                {isDone ? (
-                  <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fill="white" fontSize="12">✓</text>
-                ) : !isUnlocked ? (
-                  <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fill="hsl(var(--muted-foreground))" fontSize="10">🔒</text>
-                ) : (
-                  <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fontSize="14">{node.emoji}</text>
-                )}
+            {/* Nodes */}
+            {layout.nodes.map(ln => {
+              const { node, x, y } = ln;
+              const isDone = completedNodes.includes(node.id);
+              const isUnlocked = isNodeUnlocked(node, completedNodes);
+              const canPlay = isUnlocked && node.implemented && !!node.mazeId;
+              const nx = x - NODE_W / 2;
+              const ny = y - NODE_H / 2;
 
-                {/* Title */}
-                <text
-                  x={nx + 44}
-                  y={ny + 22}
-                  fill={isUnlocked ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))'}
-                  fontSize="12"
-                  fontWeight="600"
-                  fontFamily="var(--font-display), system-ui"
-                  className="select-none"
+              return (
+                <g
+                  key={node.id}
+                  onClick={() => setSelectedNodeId(selectedNodeId === node.id ? null : node.id)}
+                  className="cursor-pointer"
+                  role="button"
+                  tabIndex={0}
                 >
-                  {node.title.length > 16 ? node.title.slice(0, 15) + '…' : node.title}
-                </text>
-
-                {/* Subtitle / status */}
-                <text
-                  x={nx + 44}
-                  y={ny + 38}
-                  fill="hsl(var(--muted-foreground))"
-                  fontSize="10"
-                  className="select-none"
-                >
-                  {isDone ? 'Completed' :
-                   !isUnlocked ? 'Locked' :
-                   !node.implemented ? 'Coming Soon' :
-                   node.timed ? '⏱ Timed' : 'Ready'}
-                </text>
-
-                {/* Timed badge */}
-                {node.timed && isUnlocked && !isDone && (
-                  <circle cx={nx + NODE_W - 14} cy={ny + 14} r={8} fill="hsl(var(--primary) / 0.15)" />
-                )}
-
-                {/* Play indicator */}
-                {canPlay && !isDone && (
-                  <polygon
-                    points={`${nx + NODE_W - 20},${ny + NODE_H - 24} ${nx + NODE_W - 20},${ny + NODE_H - 12} ${nx + NODE_W - 10},${ny + NODE_H - 18}`}
-                    fill="hsl(var(--primary))"
+                  <rect
+                    x={nx} y={ny} width={NODE_W} height={NODE_H} rx={12}
+                    fill={isDone ? 'hsl(142 71% 45% / 0.12)' : isUnlocked ? 'hsl(var(--card))' : 'hsl(var(--muted) / 0.3)'}
+                    stroke={selectedNodeId === node.id ? 'hsl(var(--primary))' : isDone ? 'hsl(142 71% 45% / 0.5)' : isUnlocked && canPlay ? 'hsl(var(--primary) / 0.5)' : 'hsl(var(--border) / 0.4)'}
+                    strokeWidth={selectedNodeId === node.id ? 2.5 : isDone ? 2 : 1.5}
                   />
-                )}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+                  <circle cx={nx + 24} cy={y} r={14} fill={isDone ? 'hsl(142 71% 45%)' : isUnlocked ? 'hsl(var(--primary) / 0.15)' : 'hsl(var(--muted))'} />
+                  {isDone ? (
+                    <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fill="white" fontSize="12">✓</text>
+                  ) : !isUnlocked ? (
+                    <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fill="hsl(var(--muted-foreground))" fontSize="10">🔒</text>
+                  ) : (
+                    <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fontSize="14">{node.emoji}</text>
+                  )}
+                  <text x={nx + 44} y={ny + 22} fill={isUnlocked ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))'} fontSize="12" fontWeight="600" fontFamily="var(--font-display), system-ui" className="select-none">
+                    {node.title.length > 16 ? node.title.slice(0, 15) + '…' : node.title}
+                  </text>
+                  <text x={nx + 44} y={ny + 38} fill="hsl(var(--muted-foreground))" fontSize="10" className="select-none">
+                    {isDone ? 'Completed' : !isUnlocked ? 'Locked' : !node.implemented ? 'Coming Soon' : node.timed ? '⏱ Timed' : 'Ready'}
+                  </text>
+                  {node.timed && isUnlocked && !isDone && (
+                    <circle cx={nx + NODE_W - 14} cy={ny + 14} r={8} fill="hsl(var(--primary) / 0.15)" />
+                  )}
+                  {canPlay && !isDone && (
+                    <polygon points={`${nx + NODE_W - 20},${ny + NODE_H - 24} ${nx + NODE_W - 20},${ny + NODE_H - 12} ${nx + NODE_W - 10},${ny + NODE_H - 18}`} fill="hsl(var(--primary))" />
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        {renderNodeDetail(act)}
+      </>
     );
   };
 
