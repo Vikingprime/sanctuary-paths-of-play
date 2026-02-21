@@ -110,11 +110,33 @@ function layoutAct(act: StoryAct): { nodes: LayoutNode[]; edges: Edge[]; width: 
   };
 }
 
-function edgePath(from: LayoutNode, to: LayoutNode): string {
+function edgePath(from: LayoutNode, to: LayoutNode, allNodes: LayoutNode[]): string {
   const x1 = from.x;
   const y1 = from.y + NODE_H / 2 + 2;
   const x2 = to.x;
   const y2 = to.y - NODE_H / 2 - 2;
+  const depthSpan = to.depth - from.depth;
+
+  // For edges that skip layers, route around intermediate nodes
+  if (depthSpan > 1) {
+    // Check if there are nodes in intermediate layers that might be crossed
+    const midNodes = allNodes.filter(n => n.depth > from.depth && n.depth < to.depth);
+    if (midNodes.length > 0) {
+      // Find the edge of the occupied area and route outside it
+      const allXs = midNodes.map(n => n.x);
+      const minX = Math.min(...allXs) - NODE_W / 2 - 20;
+      const maxX = Math.max(...allXs) + NODE_W / 2 + 20;
+      // Route left or right depending on which side the from/to nodes are closer to
+      const avgX = (x1 + x2) / 2;
+      const routeRight = avgX >= (minX + maxX) / 2;
+      const sideX = routeRight ? maxX + 30 : minX - 30;
+
+      const cy1 = y1 + (y2 - y1) * 0.15;
+      const cy2 = y2 - (y2 - y1) * 0.15;
+      return `M ${x1} ${y1} C ${x1} ${cy1}, ${sideX} ${cy1}, ${sideX} ${(y1 + y2) / 2} S ${x2} ${cy2}, ${x2} ${y2}`;
+    }
+  }
+
   const cy = (y1 + y2) / 2;
   return `M ${x1} ${y1} C ${x1} ${cy}, ${x2} ${cy}, ${x2} ${y2}`;
 }
@@ -169,7 +191,7 @@ export const StoryLevelSelect = ({
             return (
               <path
                 key={i}
-                d={edgePath(edge.from, edge.to)}
+                d={edgePath(edge.from, edge.to, layout.nodes)}
                 fill="none"
                 stroke={
                   toDone
