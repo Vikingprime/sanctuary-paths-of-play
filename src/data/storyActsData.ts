@@ -51,7 +51,7 @@ const act1: StoryAct = {
       emoji: '🐦',
       timed: false,
       requiresAll: ['berry_fetch'],
-      unlocks: ['attend_feast'],
+      unlocks: ['rat_city'],
     },
     // === BRANCH B: Pumpkin ===
     {
@@ -71,7 +71,7 @@ const act1: StoryAct = {
       emoji: '🦙',
       timed: false,
       requiresAll: ['pumpkin_hunt'],
-      unlocks: ['attend_feast'],
+      unlocks: ['rat_city'],
     },
     // === BRANCH C: Root Beer ===
     {
@@ -90,7 +90,7 @@ const act1: StoryAct = {
       description: "Find Remy's cousin in the bustling underground rat city.",
       emoji: '🏙️',
       timed: false,
-      requiresAll: ['rootbeer_cellar'],
+      requiresAll: ['berry_gauntlet', 'llama_blockade', 'rootbeer_cellar'],
       unlocks: ['attend_feast'],
     },
     // === CONVERGENCE: The Feast ===
@@ -100,7 +100,7 @@ const act1: StoryAct = {
       description: "All items gathered! Raccoon says you need an offering and a small friend to meet Porcupine Boss.",
       emoji: '🍽️',
       timed: true,
-      requiresAll: ['berry_gauntlet', 'llama_blockade', 'rat_city'],
+      requiresAll: ['rat_city'],
       unlocks: ['find_chicken', 'rat_gamble'],
     },
     // === BRANCH: Make a Friend ===
