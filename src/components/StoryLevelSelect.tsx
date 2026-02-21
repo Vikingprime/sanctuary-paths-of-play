@@ -38,7 +38,7 @@ function layoutAct(act: StoryAct): { nodes: LayoutNode[]; edges: Edge[]; width: 
   const nodeMap = new Map<string, StoryNode>();
   act.nodes.forEach(n => nodeMap.set(n.id, n));
 
-  // Build parent map (which nodes unlock this node)
+  // Build parent map
   const parentMap = new Map<string, string[]>();
   act.nodes.forEach(n => {
     (n.unlocks || []).forEach(childId => {
@@ -48,11 +48,10 @@ function layoutAct(act: StoryAct): { nodes: LayoutNode[]; edges: Edge[]; width: 
     });
   });
 
-  // BFS to compute depth (max depth from all parents)
+  // BFS depth (max depth from all parents)
   const depthMap = new Map<string, number>();
   const queue: string[] = [act.startNodeId];
   depthMap.set(act.startNodeId, 0);
-
   while (queue.length > 0) {
     const id = queue.shift()!;
     const node = nodeMap.get(id);
@@ -67,58 +66,56 @@ function layoutAct(act: StoryAct): { nodes: LayoutNode[]; edges: Edge[]; width: 
     });
   }
 
-  // Group by depth
   const maxDepth = Math.max(...Array.from(depthMap.values()), 0);
   const layers: StoryNode[][] = [];
   for (let d = 0; d <= maxDepth; d++) {
     layers.push(act.nodes.filter(n => depthMap.get(n.id) === d));
   }
 
-  // Position nodes: first pass - assign x based on index in layer
-  const posMap = new Map<string, { x: number; y: number }>();
-  
-  // First, position all layers with even spacing
+  // Determine total width from widest layer
   let totalWidth = 0;
-  layers.forEach(layerNodes => {
-    totalWidth = Math.max(totalWidth, layerNodes.length * SIBLING_GAP_X);
-  });
+  layers.forEach(l => { totalWidth = Math.max(totalWidth, l.length * SIBLING_GAP_X); });
   totalWidth = Math.max(totalWidth, SIBLING_GAP_X) + PADDING_X * 2;
 
-  // Initial even layout
+  const posMap = new Map<string, { x: number; y: number }>();
+
+  // Top-down layout: position each layer
   layers.forEach((layerNodes, depth) => {
-    const count = layerNodes.length;
-    const startX = (totalWidth - count * SIBLING_GAP_X) / 2 + SIBLING_GAP_X / 2;
-    layerNodes.forEach((node, i) => {
+    if (depth === 0) {
+      // Root node centered
+      layerNodes.forEach((node, i) => {
+        const count = layerNodes.length;
+        posMap.set(node.id, {
+          x: totalWidth / 2 + (i - (count - 1) / 2) * SIBLING_GAP_X,
+          y: PADDING_TOP + depth * LAYER_GAP_Y + NODE_H / 2,
+        });
+      });
+      return;
+    }
+
+    // For each node, compute ideal x = average of parent x positions
+    const idealXs: { node: StoryNode; idealX: number }[] = layerNodes.map(node => {
+      const parents = parentMap.get(node.id) || [];
+      if (parents.length > 0) {
+        const parentXs = parents.map(pid => posMap.get(pid)?.x ?? totalWidth / 2);
+        return { node, idealX: parentXs.reduce((a, b) => a + b, 0) / parentXs.length };
+      }
+      return { node, idealX: totalWidth / 2 };
+    });
+
+    // Sort by ideal x so left-to-right order matches parent positions
+    idealXs.sort((a, b) => a.idealX - b.idealX);
+
+    // Place nodes at their ideal positions, then resolve overlaps
+    idealXs.forEach(({ node, idealX }) => {
       posMap.set(node.id, {
-        x: startX + i * SIBLING_GAP_X,
+        x: idealX,
         y: PADDING_TOP + depth * LAYER_GAP_Y + NODE_H / 2,
       });
     });
-  });
 
-  // Second pass: reposition nodes to center under their parents
-  // Process top-down so parents are already positioned
-  for (let d = 1; d <= maxDepth; d++) {
-    const layerNodes = layers[d];
-    layerNodes.forEach(node => {
-      const parents = parentMap.get(node.id) || [];
-      if (parents.length > 0) {
-        const parentXs = parents.map(pid => posMap.get(pid)?.x ?? 0);
-        const avgParentX = parentXs.reduce((a, b) => a + b, 0) / parentXs.length;
-        const pos = posMap.get(node.id)!;
-        // If this node has exactly one parent and is the only child of that parent,
-        // align directly under the parent
-        const parent = parents.length === 1 ? nodeMap.get(parents[0]) : null;
-        if (parent && (parent.unlocks?.length ?? 0) === 1) {
-          pos.x = posMap.get(parent.id)!.x;
-        } else {
-          pos.x = avgParentX;
-        }
-      }
-    });
-
-    // Resolve overlaps within this layer
-    const sorted = [...layerNodes].sort((a, b) => (posMap.get(a.id)!.x) - (posMap.get(b.id)!.x));
+    // Resolve overlaps (preserve order)
+    const sorted = idealXs.map(ix => ix.node);
     for (let i = 1; i < sorted.length; i++) {
       const prev = posMap.get(sorted[i - 1].id)!;
       const curr = posMap.get(sorted[i].id)!;
@@ -126,28 +123,29 @@ function layoutAct(act: StoryAct): { nodes: LayoutNode[]; edges: Edge[]; width: 
         curr.x = prev.x + SIBLING_GAP_X;
       }
     }
-    // Re-center the layer
-    if (sorted.length > 0) {
+
+    // Center the group around the ideal center of all parents in this layer
+    if (sorted.length > 1) {
       const minX = posMap.get(sorted[0].id)!.x;
       const maxX = posMap.get(sorted[sorted.length - 1].id)!.x;
-      const layerCenter = (minX + maxX) / 2;
-      const desiredCenter = totalWidth / 2;
-      const offset = desiredCenter - layerCenter;
+      const currentCenter = (minX + maxX) / 2;
+      // Use original ideal center (average of all ideal positions)
+      const idealCenter = idealXs.reduce((s, ix) => s + ix.idealX, 0) / idealXs.length;
+      const offset = idealCenter - currentCenter;
       sorted.forEach(n => { posMap.get(n.id)!.x += offset; });
     }
-  }
+  });
 
-  // Recalculate total width to fit all nodes
+  // Ensure all nodes fit within bounds
   const allXs = Array.from(posMap.values()).map(p => p.x);
-  const minNodeX = Math.min(...allXs) - NODE_W / 2 - PADDING_X;
-  const maxNodeX = Math.max(...allXs) + NODE_W / 2 + PADDING_X;
-  const finalWidth = Math.max(maxNodeX - minNodeX, totalWidth);
-  
-  // Offset if needed
-  if (minNodeX < 0) {
-    const shift = -minNodeX;
+  const minNodeX = Math.min(...allXs) - NODE_W / 2;
+  if (minNodeX < PADDING_X) {
+    const shift = PADDING_X - minNodeX;
     posMap.forEach(p => { p.x += shift; });
   }
+  const allXs2 = Array.from(posMap.values()).map(p => p.x);
+  const maxNodeX = Math.max(...allXs2) + NODE_W / 2 + PADDING_X;
+  const finalWidth = Math.max(maxNodeX, totalWidth);
 
   const layoutNodes = new Map<string, LayoutNode>();
   posMap.forEach((pos, id) => {
@@ -171,7 +169,7 @@ function layoutAct(act: StoryAct): { nodes: LayoutNode[]; edges: Edge[]; width: 
   return {
     nodes: Array.from(layoutNodes.values()),
     edges,
-    width: Math.max(finalWidth, totalWidth),
+    width: finalWidth,
     height,
   };
 }
@@ -183,26 +181,29 @@ function edgePath(from: LayoutNode, to: LayoutNode, allNodes: LayoutNode[]): str
   const y2 = to.y - NODE_H / 2 - 2;
   const depthSpan = to.depth - from.depth;
 
-  // For edges that skip layers, route around intermediate nodes
   if (depthSpan > 1) {
-    // Check if there are nodes in intermediate layers that might be crossed
+    // Edge skips layers - route around intermediate nodes
     const midNodes = allNodes.filter(n => n.depth > from.depth && n.depth < to.depth);
     if (midNodes.length > 0) {
-      // Find the edge of the occupied area and route outside it
-      const allXs = midNodes.map(n => n.x);
-      const minX = Math.min(...allXs) - NODE_W / 2 - 20;
-      const maxX = Math.max(...allXs) + NODE_W / 2 + 20;
-      // Route left or right depending on which side the from/to nodes are closer to
-      const avgX = (x1 + x2) / 2;
-      const routeRight = avgX >= (minX + maxX) / 2;
-      const sideX = routeRight ? maxX + 30 : minX - 30;
+      const midXs = midNodes.map(n => n.x);
+      const midMinX = Math.min(...midXs) - NODE_W / 2 - 30;
+      const midMaxX = Math.max(...midXs) + NODE_W / 2 + 30;
 
-      const cy1 = y1 + (y2 - y1) * 0.15;
-      const cy2 = y2 - (y2 - y1) * 0.15;
-      return `M ${x1} ${y1} C ${x1} ${cy1}, ${sideX} ${cy1}, ${sideX} ${(y1 + y2) / 2} S ${x2} ${cy2}, ${x2} ${y2}`;
+      // Route on whichever side is closer to the from node
+      const routeRight = x1 >= (midMinX + midMaxX) / 2;
+      const sideX = routeRight ? midMaxX : midMinX;
+
+      // Straight line down, jog out, straight down, jog back in
+      const midY1 = y1 + 15;
+      const midY2 = y2 - 15;
+      return `M ${x1} ${y1} L ${x1} ${midY1} Q ${x1} ${midY1 + 15}, ${sideX} ${midY1 + 15} L ${sideX} ${midY2 - 15} Q ${sideX} ${midY2}, ${x2} ${midY2} L ${x2} ${y2}`;
     }
   }
 
+  // Direct parent-child: straight line if aligned, gentle curve otherwise
+  if (Math.abs(x1 - x2) < 5) {
+    return `M ${x1} ${y1} L ${x2} ${y2}`;
+  }
   const cy = (y1 + y2) / 2;
   return `M ${x1} ${y1} C ${x1} ${cy}, ${x2} ${cy}, ${x2} ${y2}`;
 }
