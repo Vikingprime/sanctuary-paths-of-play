@@ -70,7 +70,11 @@ const Index = () => {
 
   const handleModeSelect = (mode: GameMode) => {
     setSelectedMode(mode);
-    setScreen('animal_select');
+    if (mode === 'story') {
+      setScreen('story_levels');
+    } else {
+      setScreen('animal_select');
+    }
   };
 
   const handleAnimalSelect = (animalId: AnimalType) => {
@@ -81,7 +85,10 @@ const Index = () => {
     if (!selectedAnimal || !selectedMode) return;
     
     if (selectedMode === 'story') {
-      setScreen('story_levels');
+      // In story mode, a maze is already selected; start playing
+      if (selectedMaze) {
+        startAttempt(selectedMaze.id).then(() => setScreen('playing'));
+      }
     } else {
       setScreen('levels');
     }
@@ -98,8 +105,8 @@ const Index = () => {
     setSelectedStoryMaze(storyMaze);
     const maze = storyMazeToMaze(storyMaze);
     setSelectedMaze(maze);
-    await startAttempt(maze.id);
-    setScreen('playing');
+    // In story mode, go to animal select after choosing a maze
+    setScreen('animal_select');
   };
 
   const handleGameComplete = async (timeUsed: number) => {
@@ -144,12 +151,20 @@ const Index = () => {
   };
 
   const handleBackToAnimalSelect = () => {
-    setScreen('animal_select');
+    if (selectedMode === 'story') {
+      setScreen('story_levels');
+      setSelectedMaze(null);
+      setSelectedStoryMaze(null);
+    } else {
+      setScreen('animal_select');
+    }
   };
 
   const handleBackToModeSelect = () => {
     setScreen('mode_select');
     setSelectedAnimal(null);
+    setSelectedMaze(null);
+    setSelectedStoryMaze(null);
   };
 
   const handleBackToHome = () => {
@@ -162,14 +177,22 @@ const Index = () => {
 
   // Hardware back button handler
   const handleHardwareBack = useCallback(() => {
-    if (screen === 'levels' || screen === 'story_levels') {
+    if (screen === 'levels') {
       handleBackToAnimalSelect();
-    } else if (screen === 'animal_select') {
+    } else if (screen === 'story_levels') {
       handleBackToModeSelect();
+    } else if (screen === 'animal_select') {
+      if (selectedMode === 'story') {
+        setScreen('story_levels');
+        setSelectedMaze(null);
+        setSelectedStoryMaze(null);
+      } else {
+        handleBackToModeSelect();
+      }
     } else if (screen === 'mode_select') {
       handleBackToHome();
     }
-  }, [screen]);
+  }, [screen, selectedMode]);
 
   useBackButton(handleHardwareBack, screen === 'levels' || screen === 'story_levels' || screen === 'mode_select' || screen === 'animal_select');
 
@@ -346,7 +369,7 @@ const Index = () => {
             {/* Back button */}
             <Button
               variant="ghost"
-              onClick={handleBackToModeSelect}
+              onClick={selectedMode === 'story' ? () => { setScreen('story_levels'); setSelectedMaze(null); setSelectedStoryMaze(null); } : handleBackToModeSelect}
               className="flex items-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -404,10 +427,10 @@ const Index = () => {
           />
         )}
 
-        {screen === 'story_levels' && selectedAnimal && (
+        {screen === 'story_levels' && (
           <StoryLevelSelect
             onSelect={handleStoryLevelSelect}
-            onBack={handleBackToAnimalSelect}
+            onBack={handleBackToModeSelect}
             storyProgress={storyProgress}
             debugMode={save.settings.debugMode}
           />
