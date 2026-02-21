@@ -231,10 +231,10 @@ export const StoryLevelSelect = ({
   };
 
   const handleNodeClick = (node: StoryNode) => {
-    if (!node.implemented || !node.mazeId) return;
+    // Try to find the specific maze, otherwise fall back to chapter 1 maze as default
     const maze = getChapterMaze(
       node.id === 'find_clues' ? 'chapter_1' :
-      node.id === 'cousin_riddle' ? 'chapter_2' : ''
+      node.id === 'cousin_riddle' ? 'chapter_2' : 'chapter_1'
     );
     if (maze) onSelect(maze);
   };
@@ -245,7 +245,7 @@ export const StoryLevelSelect = ({
     if (!node) return null;
     const isDone = completedNodes.includes(node.id);
     const isUnlocked = isNodeUnlocked(node, completedNodes);
-    const canPlay = isUnlocked && node.implemented && !!node.mazeId;
+    const canPlay = isUnlocked;
 
     return (
       <div className="mx-4 mt-3 p-4 rounded-xl border border-primary/30 bg-card animate-fade-in">
@@ -269,9 +269,6 @@ export const StoryLevelSelect = ({
                 <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
                   <Lock className="w-3 h-3" /> Locked
                 </span>
-              )}
-              {isUnlocked && !isDone && !node.implemented && (
-                <span className="text-xs text-muted-foreground">Coming Soon</span>
               )}
             </div>
           </div>
@@ -327,14 +324,14 @@ export const StoryLevelSelect = ({
               const { node, x, y } = ln;
               const isDone = completedNodes.includes(node.id);
               const isUnlocked = isNodeUnlocked(node, completedNodes);
-              const canPlay = isUnlocked && node.implemented && !!node.mazeId;
+              const canPlay = isUnlocked;
               const nx = x - NODE_W / 2;
               const ny = y - NODE_H / 2;
 
               return (
                 <g
                   key={node.id}
-                  onClick={() => setSelectedNodeId(selectedNodeId === node.id ? null : node.id)}
+                  onClick={(e) => { e.stopPropagation(); setSelectedNodeId(selectedNodeId === node.id ? null : node.id); }}
                   className="cursor-pointer"
                   role="button"
                   tabIndex={0}
@@ -357,7 +354,7 @@ export const StoryLevelSelect = ({
                     {node.title.length > 16 ? node.title.slice(0, 15) + '…' : node.title}
                   </text>
                   <text x={nx + 44} y={ny + 38} fill="hsl(var(--muted-foreground))" fontSize="10" className="select-none">
-                    {isDone ? 'Completed' : !isUnlocked ? 'Locked' : !node.implemented ? 'Coming Soon' : node.timed ? '⏱ Timed' : 'Ready'}
+                    {isDone ? 'Completed' : !isUnlocked ? 'Locked' : node.timed ? '⏱ Timed' : 'Ready'}
                   </text>
                   {node.timed && isUnlocked && !isDone && (
                     <circle cx={nx + NODE_W - 14} cy={ny + 14} r={8} fill="hsl(var(--primary) / 0.15)" />
@@ -415,7 +412,7 @@ export const StoryLevelSelect = ({
             >
               {/* Header */}
               <button
-                onClick={() => setExpandedAct(isExpanded ? null : act.id)}
+                onClick={() => { setSelectedNodeId(null); setExpandedAct(isExpanded ? null : act.id); }}
                 className="w-full text-left p-4 flex items-center gap-4"
               >
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 text-xl ${
