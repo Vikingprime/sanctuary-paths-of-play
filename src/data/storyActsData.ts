@@ -97,29 +97,21 @@ const act1: StoryAct = {
     {
       id: 'attend_feast',
       title: 'The Grand Feast',
-      description: "All items gathered! Get to the feast before it starts — don't be late!",
+      description: "All items gathered! Raccoon says you need an offering and a small friend to meet Porcupine Boss.",
       emoji: '🍽️',
       timed: true,
       requiresAll: ['berry_gauntlet', 'llama_blockade', 'rat_city'],
-      unlocks: ['raccoon_fireflies'],
+      unlocks: ['find_chicken', 'rat_gamble'],
     },
-    // === POST-FEAST: Raccoon & Chicken ===
-    {
-      id: 'raccoon_fireflies',
-      title: 'Raccoon & Fireflies',
-      description: "Raccoon reveals: Porcupine Boss knows everything, but won't talk to big animals. Bring a smaller friend.",
-      emoji: '🦝',
-      timed: false,
-      requiresAll: ['attend_feast'],
-      unlocks: ['find_chicken'],
-    },
+    // === BRANCH: Make a Friend ===
     {
       id: 'find_chicken',
-      title: 'Find the Chicken',
+      title: 'Make a Friend',
       description: "Find a chicken before sunset. There are many nests — but which one is hers?",
       emoji: '🐔',
       timed: true,
-      requiresAll: ['raccoon_fireflies'],
+      requiresAll: ['attend_feast'],
+      branchLabel: 'Porcupine Prep',
       unlocks: ['herd_chicks'],
     },
     {
@@ -129,25 +121,27 @@ const act1: StoryAct = {
       emoji: '🐥',
       timed: false,
       requiresAll: ['find_chicken'],
-      unlocks: ['rat_gamble'],
+      unlocks: ['porcupine_barn'],
     },
-    // === Porcupine Boss ===
+    // === BRANCH: The Gambler ===
     {
       id: 'rat_gamble',
       title: "Remy's Gamble",
       description: "Porcupine wants an offering of glitter. Remy will wager his gold coins — beat him in a dice maze race!",
       emoji: '🎲',
       timed: false,
-      requiresAll: ['herd_chicks'],
+      requiresAll: ['attend_feast'],
+      branchLabel: 'Porcupine Prep',
       unlocks: ['porcupine_barn'],
     },
+    // === CONVERGENCE: Porcupine Boss ===
     {
       id: 'porcupine_barn',
       title: 'The Barn (Porcupine Boss)',
       description: "Enter the barn as Chicken. Dodge fox patrols and cut through the wire fences.",
       emoji: '🦔',
       timed: false,
-      requiresAll: ['rat_gamble'],
+      requiresAll: ['herd_chicks', 'rat_gamble'],
       unlocks: ['porcupine_dark'],
     },
     {
