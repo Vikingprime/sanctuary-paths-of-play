@@ -424,8 +424,7 @@ export const StoryLevelSelect = ({
             >
               {/* Header */}
               <button
-                onClick={() => unlocked && setExpandedAct(isExpanded ? null : act.id)}
-                disabled={!unlocked}
+                onClick={() => setExpandedAct(isExpanded ? null : act.id)}
                 className="w-full text-left p-4 flex items-center gap-4"
               >
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 text-xl ${
@@ -456,13 +455,11 @@ export const StoryLevelSelect = ({
                     </div>
                   )}
                 </div>
-                {unlocked && (
-                  <ChevronRight className={`w-5 h-5 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                )}
+                <ChevronRight className={`w-5 h-5 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
               </button>
 
               {/* Graph */}
-              {isExpanded && unlocked && (
+              {isExpanded && (
                 <div className="border-t border-border/30 pt-3 pb-4">
                   {renderGraph(act)}
                 </div>
