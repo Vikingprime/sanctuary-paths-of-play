@@ -353,7 +353,7 @@ export const StoryLevelSelect = ({
                   <rect
                     x={nx} y={ny} width={NODE_W} height={NODE_H} rx={12}
                     fill={isDone ? 'hsl(142 71% 45% / 0.12)' : isUnlocked ? 'hsl(var(--card))' : 'hsl(var(--muted) / 0.3)'}
-                    stroke={selectedNodeId === node.id ? 'hsl(var(--primary))' : isDone ? 'hsl(142 71% 45% / 0.5)' : isUnlocked && canPlay ? 'hsl(var(--primary) / 0.5)' : 'hsl(var(--border) / 0.4)'}
+                    stroke={selectedNodeId === node.id ? 'hsl(30 100% 50%)' : isDone ? 'hsl(142 71% 45% / 0.5)' : isUnlocked && canPlay ? 'hsl(var(--primary) / 0.5)' : 'hsl(var(--border) / 0.4)'}
                     strokeWidth={selectedNodeId === node.id ? 2.5 : isDone ? 2 : 1.5}
                   />
                   <circle cx={nx + 24} cy={y} r={14} fill={isDone ? 'hsl(142 71% 45%)' : isUnlocked ? 'hsl(var(--primary) / 0.15)' : 'hsl(var(--muted))'} />
