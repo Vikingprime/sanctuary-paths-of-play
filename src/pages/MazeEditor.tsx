@@ -94,6 +94,7 @@ const AVAILABLE_MODELS = [
   'Hen.glb',
   'Hen_idle.glb',
   'Hen_walk.glb',
+  'Rat.glb',
 ];
 
 const AVAILABLE_ANIMATIONS = [
