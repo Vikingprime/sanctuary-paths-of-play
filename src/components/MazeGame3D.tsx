@@ -603,8 +603,7 @@ export const MazeGame3D = ({
         return;
       }
       
-      // Check for any dialogue at this cell (skip during restart grace period)
-      if (restartGraceRef.current) return;
+      // Check for any dialogue at this cell
       const dialogue = checkDialogueAtCell(gridX, gridY, triggeredDialogues);
       
       if (dialogue) {
@@ -1219,14 +1218,8 @@ export const MazeGame3D = ({
     }
   };
 
-  // Grace period ref to prevent dialogue re-triggering immediately after restart
-  const restartGraceRef = useRef(false);
-  
   // Restart the maze (reset all game state)
   const handleRestart = useCallback(() => {
-    // Set grace period to block dialogues from re-triggering at spawn
-    restartGraceRef.current = true;
-    setTimeout(() => { restartGraceRef.current = false; }, 500);
     
     // Reset player position
     playerStateRef.current = {
@@ -1720,7 +1713,7 @@ export const MazeGame3D = ({
       )}
 
       {/* Dialogue Overlay - supports multi-message dialogues via messages array */}
-      {activeDialogue && (() => {
+      {activeDialogue && !isPreviewing && !gameOver && (() => {
         // Determine current speaker/message based on dialogueMessageIndex
         const isFirstMessage = dialogueMessageIndex === 0;
         const currentMessage = isFirstMessage 
@@ -1755,7 +1748,7 @@ export const MazeGame3D = ({
       })()}
 
       {/* Apple Dialogue Overlay - for feeding animals */}
-      {activeAppleDialogue && (() => {
+      {activeAppleDialogue && !isPreviewing && !gameOver && (() => {
         const currentMessage = activeAppleDialogue.messages[activeAppleDialogue.currentIndex];
         if (!currentMessage) return null;
         
