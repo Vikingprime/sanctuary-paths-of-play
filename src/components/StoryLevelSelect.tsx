@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StoryProgress } from '@/types/quest';
 import { StoryAct, StoryNode } from '@/types/storyActs';
@@ -220,6 +220,16 @@ export const StoryLevelSelect = ({
     return firstIncomplete?.id ?? storyActs[0]?.id ?? null;
   });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  // Scroll detail panel into view when a node is selected
+  useEffect(() => {
+    if (selectedNodeId && detailRef.current) {
+      setTimeout(() => {
+        detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
+    }
+  }, [selectedNodeId]);
 
   const completedNodes = storyProgress.completedQuests;
 
@@ -248,7 +258,7 @@ export const StoryLevelSelect = ({
     const canPlay = isUnlocked;
 
     return (
-      <div className="mx-4 mt-3 p-4 rounded-xl border border-primary/30 bg-card animate-fade-in">
+      <div ref={detailRef} className="mx-4 mt-3 p-4 rounded-xl border border-primary/30 bg-card animate-fade-in">
         <div className="flex items-start gap-3">
           <span className="text-2xl">{node.emoji}</span>
           <div className="flex-1 min-w-0">
