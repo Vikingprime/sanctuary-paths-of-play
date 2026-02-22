@@ -234,6 +234,7 @@ export const MazeGame3D = ({
   const [activeDialogue, setActiveDialogue] = useState<DialogueTrigger | null>(null);
   const [triggeredDialogues, setTriggeredDialogues] = useState<Set<string>>(new Set());
   const [dialogueMessageIndex, setDialogueMessageIndex] = useState(0); // For multi-message dialogues
+  const [postDialoguePause, setPostDialoguePause] = useState(false); // Pause after dialogue ends until player clicks to resume
   
   // Apple dialogue state (separate from maze dialogues)
   const [activeAppleDialogue, setActiveAppleDialogue] = useState<{
@@ -415,7 +416,7 @@ export const MazeGame3D = ({
     if (isPreviewing || gameOver) return;
     
     // Track when any dialogue starts to pause timer (including apple dialogue)
-    const isInDialogue = activeDialogue !== null || activeAppleDialogue !== null;
+    const isInDialogue = activeDialogue !== null || activeAppleDialogue !== null || postDialoguePause;
     
     if (isInDialogue && dialoguePauseStartRef.current === null) {
       dialoguePauseStartRef.current = Date.now();
@@ -460,7 +461,7 @@ export const MazeGame3D = ({
         gameTimerRef.current = null;
       }
     };
-  }, [isPreviewing, gameOver, activeDialogue, activeAppleDialogue, maze.timeLimit, debugMode]);
+  }, [isPreviewing, gameOver, activeDialogue, activeAppleDialogue, postDialoguePause, maze.timeLimit, debugMode]);
 
   // Show compass when game starts (preview ends)
   useEffect(() => {
@@ -704,9 +705,10 @@ export const MazeGame3D = ({
       return;
     }
     
-    // No more chained dialogues - close dialogue
+    // No more chained dialogues - close dialogue and enter post-dialogue pause
     setActiveDialogue(null);
     setDialogueMessageIndex(0);
+    setPostDialoguePause(true);
     
     // For story mode: check if all required dialogues are now complete
     // If so, end the chapter immediately (no need to reach end cell)
@@ -1266,6 +1268,7 @@ export const MazeGame3D = ({
     setTriggeredDialogues(new Set());
     setCompletedObjectives(new Set());
     setDialogueMessageIndex(0);
+    setPostDialoguePause(false);
     pendingEndGameRef.current = false;
     
     // Reset timing refs
@@ -1432,7 +1435,7 @@ export const MazeGame3D = ({
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         onCharacterClick={handleCharacterClick}
-        isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
+        isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null || postDialoguePause}
         isMuted={isMuted}
         onSceneReady={() => setSceneReady(true)}
         onRendererInfo={setRendererInfo}
@@ -1793,8 +1796,9 @@ export const MazeGame3D = ({
                       currentIndex: activeAppleDialogue.currentIndex + 1,
                     });
                   } else {
-                    // All messages shown, complete the dialogue
+                    // All messages shown, complete the dialogue and enter post-dialogue pause
                     setActiveAppleDialogue(null);
+                    setPostDialoguePause(true);
                     onAppleDialogueComplete?.();
                   }
                 }}
@@ -1806,6 +1810,24 @@ export const MazeGame3D = ({
           </div>
         );
       })()}
+
+      {/* Post-Dialogue Resume Overlay */}
+      {postDialoguePause && !gameOver && (
+        <div className="fixed inset-0 z-30 flex items-end justify-center p-2 sm:p-4 pointer-events-none animate-fade-in">
+          <div className="mb-4 sm:mb-8 pointer-events-auto">
+            <Button
+              onClick={() => setPostDialoguePause(false)}
+              size="lg"
+              className="px-8 py-4 text-lg gap-2 shadow-warm-lg"
+            >
+              Continue
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+              </svg>
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Mini Map Overlay */}
       <MiniMap
