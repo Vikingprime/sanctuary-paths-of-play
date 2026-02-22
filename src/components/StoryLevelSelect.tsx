@@ -1,11 +1,11 @@
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StoryProgress } from '@/types/quest';
 import { StoryAct, StoryNode } from '@/types/storyActs';
 import { storyActs, isNodeUnlocked, isActComplete, getStoryAct } from '@/data/storyActsData';
 import { StoryMaze, getChapterMaze } from '@/data/storyMazes';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Lock, Check, ChevronRight, Clock, Play, Edit } from 'lucide-react';
+import { ArrowLeft, Lock, Check, ChevronRight, Clock, Play, Edit, X } from 'lucide-react';
 
 interface StoryLevelSelectProps {
   onSelect: (storyMaze: StoryMaze) => void;
@@ -220,16 +220,6 @@ export const StoryLevelSelect = ({
     return firstIncomplete?.id ?? storyActs[0]?.id ?? null;
   });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const detailRef = useRef<HTMLDivElement>(null);
-
-  // Scroll detail panel into view when a node is selected
-  useEffect(() => {
-    if (selectedNodeId && detailRef.current) {
-      setTimeout(() => {
-        detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 50);
-    }
-  }, [selectedNodeId]);
 
   const completedNodes = storyProgress.completedQuests;
 
@@ -249,8 +239,10 @@ export const StoryLevelSelect = ({
     if (maze) onSelect(maze);
   };
 
-  const renderNodeDetail = (act: StoryAct) => {
-    if (!selectedNodeId) return null;
+  const renderNodeDetailOverlay = () => {
+    if (!selectedNodeId || !expandedAct) return null;
+    const act = storyActs.find(a => a.id === expandedAct);
+    if (!act) return null;
     const node = act.nodes.find(n => n.id === selectedNodeId);
     if (!node) return null;
     const isDone = completedNodes.includes(node.id);
@@ -258,33 +250,45 @@ export const StoryLevelSelect = ({
     const canPlay = isUnlocked;
 
     return (
-      <div ref={detailRef} className="mx-4 mt-3 p-4 rounded-xl border border-primary/30 bg-card animate-fade-in">
-        <div className="flex items-start gap-3">
-          <span className="text-2xl">{node.emoji}</span>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-display font-bold text-foreground">{node.title}</h3>
-            <p className="text-sm text-muted-foreground mt-1">{node.description}</p>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              {node.timed && (
-                <span className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                  <Clock className="w-3 h-3" /> Timed
-                </span>
-              )}
-              {isDone && (
-                <span className="inline-flex items-center gap-1 text-xs bg-green-500/10 text-green-700 px-2 py-0.5 rounded-full">
-                  <Check className="w-3 h-3" /> Completed
-                </span>
-              )}
-              {!isUnlocked && (
-                <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-                  <Lock className="w-3 h-3" /> Locked
-                </span>
-              )}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setSelectedNodeId(null)}>
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+        <div
+          className="relative w-full max-w-md p-5 rounded-2xl border-2 border-primary/30 bg-card shadow-lg animate-fade-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setSelectedNodeId(null)}
+            className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="flex items-start gap-3">
+            <span className="text-3xl">{node.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-display font-bold text-lg text-foreground">{node.title}</h3>
+              <p className="text-sm text-muted-foreground mt-1">{node.description}</p>
+              <div className="flex items-center gap-2 mt-3 flex-wrap">
+                {node.timed && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    <Clock className="w-3 h-3" /> Timed
+                  </span>
+                )}
+                {isDone && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-green-500/10 text-green-700 px-2 py-0.5 rounded-full">
+                    <Check className="w-3 h-3" /> Completed
+                  </span>
+                )}
+                {!isUnlocked && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
+                    <Lock className="w-3 h-3" /> Locked
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           {canPlay && !isDone && (
-            <Button size="sm" onClick={() => handleNodeClick(node)} className="flex-shrink-0">
-              <Play className="w-4 h-4 mr-1" /> Play
+            <Button onClick={() => handleNodeClick(node)} className="w-full mt-4">
+              <Play className="w-4 h-4 mr-2" /> Play Level
             </Button>
           )}
         </div>
@@ -377,13 +381,14 @@ export const StoryLevelSelect = ({
             })}
           </svg>
         </div>
-        {renderNodeDetail(act)}
       </>
     );
   };
 
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl mx-auto">
+      {/* Node detail overlay */}
+      {renderNodeDetailOverlay()}
       {/* Back */}
       <Button variant="ghost" onClick={onBack} className="flex items-center gap-2">
         <ArrowLeft className="w-4 h-4" />
