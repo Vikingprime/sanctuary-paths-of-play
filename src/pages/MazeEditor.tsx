@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple } from 'lucide-react';
 import { toast } from 'sonner';
@@ -51,6 +52,7 @@ interface MazeConfig {
   difficulty: 'easy' | 'medium' | 'hard';
   timeLimit: number;
   previewTime: number;
+  timerDisabled?: boolean;
   requiredDialogues?: string[];
   goalCharacterId?: string;
 }
@@ -124,6 +126,7 @@ const MazeEditor: React.FC = () => {
     timeLimit: 60,
     previewTime: 5,
     requiredDialogues: [],
+    timerDisabled: false,
     goalCharacterId: undefined,
   });
   const [isDragging, setIsDragging] = useState(false);
@@ -184,6 +187,7 @@ const MazeEditor: React.FC = () => {
       timeLimit: maze.timeLimit,
       previewTime: maze.previewTime,
       requiredDialogues: maze.endConditions?.requiredDialogues || [],
+      timerDisabled: maze.timerDisabled || false,
       goalCharacterId: maze.goalCharacterId,
     });
     
@@ -451,12 +455,17 @@ ${dialogues.map(d => {
   goalCharacterId: '${config.goalCharacterId}',`
       : '';
 
+    const timerDisabledSchema = config.timerDisabled
+      ? `
+  timerDisabled: true,`
+      : '';
+
     const schema = `{
   id: ${loadedMazeId || Date.now()},
   name: '${config.name}',
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
-  previewTime: ${config.previewTime},
+  previewTime: ${config.previewTime},${timerDisabledSchema}
   medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
@@ -711,6 +720,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                       value={config.timeLimit}
                       onChange={e => setConfig(c => ({ ...c, timeLimit: parseInt(e.target.value) || 60 }))}
                       min={10}
+                      disabled={config.timerDisabled}
                     />
                   </div>
                   <div className="space-y-1">
@@ -722,6 +732,14 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                       min={1}
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Disable Timer</Label>
+                  <Switch
+                    checked={config.timerDisabled || false}
+                    onCheckedChange={(checked) => setConfig(c => ({ ...c, timerDisabled: checked }))}
+                  />
                 </div>
 
                 {/* Goal Character */}

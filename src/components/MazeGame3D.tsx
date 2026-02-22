@@ -434,8 +434,8 @@ export const MazeGame3D = ({
       gameStartTimeRef.current = Date.now();
     }
 
-    // In debug mode, don't count down time
-    if (debugMode) return;
+    // In debug mode or when timer is disabled, don't count down time
+    if (debugMode || maze.timerDisabled) return;
     
     gameTimerRef.current = setInterval(() => {
       const now = Date.now();
