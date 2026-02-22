@@ -230,12 +230,15 @@ export const StoryLevelSelect = ({
     return isActComplete(requiredAct, completedNodes);
   };
 
-  const handleNodeClick = (node: StoryNode) => {
-    // Try to find the specific maze, otherwise fall back to chapter 1 maze as default
-    const maze = getChapterMaze(
+  const getMazeForNode = (node: StoryNode): StoryMaze | undefined => {
+    return getChapterMaze(
       node.id === 'find_clues' ? 'chapter_1' :
       node.id === 'cousin_riddle' ? 'chapter_2' : 'chapter_1'
     );
+  };
+
+  const handleNodeClick = (node: StoryNode) => {
+    const maze = getMazeForNode(node);
     if (maze) onSelect(maze);
   };
 
@@ -291,6 +294,14 @@ export const StoryLevelSelect = ({
               <Play className="w-4 h-4 mr-2" /> Play Level
             </Button>
           )}
+          {debugMode && (() => {
+            const maze = getMazeForNode(node);
+            return maze ? (
+              <Button variant="outline" onClick={() => navigate(`/editor?mazeId=${maze.id}`)} className="w-full mt-2">
+                <Edit className="w-4 h-4 mr-2" /> Edit in Maze Editor
+              </Button>
+            ) : null;
+          })()}
         </div>
       </div>
     );
