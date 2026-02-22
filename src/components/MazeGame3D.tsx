@@ -581,6 +581,18 @@ export const MazeGame3D = ({
       const gridX = Math.floor(x);
       const gridY = Math.floor(y);
 
+      // Check if player reached the goal character (if configured)
+      if (maze.goalCharacterId && maze.characters) {
+        const goalChar = maze.characters.find(c => c.id === maze.goalCharacterId);
+        if (goalChar) {
+          const goalGridX = Math.floor(goalChar.position.x);
+          const goalGridY = Math.floor(goalChar.position.y);
+          if (gridX === goalGridX && gridY === goalGridY) {
+            result.reachedEnd = true;
+          }
+        }
+      }
+
       if (result.collectPowerUp && result.powerUpKey) {
         setCollectedPowerUps((prev) => new Set([...prev, result.powerUpKey!]));
         setSpeedBoostActive(true);

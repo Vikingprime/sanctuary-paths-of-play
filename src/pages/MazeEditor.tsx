@@ -52,6 +52,7 @@ interface MazeConfig {
   timeLimit: number;
   previewTime: number;
   requiredDialogues?: string[];
+  goalCharacterId?: string;
 }
 
 const CELL_LABELS: Record<CellType, string> = {
@@ -123,6 +124,7 @@ const MazeEditor: React.FC = () => {
     timeLimit: 60,
     previewTime: 5,
     requiredDialogues: [],
+    goalCharacterId: undefined,
   });
   const [isDragging, setIsDragging] = useState(false);
   const [dialogues, setDialogues] = useState<DialogueConfig[]>([]);
@@ -182,6 +184,7 @@ const MazeEditor: React.FC = () => {
       timeLimit: maze.timeLimit,
       previewTime: maze.previewTime,
       requiredDialogues: maze.endConditions?.requiredDialogues || [],
+      goalCharacterId: maze.goalCharacterId,
     });
     
     // Load dialogues
@@ -443,13 +446,18 @@ ${dialogues.map(d => {
   },` 
       : '';
 
+    const goalCharacterSchema = config.goalCharacterId 
+      ? `
+  goalCharacterId: '${config.goalCharacterId}',`
+      : '';
+
     const schema = `{
   id: ${loadedMazeId || Date.now()},
   name: '${config.name}',
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
   previewTime: ${config.previewTime},
-  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endConditionsSchema}
+  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
   ]),
@@ -715,6 +723,30 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     />
                   </div>
                 </div>
+
+                {/* Goal Character */}
+                {characters.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Goal Character</Label>
+                    <Select
+                      value={config.goalCharacterId || '_none'}
+                      onValueChange={(v) => setConfig(c => ({ ...c, goalCharacterId: v === '_none' ? undefined : v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="None (use end cell)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none">None (use end cell)</SelectItem>
+                        {characters.map(ch => (
+                          <SelectItem key={ch.id} value={ch.id}>
+                            {ch.emoji} {ch.name} ({ch.id})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Reaching this character completes the level</p>
+                  </div>
+                )}
 
                 {/* Characters Toggle */}
                 <div className="pt-2 border-t">

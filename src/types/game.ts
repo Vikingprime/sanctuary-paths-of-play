@@ -106,6 +106,7 @@ export interface Maze {
   endConditions?: {
     requiredDialogues?: string[]; // Dialogues that must be completed before end cell triggers level complete
   };
+  goalCharacterId?: string; // ID of placed character that acts as the goal (reaching them completes the level)
   freeMapAccess?: boolean; // If true, map button is always visible (not just near map stations)
 }
 
