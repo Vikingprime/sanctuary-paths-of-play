@@ -603,7 +603,8 @@ export const MazeGame3D = ({
         return;
       }
       
-      // Check for any dialogue at this cell (pass current triggered set for fresh check)
+      // Check for any dialogue at this cell (skip during restart grace period)
+      if (restartGraceRef.current) return;
       const dialogue = checkDialogueAtCell(gridX, gridY, triggeredDialogues);
       
       if (dialogue) {
@@ -1218,8 +1219,15 @@ export const MazeGame3D = ({
     }
   };
 
+  // Grace period ref to prevent dialogue re-triggering immediately after restart
+  const restartGraceRef = useRef(false);
+  
   // Restart the maze (reset all game state)
   const handleRestart = useCallback(() => {
+    // Set grace period to block dialogues from re-triggering at spawn
+    restartGraceRef.current = true;
+    setTimeout(() => { restartGraceRef.current = false; }, 500);
+    
     // Reset player position
     playerStateRef.current = {
       x: startPos.x,

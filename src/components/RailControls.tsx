@@ -5,7 +5,7 @@
  * between junctions. The user controls direction via clickable arrows.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MagnetismCache } from '@/game/CorridorMagnetism';
 import { PolylineGraph, Point2D, Junction } from '@/game/SkeletonPolyline';
 import { ArrowUp, RotateCcw, Square } from 'lucide-react';
@@ -542,6 +542,25 @@ export function RailControls({
     onDirectionSelect(dir.targetX, dir.targetZ, dir.pathPoints);
   }, [onDirectionSelect, onTurnAround]);
   
+  // Guard against stop→direction button ghost clicks
+  const [justStopped, setJustStopped] = useState(false);
+  const justStoppedRef = useRef(false);
+  
+  // Track when movement stops to add a brief cooldown
+  useEffect(() => {
+    if (!isMoving && justStoppedRef.current) {
+      setJustStopped(true);
+      const timer = setTimeout(() => {
+        setJustStopped(false);
+        justStoppedRef.current = false;
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+    if (isMoving) {
+      justStoppedRef.current = true;
+    }
+  }, [isMoving]);
+  
   if (!enabled) return null;
   
   // When moving, only show stop button
@@ -568,13 +587,14 @@ export function RailControls({
   return (
      <div className={`fixed left-1/2 -translate-x-1/2 z-20 ${isLandscape ? 'bottom-2' : 'bottom-20'}`}>
       <div className="relative w-40 h-40">
-        {/* Direction buttons - positioned at actual path angles */}
+        {/* Direction buttons - positioned at actual path angles, disabled briefly after stop */}
         {directions.map((dir, idx) => (
           <RadialDirectionButton
             key={`${dir.relativeAngle.toFixed(2)}-${dir.isTurnAround}`}
             relativeAngle={dir.relativeAngle}
             onClick={() => handleDirectionClick(dir)}
             isTurnAround={dir.isTurnAround}
+            disabled={justStopped}
           />
         ))}
         
