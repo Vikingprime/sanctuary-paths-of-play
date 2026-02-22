@@ -1254,6 +1254,7 @@ export const MazeGame3D = ({
     setTriggeredDialogues(new Set());
     setCompletedObjectives(new Set());
     setDialogueMessageIndex(0);
+    pendingEndGameRef.current = false;
     
     // Reset timing refs
     gameStartTimeRef.current = null;

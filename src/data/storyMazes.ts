@@ -647,6 +647,7 @@ export const storyMazeToMaze = (storyMaze: StoryMaze): Maze => {
     characters: allCharacters,
     dialogues: storyMaze.dialogues,
     endConditions: storyMaze.endConditions,
+    freeMapAccess: storyMaze.freeMapAccess ?? true, // Default to true for story mazes
   };
 };
 
