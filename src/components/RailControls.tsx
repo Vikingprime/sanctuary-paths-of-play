@@ -464,13 +464,12 @@ const RadialDirectionButton = ({
         w-14 h-14 rounded-full
         flex items-center justify-center
         transition-all duration-200
-        ${disabled 
-          ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' 
-          : isTurnAround
-            ? 'bg-amber-500/20 hover:bg-amber-500/40 text-white/70 shadow-lg hover:scale-110 backdrop-blur-sm'
-            : 'bg-primary/20 hover:bg-primary/40 text-white/70 shadow-lg hover:scale-110 backdrop-blur-sm'
+        ${isTurnAround
+          ? 'bg-amber-500/20 hover:bg-amber-500/40 text-white/70 shadow-lg hover:scale-110 backdrop-blur-sm'
+          : 'bg-primary/20 hover:bg-primary/40 text-white/70 shadow-lg hover:scale-110 backdrop-blur-sm'
         }
-        border ${disabled ? 'border-gray-600/50' : isTurnAround ? 'border-amber-200/30' : 'border-white/20'}
+        ${disabled ? 'pointer-events-none' : ''}
+        border ${isTurnAround ? 'border-amber-200/30' : 'border-white/20'}
       `}
     >
       {isTurnAround ? (
