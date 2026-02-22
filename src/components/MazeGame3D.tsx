@@ -516,12 +516,14 @@ export const MazeGame3D = ({
     return dialogue.requires.every(reqId => triggeredDialogues.has(reqId));
   }, [triggeredDialogues]);
 
-  // Check if a dialogue can be triggered at the given cell
+  // Check if a dialogue can be triggered at the given cell (proximity-based only)
   const checkDialogueAtCell = useCallback((gridX: number, gridY: number, currentTriggered: Set<string>): DialogueTrigger | null => {
     if (!maze.dialogues) return null;
     
     for (const dialogue of maze.dialogues) {
       if (currentTriggered.has(dialogue.id)) continue;
+      // Skip click-triggered dialogues - they're handled by character clicks
+      if (dialogue.triggerType === 'click') continue;
       
       // Check requirements inline to avoid stale closure
       if (dialogue.requires && dialogue.requires.length > 0) {
@@ -537,6 +539,30 @@ export const MazeGame3D = ({
     }
     return null;
   }, [maze.dialogues]);
+
+  // Handle click-triggered dialogue for a specific character
+  const handleCharacterClick = useCallback((characterId: string) => {
+    if (!maze.dialogues || activeDialogue || activeAppleDialogue) return;
+    
+    // Find a click-triggered dialogue linked to this character
+    for (const dialogue of maze.dialogues) {
+      if (triggeredDialogues.has(dialogue.id)) continue;
+      if (dialogue.triggerType !== 'click') continue;
+      if (dialogue.speakerCharacterId !== characterId) continue;
+      
+      // Check requirements
+      if (dialogue.requires && dialogue.requires.length > 0) {
+        const requirementsMet = dialogue.requires.every(reqId => triggeredDialogues.has(reqId));
+        if (!requirementsMet) continue;
+      }
+      
+      console.log('[Dialogue] Click-triggered:', dialogue.id, 'speaker:', dialogue.speaker);
+      setActiveDialogue(dialogue);
+      setDialogueMessageIndex(0);
+      setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
+      return;
+    }
+  }, [maze.dialogues, triggeredDialogues, activeDialogue, activeAppleDialogue]);
 
   // Check if all required dialogues for end are completed
   const canEndLevel = useCallback((): boolean => {
@@ -1384,6 +1410,7 @@ export const MazeGame3D = ({
         cameraYawRef={cameraYawRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
+        onCharacterClick={handleCharacterClick}
         isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
         isMuted={isMuted}
         onSceneReady={() => setSceneReady(true)}

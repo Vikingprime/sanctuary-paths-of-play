@@ -78,6 +78,7 @@ export interface DialogueTrigger {
   characterModel?: string; // GLB model file name - used if speakerCharacterId not set
   characterAnimation?: string; // Animation to play during dialogue
   speakerCharacterId?: string; // ID of placed character to zoom camera to
+  triggerType?: 'proximity' | 'click'; // How this dialogue is triggered (default: 'proximity')
 }
 
 export interface IntroDialogue {
