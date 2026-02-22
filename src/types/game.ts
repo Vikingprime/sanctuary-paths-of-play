@@ -106,6 +106,7 @@ export interface Maze {
   endConditions?: {
     requiredDialogues?: string[]; // Dialogues that must be completed before end cell triggers level complete
   };
+  freeMapAccess?: boolean; // If true, map button is always visible (not just near map stations)
 }
 
 export interface GameState {
