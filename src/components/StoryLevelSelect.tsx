@@ -346,7 +346,7 @@ export const StoryLevelSelect = ({
                 <g
                   key={node.id}
                   onClick={(e) => { e.stopPropagation(); setSelectedNodeId(selectedNodeId === node.id ? null : node.id); }}
-                  className="cursor-pointer"
+                  className="cursor-pointer outline-none"
                   role="button"
                   tabIndex={0}
                 >
