@@ -137,8 +137,8 @@ function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
   });
 
   return (
-    <group ref={groupRef} position={[0, 3.5, 0]}>
-      <primitive object={cloned} scale={0.3} />
+    <group ref={groupRef} position={[0, 2, 0]}>
+      <primitive object={cloned} scale={0.015} />
     </group>
   );
 }
