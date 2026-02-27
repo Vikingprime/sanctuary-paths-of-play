@@ -33,7 +33,11 @@ function GrassPlatform({ position, type, isPlayerHere }: {
   isPlayerHere: boolean;
 }) {
   const { scene } = useGLTF('/models/Grass_Platform.glb');
-  const cloned = useMemo(() => scene.clone(), [scene]);
+  const cloned = useMemo(() => {
+    const c = scene.clone();
+    scene.visible = false;
+    return c;
+  }, [scene]);
   const groupRef = useRef<THREE.Group>(null);
 
   // Tint the platform based on square type
@@ -97,7 +101,11 @@ function TreeDecoration({ position, variant }: {
 
 function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
   const { scene } = useGLTF('/models/Dice.glb');
-  const cloned = useMemo(() => scene.clone(), [scene]);
+  const cloned = useMemo(() => {
+    const c = scene.clone();
+    scene.visible = false;
+    return c;
+  }, [scene]);
   const groupRef = useRef<THREE.Group>(null);
 
   // Map dice value to rotation (approximate face rotations for a standard die)
@@ -270,10 +278,10 @@ function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare, isR
       <SceneryTrees />
 
       <OrbitControls
-        enablePan={false}
-        enableZoom={false}
-        minPolarAngle={Math.PI / 6}
-        maxPolarAngle={Math.PI / 3}
+        enablePan={true}
+        enableZoom={true}
+        minPolarAngle={0}
+        maxPolarAngle={Math.PI / 2}
         target={[0, 0, 0]}
       />
     </>
