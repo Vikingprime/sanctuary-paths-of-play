@@ -57,7 +57,7 @@ function GrassPlatform({ position, type, isPlayerHere }: {
 
   return (
     <group ref={groupRef} position={position}>
-      <primitive object={cloned} scale={0.3} />
+      <primitive object={cloned} scale={1.5} />
     </group>
   );
 }
@@ -67,7 +67,7 @@ function FarmCenter() {
   const cloned = useMemo(() => scene.clone(), [scene]);
   return (
     <group position={[0, 0, 0]}>
-      <primitive object={cloned} scale={0.04} />
+      <primitive object={cloned} scale={0.008} />
     </group>
   );
 }
@@ -77,7 +77,7 @@ function TreeDecoration({ position, variant }: {
   variant: 'tree' | 'tree1';
 }) {
   const model = variant === 'tree' ? '/models/Tree.glb' : '/models/Tree_1.glb';
-  const treeScale = variant === 'tree' ? 0.012 : 0.3;
+  const treeScale = variant === 'tree' ? 0.08 : 0.8;
   const { scene } = useGLTF(model);
   const cloned = useMemo(() => scene.clone(), [scene]);
   return (
