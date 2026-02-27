@@ -1,9 +1,9 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Text, Environment } from '@react-three/drei';
+import { OrbitControls, Text, useGLTF } from '@react-three/drei';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, Dice1, Dice2, Dice3, Dice4, Dice5, Dice6 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import {
   BoardSquare,
   BoardGameState,
@@ -13,64 +13,111 @@ import {
 import { AnimalType } from '@/types/game';
 import * as THREE from 'three';
 
-// --- 3D Board Components ---
-
-const BOARD_RADIUS = 6;
+// --- Constants ---
+const BOARD_RADIUS = 7;
 
 function getSquarePosition(index: number, total: number): [number, number, number] {
   const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
   return [
     Math.cos(angle) * BOARD_RADIUS,
-    0.05,
+    0,
     Math.sin(angle) * BOARD_RADIUS,
   ];
 }
 
-function getSquareColor(type: BoardSquare['type']): string {
-  switch (type) {
-    case 'feed': return '#8BC34A';
-    case 'stars': return '#FFD700';
-    case 'extra_roll': return '#E91E63';
-    case 'unlock_animal': return '#9C27B0';
-    case 'empty': return '#A5D6A7';
-  }
+// --- 3D Model Components ---
+
+function GrassPlatform({ position, type, isPlayerHere }: {
+  position: [number, number, number];
+  type: BoardSquare['type'];
+  isPlayerHere: boolean;
+}) {
+  const { scene } = useGLTF('/models/Grass_Platform.glb');
+  const cloned = useMemo(() => scene.clone(), [scene]);
+  const groupRef = useRef<THREE.Group>(null);
+
+  // Tint the platform based on square type
+  useEffect(() => {
+    const color = getSquareColor(type);
+    cloned.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        if (mesh.material) {
+          const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
+          mat.color.lerp(new THREE.Color(color), 0.35);
+          if (isPlayerHere) {
+            mat.emissive = new THREE.Color('#ffffff');
+            mat.emissiveIntensity = 0.15;
+          }
+          mesh.material = mat;
+        }
+      }
+    });
+  }, [cloned, type, isPlayerHere]);
+
+  return (
+    <group ref={groupRef} position={position}>
+      <primitive object={cloned} scale={0.6} />
+    </group>
+  );
 }
 
-function BoardSquare3D({ square, index, total, isPlayerHere, isHighlighted }: {
-  square: BoardSquare;
-  index: number;
-  total: number;
-  isPlayerHere: boolean;
-  isHighlighted: boolean;
+function FarmCenter() {
+  const { scene } = useGLTF('/models/Farm.glb');
+  const cloned = useMemo(() => scene.clone(), [scene]);
+  return (
+    <group position={[0, 0, 0]}>
+      <primitive object={cloned} scale={0.8} />
+    </group>
+  );
+}
+
+function TreeDecoration({ position, variant }: {
+  position: [number, number, number];
+  variant: 'tree' | 'tree1';
 }) {
-  const pos = getSquarePosition(index, total);
-  const meshRef = useRef<THREE.Mesh>(null);
+  const model = variant === 'tree' ? '/models/Tree.glb' : '/models/Tree_1.glb';
+  const { scene } = useGLTF(model);
+  const cloned = useMemo(() => scene.clone(), [scene]);
+  return (
+    <group position={position}>
+      <primitive object={cloned} scale={0.5} />
+    </group>
+  );
+}
+
+function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
+  const { scene } = useGLTF('/models/Dice.glb');
+  const cloned = useMemo(() => scene.clone(), [scene]);
+  const groupRef = useRef<THREE.Group>(null);
+
+  // Map dice value to rotation (approximate face rotations for a standard die)
+  const targetRotations: Record<number, [number, number, number]> = {
+    1: [0, 0, 0],
+    2: [Math.PI / 2, 0, 0],
+    3: [0, 0, -Math.PI / 2],
+    4: [0, 0, Math.PI / 2],
+    5: [-Math.PI / 2, 0, 0],
+    6: [Math.PI, 0, 0],
+  };
 
   useFrame((_, delta) => {
-    if (meshRef.current && isHighlighted) {
-      meshRef.current.position.y = 0.05 + Math.sin(Date.now() * 0.005) * 0.1;
+    if (!groupRef.current) return;
+    if (rolling) {
+      groupRef.current.rotation.x += delta * 8;
+      groupRef.current.rotation.y += delta * 6;
+      groupRef.current.rotation.z += delta * 4;
+    } else {
+      const target = targetRotations[value] || [0, 0, 0];
+      groupRef.current.rotation.x += (target[0] - groupRef.current.rotation.x) * 0.1;
+      groupRef.current.rotation.y += (target[1] - groupRef.current.rotation.y) * 0.1;
+      groupRef.current.rotation.z += (target[2] - groupRef.current.rotation.z) * 0.1;
     }
   });
 
   return (
-    <group position={pos}>
-      <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.55, 0.55, 0.1, 16]} />
-        <meshStandardMaterial
-          color={getSquareColor(square.type)}
-          emissive={isPlayerHere ? '#ffffff' : '#000000'}
-          emissiveIntensity={isPlayerHere ? 0.3 : 0}
-        />
-      </mesh>
-      {/* Square label */}
-      <Text
-        position={[0, 0.15, 0]}
-        fontSize={0.35}
-        anchorX="center"
-        anchorY="middle"
-      >
-        {square.emoji}
-      </Text>
+    <group ref={groupRef} position={[0, 3.5, 0]}>
+      <primitive object={cloned} scale={1.2} />
     </group>
   );
 }
@@ -83,18 +130,18 @@ function PlayerToken({ position, total, animalEmoji }: {
   const meshRef = useRef<THREE.Group>(null);
   const targetPos = getSquarePosition(position, total);
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (meshRef.current) {
       meshRef.current.position.x += (targetPos[0] - meshRef.current.position.x) * 0.08;
       meshRef.current.position.z += (targetPos[2] - meshRef.current.position.z) * 0.08;
-      meshRef.current.position.y = 0.6 + Math.sin(Date.now() * 0.003) * 0.1;
+      meshRef.current.position.y = 0.8 + Math.sin(Date.now() * 0.003) * 0.1;
     }
   });
 
   return (
-    <group ref={meshRef} position={[targetPos[0], 0.6, targetPos[2]]}>
+    <group ref={meshRef} position={[targetPos[0], 0.8, targetPos[2]]}>
       <mesh>
-        <sphereGeometry args={[0.35, 16, 16]} />
+        <sphereGeometry args={[0.3, 16, 16]} />
         <meshStandardMaterial color="#FF9800" />
       </mesh>
       <Text position={[0, 0.5, 0]} fontSize={0.4} anchorX="center" anchorY="middle">
@@ -114,9 +161,8 @@ function BoardPath({ total }: { total: number }) {
       Math.sin(angle) * BOARD_RADIUS
     ));
   }
-
   const curve = new THREE.CatmullRomCurve3(points, true);
-  const tubeGeo = new THREE.TubeGeometry(curve, 64, 0.15, 8, true);
+  const tubeGeo = new THREE.TubeGeometry(curve, 64, 0.12, 8, true);
 
   return (
     <mesh geometry={tubeGeo}>
@@ -125,40 +171,94 @@ function BoardPath({ total }: { total: number }) {
   );
 }
 
-function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare }: {
+function getSquareColor(type: BoardSquare['type']): string {
+  switch (type) {
+    case 'feed': return '#8BC34A';
+    case 'stars': return '#FFD700';
+    case 'extra_roll': return '#E91E63';
+    case 'unlock_animal': return '#9C27B0';
+    case 'empty': return '#A5D6A7';
+  }
+}
+
+// Tree positions scattered around the board
+function SceneryTrees() {
+  const treePositions: { pos: [number, number, number]; variant: 'tree' | 'tree1' }[] = [
+    { pos: [-10, 0, -6], variant: 'tree' },
+    { pos: [10, 0, -4], variant: 'tree1' },
+    { pos: [-8, 0, 8], variant: 'tree1' },
+    { pos: [9, 0, 7], variant: 'tree' },
+    { pos: [-4, 0, -11], variant: 'tree' },
+    { pos: [5, 0, -10], variant: 'tree1' },
+    { pos: [-11, 0, 1], variant: 'tree1' },
+    { pos: [11, 0, 0], variant: 'tree' },
+  ];
+
+  return (
+    <>
+      {treePositions.map((t, i) => (
+        <TreeDecoration key={i} position={t.pos} variant={t.variant} />
+      ))}
+    </>
+  );
+}
+
+function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare, isRolling, diceValue }: {
   board: BoardSquare[];
   playerPosition: number;
   animalEmoji: string;
   highlightedSquare: number | null;
+  isRolling: boolean;
+  diceValue: number;
 }) {
   return (
     <>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[5, 10, 5]} intensity={0.8} />
+      <ambientLight intensity={0.7} />
+      <directionalLight position={[5, 12, 5]} intensity={0.9} />
 
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
-        <circleGeometry args={[9, 32]} />
+        <circleGeometry args={[14, 48]} />
         <meshStandardMaterial color="#4CAF50" />
       </mesh>
+
+      {/* Farm in center */}
+      <FarmCenter />
+
+      {/* 3D Dice floating above center */}
+      <DiceModel rolling={isRolling} value={diceValue} />
 
       {/* Path */}
       <BoardPath total={board.length} />
 
-      {/* Squares */}
+      {/* Grass platform squares */}
       {board.map((sq, i) => (
-        <BoardSquare3D
-          key={sq.id}
-          square={sq}
-          index={i}
-          total={board.length}
-          isPlayerHere={i === playerPosition}
-          isHighlighted={i === highlightedSquare}
-        />
+        <group key={sq.id}>
+          <GrassPlatform
+            position={getSquarePosition(i, board.length)}
+            type={sq.type}
+            isPlayerHere={i === playerPosition}
+          />
+          <Text
+            position={[
+              getSquarePosition(i, board.length)[0],
+              0.7,
+              getSquarePosition(i, board.length)[2],
+            ]}
+            fontSize={0.4}
+            anchorX="center"
+            anchorY="middle"
+          >
+            {sq.emoji}
+          </Text>
+        </group>
       ))}
 
       {/* Player */}
       <PlayerToken position={playerPosition} total={board.length} animalEmoji={animalEmoji} />
+
+      {/* Scenery trees */}
+      <SceneryTrees />
 
       <OrbitControls
         enablePan={false}
@@ -170,14 +270,6 @@ function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare }: {
     </>
   );
 }
-
-// --- Dice UI ---
-
-const DiceIcon = ({ value }: { value: number }) => {
-  const icons = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6];
-  const Icon = icons[value - 1] || Dice1;
-  return <Icon className="w-16 h-16" />;
-};
 
 // --- Main Component ---
 
@@ -211,7 +303,7 @@ export const BoardGameMode = ({
     animalsUnlocked: [],
   }));
   const [highlightedSquare, setHighlightedSquare] = useState<number | null>(null);
-  const [rollingDisplay, setRollingDisplay] = useState(1);
+  const [diceDisplay, setDiceDisplay] = useState(1);
   const rollingInterval = useRef<NodeJS.Timeout | null>(null);
 
   const handleRoll = useCallback(() => {
@@ -219,16 +311,15 @@ export const BoardGameMode = ({
 
     setState(s => ({ ...s, isRolling: true, rewardMessage: null }));
 
-    // Animate dice rolling
     let ticks = 0;
     rollingInterval.current = setInterval(() => {
-      setRollingDisplay(Math.floor(Math.random() * 6) + 1);
+      setDiceDisplay(Math.floor(Math.random() * 6) + 1);
       ticks++;
       if (ticks >= 15) {
         if (rollingInterval.current) clearInterval(rollingInterval.current);
 
         const finalRoll = Math.floor(Math.random() * 6) + 1;
-        setRollingDisplay(finalRoll);
+        setDiceDisplay(finalRoll);
 
         const newPosition = (state.playerPosition + finalRoll) % board.length;
         setHighlightedSquare(newPosition);
@@ -241,7 +332,6 @@ export const BoardGameMode = ({
           rollsRemaining: s.rollsRemaining - 1,
         }));
 
-        // Move animation delay, then apply reward
         setTimeout(() => {
           applyReward(newPosition);
           setState(s => ({
@@ -323,12 +413,14 @@ export const BoardGameMode = ({
 
       {/* 3D Board */}
       <div className="flex-1">
-        <Canvas camera={{ position: [0, 12, 8], fov: 45 }}>
+        <Canvas camera={{ position: [0, 14, 10], fov: 45 }}>
           <BoardScene
             board={board}
             playerPosition={state.playerPosition}
             animalEmoji={animalEmoji}
             highlightedSquare={highlightedSquare}
+            isRolling={state.isRolling}
+            diceValue={state.lastRoll ?? diceDisplay}
           />
         </Canvas>
       </div>
@@ -358,9 +450,6 @@ export const BoardGameMode = ({
         {/* Dice roll button */}
         {!gameOver ? (
           <div className="flex flex-col items-center gap-2">
-            <div className={`transition-transform ${state.isRolling ? 'animate-bounce' : ''}`}>
-              <DiceIcon value={state.lastRoll ?? rollingDisplay} />
-            </div>
             <Button
               variant="sunset"
               size="xl"
@@ -388,3 +477,10 @@ export const BoardGameMode = ({
     </div>
   );
 };
+
+// Preload models
+useGLTF.preload('/models/Dice.glb');
+useGLTF.preload('/models/Grass_Platform.glb');
+useGLTF.preload('/models/Tree.glb');
+useGLTF.preload('/models/Tree_1.glb');
+useGLTF.preload('/models/Farm.glb');
