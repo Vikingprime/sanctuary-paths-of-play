@@ -57,7 +57,7 @@ function GrassPlatform({ position, type, isPlayerHere }: {
 
   return (
     <group ref={groupRef} position={position}>
-      <primitive object={cloned} scale={0.15} />
+      <primitive object={cloned} scale={0.035} />
     </group>
   );
 }
@@ -67,7 +67,7 @@ function FarmCenter() {
   const cloned = useMemo(() => scene.clone(), [scene]);
   return (
     <group position={[0, 0, 0]}>
-      <primitive object={cloned} scale={0.25} />
+      <primitive object={cloned} scale={0.04} />
     </group>
   );
 }
@@ -81,7 +81,7 @@ function TreeDecoration({ position, variant }: {
   const cloned = useMemo(() => scene.clone(), [scene]);
   return (
     <group position={position}>
-      <primitive object={cloned} scale={0.15} />
+      <primitive object={cloned} scale={0.04} />
     </group>
   );
 }
