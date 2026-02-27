@@ -243,8 +243,8 @@ function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare, isR
         <meshStandardMaterial color="#4CAF50" />
       </mesh>
 
-      {/* Farm in center - DISABLED FOR TESTING */}
-      {/* <FarmCenter /> */}
+      {/* Farm in center */}
+      <FarmCenter />
 
       {/* 3D Dice floating above center */}
       <DiceModel rolling={isRolling} value={diceValue} />
@@ -278,8 +278,8 @@ function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare, isR
       {/* Player */}
       <PlayerToken position={playerPosition} total={board.length} animalEmoji={animalEmoji} />
 
-      {/* Scenery trees - DISABLED FOR TESTING */}
-      {/* <SceneryTrees /> */}
+      {/* Scenery trees */}
+      <SceneryTrees />
 
       <OrbitControls
         enablePan={true}
