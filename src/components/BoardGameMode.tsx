@@ -67,7 +67,7 @@ function FarmCenter() {
   const cloned = useMemo(() => scene.clone(), [scene]);
   return (
     <group position={[0, 0, 0]}>
-      <primitive object={cloned} scale={0.008} />
+      <primitive object={cloned} scale={0.02} />
     </group>
   );
 }
@@ -77,7 +77,7 @@ function TreeDecoration({ position, variant }: {
   variant: 'tree' | 'tree1';
 }) {
   const model = variant === 'tree' ? '/models/Tree.glb' : '/models/Tree_1.glb';
-  const treeScale = variant === 'tree' ? 0.08 : 0.8;
+  const treeScale = variant === 'tree' ? 0.08 : 0.15;
   const { scene } = useGLTF(model);
   const cloned = useMemo(() => scene.clone(), [scene]);
   return (
@@ -185,14 +185,14 @@ function getSquareColor(type: BoardSquare['type']): string {
 // Tree positions scattered around the board
 function SceneryTrees() {
   const treePositions: { pos: [number, number, number]; variant: 'tree' | 'tree1' }[] = [
-    { pos: [-10, 0, -6], variant: 'tree' },
-    { pos: [10, 0, -4], variant: 'tree1' },
-    { pos: [-8, 0, 8], variant: 'tree1' },
-    { pos: [9, 0, 7], variant: 'tree' },
-    { pos: [-4, 0, -11], variant: 'tree' },
-    { pos: [5, 0, -10], variant: 'tree1' },
-    { pos: [-11, 0, 1], variant: 'tree1' },
-    { pos: [11, 0, 0], variant: 'tree' },
+    { pos: [-14, 0, -8], variant: 'tree' },
+    { pos: [14, 0, -6], variant: 'tree1' },
+    { pos: [-12, 0, 10], variant: 'tree1' },
+    { pos: [13, 0, 9], variant: 'tree' },
+    { pos: [-6, 0, -14], variant: 'tree' },
+    { pos: [7, 0, -13], variant: 'tree1' },
+    { pos: [-15, 0, 2], variant: 'tree1' },
+    { pos: [15, 0, 1], variant: 'tree' },
   ];
 
   return (
