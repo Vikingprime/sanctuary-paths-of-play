@@ -87,7 +87,7 @@ function TreeDecoration({ position, variant }: {
   variant: 'tree' | 'tree1';
 }) {
   const model = variant === 'tree' ? '/models/Tree.glb' : '/models/Tree_1.glb';
-  const treeScale = variant === 'tree' ? 0.04 : 0.15;
+  const treeScale = variant === 'tree' ? 0.008 : 0.025;
   const { scene } = useGLTF(model);
   const cloned = useMemo(() => {
     const c = scene.clone(true);
@@ -102,43 +102,60 @@ function TreeDecoration({ position, variant }: {
   );
 }
 
-function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
-  const { scene } = useGLTF('/models/Dice.glb');
-  const cloned = useMemo(() => {
-    const c = scene.clone(true);
-    c.visible = true;
-    c.traverse((child) => { child.visible = true; });
-    return c;
-  }, [scene]);
+function DiceRollAnimation({ visible, rolling, value }: { visible: boolean; rolling: boolean; value: number }) {
   const groupRef = useRef<THREE.Group>(null);
-
-  // Map dice value to rotation (approximate face rotations for a standard die)
-  const targetRotations: Record<number, [number, number, number]> = {
-    1: [0, 0, 0],
-    2: [Math.PI / 2, 0, 0],
-    3: [0, 0, -Math.PI / 2],
-    4: [0, 0, Math.PI / 2],
-    5: [-Math.PI / 2, 0, 0],
-    6: [Math.PI, 0, 0],
-  };
+  const scaleRef = useRef(0);
+  const spinSpeed = useRef({ x: 0, y: 0, z: 0 });
+  const showResult = !rolling && visible;
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
+
+    // Scale animation: pop in when visible, shrink when hidden
+    const targetScale = visible ? 1 : 0;
+    scaleRef.current += (targetScale - scaleRef.current) * 0.12;
+    groupRef.current.scale.setScalar(scaleRef.current);
+
+    // Bounce height
+    const targetY = visible ? 3.5 : 1;
+    groupRef.current.position.y += (targetY - groupRef.current.position.y) * 0.1;
+
     if (rolling) {
-      groupRef.current.rotation.x += delta * 8;
-      groupRef.current.rotation.y += delta * 6;
-      groupRef.current.rotation.z += delta * 4;
+      // Accelerate spin
+      spinSpeed.current.x = Math.min(spinSpeed.current.x + delta * 12, 14);
+      spinSpeed.current.y = Math.min(spinSpeed.current.y + delta * 10, 11);
+      spinSpeed.current.z = Math.min(spinSpeed.current.z + delta * 8, 9);
+      groupRef.current.rotation.x += delta * spinSpeed.current.x;
+      groupRef.current.rotation.y += delta * spinSpeed.current.y;
+      groupRef.current.rotation.z += delta * spinSpeed.current.z;
     } else {
-      const target = targetRotations[value] || [0, 0, 0];
-      groupRef.current.rotation.x += (target[0] - groupRef.current.rotation.x) * 0.1;
-      groupRef.current.rotation.y += (target[1] - groupRef.current.rotation.y) * 0.1;
-      groupRef.current.rotation.z += (target[2] - groupRef.current.rotation.z) * 0.1;
+      // Decelerate spin
+      spinSpeed.current.x *= 0.92;
+      spinSpeed.current.y *= 0.92;
+      spinSpeed.current.z *= 0.92;
+      groupRef.current.rotation.x += delta * spinSpeed.current.x;
+      groupRef.current.rotation.y += delta * spinSpeed.current.y;
+      groupRef.current.rotation.z += delta * spinSpeed.current.z;
     }
   });
 
   return (
-    <group ref={groupRef} position={[0, 2, 0]}>
-      <primitive object={cloned} scale={0.015} />
+    <group ref={groupRef} position={[0, 1, 0]}>
+      {/* Result number billboard */}
+      {showResult && value && (
+        <Text
+          position={[0, 1.2, 0]}
+          fontSize={1.2}
+          color="#FFD700"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.08}
+          outlineColor="#000000"
+          font={undefined}
+        >
+          {value}
+        </Text>
+      )}
     </group>
   );
 }
@@ -224,13 +241,14 @@ function SceneryTrees() {
   );
 }
 
-function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare, isRolling, diceValue }: {
+function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare, isRolling, diceValue, diceVisible }: {
   board: BoardSquare[];
   playerPosition: number;
   animalEmoji: string;
   highlightedSquare: number | null;
   isRolling: boolean;
   diceValue: number;
+  diceVisible: boolean;
 }) {
   return (
     <>
@@ -246,8 +264,8 @@ function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare, isR
       {/* Farm in center */}
       <FarmCenter />
 
-      {/* 3D Dice floating above center */}
-      <DiceModel rolling={isRolling} value={diceValue} />
+      {/* Dice roll animation - only visible during/after roll */}
+      <DiceRollAnimation visible={diceVisible} rolling={isRolling} value={diceValue} />
 
       {/* Path */}
       <BoardPath total={board.length} />
@@ -325,12 +343,14 @@ export const BoardGameMode = ({
   }));
   const [highlightedSquare, setHighlightedSquare] = useState<number | null>(null);
   const [diceDisplay, setDiceDisplay] = useState(1);
+  const [diceVisible, setDiceVisible] = useState(false);
   const rollingInterval = useRef<NodeJS.Timeout | null>(null);
 
   const handleRoll = useCallback(() => {
     if (state.rollsRemaining <= 0 || state.isRolling || state.isMoving) return;
 
     setState(s => ({ ...s, isRolling: true, rewardMessage: null }));
+    setDiceVisible(true);
 
     let ticks = 0;
     rollingInterval.current = setInterval(() => {
@@ -361,6 +381,8 @@ export const BoardGameMode = ({
             isMoving: false,
           }));
           setHighlightedSquare(null);
+          // Hide dice after a brief delay to show the result number
+          setTimeout(() => setDiceVisible(false), 1500);
         }, 1200);
       }
     }, 80);
@@ -442,6 +464,7 @@ export const BoardGameMode = ({
             highlightedSquare={highlightedSquare}
             isRolling={state.isRolling}
             diceValue={state.lastRoll ?? diceDisplay}
+            diceVisible={diceVisible}
           />
         </Canvas>
       </div>
@@ -500,7 +523,6 @@ export const BoardGameMode = ({
 };
 
 // Preload models
-useGLTF.preload('/models/Dice.glb');
 useGLTF.preload('/models/Grass_Platform.glb');
 useGLTF.preload('/models/Tree.glb');
 useGLTF.preload('/models/Tree_1.glb');
