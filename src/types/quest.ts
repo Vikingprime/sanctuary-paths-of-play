@@ -56,7 +56,7 @@ export interface QuestDialogueAction {
   chapterId?: string;
 }
 
-export type GameMode = 'story' | 'time_trial';
+export type GameMode = 'story' | 'time_trial' | 'board_game';
 
 // Story-specific character that's hidden from preview
 export interface StoryCharacter {

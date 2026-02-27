@@ -19,9 +19,10 @@ import { useSave } from '@/hooks/useSave';
 import { useBackButton } from '@/hooks/useBackButton';
 import { Volume2, VolumeX, ArrowLeft } from 'lucide-react';
 import { storyMazes, storyMazeToMaze, StoryMaze, storyChapters } from '@/data/storyMazes';
+import { BoardGameMode } from '@/components/BoardGameMode';
 
 // Flow: home -> mode_select -> animal_select -> levels/story_levels -> playing
-type GameScreen = 'home' | 'mode_select' | 'animal_select' | 'levels' | 'story_levels' | 'playing';
+type GameScreen = 'home' | 'mode_select' | 'animal_select' | 'levels' | 'story_levels' | 'playing' | 'board_game';
 
 const Index = () => {
   const { save, loading, refresh, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
@@ -72,6 +73,9 @@ const Index = () => {
     setSelectedMode(mode);
     if (mode === 'story') {
       setScreen('story_levels');
+    } else if (mode === 'board_game') {
+      // Board game needs animal selection first
+      setScreen('animal_select');
     } else {
       setScreen('animal_select');
     }
@@ -84,8 +88,12 @@ const Index = () => {
   const handleAnimalConfirm = () => {
     if (!selectedAnimal || !selectedMode) return;
     
+    if (selectedMode === 'board_game') {
+      setScreen('board_game');
+      return;
+    }
+    
     if (selectedMode === 'story') {
-      // In story mode, a maze is already selected; start playing
       if (selectedMaze) {
         startAttempt(selectedMaze.id).then(() => setScreen('playing'));
       }
@@ -195,6 +203,30 @@ const Index = () => {
   }, [screen, selectedMode]);
 
   useBackButton(handleHardwareBack, screen === 'levels' || screen === 'story_levels' || screen === 'mode_select' || screen === 'animal_select');
+
+  // Count gold medals for board game rolls
+  const goldMedalCount = Object.values(save.levels).filter(l => l.medal === 'gold').length;
+
+  if (screen === 'board_game' && selectedAnimal) {
+    const animal = animals.find(a => a.id === selectedAnimal);
+    return (
+      <BoardGameMode
+        animalType={selectedAnimal}
+        animalEmoji={animal?.emoji || '🐷'}
+        goldMedals={goldMedalCount}
+        onBack={handleBackToHome}
+        onStarsEarned={async (stars) => {
+          const s = await import('@/services/SaveManager').then(m => m.SaveManager);
+          await s.addCurrency(stars);
+          refresh();
+        }}
+        onFeedSent={async () => {
+          await unlockMeal();
+          refresh();
+        }}
+      />
+    );
+  }
 
   if (screen === 'playing' && selectedAnimal && selectedMaze) {
     return (
