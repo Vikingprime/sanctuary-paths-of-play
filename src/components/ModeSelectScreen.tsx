@@ -1,6 +1,6 @@
 import { GameMode } from '@/types/quest';
 import { Button } from '@/components/ui/button';
-import { BookOpen, Timer, ArrowLeft } from 'lucide-react';
+import { BookOpen, Timer, Dice6, ArrowLeft } from 'lucide-react';
 
 interface ModeSelectScreenProps {
   onSelectMode: (mode: GameMode) => void;
@@ -40,7 +40,7 @@ export const ModeSelectScreen = ({
       </div>
 
       {/* Mode cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
         {/* Story Mode Card */}
         <button
           onClick={() => onSelectMode('story')}
@@ -109,6 +109,33 @@ export const ModeSelectScreen = ({
               </p>
               <p className="text-xs text-muted-foreground flex items-center gap-2">
                 ⭐ Collect stars to unlock new mazes
+              </p>
+            </div>
+          </div>
+        </button>
+        {/* Board Game Card */}
+        <button
+          onClick={() => onSelectMode('board_game')}
+          className="group relative bg-card rounded-2xl p-6 shadow-warm border-2 border-transparent hover:border-secondary transition-all duration-300 text-left hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <div className="space-y-4">
+            <div className="w-16 h-16 rounded-full bg-secondary/20 flex items-center justify-center">
+              <Dice6 className="w-8 h-8 text-secondary" />
+            </div>
+            <div>
+              <h2 className="font-display text-xl font-bold text-foreground mb-2">
+                Roll & Feed
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Roll the dice, collect feed, and earn stars for your sanctuary animals!
+              </p>
+            </div>
+            <div className="pt-2 border-t border-border space-y-1">
+              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                🎲 Earn rolls from gold medals
+              </p>
+              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                🥣 Fill feed bags to send meals
               </p>
             </div>
           </div>
