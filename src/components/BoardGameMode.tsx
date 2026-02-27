@@ -34,8 +34,9 @@ function GrassPlatform({ position, type, isPlayerHere }: {
 }) {
   const { scene } = useGLTF('/models/Grass_Platform.glb');
   const cloned = useMemo(() => {
-    const c = scene.clone();
-    scene.visible = false;
+    const c = scene.clone(true);
+    c.visible = true;
+    c.traverse((child) => { child.visible = true; });
     return c;
   }, [scene]);
   const groupRef = useRef<THREE.Group>(null);
@@ -69,8 +70,9 @@ function GrassPlatform({ position, type, isPlayerHere }: {
 function FarmCenter() {
   const { scene } = useGLTF('/models/Farm.glb');
   const cloned = useMemo(() => {
-    const c = scene.clone();
-    scene.visible = false;
+    const c = scene.clone(true);
+    c.visible = true;
+    c.traverse((child) => { child.visible = true; });
     return c;
   }, [scene]);
   return (
@@ -88,8 +90,9 @@ function TreeDecoration({ position, variant }: {
   const treeScale = variant === 'tree' ? 0.04 : 0.15;
   const { scene } = useGLTF(model);
   const cloned = useMemo(() => {
-    const c = scene.clone();
-    scene.visible = false;
+    const c = scene.clone(true);
+    c.visible = true;
+    c.traverse((child) => { child.visible = true; });
     return c;
   }, [scene]);
   return (
@@ -102,8 +105,9 @@ function TreeDecoration({ position, variant }: {
 function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
   const { scene } = useGLTF('/models/Dice.glb');
   const cloned = useMemo(() => {
-    const c = scene.clone();
-    scene.visible = false;
+    const c = scene.clone(true);
+    c.visible = true;
+    c.traverse((child) => { child.visible = true; });
     return c;
   }, [scene]);
   const groupRef = useRef<THREE.Group>(null);
