@@ -57,7 +57,7 @@ function GrassPlatform({ position, type, isPlayerHere }: {
 
   return (
     <group ref={groupRef} position={position}>
-      <primitive object={cloned} scale={0.035} />
+      <primitive object={cloned} scale={0.3} />
     </group>
   );
 }
@@ -77,11 +77,12 @@ function TreeDecoration({ position, variant }: {
   variant: 'tree' | 'tree1';
 }) {
   const model = variant === 'tree' ? '/models/Tree.glb' : '/models/Tree_1.glb';
+  const treeScale = variant === 'tree' ? 0.012 : 0.3;
   const { scene } = useGLTF(model);
   const cloned = useMemo(() => scene.clone(), [scene]);
   return (
     <group position={position}>
-      <primitive object={cloned} scale={0.04} />
+      <primitive object={cloned} scale={treeScale} />
     </group>
   );
 }
@@ -218,7 +219,7 @@ function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare, isR
 
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
-        <circleGeometry args={[14, 48]} />
+        <circleGeometry args={[22, 48]} />
         <meshStandardMaterial color="#4CAF50" />
       </mesh>
 
