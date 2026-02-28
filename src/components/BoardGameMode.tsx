@@ -428,10 +428,11 @@ function BehindCamera({ playerPosition, total, playerRef }: { playerPosition: nu
     const camHeight = 0.85;
     const sideOffset = 0.3;
     
+    // Place camera INWARD (between chicken and center), looking outward
     targetPos.current.set(
-      px + radX * camDist + tanX * sideOffset,
+      px - radX * camDist + tanX * sideOffset,
       camHeight,
-      pz + radZ * camDist + tanZ * sideOffset
+      pz - radZ * camDist + tanZ * sideOffset
     );
     targetLook.current.set(px, 0.25, pz);
     
@@ -454,9 +455,9 @@ function BehindCamera({ playerPosition, total, playerRef }: { playerPosition: nu
     const tanX = -radZ;
     const tanZ = radX;
     camera.position.set(
-      pos[0] + radX * 2.5 + tanX * 0.3,
+      pos[0] - radX * 2.5 + tanX * 0.3,
       0.85,
-      pos[2] + radZ * 2.5 + tanZ * 0.3
+      pos[2] - radZ * 2.5 + tanZ * 0.3
     );
     camera.lookAt(pos[0], 0.25, pos[2]);
   }, []);
