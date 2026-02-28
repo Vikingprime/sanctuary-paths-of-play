@@ -212,13 +212,14 @@ function getAnimalModel(animalType: AnimalType): { path: string; scale: number; 
   }
 }
 
-function PlayerToken({ position, hopSequence, onHopComplete, total, animalType, isWaitingToRoll }: {
+function PlayerToken({ position, hopSequence, onHopComplete, total, animalType, isWaitingToRoll, groupRef: externalRef }: {
   position: number;
   hopSequence: number[] | null;
   onHopComplete: () => void;
   total: number;
   animalType: AnimalType;
   isWaitingToRoll: boolean;
+  groupRef?: React.RefObject<THREE.Group>;
 }) {
   const { path, scale, yOffset } = getAnimalModel(animalType);
   const { scene } = useGLTF(path);
@@ -235,7 +236,8 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType, 
     return c;
   }, [scene]);
 
-  const meshRef = useRef<THREE.Group>(null);
+  const internalRef = useRef<THREE.Group>(null);
+  const meshRef = externalRef || internalRef;
   const hopRef = useRef<{
     queue: number[];
     fromPos: [number, number, number];
@@ -396,34 +398,68 @@ function SceneryTrees() {
   );
 }
 
-function BehindCamera({ playerPosition, total }: { playerPosition: number; total: number }) {
+function BehindCamera({ playerPosition, total, playerRef }: { playerPosition: number; total: number; playerRef: React.RefObject<THREE.Group> }) {
   const { camera } = useThree();
+  const targetPos = useRef(new THREE.Vector3());
+  const targetLook = useRef(new THREE.Vector3());
   
-  
-  // Set initial camera position behind animal
-  useEffect(() => {
-    const pos = getSquarePosition(playerPosition, total);
+  useFrame(() => {
+    // Use live player position if available, otherwise compute from index
+    let animalPos: [number, number, number];
+    if (playerRef.current) {
+      animalPos = [playerRef.current.position.x, playerRef.current.position.y, playerRef.current.position.z];
+    } else {
+      animalPos = getSquarePosition(playerPosition, total);
+    }
     
-    // Outward direction from center (radial)
-    const radX = pos[0] / BOARD_RADIUS;
-    const radZ = pos[2] / BOARD_RADIUS;
+    const px = animalPos[0];
+    const pz = animalPos[2];
     
-    // Camera behind animal: outward from center, slightly above, offset to the side
-    const camDist = 4.5;
-    const camHeight = 0.55;
-    const sideOffset = 0.8; // slight side offset for over-the-shoulder feel
+    // Radial direction outward from center
+    const len = Math.sqrt(px * px + pz * pz) || 1;
+    const radX = px / len;
+    const radZ = pz / len;
     
-    // Get tangent direction (perpendicular to radius, clockwise)
+    // Tangent (clockwise)
     const tanX = -radZ;
     const tanZ = radX;
     
-    camera.position.set(
-      pos[0] + radX * camDist + tanX * sideOffset,
+    const camDist = 4.5;
+    const camHeight = 0.55;
+    const sideOffset = 0.8;
+    
+    targetPos.current.set(
+      px + radX * camDist + tanX * sideOffset,
       camHeight,
-      pos[2] + radZ * camDist + tanZ * sideOffset
+      pz + radZ * camDist + tanZ * sideOffset
+    );
+    targetLook.current.set(px, 0.3, pz);
+    
+    // Smooth lerp
+    camera.position.lerp(targetPos.current, 0.06);
+    
+    // Smooth look-at via a temporary target
+    const lookTarget = new THREE.Vector3();
+    lookTarget.copy(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(10).add(camera.position));
+    lookTarget.lerp(targetLook.current, 0.08);
+    camera.lookAt(targetLook.current.x, targetLook.current.y, targetLook.current.z);
+  });
+  
+  // Set initial position immediately
+  useEffect(() => {
+    const pos = getSquarePosition(playerPosition, total);
+    const len = Math.sqrt(pos[0] * pos[0] + pos[2] * pos[2]) || 1;
+    const radX = pos[0] / len;
+    const radZ = pos[2] / len;
+    const tanX = -radZ;
+    const tanZ = radX;
+    camera.position.set(
+      pos[0] + radX * 4.5 + tanX * 0.8,
+      0.55,
+      pos[2] + radZ * 4.5 + tanZ * 0.8
     );
     camera.lookAt(pos[0], 0.3, pos[2]);
-  }, [playerPosition, total, camera]);
+  }, []);
   
   return null;
 }
@@ -436,6 +472,8 @@ function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalT
   animalType: AnimalType;
   isWaitingToRoll: boolean;
 }) {
+  const playerRef = useRef<THREE.Group>(null!);
+
   return (
     <>
       <ambientLight intensity={0.9} color="#FFE4CC" />
@@ -484,6 +522,7 @@ function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalT
 
       {/* Player */}
       <PlayerToken
+        groupRef={playerRef}
         position={playerPosition}
         hopSequence={hopSequence}
         onHopComplete={onHopComplete}
@@ -495,8 +534,8 @@ function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalT
       {/* Scenery trees */}
       <SceneryTrees />
 
-      {/* Camera - orbits around chicken, logs position */}
-      <BehindCamera playerPosition={playerPosition} total={board.length} />
+      {/* Camera follows player */}
+      <BehindCamera playerPosition={playerPosition} total={board.length} playerRef={playerRef} />
     </>
   );
 }
