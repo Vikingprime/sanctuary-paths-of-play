@@ -202,24 +202,85 @@ function DiceOverlay({ visible, value, isRolling }: { visible: boolean; value: n
   );
 }
 
-function PlayerToken({ position, total, animalEmoji }: {
+function PlayerToken({ position, hopSequence, onHopComplete, total, animalEmoji }: {
   position: number;
+  hopSequence: number[] | null;
+  onHopComplete: () => void;
   total: number;
   animalEmoji: string;
 }) {
   const meshRef = useRef<THREE.Group>(null);
-  const targetPos = getSquarePosition(position, total);
+  const hopRef = useRef<{
+    queue: number[];
+    fromPos: [number, number, number];
+    toPos: [number, number, number];
+    progress: number;
+    hopping: boolean;
+    startIdx: number;
+    seqLen: number;
+  }>({ queue: [], fromPos: [0, 0, 0], toPos: [0, 0, 0], progress: 0, hopping: false, startIdx: 0, seqLen: 0 });
 
-  useFrame(() => {
-    if (meshRef.current) {
-      meshRef.current.position.x += (targetPos[0] - meshRef.current.position.x) * 0.08;
-      meshRef.current.position.z += (targetPos[2] - meshRef.current.position.z) * 0.08;
-      meshRef.current.position.y = 0.8 + Math.sin(Date.now() * 0.003) * 0.1;
+  useEffect(() => {
+    if (hopSequence && hopSequence.length > 0) {
+      hopRef.current.queue = [...hopSequence];
+      hopRef.current.startIdx = position;
+      hopRef.current.seqLen = hopSequence.length;
+      hopRef.current.hopping = false;
+    }
+  }, [hopSequence]);
+
+  useFrame((_, delta) => {
+    if (!meshRef.current) return;
+    const g = meshRef.current;
+    const h = hopRef.current;
+
+    if (!h.hopping && h.queue.length > 0) {
+      const hopsCompleted = h.seqLen - h.queue.length;
+      const prevIdx = hopsCompleted === 0 ? h.startIdx : (hopSequence ?? [])[hopsCompleted - 1];
+      const nextIdx = h.queue[0];
+      h.fromPos = getSquarePosition(prevIdx, total);
+      h.toPos = getSquarePosition(nextIdx, total);
+      h.progress = 0;
+      h.hopping = true;
+    }
+
+    if (h.hopping) {
+      h.progress += delta * 3.0;
+      const t = Math.min(h.progress, 1);
+      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+      const x = h.fromPos[0] + (h.toPos[0] - h.fromPos[0]) * eased;
+      const z = h.fromPos[2] + (h.toPos[2] - h.fromPos[2]) * eased;
+      const arcHeight = 1.2;
+      const y = 0.8 + arcHeight * 4 * t * (1 - t);
+
+      g.position.set(x, y, z);
+
+      // Squash & stretch
+      const stretchY = 1 + 0.2 * Math.sin(t * Math.PI);
+      g.scale.set(1 / Math.sqrt(stretchY), stretchY, 1 / Math.sqrt(stretchY));
+
+      if (t >= 1) {
+        h.hopping = false;
+        h.queue.shift();
+        g.scale.set(1, 1, 1);
+        g.position.set(h.toPos[0], 0.8, h.toPos[2]);
+        if (h.queue.length === 0) {
+          onHopComplete();
+        }
+      }
+    } else if (h.queue.length === 0) {
+      const tp = getSquarePosition(position, total);
+      g.position.x += (tp[0] - g.position.x) * 0.08;
+      g.position.z += (tp[2] - g.position.z) * 0.08;
+      g.position.y = 0.8 + Math.sin(Date.now() * 0.003) * 0.1;
     }
   });
 
+  const startPos = getSquarePosition(position, total);
+
   return (
-    <group ref={meshRef} position={[targetPos[0], 0.8, targetPos[2]]}>
+    <group ref={meshRef} position={[startPos[0], 0.8, startPos[2]]}>
       <mesh>
         <sphereGeometry args={[0.3, 16, 16]} />
         <meshStandardMaterial color="#FF9800" />
@@ -282,9 +343,11 @@ function SceneryTrees() {
   );
 }
 
-function BoardScene({ board, playerPosition, animalEmoji }: {
+function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalEmoji }: {
   board: BoardSquare[];
   playerPosition: number;
+  hopSequence: number[] | null;
+  onHopComplete: () => void;
   animalEmoji: string;
 }) {
   return (
@@ -334,7 +397,13 @@ function BoardScene({ board, playerPosition, animalEmoji }: {
       ))}
 
       {/* Player */}
-      <PlayerToken position={playerPosition} total={board.length} animalEmoji={animalEmoji} />
+      <PlayerToken
+        position={playerPosition}
+        hopSequence={hopSequence}
+        onHopComplete={onHopComplete}
+        total={board.length}
+        animalEmoji={animalEmoji}
+      />
 
       {/* Scenery trees */}
       <SceneryTrees />
@@ -385,59 +454,15 @@ export const BoardGameMode = ({
   const [highlightedSquare, setHighlightedSquare] = useState<number | null>(null);
   const [diceDisplay, setDiceDisplay] = useState(1);
   const [diceVisible, setDiceVisible] = useState(false);
+  const [hopSequence, setHopSequence] = useState<number[] | null>(null);
+  const pendingRewardPos = useRef<number | null>(null);
   const rollingInterval = useRef<NodeJS.Timeout | null>(null);
   const hideTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const handleRoll = useCallback(() => {
-    if (state.rollsRemaining <= 0 || state.isRolling || state.isMoving) return;
-
-    // Clear any pending hide timeout from previous roll
-    if (hideTimeout.current) clearTimeout(hideTimeout.current);
-
-    setState(s => ({ ...s, isRolling: true, rewardMessage: null }));
-    setDiceVisible(true);
-
-    let ticks = 0;
-    rollingInterval.current = setInterval(() => {
-      setDiceDisplay(Math.floor(Math.random() * 6) + 1);
-      ticks++;
-      if (ticks >= 15) {
-        if (rollingInterval.current) clearInterval(rollingInterval.current);
-
-        const finalRoll = Math.floor(Math.random() * 6) + 1;
-        setDiceDisplay(finalRoll);
-
-        const newPosition = (state.playerPosition + finalRoll) % board.length;
-        setHighlightedSquare(newPosition);
-
-        setState(s => ({
-          ...s,
-          lastRoll: finalRoll,
-          isRolling: false,
-          isMoving: true,
-          rollsRemaining: s.rollsRemaining - 1,
-        }));
-
-        setTimeout(() => {
-          applyReward(newPosition);
-          setState(s => ({
-            ...s,
-            playerPosition: newPosition,
-            isMoving: false,
-          }));
-          setHighlightedSquare(null);
-          hideTimeout.current = setTimeout(() => setDiceVisible(false), 3000);
-        }, 1200);
-      }
-    }, 80);
-  }, [state.rollsRemaining, state.isRolling, state.isMoving, state.playerPosition, board]);
-
-  const applyReward = useCallback((position: number) => {
-    const square = board[position];
-
+  const applyReward = useCallback((pos: number) => {
+    const square = board[pos];
     setState(s => {
       const next = { ...s };
-
       switch (square.type) {
         case 'feed': {
           const newProgress = s.feedBag.progress + square.value;
@@ -472,10 +497,65 @@ export const BoardGameMode = ({
           break;
         }
       }
-
       return next;
     });
   }, [board, onStarsEarned, onFeedSent]);
+
+  const handleHopComplete = useCallback(() => {
+    const pos = pendingRewardPos.current;
+    if (pos !== null) {
+      applyReward(pos);
+      setState(s => ({ ...s, playerPosition: pos, isMoving: false }));
+      setHighlightedSquare(null);
+      pendingRewardPos.current = null;
+    }
+    setHopSequence(null);
+    hideTimeout.current = setTimeout(() => setDiceVisible(false), 2000);
+  }, [applyReward]);
+
+  const handleRoll = useCallback(() => {
+    if (state.rollsRemaining <= 0 || state.isRolling || state.isMoving) return;
+
+    if (hideTimeout.current) clearTimeout(hideTimeout.current);
+
+    setState(s => ({ ...s, isRolling: true, rewardMessage: null }));
+    setDiceVisible(true);
+
+    let ticks = 0;
+    rollingInterval.current = setInterval(() => {
+      setDiceDisplay(Math.floor(Math.random() * 6) + 1);
+      ticks++;
+      if (ticks >= 15) {
+        if (rollingInterval.current) clearInterval(rollingInterval.current);
+
+        const finalRoll = Math.floor(Math.random() * 6) + 1;
+        setDiceDisplay(finalRoll);
+
+        // Build hop sequence: each intermediate square
+        const steps: number[] = [];
+        for (let i = 1; i <= finalRoll; i++) {
+          steps.push((state.playerPosition + i) % board.length);
+        }
+        const newPosition = steps[steps.length - 1];
+        setHighlightedSquare(newPosition);
+        pendingRewardPos.current = newPosition;
+
+        setState(s => ({
+          ...s,
+          lastRoll: finalRoll,
+          isRolling: false,
+          isMoving: true,
+          rollsRemaining: s.rollsRemaining - 1,
+        }));
+
+        // Start hopping after a brief pause
+        setTimeout(() => {
+          setHopSequence(steps);
+        }, 300);
+      }
+    }, 80);
+  }, [state.rollsRemaining, state.isRolling, state.isMoving, state.playerPosition, board]);
+
 
   useEffect(() => {
     return () => {
@@ -505,6 +585,8 @@ export const BoardGameMode = ({
           <BoardScene
             board={board}
             playerPosition={state.playerPosition}
+            hopSequence={hopSequence}
+            onHopComplete={handleHopComplete}
             animalEmoji={animalEmoji}
           />
         </Canvas>
