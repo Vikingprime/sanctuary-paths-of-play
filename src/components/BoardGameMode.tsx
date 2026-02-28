@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, useGLTF } from '@react-three/drei';
+import { Text, useGLTF } from '@react-three/drei';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ArrowLeft } from 'lucide-react';
@@ -212,12 +212,13 @@ function getAnimalModel(animalType: AnimalType): { path: string; scale: number; 
   }
 }
 
-function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }: {
+function PlayerToken({ position, hopSequence, onHopComplete, total, animalType, isWaitingToRoll }: {
   position: number;
   hopSequence: number[] | null;
   onHopComplete: () => void;
   total: number;
   animalType: AnimalType;
+  isWaitingToRoll: boolean;
 }) {
   const { path, scale, yOffset } = getAnimalModel(animalType);
   const { scene } = useGLTF(path);
@@ -253,6 +254,20 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }
       hopRef.current.hopping = false;
     }
   }, [hopSequence]);
+
+  // Compute facing angles
+  const getPathAngle = (idx: number) => {
+    const cur = getSquarePosition(idx, total);
+    const next = getSquarePosition((idx + 1) % total, total);
+    return Math.atan2(next[0] - cur[0], next[2] - cur[2]);
+  };
+
+  const getCameraFaceAngle = (idx: number) => {
+    // Face toward the camera (outward from center + offset)
+    const pos = getSquarePosition(idx, total);
+    // Camera is roughly outside the circle, so face outward from center
+    return Math.atan2(pos[0], pos[2]) + Math.PI * 0.15; // slight offset for natural look
+  };
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
@@ -297,7 +312,7 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }
         h.hopping = false;
         h.queue.shift();
         g.scale.set(scale, scale, scale);
-        g.position.set(h.toPos[0], 0.3 + yOffset, h.toPos[2]);
+        g.position.set(h.toPos[0], 0.35 + yOffset, h.toPos[2]);
         if (h.queue.length === 0) {
           onHopComplete();
         }
@@ -308,16 +323,23 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }
       g.position.z += (tp[2] - g.position.z) * 0.08;
       g.position.y = 0.35 + yOffset;
       g.scale.set(scale, scale, scale);
+
+      // Smoothly rotate: face camera when waiting, face path when not
+      const targetAngle = isWaitingToRoll ? getCameraFaceAngle(position) : getPathAngle(position);
+      // Smooth rotation lerp
+      let diff = targetAngle - g.rotation.y;
+      // Wrap to [-PI, PI]
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      g.rotation.y += diff * 0.08;
     }
   });
 
   const startPos = getSquarePosition(position, total);
-  // Initial facing: toward next tile on the path
-  const nextPos = getSquarePosition((position + 1) % total, total);
-  const initAngle = Math.atan2(nextPos[0] - startPos[0], nextPos[2] - startPos[2]);
+  const initAngle = getCameraFaceAngle(position); // Start facing camera
 
   return (
-    <group ref={meshRef} position={[startPos[0], 0.3 + yOffset, startPos[2]]} scale={[scale, scale, scale]} rotation={[0, initAngle, 0]}>
+    <group ref={meshRef} position={[startPos[0], 0.35 + yOffset, startPos[2]]} scale={[scale, scale, scale]} rotation={[0, initAngle, 0]}>
       <primitive object={cloned} />
     </group>
   );
@@ -376,60 +398,43 @@ function SceneryTrees() {
 
 function BehindCamera({ playerPosition, total }: { playerPosition: number; total: number }) {
   const { camera } = useThree();
-  const controlsRef = useRef<any>(null);
+  
   
   // Set initial camera position behind animal
   useEffect(() => {
     const pos = getSquarePosition(playerPosition, total);
-    const nextPos = getSquarePosition((playerPosition + 1) % total, total);
-    const dx = nextPos[0] - pos[0];
-    const dz = nextPos[2] - pos[2];
-    const len = Math.sqrt(dx * dx + dz * dz);
-    const dirX = dx / len;
-    const dirZ = dz / len;
     
-    const camDist = 3;
-    const camHeight = 1.5;
+    // Outward direction from center (radial)
+    const radX = pos[0] / BOARD_RADIUS;
+    const radZ = pos[2] / BOARD_RADIUS;
+    
+    // Camera behind animal: outward from center, slightly above, offset to the side
+    const camDist = 4.5;
+    const camHeight = 0.55;
+    const sideOffset = 0.8; // slight side offset for over-the-shoulder feel
+    
+    // Get tangent direction (perpendicular to radius, clockwise)
+    const tanX = -radZ;
+    const tanZ = radX;
+    
     camera.position.set(
-      pos[0] - dirX * camDist,
+      pos[0] + radX * camDist + tanX * sideOffset,
       camHeight,
-      pos[2] - dirZ * camDist
+      pos[2] + radZ * camDist + tanZ * sideOffset
     );
-    camera.lookAt(pos[0], 0.4, pos[2]);
-    
-    // Set OrbitControls target to animal position
-    if (controlsRef.current) {
-      controlsRef.current.target.set(pos[0], 0.4, pos[2]);
-      controlsRef.current.update();
-    }
+    camera.lookAt(pos[0], 0.3, pos[2]);
   }, [playerPosition, total, camera]);
-
-  // Log camera position every 2 seconds
-  useFrame(() => {
-    if (Math.floor(Date.now() / 2000) !== (BehindCamera as any)._lastLog) {
-      (BehindCamera as any)._lastLog = Math.floor(Date.now() / 2000);
-      console.log(`📷 Camera pos: [${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)}], rotation: [${camera.rotation.x.toFixed(2)}, ${camera.rotation.y.toFixed(2)}, ${camera.rotation.z.toFixed(2)}]`);
-    }
-  });
   
-  return (
-    <OrbitControls
-      ref={controlsRef}
-      enablePan={true}
-      enableZoom={true}
-      enableRotate={true}
-      minPolarAngle={0}
-      maxPolarAngle={Math.PI}
-    />
-  );
+  return null;
 }
 
-function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalType }: {
+function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalType, isWaitingToRoll }: {
   board: BoardSquare[];
   playerPosition: number;
   hopSequence: number[] | null;
   onHopComplete: () => void;
   animalType: AnimalType;
+  isWaitingToRoll: boolean;
 }) {
   return (
     <>
@@ -484,6 +489,7 @@ function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalT
         onHopComplete={onHopComplete}
         total={board.length}
         animalType={animalType}
+        isWaitingToRoll={isWaitingToRoll}
       />
 
       {/* Scenery trees */}
@@ -663,6 +669,7 @@ export const BoardGameMode = ({
             hopSequence={hopSequence}
             onHopComplete={handleHopComplete}
             animalType={animalType}
+            isWaitingToRoll={!state.isRolling && !state.isMoving && state.rollsRemaining > 0}
           />
         </Canvas>
       </div>
