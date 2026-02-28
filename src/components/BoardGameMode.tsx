@@ -87,7 +87,7 @@ function TreeDecoration({ position, variant }: {
   variant: 'tree' | 'tree1';
 }) {
   const model = variant === 'tree' ? '/models/Tree.glb' : '/models/Tree_1.glb';
-  const treeScale = variant === 'tree' ? 0.004 : 0.15;
+  const treeScale = variant === 'tree' ? 0.004 : 0.45;
   const { scene } = useGLTF(model);
   const cloned = useMemo(() => {
     const c = scene.clone(true);
@@ -102,26 +102,48 @@ function TreeDecoration({ position, variant }: {
   );
 }
 
+// Dice face rotations: maps die value (1-6) to the euler rotation that faces that number toward the camera (+Z)
+const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
+  1: [0, 0, 0],
+  2: [-Math.PI / 2, 0, 0],
+  3: [0, Math.PI / 2, 0],
+  4: [0, -Math.PI / 2, 0],
+  5: [Math.PI / 2, 0, 0],
+  6: [Math.PI, 0, 0],
+};
+
 function DiceRollAnimation({ visible, rolling, value }: { visible: boolean; rolling: boolean; value: number }) {
+  const { scene } = useGLTF('/models/Dice.glb');
+  const cloned = useMemo(() => {
+    const c = scene.clone(true);
+    c.visible = true;
+    c.traverse((child) => { child.visible = true; });
+    return c;
+  }, [scene]);
+
   const groupRef = useRef<THREE.Group>(null);
   const scaleRef = useRef(0);
   const spinSpeed = useRef({ x: 0, y: 0, z: 0 });
-  const showResult = !rolling && visible;
+  const targetRotation = useRef(new THREE.Euler(0, 0, 0));
+
+  useEffect(() => {
+    if (!rolling && visible && value) {
+      const rot = DICE_FACE_ROTATIONS[value] || [0, 0, 0];
+      targetRotation.current.set(rot[0], rot[1], rot[2]);
+    }
+  }, [rolling, visible, value]);
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
 
-    // Scale animation: pop in when visible, shrink when hidden
-    const targetScale = visible ? 1 : 0;
+    const targetScale = visible ? 1.8 : 0;
     scaleRef.current += (targetScale - scaleRef.current) * 0.12;
     groupRef.current.scale.setScalar(scaleRef.current);
 
-    // Bounce height
-    const targetY = visible ? 3.5 : 1;
+    const targetY = visible ? 4 : 1;
     groupRef.current.position.y += (targetY - groupRef.current.position.y) * 0.1;
 
     if (rolling) {
-      // Accelerate spin
       spinSpeed.current.x = Math.min(spinSpeed.current.x + delta * 12, 14);
       spinSpeed.current.y = Math.min(spinSpeed.current.y + delta * 10, 11);
       spinSpeed.current.z = Math.min(spinSpeed.current.z + delta * 8, 9);
@@ -129,27 +151,34 @@ function DiceRollAnimation({ visible, rolling, value }: { visible: boolean; roll
       groupRef.current.rotation.y += delta * spinSpeed.current.y;
       groupRef.current.rotation.z += delta * spinSpeed.current.z;
     } else {
-      // Decelerate spin
-      spinSpeed.current.x *= 0.92;
-      spinSpeed.current.y *= 0.92;
-      spinSpeed.current.z *= 0.92;
-      groupRef.current.rotation.x += delta * spinSpeed.current.x;
-      groupRef.current.rotation.y += delta * spinSpeed.current.y;
-      groupRef.current.rotation.z += delta * spinSpeed.current.z;
+      spinSpeed.current.x *= 0.85;
+      spinSpeed.current.y *= 0.85;
+      spinSpeed.current.z *= 0.85;
+
+      const settling = spinSpeed.current.x + spinSpeed.current.y + spinSpeed.current.z;
+      if (settling < 0.5) {
+        groupRef.current.rotation.x += (targetRotation.current.x - groupRef.current.rotation.x) * 0.08;
+        groupRef.current.rotation.y += (targetRotation.current.y - groupRef.current.rotation.y) * 0.08;
+        groupRef.current.rotation.z += (targetRotation.current.z - groupRef.current.rotation.z) * 0.08;
+      } else {
+        groupRef.current.rotation.x += delta * spinSpeed.current.x;
+        groupRef.current.rotation.y += delta * spinSpeed.current.y;
+        groupRef.current.rotation.z += delta * spinSpeed.current.z;
+      }
     }
   });
 
   return (
     <group ref={groupRef} position={[0, 1, 0]}>
-      {/* Result number billboard */}
-      {showResult && value && (
+      <primitive object={cloned} />
+      {!rolling && visible && value && (
         <Text
-          position={[0, 1.2, 0]}
-          fontSize={1.2}
+          position={[0, 1.8, 0]}
+          fontSize={1.0}
           color="#FFD700"
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.08}
+          outlineWidth={0.06}
           outlineColor="#000000"
           font={undefined}
         >
@@ -211,11 +240,11 @@ function BoardPath({ total }: { total: number }) {
 
 function getSquareColor(type: BoardSquare['type']): string {
   switch (type) {
-    case 'feed': return '#8BC34A';
-    case 'stars': return '#FFD700';
-    case 'extra_roll': return '#E91E63';
-    case 'unlock_animal': return '#9C27B0';
-    case 'empty': return '#A5D6A7';
+    case 'feed': return '#7CB342';
+    case 'stars': return '#FBC02D';
+    case 'extra_roll': return '#E64A19';
+    case 'unlock_animal': return '#7B1FA2';
+    case 'empty': return '#558B2F';
   }
 }
 
@@ -527,3 +556,4 @@ useGLTF.preload('/models/Grass_Platform.glb');
 useGLTF.preload('/models/Tree.glb');
 useGLTF.preload('/models/Tree_1.glb');
 useGLTF.preload('/models/Farm.glb');
+useGLTF.preload('/models/Dice.glb');
