@@ -131,7 +131,7 @@ function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
       className="fixed inset-0 flex items-center justify-center pointer-events-none"
       style={{ zIndex: 9999 }}
     >
-      <div className="w-48 h-48">
+      <div className="w-80 h-80">
         <Canvas
           camera={{ position: [0, 0, 3], fov: 30 }}
           style={{ background: 'transparent' }}
