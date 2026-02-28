@@ -476,7 +476,7 @@ function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalT
 
       {/* Camera - OrbitControls enabled so you can position it, logs position */}
       <BehindCamera playerPosition={playerPosition} total={board.length} />
-      <OrbitControls enablePan={true} enableZoom={true} />
+      <OrbitControls enablePan={true} enableZoom={true} minPolarAngle={0} maxPolarAngle={Math.PI} enableRotate={true} />
     </>
   );
 }
