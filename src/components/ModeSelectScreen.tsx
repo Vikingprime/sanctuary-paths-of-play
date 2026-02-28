@@ -1,6 +1,9 @@
 import { GameMode } from '@/types/quest';
 import { Button } from '@/components/ui/button';
-import { BookOpen, Timer, Dice6, ArrowLeft } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { BookOpen, Timer, Dice6, Volume2, VolumeX } from 'lucide-react';
+import { ProgressTracker } from '@/components/ProgressTracker';
 
 interface ModeSelectScreenProps {
   onSelectMode: (mode: GameMode) => void;
@@ -10,31 +13,47 @@ interface ModeSelectScreenProps {
     completedQuests: number;
     totalQuests: number;
   };
+  // Settings props
+  isSoundOn?: boolean;
+  onSoundToggle?: (on: boolean) => void;
+  debugMode?: boolean;
+  onDebugToggle?: (on: boolean) => void;
+  // Progress props
+  mealsUnlocked?: number;
+  mealProgress?: number;
 }
 
 export const ModeSelectScreen = ({
   onSelectMode,
   onBack,
   storyProgress,
+  isSoundOn = false,
+  onSoundToggle,
+  debugMode = false,
+  onDebugToggle,
+  mealsUnlocked = 0,
+  mealProgress = 0,
 }: ModeSelectScreenProps) => {
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Back button */}
-      <Button
-        variant="ghost"
-        onClick={onBack}
-        className="flex items-center gap-2"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back
-      </Button>
+      {/* Hero */}
+      <div className="text-center space-y-2 md:space-y-4">
+        <div className="text-4xl md:text-6xl mb-2 md:mb-4">🐷🐮🐔</div>
+        <h1 className="font-display text-3xl md:text-5xl font-bold text-gradient">
+          Foggy Farm
+        </h1>
+        <p className="text-sm md:text-lg text-muted-foreground max-w-md mx-auto">
+          Navigate 3D corn mazes with adorable farm animals and help unlock
+          real meals for sanctuary residents!
+        </p>
+      </div>
 
       {/* Title */}
-      <div className="text-center space-y-2">
-        <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
+      <div className="text-center space-y-1">
+        <h2 className="font-display text-xl md:text-2xl font-bold text-foreground">
           Choose Your Adventure
-        </h1>
-        <p className="text-muted-foreground">
+        </h2>
+        <p className="text-muted-foreground text-sm">
           How would you like to play today?
         </p>
       </div>
@@ -144,8 +163,49 @@ export const ModeSelectScreen = ({
 
       {/* Info text */}
       <p className="text-center text-sm text-muted-foreground max-w-md mx-auto">
-        Both modes contribute to unlocking meals for sanctuary animals! 🐷🐮🐔
+        All modes contribute to unlocking meals for sanctuary animals! 🐷🐮🐔
       </p>
+
+      {/* Settings */}
+      <div className="flex flex-col items-center gap-3">
+        {/* Sound Toggle */}
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          {isSoundOn ? (
+            <Volume2 className="h-4 w-4" />
+          ) : (
+            <VolumeX className="h-4 w-4" />
+          )}
+          <Switch
+            id="sound-toggle"
+            checked={isSoundOn}
+            onCheckedChange={(checked) => onSoundToggle?.(checked)}
+          />
+          <Label htmlFor="sound-toggle" className="cursor-pointer">
+            Sound
+          </Label>
+        </div>
+
+        {/* Debug Mode Toggle */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Switch
+            id="debug-mode"
+            checked={debugMode}
+            onCheckedChange={(checked) => onDebugToggle?.(checked)}
+          />
+          <Label htmlFor="debug-mode" className="cursor-pointer">
+            Debug Mode (skip preview, infinite time)
+          </Label>
+        </div>
+      </div>
+
+      {/* Progress Tracker */}
+      <div className="max-w-sm mx-auto">
+        <ProgressTracker
+          mealsUnlocked={mealsUnlocked}
+          currentProgress={mealProgress}
+          targetMeals={5}
+        />
+      </div>
     </div>
   );
 };

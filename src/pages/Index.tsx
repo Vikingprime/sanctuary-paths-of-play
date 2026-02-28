@@ -39,7 +39,7 @@ const Index = () => {
     pendingAppleDialogue,
     completePendingDialogue,
   } = useAppleSystem();
-  const [screen, setScreen] = useState<GameScreen>('home');
+  const [screen, setScreen] = useState<GameScreen>('mode_select');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
@@ -393,6 +393,15 @@ const Index = () => {
               completedQuests: storyProgress.completedQuests.length,
               totalQuests: storyChapters.reduce((sum, c) => sum + c.quests.length, 0),
             }}
+            isSoundOn={save.settings.musicVolume > 0}
+            onSoundToggle={(on) => updateSettings({ 
+              musicVolume: on ? 0.7 : 0,
+              sfxVolume: on ? 1.0 : 0 
+            })}
+            debugMode={save.settings.debugMode}
+            onDebugToggle={(on) => updateSettings({ debugMode: on })}
+            mealsUnlocked={save.player.totalMealsUnlocked}
+            mealProgress={mealProgress}
           />
         )}
 

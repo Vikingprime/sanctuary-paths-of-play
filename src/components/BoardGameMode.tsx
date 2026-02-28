@@ -173,8 +173,8 @@ function DiceOverlay({ visible, rolling, value }: { visible: boolean; rolling: b
   if (!visible) return null;
 
   return (
-    <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
-      <div className="w-40 h-40">
+    <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
+      <div className="w-48 h-48">
         <Canvas camera={{ position: [0, 0, 4], fov: 40 }}>
           <ambientLight intensity={0.8} />
           <directionalLight position={[2, 3, 4]} intensity={1} />
