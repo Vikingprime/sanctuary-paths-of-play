@@ -112,83 +112,33 @@ const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
   6: [Math.PI, 0, 0],
 };
 
-function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
+function DiceModel({ value }: { value: number }) {
   const { scene } = useGLTF('/models/Dice.glb');
   const cloned = useMemo(() => {
     const c = scene.clone(true);
     c.visible = true;
-    c.position.set(0, 0, 0);
-    c.traverse((child) => { 
-      child.visible = true;
-      if ((child as THREE.Mesh).isMesh) {
-        child.position.set(0, 0, 0);
-      }
-    });
+    c.traverse((child) => { child.visible = true; });
     return c;
   }, [scene]);
 
-  const groupRef = useRef<THREE.Group>(null);
-  const spinSpeed = useRef({ x: 0, y: 0, z: 0 });
-  const targetRotation = useRef(new THREE.Euler(0, 0, 0));
-
-  useEffect(() => {
-    if (!rolling && value) {
-      const rot = DICE_FACE_ROTATIONS[value] || [0, 0, 0];
-      targetRotation.current.set(rot[0], rot[1], rot[2]);
-    }
-  }, [rolling, value]);
-
-  useFrame((_, delta) => {
-    if (!groupRef.current) return;
-
-    // Lock position — never move, only rotate
-    groupRef.current.position.set(0, 0, 0);
-
-    if (rolling) {
-      spinSpeed.current.x = Math.min(spinSpeed.current.x + delta * 12, 14);
-      spinSpeed.current.y = Math.min(spinSpeed.current.y + delta * 10, 11);
-      spinSpeed.current.z = Math.min(spinSpeed.current.z + delta * 8, 9);
-      groupRef.current.rotation.x += delta * spinSpeed.current.x;
-      groupRef.current.rotation.y += delta * spinSpeed.current.y;
-      groupRef.current.rotation.z += delta * spinSpeed.current.z;
-    } else {
-      spinSpeed.current.x *= 0.82;
-      spinSpeed.current.y *= 0.82;
-      spinSpeed.current.z *= 0.82;
-
-      const settling = spinSpeed.current.x + spinSpeed.current.y + spinSpeed.current.z;
-      if (settling < 0.3) {
-        groupRef.current.rotation.x += (targetRotation.current.x - groupRef.current.rotation.x) * 0.12;
-        groupRef.current.rotation.y += (targetRotation.current.y - groupRef.current.rotation.y) * 0.12;
-        groupRef.current.rotation.z += (targetRotation.current.z - groupRef.current.rotation.z) * 0.12;
-      } else {
-        groupRef.current.rotation.x += delta * spinSpeed.current.x;
-        groupRef.current.rotation.y += delta * spinSpeed.current.y;
-        groupRef.current.rotation.z += delta * spinSpeed.current.z;
-      }
-    }
-  });
+  const rot = DICE_FACE_ROTATIONS[value] || [0, 0, 0];
 
   return (
-    <group ref={groupRef} position={[0, 0, 0]}>
-      <primitive object={cloned} scale={0.7} position={[0, 0, 0]} />
+    <group rotation={new THREE.Euler(rot[0], rot[1], rot[2])} position={[0, 0, 0]}>
+      <primitive object={cloned} scale={0.7} />
     </group>
   );
 }
 
-// Overlay dice rendered in its own Canvas so it stays in front of the camera
-function DiceOverlay({ visible, rolling, value }: { visible: boolean; rolling: boolean; value: number }) {
+function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
   if (!visible) return null;
 
   return (
-    <div
-      className="fixed inset-0 pointer-events-none"
-      style={{ zIndex: 9999 }}
-    >
+    <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 9999 }}>
       <Canvas camera={{ position: [0, 0, 5], fov: 45 }} style={{ background: 'transparent' }}>
         <ambientLight intensity={0.8} />
         <directionalLight position={[2, 3, 4]} intensity={1} />
-        <DiceModel rolling={rolling} value={value} />
+        <DiceModel value={value} />
       </Canvas>
     </div>
   );
@@ -495,7 +445,7 @@ export const BoardGameMode = ({
       </div>
 
       {/* Dice overlay - renders in front of camera */}
-      <DiceOverlay visible={diceVisible} rolling={state.isRolling} value={state.lastRoll ?? diceDisplay} />
+      <DiceOverlay visible={diceVisible} value={state.lastRoll ?? diceDisplay} />
 
       {/* Bottom HUD */}
       <div className="absolute bottom-0 left-0 right-0 z-10 p-4 space-y-3">
