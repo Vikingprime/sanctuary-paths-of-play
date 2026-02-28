@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Text, useGLTF } from '@react-three/drei';
+import { OrbitControls, Text, useGLTF } from '@react-three/drei';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ArrowLeft } from 'lucide-react';
@@ -276,8 +276,8 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }
 
       const x = h.fromPos[0] + (h.toPos[0] - h.fromPos[0]) * eased;
       const z = h.fromPos[2] + (h.toPos[2] - h.fromPos[2]) * eased;
-      const arcHeight = 1.2;
-      const y = 0.3 + yOffset + arcHeight * 4 * t * (1 - t);
+      const arcHeight = 0.3;
+      const y = 0.35 + yOffset + arcHeight * 4 * t * (1 - t);
 
       g.position.set(x, y, z);
 
@@ -377,18 +377,16 @@ function SceneryTrees() {
 function BehindCamera({ playerPosition, total }: { playerPosition: number; total: number }) {
   const { camera } = useThree();
   
+  // Set initial camera position behind animal
   useEffect(() => {
     const pos = getSquarePosition(playerPosition, total);
     const nextPos = getSquarePosition((playerPosition + 1) % total, total);
-    
-    // Direction animal faces (toward next tile)
     const dx = nextPos[0] - pos[0];
     const dz = nextPos[2] - pos[2];
     const len = Math.sqrt(dx * dx + dz * dz);
     const dirX = dx / len;
     const dirZ = dz / len;
     
-    // Camera behind the animal (opposite of facing direction), slightly above
     const camDist = 3;
     const camHeight = 1.5;
     camera.position.set(
@@ -398,6 +396,15 @@ function BehindCamera({ playerPosition, total }: { playerPosition: number; total
     );
     camera.lookAt(pos[0], 0.4, pos[2]);
   }, [playerPosition, total, camera]);
+
+  // Log camera position on every frame so user can find their ideal angle
+  useFrame(() => {
+    // Log every 2 seconds
+    if (Math.floor(Date.now() / 2000) !== (BehindCamera as any)._lastLog) {
+      (BehindCamera as any)._lastLog = Math.floor(Date.now() / 2000);
+      console.log(`📷 Camera pos: [${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)}], rotation: [${camera.rotation.x.toFixed(2)}, ${camera.rotation.y.toFixed(2)}, ${camera.rotation.z.toFixed(2)}]`);
+    }
+  });
   
   return null;
 }
@@ -467,8 +474,9 @@ function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalT
       {/* Scenery trees */}
       <SceneryTrees />
 
-      {/* Camera behind animal */}
+      {/* Camera - OrbitControls enabled so you can position it, logs position */}
       <BehindCamera playerPosition={playerPosition} total={board.length} />
+      <OrbitControls enablePan={true} enableZoom={true} />
     </>
   );
 }
