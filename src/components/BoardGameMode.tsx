@@ -163,7 +163,7 @@ function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
 
   return (
     <group ref={groupRef}>
-      <primitive object={cloned} scale={2} />
+      <primitive object={cloned} scale={0.7} />
     </group>
   );
 }
@@ -181,7 +181,7 @@ function DiceOverlay({ visible, rolling, value }: { visible: boolean; rolling: b
       <div className="absolute inset-0 bg-black/20" />
       {/* Large canvas so the dice is never clipped */}
       <div className="relative w-64 h-64 md:w-80 md:h-80">
-        <Canvas camera={{ position: [0, 0, 4], fov: 40 }}>
+        <Canvas camera={{ position: [0, 0, 3], fov: 50 }}>
           <ambientLight intensity={0.8} />
           <directionalLight position={[2, 3, 4]} intensity={1} />
           <DiceModel rolling={rolling} value={value} />
