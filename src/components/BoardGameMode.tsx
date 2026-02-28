@@ -117,7 +117,13 @@ function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
   const cloned = useMemo(() => {
     const c = scene.clone(true);
     c.visible = true;
-    c.traverse((child) => { child.visible = true; });
+    c.position.set(0, 0, 0);
+    c.traverse((child) => { 
+      child.visible = true;
+      if ((child as THREE.Mesh).isMesh) {
+        child.position.set(0, 0, 0);
+      }
+    });
     return c;
   }, [scene]);
 
@@ -135,6 +141,9 @@ function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
   useFrame((_, delta) => {
     if (!groupRef.current) return;
 
+    // Lock position — never move, only rotate
+    groupRef.current.position.set(0, 0, 0);
+
     if (rolling) {
       spinSpeed.current.x = Math.min(spinSpeed.current.x + delta * 12, 14);
       spinSpeed.current.y = Math.min(spinSpeed.current.y + delta * 10, 11);
@@ -149,7 +158,6 @@ function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
 
       const settling = spinSpeed.current.x + spinSpeed.current.y + spinSpeed.current.z;
       if (settling < 0.3) {
-        // Snap toward target face
         groupRef.current.rotation.x += (targetRotation.current.x - groupRef.current.rotation.x) * 0.12;
         groupRef.current.rotation.y += (targetRotation.current.y - groupRef.current.rotation.y) * 0.12;
         groupRef.current.rotation.z += (targetRotation.current.z - groupRef.current.rotation.z) * 0.12;
@@ -162,8 +170,8 @@ function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
   });
 
   return (
-    <group ref={groupRef}>
-      <primitive object={cloned} scale={0.7} />
+    <group ref={groupRef} position={[0, 0, 0]}>
+      <primitive object={cloned} scale={0.7} position={[0, 0, 0]} />
     </group>
   );
 }
@@ -403,7 +411,7 @@ export const BoardGameMode = ({
           }));
           setHighlightedSquare(null);
           // Hide dice after a brief delay to show the result number
-          setTimeout(() => setDiceVisible(false), 1500);
+          setTimeout(() => setDiceVisible(false), 3000);
         }, 1200);
       }
     }, 80);
