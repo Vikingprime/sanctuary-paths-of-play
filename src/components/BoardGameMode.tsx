@@ -106,10 +106,10 @@ function TreeDecoration({ position, variant }: {
 const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
   1: [0, 0, 0],
   2: [Math.PI / 2, 0, 0],
-  3: [0, -Math.PI / 2, 0],
-  4: [0, Math.PI / 2, 0],
-  5: [-Math.PI / 2, 0, 0],
-  6: [Math.PI, 0, 0],
+  3: [Math.PI, 0, 0],
+  4: [-Math.PI / 2, 0, 0],
+  5: [0, Math.PI / 2, 0],
+  6: [0, -Math.PI / 2, 0],
 };
 
 // Dice that floats in front of the camera inside the main scene
@@ -448,6 +448,7 @@ export const BoardGameMode = ({
 
       {/* Dice overlay - separate Canvas on top */}
       <DiceOverlay visible={diceVisible} value={state.lastRoll ?? diceDisplay} />
+      
 
       {/* Bottom HUD */}
       <div className="absolute bottom-0 left-0 right-0 z-10 p-4 space-y-3">
