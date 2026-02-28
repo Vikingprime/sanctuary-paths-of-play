@@ -34,7 +34,7 @@ export interface BoardGameState {
 export function generateBoard(): BoardSquare[] {
   const squares: BoardSquare[] = [];
   
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 45; i++) {
     squares.push(assignSquareType(i));
   }
   
@@ -42,17 +42,17 @@ export function generateBoard(): BoardSquare[] {
 }
 
 function assignSquareType(index: number): BoardSquare {
-  // Distribution across 30 squares:
-  // Feed: ~18 squares (common)
-  // Stars: ~6 squares (medium rare)
-  // Extra roll: ~3 squares (rare)
-  // Unlock animal: ~1 square (rare)
-  // Empty: ~2 squares
+  // Distribution across 45 squares:
+  // Feed: ~27 squares (common)
+  // Stars: ~9 squares (medium rare)
+  // Extra roll: ~4 squares (rare)
+  // Unlock animal: ~2 squares (rare)
+  // Empty: ~3 squares
   
-  const feedPositions = [0, 1, 3, 4, 6, 8, 9, 11, 13, 14, 16, 18, 19, 21, 23, 24, 26, 28];
-  const starPositions = [2, 7, 12, 17, 22, 27];
-  const extraRollPositions = [5, 15, 25];
-  const unlockPositions = [10];
+  const feedPositions = [0,1,3,4,6,8,9,11,13,14,16,18,19,21,23,24,26,28,29,31,33,34,36,38,39,41,43];
+  const starPositions = [2,7,12,17,22,27,32,37,42];
+  const extraRollPositions = [5,15,25,35];
+  const unlockPositions = [10,30];
   
   if (feedPositions.includes(index)) {
     const feedAmount = 1 + Math.floor(Math.random() * 4); // 1-4%
