@@ -265,10 +265,9 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType, 
   };
 
   const getCameraFaceAngle = (idx: number) => {
-    // Face toward the camera (outward from center + offset)
+    // Face toward the camera (inward toward center, since camera is inside the circle)
     const pos = getSquarePosition(idx, total);
-    // Camera is roughly outside the circle, so face outward from center
-    return Math.atan2(pos[0], pos[2]) + Math.PI * 0.15; // slight offset for natural look
+    return Math.atan2(pos[0], pos[2]) + Math.PI; // face inward toward center/camera
   };
 
   useFrame((_, delta) => {
