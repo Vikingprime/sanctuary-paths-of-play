@@ -102,7 +102,7 @@ function TreeDecoration({ position, variant }: {
   );
 }
 
-// Dice face rotations: maps die value (1-6) to the euler rotation that faces that number toward the camera (+Z)
+// Dice face rotations: maps die value (1-6) to the euler rotation that faces that number toward the camera
 const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
   1: [0, 0, 0],
   2: [-Math.PI / 2, 0, 0],
@@ -112,7 +112,7 @@ const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
   6: [Math.PI, 0, 0],
 };
 
-function DiceRollAnimation({ visible, rolling, value }: { visible: boolean; rolling: boolean; value: number }) {
+function DiceModel({ rolling, value }: { rolling: boolean; value: number }) {
   const { scene } = useGLTF('/models/Dice.glb');
   const cloned = useMemo(() => {
     const c = scene.clone(true);
@@ -122,26 +122,18 @@ function DiceRollAnimation({ visible, rolling, value }: { visible: boolean; roll
   }, [scene]);
 
   const groupRef = useRef<THREE.Group>(null);
-  const scaleRef = useRef(0);
   const spinSpeed = useRef({ x: 0, y: 0, z: 0 });
   const targetRotation = useRef(new THREE.Euler(0, 0, 0));
 
   useEffect(() => {
-    if (!rolling && visible && value) {
+    if (!rolling && value) {
       const rot = DICE_FACE_ROTATIONS[value] || [0, 0, 0];
       targetRotation.current.set(rot[0], rot[1], rot[2]);
     }
-  }, [rolling, visible, value]);
+  }, [rolling, value]);
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
-
-    const targetScale = visible ? 1.8 : 0;
-    scaleRef.current += (targetScale - scaleRef.current) * 0.12;
-    groupRef.current.scale.setScalar(scaleRef.current);
-
-    const targetY = visible ? 4 : 1;
-    groupRef.current.position.y += (targetY - groupRef.current.position.y) * 0.1;
 
     if (rolling) {
       spinSpeed.current.x = Math.min(spinSpeed.current.x + delta * 12, 14);
@@ -151,15 +143,16 @@ function DiceRollAnimation({ visible, rolling, value }: { visible: boolean; roll
       groupRef.current.rotation.y += delta * spinSpeed.current.y;
       groupRef.current.rotation.z += delta * spinSpeed.current.z;
     } else {
-      spinSpeed.current.x *= 0.85;
-      spinSpeed.current.y *= 0.85;
-      spinSpeed.current.z *= 0.85;
+      spinSpeed.current.x *= 0.82;
+      spinSpeed.current.y *= 0.82;
+      spinSpeed.current.z *= 0.82;
 
       const settling = spinSpeed.current.x + spinSpeed.current.y + spinSpeed.current.z;
-      if (settling < 0.5) {
-        groupRef.current.rotation.x += (targetRotation.current.x - groupRef.current.rotation.x) * 0.08;
-        groupRef.current.rotation.y += (targetRotation.current.y - groupRef.current.rotation.y) * 0.08;
-        groupRef.current.rotation.z += (targetRotation.current.z - groupRef.current.rotation.z) * 0.08;
+      if (settling < 0.3) {
+        // Snap toward target face
+        groupRef.current.rotation.x += (targetRotation.current.x - groupRef.current.rotation.x) * 0.12;
+        groupRef.current.rotation.y += (targetRotation.current.y - groupRef.current.rotation.y) * 0.12;
+        groupRef.current.rotation.z += (targetRotation.current.z - groupRef.current.rotation.z) * 0.12;
       } else {
         groupRef.current.rotation.x += delta * spinSpeed.current.x;
         groupRef.current.rotation.y += delta * spinSpeed.current.y;
@@ -169,23 +162,26 @@ function DiceRollAnimation({ visible, rolling, value }: { visible: boolean; roll
   });
 
   return (
-    <group ref={groupRef} position={[0, 1, 0]}>
-      <primitive object={cloned} />
-      {!rolling && visible && value && (
-        <Text
-          position={[0, 1.8, 0]}
-          fontSize={1.0}
-          color="#FFD700"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.06}
-          outlineColor="#000000"
-          font={undefined}
-        >
-          {value}
-        </Text>
-      )}
+    <group ref={groupRef}>
+      <primitive object={cloned} scale={2} />
     </group>
+  );
+}
+
+// Overlay dice rendered in its own Canvas so it stays in front of the camera
+function DiceOverlay({ visible, rolling, value }: { visible: boolean; rolling: boolean; value: number }) {
+  if (!visible) return null;
+
+  return (
+    <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+      <div className="w-40 h-40">
+        <Canvas camera={{ position: [0, 0, 4], fov: 40 }}>
+          <ambientLight intensity={0.8} />
+          <directionalLight position={[2, 3, 4]} intensity={1} />
+          <DiceModel rolling={rolling} value={value} />
+        </Canvas>
+      </div>
+    </div>
   );
 }
 
@@ -270,14 +266,10 @@ function SceneryTrees() {
   );
 }
 
-function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare, isRolling, diceValue, diceVisible }: {
+function BoardScene({ board, playerPosition, animalEmoji }: {
   board: BoardSquare[];
   playerPosition: number;
   animalEmoji: string;
-  highlightedSquare: number | null;
-  isRolling: boolean;
-  diceValue: number;
-  diceVisible: boolean;
 }) {
   return (
     <>
@@ -293,8 +285,7 @@ function BoardScene({ board, playerPosition, animalEmoji, highlightedSquare, isR
       {/* Farm in center */}
       <FarmCenter />
 
-      {/* Dice roll animation - only visible during/after roll */}
-      <DiceRollAnimation visible={diceVisible} rolling={isRolling} value={diceValue} />
+
 
       {/* Path */}
       <BoardPath total={board.length} />
@@ -490,13 +481,12 @@ export const BoardGameMode = ({
             board={board}
             playerPosition={state.playerPosition}
             animalEmoji={animalEmoji}
-            highlightedSquare={highlightedSquare}
-            isRolling={state.isRolling}
-            diceValue={state.lastRoll ?? diceDisplay}
-            diceVisible={diceVisible}
           />
         </Canvas>
       </div>
+
+      {/* Dice overlay - renders in front of camera */}
+      <DiceOverlay visible={diceVisible} rolling={state.isRolling} value={state.lastRoll ?? diceDisplay} />
 
       {/* Bottom HUD */}
       <div className="absolute bottom-0 left-0 right-0 z-10 p-4 space-y-3">
