@@ -131,16 +131,16 @@ function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
       className="fixed inset-0 flex items-center justify-center pointer-events-none"
       style={{ zIndex: 9999 }}
     >
-      <div className="w-[100vw] h-[100vh]">
+      <div className="w-48 h-48">
         <Canvas
-          camera={{ position: [0, 0, 5], fov: 45 }}
+          camera={{ position: [0, 0, 3], fov: 30 }}
           style={{ background: 'transparent' }}
           gl={{ alpha: true }}
         >
           <ambientLight intensity={0.8} />
           <directionalLight position={[2, 3, 4]} intensity={1} />
           <group rotation={new THREE.Euler(rot[0], rot[1], rot[2])}>
-            <primitive object={cloned} scale={0.006} />
+            <primitive object={cloned} scale={0.0015} />
           </group>
         </Canvas>
       </div>
