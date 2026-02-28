@@ -294,7 +294,7 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType, 
       const x = h.fromPos[0] + (h.toPos[0] - h.fromPos[0]) * eased;
       const z = h.fromPos[2] + (h.toPos[2] - h.fromPos[2]) * eased;
       const arcHeight = 0.3;
-      const y = 0.35 + yOffset + arcHeight * 4 * t * (1 - t);
+      const y = 0.18 + yOffset + arcHeight * 4 * t * (1 - t);
 
       g.position.set(x, y, z);
 
@@ -314,7 +314,7 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType, 
         h.hopping = false;
         h.queue.shift();
         g.scale.set(scale, scale, scale);
-        g.position.set(h.toPos[0], 0.35 + yOffset, h.toPos[2]);
+        g.position.set(h.toPos[0], 0.18 + yOffset, h.toPos[2]);
         if (h.queue.length === 0) {
           onHopComplete();
         }
@@ -323,7 +323,7 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType, 
       const tp = getSquarePosition(position, total);
       g.position.x += (tp[0] - g.position.x) * 0.08;
       g.position.z += (tp[2] - g.position.z) * 0.08;
-      g.position.y = 0.35 + yOffset;
+      g.position.y = 0.18 + yOffset;
       g.scale.set(scale, scale, scale);
 
       // Smoothly rotate: face camera when waiting, face path when not
@@ -341,7 +341,7 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType, 
   const initAngle = getCameraFaceAngle(position); // Start facing camera
 
   return (
-    <group ref={meshRef} position={[startPos[0], 0.35 + yOffset, startPos[2]]} scale={[scale, scale, scale]} rotation={[0, initAngle, 0]}>
+    <group ref={meshRef} position={[startPos[0], 0.18 + yOffset, startPos[2]]} scale={[scale, scale, scale]} rotation={[0, initAngle, 0]}>
       <primitive object={cloned} />
     </group>
   );
