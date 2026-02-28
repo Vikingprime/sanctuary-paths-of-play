@@ -314,11 +314,11 @@ function BoardPath({ total }: { total: number }) {
 
 function getSquareColor(type: BoardSquare['type']): string {
   switch (type) {
-    case 'feed': return '#F48FB1';       // soft pink (berry treat)
-    case 'stars': return '#FFD54F';      // golden honey
-    case 'extra_roll': return '#FF8A65'; // warm peach-orange
-    case 'unlock_animal': return '#CE93D8'; // lavender candy
-    case 'empty': return '#A5D6A7';      // mint green
+    case 'feed': return '#E91E8C';       // hot pink bowl (like Treat)
+    case 'stars': return '#FF9800';      // warm orange bowl
+    case 'extra_roll': return '#9C27B0'; // deep purple
+    case 'unlock_animal': return '#E040FB'; // magenta/fuchsia
+    case 'empty': return '#F06292';      // medium pink
   }
 }
 
