@@ -205,10 +205,10 @@ function DiceOverlay({ visible, value, isRolling }: { visible: boolean; value: n
 // Map animal type to GLB model and board-appropriate scale
 function getAnimalModel(animalType: AnimalType): { path: string; scale: number; yOffset: number } {
   switch (animalType) {
-    case 'pig': return { path: '/models/Pig.glb', scale: 0.002, yOffset: 0.4 };
-    case 'cow': return { path: '/models/Cow.glb', scale: 0.12, yOffset: 0.3 };
-    case 'bird': return { path: '/models/Hen.glb', scale: 0.0018, yOffset: 0.4 };
-    default: return { path: '/models/Hen.glb', scale: 0.0018, yOffset: 0.4 };
+    case 'pig': return { path: '/models/Pig.glb', scale: 0.002, yOffset: 0.05 };
+    case 'cow': return { path: '/models/Cow.glb', scale: 0.12, yOffset: 0.05 };
+    case 'bird': return { path: '/models/Hen.glb', scale: 0.0018, yOffset: 0.05 };
+    default: return { path: '/models/Hen.glb', scale: 0.0018, yOffset: 0.05 };
   }
 }
 
@@ -277,7 +277,7 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }
       const x = h.fromPos[0] + (h.toPos[0] - h.fromPos[0]) * eased;
       const z = h.fromPos[2] + (h.toPos[2] - h.fromPos[2]) * eased;
       const arcHeight = 1.2;
-      const y = 0.8 + yOffset + arcHeight * 4 * t * (1 - t);
+      const y = 0.3 + yOffset + arcHeight * 4 * t * (1 - t);
 
       g.position.set(x, y, z);
 
@@ -297,7 +297,7 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }
         h.hopping = false;
         h.queue.shift();
         g.scale.set(scale, scale, scale);
-        g.position.set(h.toPos[0], 0.8 + yOffset, h.toPos[2]);
+        g.position.set(h.toPos[0], 0.3 + yOffset, h.toPos[2]);
         if (h.queue.length === 0) {
           onHopComplete();
         }
@@ -306,7 +306,7 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }
       const tp = getSquarePosition(position, total);
       g.position.x += (tp[0] - g.position.x) * 0.08;
       g.position.z += (tp[2] - g.position.z) * 0.08;
-      g.position.y = 0.8 + yOffset + Math.sin(Date.now() * 0.003) * 0.1;
+      g.position.y = 0.3 + yOffset + Math.sin(Date.now() * 0.003) * 0.05;
       g.scale.set(scale, scale, scale);
     }
   });
@@ -317,7 +317,7 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }
   const initAngle = Math.atan2(nextPos[0] - startPos[0], nextPos[2] - startPos[2]);
 
   return (
-    <group ref={meshRef} position={[startPos[0], 0.8 + yOffset, startPos[2]]} scale={[scale, scale, scale]} rotation={[0, initAngle, 0]}>
+    <group ref={meshRef} position={[startPos[0], 0.3 + yOffset, startPos[2]]} scale={[scale, scale, scale]} rotation={[0, initAngle, 0]}>
       <primitive object={cloned} />
     </group>
   );
@@ -612,7 +612,7 @@ export const BoardGameMode = ({
 
       {/* 3D Board */}
       <div className="flex-1">
-        <Canvas camera={{ position: [0, 14, 10], fov: 45 }}>
+        <Canvas camera={{ position: [0, 4, -12], fov: 45 }}>
           <BoardScene
             board={board}
             playerPosition={state.playerPosition}
