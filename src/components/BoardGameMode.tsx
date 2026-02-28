@@ -376,6 +376,7 @@ function SceneryTrees() {
 
 function BehindCamera({ playerPosition, total }: { playerPosition: number; total: number }) {
   const { camera } = useThree();
+  const controlsRef = useRef<any>(null);
   
   // Set initial camera position behind animal
   useEffect(() => {
@@ -395,18 +396,32 @@ function BehindCamera({ playerPosition, total }: { playerPosition: number; total
       pos[2] - dirZ * camDist
     );
     camera.lookAt(pos[0], 0.4, pos[2]);
+    
+    // Set OrbitControls target to animal position
+    if (controlsRef.current) {
+      controlsRef.current.target.set(pos[0], 0.4, pos[2]);
+      controlsRef.current.update();
+    }
   }, [playerPosition, total, camera]);
 
-  // Log camera position on every frame so user can find their ideal angle
+  // Log camera position every 2 seconds
   useFrame(() => {
-    // Log every 2 seconds
     if (Math.floor(Date.now() / 2000) !== (BehindCamera as any)._lastLog) {
       (BehindCamera as any)._lastLog = Math.floor(Date.now() / 2000);
       console.log(`📷 Camera pos: [${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)}], rotation: [${camera.rotation.x.toFixed(2)}, ${camera.rotation.y.toFixed(2)}, ${camera.rotation.z.toFixed(2)}]`);
     }
   });
   
-  return null;
+  return (
+    <OrbitControls
+      ref={controlsRef}
+      enablePan={true}
+      enableZoom={true}
+      enableRotate={true}
+      minPolarAngle={0}
+      maxPolarAngle={Math.PI}
+    />
+  );
 }
 
 function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalType }: {
@@ -474,9 +489,8 @@ function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalT
       {/* Scenery trees */}
       <SceneryTrees />
 
-      {/* Camera - OrbitControls enabled so you can position it, logs position */}
+      {/* Camera - orbits around chicken, logs position */}
       <BehindCamera playerPosition={playerPosition} total={board.length} />
-      <OrbitControls enablePan={true} enableZoom={true} minPolarAngle={0} maxPolarAngle={Math.PI} enableRotate={true} />
     </>
   );
 }
