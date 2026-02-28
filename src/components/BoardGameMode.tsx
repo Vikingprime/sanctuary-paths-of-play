@@ -173,8 +173,14 @@ function DiceOverlay({ visible, rolling, value }: { visible: boolean; rolling: b
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
-      <div className="w-48 h-48">
+    <div
+      className="fixed inset-0 flex items-center justify-center pointer-events-none"
+      style={{ zIndex: 9999 }}
+    >
+      {/* Semi-transparent backdrop */}
+      <div className="absolute inset-0 bg-black/20" />
+      {/* Large canvas so the dice is never clipped */}
+      <div className="relative w-64 h-64 md:w-80 md:h-80">
         <Canvas camera={{ position: [0, 0, 4], fov: 40 }}>
           <ambientLight intensity={0.8} />
           <directionalLight position={[2, 3, 4]} intensity={1} />
