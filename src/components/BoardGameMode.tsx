@@ -41,7 +41,6 @@ function GrassPlatform({ position, type, isPlayerHere }: {
   }, [scene]);
   const groupRef = useRef<THREE.Group>(null);
 
-  // Tint the platform based on square type
   useEffect(() => {
     const color = getSquareColor(type);
     cloned.traverse((child) => {
@@ -102,7 +101,7 @@ function TreeDecoration({ position, variant }: {
   );
 }
 
-// Dice face rotations: maps die value (1-6) to the euler rotation that faces that number toward the camera
+// Dice face rotations
 const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
   1: [0, 0, 0],
   2: [-Math.PI / 2, 0, 0],
@@ -112,7 +111,8 @@ const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
   6: [Math.PI, 0, 0],
 };
 
-function DiceModel({ value }: { value: number }) {
+// Dice that floats in front of the camera inside the main scene
+function DiceInScene({ visible, value }: { visible: boolean; value: number }) {
   const { scene } = useGLTF('/models/Dice.glb');
   const cloned = useMemo(() => {
     const c = scene.clone(true);
@@ -120,27 +120,32 @@ function DiceModel({ value }: { value: number }) {
     c.traverse((child) => { child.visible = true; });
     return c;
   }, [scene]);
+  const groupRef = useRef<THREE.Group>(null);
+
+  // Every frame, position the dice 4 units in front of the camera
+  useFrame(({ camera }) => {
+    if (!groupRef.current) return;
+    if (!visible) {
+      groupRef.current.visible = false;
+      return;
+    }
+    groupRef.current.visible = true;
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    const pos = camera.position.clone().add(dir.multiplyScalar(4));
+    groupRef.current.position.copy(pos);
+    // Make the dice face the camera
+    groupRef.current.lookAt(camera.position);
+  });
 
   const rot = DICE_FACE_ROTATIONS[value] || [0, 0, 0];
 
   return (
-    <group rotation={new THREE.Euler(rot[0], rot[1], rot[2])} position={[0, 0, 0]}>
-      <primitive object={cloned} scale={0.7} />
+    <group ref={groupRef}>
+      <group rotation={new THREE.Euler(rot[0], rot[1], rot[2])}>
+        <primitive object={cloned} scale={0.4} />
+      </group>
     </group>
-  );
-}
-
-function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
-  if (!visible) return null;
-
-  return (
-    <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 9999 }}>
-      <Canvas camera={{ position: [0, 0, 5], fov: 45 }} style={{ background: 'transparent' }}>
-        <ambientLight intensity={0.8} />
-        <directionalLight position={[2, 3, 4]} intensity={1} />
-        <DiceModel value={value} />
-      </Canvas>
-    </div>
   );
 }
 
@@ -203,7 +208,6 @@ function getSquareColor(type: BoardSquare['type']): string {
   }
 }
 
-// Tree positions scattered around the board
 function SceneryTrees() {
   const treePositions: { pos: [number, number, number]; variant: 'tree' | 'tree1' }[] = [
     { pos: [-14, 0, -8], variant: 'tree' },
@@ -225,10 +229,12 @@ function SceneryTrees() {
   );
 }
 
-function BoardScene({ board, playerPosition, animalEmoji }: {
+function BoardScene({ board, playerPosition, animalEmoji, diceVisible, diceValue }: {
   board: BoardSquare[];
   playerPosition: number;
   animalEmoji: string;
+  diceVisible: boolean;
+  diceValue: number;
 }) {
   return (
     <>
@@ -243,8 +249,6 @@ function BoardScene({ board, playerPosition, animalEmoji }: {
 
       {/* Farm in center */}
       <FarmCenter />
-
-
 
       {/* Path */}
       <BoardPath total={board.length} />
@@ -277,6 +281,9 @@ function BoardScene({ board, playerPosition, animalEmoji }: {
 
       {/* Scenery trees */}
       <SceneryTrees />
+
+      {/* Dice floating in front of camera */}
+      <DiceInScene visible={diceVisible} value={diceValue} />
 
       <OrbitControls
         enablePan={true}
@@ -360,7 +367,6 @@ export const BoardGameMode = ({
             isMoving: false,
           }));
           setHighlightedSquare(null);
-          // Hide dice after a brief delay to show the result number
           setTimeout(() => setDiceVisible(false), 3000);
         }, 1200);
       }
@@ -440,12 +446,11 @@ export const BoardGameMode = ({
             board={board}
             playerPosition={state.playerPosition}
             animalEmoji={animalEmoji}
+            diceVisible={diceVisible}
+            diceValue={state.lastRoll ?? diceDisplay}
           />
         </Canvas>
       </div>
-
-      {/* Dice overlay - renders in front of camera */}
-      <DiceOverlay visible={diceVisible} value={state.lastRoll ?? diceDisplay} />
 
       {/* Bottom HUD */}
       <div className="absolute bottom-0 left-0 right-0 z-10 p-4 space-y-3">
