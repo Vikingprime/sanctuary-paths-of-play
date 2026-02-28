@@ -140,7 +140,7 @@ function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
           <ambientLight intensity={0.8} />
           <directionalLight position={[2, 3, 4]} intensity={1} />
           <group rotation={new THREE.Euler(rot[0], rot[1], rot[2])}>
-            <primitive object={cloned} scale={0.0015} />
+            <primitive object={cloned} scale={0.009} />
           </group>
         </Canvas>
       </div>
