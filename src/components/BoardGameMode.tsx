@@ -296,7 +296,7 @@ function BoardScene({ board, playerPosition, animalEmoji }: {
 
       {/* Sky and fog */}
       <SkyBackground />
-      <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />
+      <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, 0.025]} />
 
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
