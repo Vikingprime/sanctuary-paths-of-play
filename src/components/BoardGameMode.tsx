@@ -205,10 +205,10 @@ function DiceOverlay({ visible, value, isRolling }: { visible: boolean; value: n
 // Map animal type to GLB model and board-appropriate scale
 function getAnimalModel(animalType: AnimalType): { path: string; scale: number; yOffset: number } {
   switch (animalType) {
-    case 'pig': return { path: '/models/Pig.glb', scale: 0.35, yOffset: 0 };
-    case 'cow': return { path: '/models/Cow.glb', scale: 0.22, yOffset: 0 };
-    case 'bird': return { path: '/models/Hen.glb', scale: 0.28, yOffset: 0 };
-    default: return { path: '/models/Hen.glb', scale: 0.28, yOffset: 0 };
+    case 'pig': return { path: '/models/Pig.glb', scale: 0.0018, yOffset: 0.15 };
+    case 'cow': return { path: '/models/Cow.glb', scale: 0.08, yOffset: 0.1 };
+    case 'bird': return { path: '/models/Hen.glb', scale: 0.0015, yOffset: 0.15 };
+    default: return { path: '/models/Hen.glb', scale: 0.0015, yOffset: 0.15 };
   }
 }
 
