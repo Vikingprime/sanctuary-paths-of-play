@@ -115,7 +115,7 @@ const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
 // Dice that floats in front of the camera inside the main scene
 // Dice rendered as an HTML overlay with its own tiny Canvas
 function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
-  const { scene } = useGLTF('/models/Dice.glb');
+  const { scene } = useGLTF('/models/Dice_2.glb');
   const cloned = useMemo(() => {
     const c = scene.clone(true);
     c.visible = true;
@@ -507,4 +507,4 @@ useGLTF.preload('/models/Grass_Platform.glb');
 useGLTF.preload('/models/Tree.glb');
 useGLTF.preload('/models/Tree_1.glb');
 useGLTF.preload('/models/Farm.glb');
-useGLTF.preload('/models/Dice.glb');
+useGLTF.preload('/models/Dice_2.glb');
