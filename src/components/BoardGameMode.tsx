@@ -133,7 +133,7 @@ function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
     >
       <div className="w-80 h-80">
         <Canvas
-          camera={{ position: [0, 0, 3], fov: 30 }}
+          camera={{ position: [0, 0, 12], fov: 15 }}
           style={{ background: 'transparent' }}
           gl={{ alpha: true }}
         >
