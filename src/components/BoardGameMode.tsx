@@ -87,7 +87,7 @@ function TreeDecoration({ position, variant }: {
   variant: 'tree' | 'tree1';
 }) {
   const model = variant === 'tree' ? '/models/Tree.glb' : '/models/Tree_1.glb';
-  const treeScale = variant === 'tree' ? 0.08 : 0.07;
+  const treeScale = variant === 'tree' ? 0.004 : 0.08;
   const { scene } = useGLTF(model);
   const cloned = useMemo(() => {
     const c = scene.clone(true);
