@@ -424,16 +424,16 @@ function BehindCamera({ playerPosition, total, playerRef }: { playerPosition: nu
     const tanX = -radZ;
     const tanZ = radX;
     
-    const camDist = 4.5;
-    const camHeight = 0.55;
-    const sideOffset = 0.8;
+    const camDist = 2.5;
+    const camHeight = 0.85;
+    const sideOffset = 0.3;
     
     targetPos.current.set(
       px + radX * camDist + tanX * sideOffset,
       camHeight,
       pz + radZ * camDist + tanZ * sideOffset
     );
-    targetLook.current.set(px, 0.3, pz);
+    targetLook.current.set(px, 0.25, pz);
     
     // Smooth lerp
     camera.position.lerp(targetPos.current, 0.06);
@@ -454,11 +454,11 @@ function BehindCamera({ playerPosition, total, playerRef }: { playerPosition: nu
     const tanX = -radZ;
     const tanZ = radX;
     camera.position.set(
-      pos[0] + radX * 4.5 + tanX * 0.8,
-      0.55,
-      pos[2] + radZ * 4.5 + tanZ * 0.8
+      pos[0] + radX * 2.5 + tanX * 0.3,
+      0.85,
+      pos[2] + radZ * 2.5 + tanZ * 0.3
     );
-    camera.lookAt(pos[0], 0.3, pos[2]);
+    camera.lookAt(pos[0], 0.25, pos[2]);
   }, []);
   
   return null;
