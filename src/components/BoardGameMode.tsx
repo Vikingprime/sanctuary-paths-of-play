@@ -202,13 +202,38 @@ function DiceOverlay({ visible, value, isRolling }: { visible: boolean; value: n
   );
 }
 
-function PlayerToken({ position, hopSequence, onHopComplete, total, animalEmoji }: {
+// Map animal type to GLB model and board-appropriate scale
+function getAnimalModel(animalType: AnimalType): { path: string; scale: number; yOffset: number } {
+  switch (animalType) {
+    case 'pig': return { path: '/models/Pig.glb', scale: 0.35, yOffset: 0 };
+    case 'cow': return { path: '/models/Cow.glb', scale: 0.22, yOffset: 0 };
+    case 'bird': return { path: '/models/Hen.glb', scale: 0.28, yOffset: 0 };
+    default: return { path: '/models/Hen.glb', scale: 0.28, yOffset: 0 };
+  }
+}
+
+function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }: {
   position: number;
   hopSequence: number[] | null;
   onHopComplete: () => void;
   total: number;
-  animalEmoji: string;
+  animalType: AnimalType;
 }) {
+  const { path, scale, yOffset } = getAnimalModel(animalType);
+  const { scene } = useGLTF(path);
+  const cloned = useMemo(() => {
+    const c = scene.clone(true);
+    c.visible = true;
+    c.traverse((child) => {
+      child.visible = true;
+      if ((child as THREE.Mesh).isMesh) {
+        (child as THREE.Mesh).castShadow = true;
+        (child as THREE.Mesh).receiveShadow = true;
+      }
+    });
+    return c;
+  }, [scene]);
+
   const meshRef = useRef<THREE.Group>(null);
   const hopRef = useRef<{
     queue: number[];
@@ -252,19 +277,27 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalEmoji 
       const x = h.fromPos[0] + (h.toPos[0] - h.fromPos[0]) * eased;
       const z = h.fromPos[2] + (h.toPos[2] - h.fromPos[2]) * eased;
       const arcHeight = 1.2;
-      const y = 0.8 + arcHeight * 4 * t * (1 - t);
+      const y = 0.8 + yOffset + arcHeight * 4 * t * (1 - t);
 
       g.position.set(x, y, z);
 
+      // Face movement direction
+      if (t < 0.95) {
+        const dx = h.toPos[0] - h.fromPos[0];
+        const dz = h.toPos[2] - h.fromPos[2];
+        const angle = Math.atan2(dx, dz);
+        g.rotation.y = angle;
+      }
+
       // Squash & stretch
       const stretchY = 1 + 0.2 * Math.sin(t * Math.PI);
-      g.scale.set(1 / Math.sqrt(stretchY), stretchY, 1 / Math.sqrt(stretchY));
+      g.scale.set(scale / Math.sqrt(stretchY), scale * stretchY, scale / Math.sqrt(stretchY));
 
       if (t >= 1) {
         h.hopping = false;
         h.queue.shift();
-        g.scale.set(1, 1, 1);
-        g.position.set(h.toPos[0], 0.8, h.toPos[2]);
+        g.scale.set(scale, scale, scale);
+        g.position.set(h.toPos[0], 0.8 + yOffset, h.toPos[2]);
         if (h.queue.length === 0) {
           onHopComplete();
         }
@@ -273,21 +306,16 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalEmoji 
       const tp = getSquarePosition(position, total);
       g.position.x += (tp[0] - g.position.x) * 0.08;
       g.position.z += (tp[2] - g.position.z) * 0.08;
-      g.position.y = 0.8 + Math.sin(Date.now() * 0.003) * 0.1;
+      g.position.y = 0.8 + yOffset + Math.sin(Date.now() * 0.003) * 0.1;
+      g.scale.set(scale, scale, scale);
     }
   });
 
   const startPos = getSquarePosition(position, total);
 
   return (
-    <group ref={meshRef} position={[startPos[0], 0.8, startPos[2]]}>
-      <mesh>
-        <sphereGeometry args={[0.3, 16, 16]} />
-        <meshStandardMaterial color="#FF9800" />
-      </mesh>
-      <Text position={[0, 0.5, 0]} fontSize={0.4} anchorX="center" anchorY="middle">
-        {animalEmoji}
-      </Text>
+    <group ref={meshRef} position={[startPos[0], 0.8 + yOffset, startPos[2]]}>
+      <primitive object={cloned} scale={scale} />
     </group>
   );
 }
@@ -343,12 +371,12 @@ function SceneryTrees() {
   );
 }
 
-function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalEmoji }: {
+function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalType }: {
   board: BoardSquare[];
   playerPosition: number;
   hopSequence: number[] | null;
   onHopComplete: () => void;
-  animalEmoji: string;
+  animalType: AnimalType;
 }) {
   return (
     <>
@@ -402,7 +430,7 @@ function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalE
         hopSequence={hopSequence}
         onHopComplete={onHopComplete}
         total={board.length}
-        animalEmoji={animalEmoji}
+        animalType={animalType}
       />
 
       {/* Scenery trees */}
@@ -587,7 +615,7 @@ export const BoardGameMode = ({
             playerPosition={state.playerPosition}
             hopSequence={hopSequence}
             onHopComplete={handleHopComplete}
-            animalEmoji={animalEmoji}
+            animalType={animalType}
           />
         </Canvas>
       </div>
