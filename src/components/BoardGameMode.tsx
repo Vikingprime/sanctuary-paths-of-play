@@ -327,9 +327,13 @@ export const BoardGameMode = ({
   const [diceDisplay, setDiceDisplay] = useState(1);
   const [diceVisible, setDiceVisible] = useState(false);
   const rollingInterval = useRef<NodeJS.Timeout | null>(null);
+  const hideTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const handleRoll = useCallback(() => {
     if (state.rollsRemaining <= 0 || state.isRolling || state.isMoving) return;
+
+    // Clear any pending hide timeout from previous roll
+    if (hideTimeout.current) clearTimeout(hideTimeout.current);
 
     setState(s => ({ ...s, isRolling: true, rewardMessage: null }));
     setDiceVisible(true);
@@ -363,7 +367,7 @@ export const BoardGameMode = ({
             isMoving: false,
           }));
           setHighlightedSquare(null);
-          setTimeout(() => setDiceVisible(false), 3000);
+          hideTimeout.current = setTimeout(() => setDiceVisible(false), 3000);
         }, 1200);
       }
     }, 80);
@@ -417,6 +421,7 @@ export const BoardGameMode = ({
   useEffect(() => {
     return () => {
       if (rollingInterval.current) clearInterval(rollingInterval.current);
+      if (hideTimeout.current) clearTimeout(hideTimeout.current);
     };
   }, []);
 
