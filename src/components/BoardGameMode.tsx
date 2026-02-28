@@ -11,6 +11,8 @@ import {
   calculateRolls,
 } from '@/types/boardGame';
 import { AnimalType } from '@/types/game';
+import { SkyBackground } from '@/components/SkyBackground';
+import { FogConfig } from '@/game/FogConfig';
 import * as THREE from 'three';
 
 // --- Constants ---
@@ -113,8 +115,8 @@ const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
 };
 
 // Dice that floats in front of the camera inside the main scene
-// Dice rendered as an HTML overlay with its own tiny Canvas
-function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
+// Animated spinning dice rendered in an overlay Canvas
+function SpinningDice({ value, isRolling }: { value: number; isRolling: boolean }) {
   const { scene } = useGLTF('/models/Dice_2.glb');
   const cloned = useMemo(() => {
     const c = scene.clone(true);
@@ -123,9 +125,62 @@ function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
     return c;
   }, [scene]);
 
-  if (!visible) return null;
+  const groupRef = useRef<THREE.Group>(null);
+  const spinSpeed = useRef({ x: 8, y: 10 });
+  const settled = useRef(false);
+  const targetEuler = useRef(new THREE.Euler());
 
-  const rot = DICE_FACE_ROTATIONS[value] || [0, 0, 0];
+  // When rolling stops, set target rotation for the final face
+  useEffect(() => {
+    if (!isRolling) {
+      const rot = DICE_FACE_ROTATIONS[value] || [0, 0, 0];
+      targetEuler.current.set(rot[0], rot[1], rot[2]);
+      settled.current = false;
+    } else {
+      // Randomize spin direction each roll
+      spinSpeed.current = {
+        x: (5 + Math.random() * 6) * (Math.random() > 0.5 ? 1 : -1),
+        y: (6 + Math.random() * 7) * (Math.random() > 0.5 ? 1 : -1),
+      };
+      settled.current = false;
+    }
+  }, [isRolling, value]);
+
+  useFrame((_, delta) => {
+    if (!groupRef.current) return;
+    const g = groupRef.current;
+
+    if (isRolling) {
+      // Free spin
+      g.rotation.x += spinSpeed.current.x * delta;
+      g.rotation.y += spinSpeed.current.y * delta;
+    } else if (!settled.current) {
+      // Ease toward target rotation
+      const tx = targetEuler.current.x;
+      const ty = targetEuler.current.y;
+      const tz = targetEuler.current.z;
+      const lerpFactor = 1 - Math.pow(0.02, delta); // smooth ease-out
+      g.rotation.x += (tx - g.rotation.x) * lerpFactor;
+      g.rotation.y += (ty - g.rotation.y) * lerpFactor;
+      g.rotation.z += (tz - g.rotation.z) * lerpFactor;
+
+      const dist = Math.abs(g.rotation.x - tx) + Math.abs(g.rotation.y - ty) + Math.abs(g.rotation.z - tz);
+      if (dist < 0.01) {
+        g.rotation.set(tx, ty, tz);
+        settled.current = true;
+      }
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      <primitive object={cloned} scale={0.45} />
+    </group>
+  );
+}
+
+function DiceOverlay({ visible, value, isRolling }: { visible: boolean; value: number; isRolling: boolean }) {
+  if (!visible) return null;
 
   return (
     <div
@@ -140,9 +195,7 @@ function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
         >
           <ambientLight intensity={0.8} />
           <directionalLight position={[2, 3, 4]} intensity={1} />
-          <group rotation={new THREE.Euler(rot[0], rot[1], rot[2])}>
-            <primitive object={cloned} scale={0.45} />
-          </group>
+          <SpinningDice value={value} isRolling={isRolling} />
         </Canvas>
       </div>
     </div>
@@ -236,8 +289,14 @@ function BoardScene({ board, playerPosition, animalEmoji }: {
 }) {
   return (
     <>
-      <ambientLight intensity={0.7} />
-      <directionalLight position={[5, 12, 5]} intensity={0.9} />
+      <ambientLight intensity={0.9} color="#FFE4CC" />
+      <directionalLight position={[0, 50, -25]} intensity={1.75} color="#FFA050" />
+      <directionalLight position={[0, 15, 25]} intensity={0.45} color="#FFE8D0" />
+      <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />
+
+      {/* Sky and fog */}
+      <SkyBackground />
+      <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />
 
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
@@ -452,7 +511,7 @@ export const BoardGameMode = ({
       </div>
 
       {/* Dice overlay - separate Canvas on top */}
-      <DiceOverlay visible={diceVisible} value={state.lastRoll ?? diceDisplay} />
+      <DiceOverlay visible={diceVisible} value={state.lastRoll ?? diceDisplay} isRolling={state.isRolling} />
       
 
       {/* Bottom HUD */}
