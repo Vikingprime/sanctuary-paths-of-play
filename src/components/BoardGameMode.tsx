@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Text, useGLTF } from '@react-three/drei';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Text, useGLTF } from '@react-three/drei';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ArrowLeft } from 'lucide-react';
@@ -374,6 +374,34 @@ function SceneryTrees() {
   );
 }
 
+function BehindCamera({ playerPosition, total }: { playerPosition: number; total: number }) {
+  const { camera } = useThree();
+  
+  useEffect(() => {
+    const pos = getSquarePosition(playerPosition, total);
+    const nextPos = getSquarePosition((playerPosition + 1) % total, total);
+    
+    // Direction animal faces (toward next tile)
+    const dx = nextPos[0] - pos[0];
+    const dz = nextPos[2] - pos[2];
+    const len = Math.sqrt(dx * dx + dz * dz);
+    const dirX = dx / len;
+    const dirZ = dz / len;
+    
+    // Camera behind the animal (opposite of facing direction), slightly above
+    const camDist = 3;
+    const camHeight = 1.5;
+    camera.position.set(
+      pos[0] - dirX * camDist,
+      camHeight,
+      pos[2] - dirZ * camDist
+    );
+    camera.lookAt(pos[0], 0.4, pos[2]);
+  }, [playerPosition, total, camera]);
+  
+  return null;
+}
+
 function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalType }: {
   board: BoardSquare[];
   playerPosition: number;
@@ -439,8 +467,8 @@ function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalT
       {/* Scenery trees */}
       <SceneryTrees />
 
-
-      {/* No OrbitControls - fixed camera behind animal */}
+      {/* Camera behind animal */}
+      <BehindCamera playerPosition={playerPosition} total={board.length} />
     </>
   );
 }
