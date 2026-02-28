@@ -22,7 +22,7 @@ import { storyMazes, storyMazeToMaze, StoryMaze, storyChapters } from '@/data/st
 import { BoardGameMode } from '@/components/BoardGameMode';
 
 // Flow: home -> mode_select -> animal_select -> levels/story_levels -> playing
-type GameScreen = 'home' | 'mode_select' | 'animal_select' | 'levels' | 'story_levels' | 'playing' | 'board_game';
+type GameScreen = 'mode_select' | 'animal_select' | 'levels' | 'story_levels' | 'playing' | 'board_game';
 
 const Index = () => {
   const { save, loading, refresh, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
@@ -64,10 +64,6 @@ const Index = () => {
       setSelectedAnimal(save.player.currentAnimal as AnimalType);
     }
   }, [save.player.currentAnimal]);
-
-  const handleStartGame = () => {
-    setScreen('mode_select');
-  };
 
   const handleModeSelect = (mode: GameMode) => {
     setSelectedMode(mode);
@@ -176,7 +172,7 @@ const Index = () => {
   };
 
   const handleBackToHome = () => {
-    setScreen('home');
+    setScreen('mode_select');
     setSelectedMaze(null);
     setSelectedStoryMaze(null);
     setSelectedMode(null);
@@ -198,7 +194,7 @@ const Index = () => {
         handleBackToModeSelect();
       }
     } else if (screen === 'mode_select') {
-      handleBackToHome();
+      // Already at top level, do nothing
     }
   }, [screen, selectedMode]);
 
@@ -278,112 +274,6 @@ const Index = () => {
         appleCount={appleCount}
       />
       <main className="container max-w-4xl mx-auto px-4 py-8">
-        {screen === 'home' && (
-          <div className="space-y-6 md:space-y-8">
-            {/* Hero Section */}
-            <div className="text-center space-y-2 md:space-y-4 animate-fade-in">
-              <div className="text-4xl md:text-6xl mb-2 md:mb-4">🐷🐮🐔</div>
-              <h1 className="font-display text-3xl md:text-5xl font-bold text-gradient">
-                Foggy Farm
-              </h1>
-              <p className="text-sm md:text-lg text-muted-foreground max-w-md mx-auto">
-                Navigate 3D corn mazes with adorable farm animals and help unlock
-                real meals for sanctuary residents!
-              </p>
-            </div>
-
-            {/* Start Button */}
-            <div className="flex flex-col items-center gap-4 animate-fade-in-delay-1">
-              <Button
-                variant="sunset"
-                size="xl"
-                onClick={handleStartGame}
-                className="min-w-48"
-              >
-                Start Adventure 🌾
-              </Button>
-              
-              {/* Sound Toggle */}
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                {save.settings.musicVolume > 0 ? (
-                  <Volume2 className="h-4 w-4" />
-                ) : (
-                  <VolumeX className="h-4 w-4" />
-                )}
-                <Switch
-                  id="sound-toggle"
-                  checked={save.settings.musicVolume > 0}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    musicVolume: checked ? 0.7 : 0,
-                    sfxVolume: checked ? 1.0 : 0 
-                  })}
-                />
-                <Label htmlFor="sound-toggle" className="cursor-pointer">
-                  Sound
-                </Label>
-              </div>
-              
-              {/* Debug Mode Toggle */}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Switch
-                  id="debug-mode"
-                  checked={save.settings.debugMode}
-                  onCheckedChange={(checked) => updateSettings({ debugMode: checked })}
-                />
-                <Label htmlFor="debug-mode" className="cursor-pointer">
-                  Debug Mode (skip preview, infinite time)
-                </Label>
-              </div>
-            </div>
-
-            {/* Progress Tracker */}
-            <div className="max-w-sm mx-auto animate-fade-in-delay-2">
-              <ProgressTracker
-                mealsUnlocked={save.player.totalMealsUnlocked}
-                currentProgress={mealProgress}
-                targetMeals={5}
-              />
-            </div>
-
-            {/* How it works */}
-            <div className="bg-card rounded-2xl p-6 shadow-warm animate-fade-in-delay-3">
-              <h3 className="font-display text-lg font-bold text-foreground mb-4 text-center">
-                Quick Overview
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
-                <div className="space-y-2">
-                  <div className="text-3xl">👀</div>
-                  <h4 className="font-semibold text-foreground">Memorize</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Study the maze from above
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-3xl">🌽</div>
-                  <h4 className="font-semibold text-foreground">Explore 3D</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Navigate from inside the corn maze
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-3xl">📍</div>
-                  <h4 className="font-semibold text-foreground">Find Stations</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Lost? Find map stations for help
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-3xl">🍽️</div>
-                  <h4 className="font-semibold text-foreground">Unlock Meals</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Feed real sanctuary animals
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {screen === 'mode_select' && (
           <ModeSelectScreen
             onSelectMode={handleModeSelect}
