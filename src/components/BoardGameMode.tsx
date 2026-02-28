@@ -205,10 +205,10 @@ function DiceOverlay({ visible, value, isRolling }: { visible: boolean; value: n
 // Map animal type to GLB model and board-appropriate scale
 function getAnimalModel(animalType: AnimalType): { path: string; scale: number; yOffset: number } {
   switch (animalType) {
-    case 'pig': return { path: '/models/Pig.glb', scale: 0.02, yOffset: 0.4 };
-    case 'cow': return { path: '/models/Cow.glb', scale: 1.2, yOffset: 0.3 };
-    case 'bird': return { path: '/models/Hen.glb', scale: 0.018, yOffset: 0.4 };
-    default: return { path: '/models/Hen.glb', scale: 0.018, yOffset: 0.4 };
+    case 'pig': return { path: '/models/Pig.glb', scale: 0.002, yOffset: 0.4 };
+    case 'cow': return { path: '/models/Cow.glb', scale: 0.12, yOffset: 0.3 };
+    case 'bird': return { path: '/models/Hen.glb', scale: 0.0018, yOffset: 0.4 };
+    default: return { path: '/models/Hen.glb', scale: 0.0018, yOffset: 0.4 };
   }
 }
 
@@ -312,9 +312,12 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }
   });
 
   const startPos = getSquarePosition(position, total);
+  // Initial facing: toward next tile on the path
+  const nextPos = getSquarePosition((position + 1) % total, total);
+  const initAngle = Math.atan2(nextPos[0] - startPos[0], nextPos[2] - startPos[2]);
 
   return (
-    <group ref={meshRef} position={[startPos[0], 0.8 + yOffset, startPos[2]]} scale={[scale, scale, scale]}>
+    <group ref={meshRef} position={[startPos[0], 0.8 + yOffset, startPos[2]]} scale={[scale, scale, scale]} rotation={[0, initAngle, 0]}>
       <primitive object={cloned} />
     </group>
   );
