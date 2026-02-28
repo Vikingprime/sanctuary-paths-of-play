@@ -120,31 +120,18 @@ function DiceInScene({ visible, value }: { visible: boolean; value: number }) {
     c.traverse((child) => { child.visible = true; });
     return c;
   }, [scene]);
-  const groupRef = useRef<THREE.Group>(null);
-
-  // Every frame, position the dice 4 units in front of the camera
-  useFrame(({ camera }) => {
-    if (!groupRef.current) return;
-    if (!visible) {
-      groupRef.current.visible = false;
-      return;
-    }
-    groupRef.current.visible = true;
-    const dir = new THREE.Vector3();
-    camera.getWorldDirection(dir);
-    const pos = camera.position.clone().add(dir.multiplyScalar(4));
-    groupRef.current.position.copy(pos);
-    // Make the dice face the camera
-    groupRef.current.lookAt(camera.position);
-  });
 
   const rot = DICE_FACE_ROTATIONS[value] || [0, 0, 0];
 
+  // Always render a red debug cube at [0, 6, 5] so we can confirm visibility
+  // The dice appears at the same spot when visible
   return (
-    <group ref={groupRef}>
-      <group rotation={new THREE.Euler(rot[0], rot[1], rot[2])}>
-        <primitive object={cloned} scale={0.4} />
-      </group>
+    <group position={[0, 13.5, 9.5]}>
+      {visible && (
+        <group rotation={new THREE.Euler(rot[0], rot[1], rot[2])}>
+          <primitive object={cloned} scale={0.0012} />
+        </group>
+      )}
     </group>
   );
 }
