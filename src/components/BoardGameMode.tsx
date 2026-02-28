@@ -16,7 +16,7 @@ import { FogConfig } from '@/game/FogConfig';
 import * as THREE from 'three';
 
 // --- Constants ---
-const BOARD_RADIUS = 7;
+const BOARD_RADIUS = 9;
 
 function getSquarePosition(index: number, total: number): [number, number, number] {
   const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
@@ -63,7 +63,7 @@ function GrassPlatform({ position, type, isPlayerHere }: {
 
   return (
     <group ref={groupRef} position={position}>
-      <primitive object={cloned} scale={1.5} />
+      <primitive object={cloned} scale={0.8} />
     </group>
   );
 }
@@ -265,9 +265,10 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType, 
   };
 
   const getCameraFaceAngle = (idx: number) => {
-    // Face toward the camera (inward toward center, since camera is inside the circle)
-    const pos = getSquarePosition(idx, total);
-    return Math.atan2(pos[0], pos[2]) + Math.PI; // face inward toward center/camera
+    // Face along the path direction (so camera behind sees the back)
+    const cur = getSquarePosition(idx, total);
+    const next = getSquarePosition((idx + 1) % total, total);
+    return Math.atan2(next[0] - cur[0], next[2] - cur[2]);
   };
 
   useFrame((_, delta) => {
@@ -402,8 +403,25 @@ function BehindCamera({ playerPosition, total, playerRef }: { playerPosition: nu
   const targetPos = useRef(new THREE.Vector3());
   const targetLook = useRef(new THREE.Vector3());
   
+  const getCamBehindPos = (pos: [number, number, number], idx: number) => {
+    // Get path tangent direction (direction chicken walks)
+    const cur = getSquarePosition(idx, total);
+    const next = getSquarePosition((idx + 1) % total, total);
+    const dx = next[0] - cur[0];
+    const dz = next[2] - cur[2];
+    const len = Math.sqrt(dx * dx + dz * dz) || 1;
+    const fwdX = dx / len;
+    const fwdZ = dz / len;
+    
+    // Camera behind the chicken (opposite of forward direction)
+    const camDist = 2.0;
+    const camHeight = 1.0;
+    const camX = pos[0] - fwdX * camDist;
+    const camZ = pos[2] - fwdZ * camDist;
+    return { camX, camZ, camHeight, lookX: pos[0] + fwdX * 1.0, lookZ: pos[2] + fwdZ * 1.0 };
+  };
+
   useFrame(() => {
-    // Use live player position if available, otherwise compute from index
     let animalPos: [number, number, number];
     if (playerRef.current) {
       animalPos = [playerRef.current.position.x, playerRef.current.position.y, playerRef.current.position.z];
@@ -411,54 +429,21 @@ function BehindCamera({ playerPosition, total, playerRef }: { playerPosition: nu
       animalPos = getSquarePosition(playerPosition, total);
     }
     
-    const px = animalPos[0];
-    const pz = animalPos[2];
+    const cam = getCamBehindPos(animalPos, playerPosition);
     
-    // Radial direction outward from center
-    const len = Math.sqrt(px * px + pz * pz) || 1;
-    const radX = px / len;
-    const radZ = pz / len;
+    targetPos.current.set(cam.camX, cam.camHeight, cam.camZ);
+    targetLook.current.set(cam.lookX, 0.3, cam.lookZ);
     
-    // Tangent (clockwise)
-    const tanX = -radZ;
-    const tanZ = radX;
-    
-    const camDist = 2.5;
-    const camHeight = 0.85;
-    const sideOffset = 0.3;
-    
-    // Place camera INWARD (between chicken and center), looking outward
-    targetPos.current.set(
-      px - radX * camDist + tanX * sideOffset,
-      camHeight,
-      pz - radZ * camDist + tanZ * sideOffset
-    );
-    targetLook.current.set(px, 0.25, pz);
-    
-    // Smooth lerp
     camera.position.lerp(targetPos.current, 0.06);
-    
-    // Smooth look-at via a temporary target
-    const lookTarget = new THREE.Vector3();
-    lookTarget.copy(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(10).add(camera.position));
-    lookTarget.lerp(targetLook.current, 0.08);
     camera.lookAt(targetLook.current.x, targetLook.current.y, targetLook.current.z);
   });
   
   // Set initial position immediately
   useEffect(() => {
     const pos = getSquarePosition(playerPosition, total);
-    const len = Math.sqrt(pos[0] * pos[0] + pos[2] * pos[2]) || 1;
-    const radX = pos[0] / len;
-    const radZ = pos[2] / len;
-    const tanX = -radZ;
-    const tanZ = radX;
-    camera.position.set(
-      pos[0] - radX * 2.5 + tanX * 0.3,
-      0.85,
-      pos[2] - radZ * 2.5 + tanZ * 0.3
-    );
-    camera.lookAt(pos[0], 0.25, pos[2]);
+    const cam = getCamBehindPos(pos, playerPosition);
+    camera.position.set(cam.camX, cam.camHeight, cam.camZ);
+    camera.lookAt(cam.lookX, 0.3, cam.lookZ);
   }, []);
   
   return null;
