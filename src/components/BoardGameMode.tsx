@@ -101,13 +101,14 @@ function TreeDecoration({ position, variant }: {
   );
 }
 
-// Dice face rotations
+// Dice face rotations - oriented so the result face points toward camera (+Z)
+// with a slight tilt to show depth without revealing extra faces
 const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
   1: [0, 0, 0],
-  2: [-Math.PI / 2, 0, 0],
-  3: [0, Math.PI / 2, 0],
-  4: [0, -Math.PI / 2, 0],
-  5: [Math.PI / 2, 0, 0],
+  2: [Math.PI / 2, 0, 0],
+  3: [0, -Math.PI / 2, 0],
+  4: [0, Math.PI / 2, 0],
+  5: [-Math.PI / 2, 0, 0],
   6: [Math.PI, 0, 0],
 };
 
@@ -133,7 +134,7 @@ function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
     >
       <div className="w-80 h-80">
         <Canvas
-          camera={{ position: [0, 0, 12], fov: 15 }}
+          camera={{ position: [0.5, 0.5, 12], fov: 15 }}
           style={{ background: 'transparent' }}
           gl={{ alpha: true }}
         >
