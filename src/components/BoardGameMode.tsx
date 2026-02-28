@@ -306,7 +306,7 @@ function PlayerToken({ position, hopSequence, onHopComplete, total, animalType }
       const tp = getSquarePosition(position, total);
       g.position.x += (tp[0] - g.position.x) * 0.08;
       g.position.z += (tp[2] - g.position.z) * 0.08;
-      g.position.y = 0.3 + yOffset + Math.sin(Date.now() * 0.003) * 0.05;
+      g.position.y = 0.35 + yOffset;
       g.scale.set(scale, scale, scale);
     }
   });
@@ -440,13 +440,7 @@ function BoardScene({ board, playerPosition, hopSequence, onHopComplete, animalT
       <SceneryTrees />
 
 
-      <OrbitControls
-        enablePan={true}
-        enableZoom={true}
-        minPolarAngle={0}
-        maxPolarAngle={Math.PI / 2}
-        target={[0, 0, 0]}
-      />
+      {/* No OrbitControls - fixed camera behind animal */}
     </>
   );
 }
@@ -612,7 +606,7 @@ export const BoardGameMode = ({
 
       {/* 3D Board */}
       <div className="flex-1">
-        <Canvas camera={{ position: [0, 4, -12], fov: 45 }}>
+        <Canvas camera={{ position: [0, 3, -10], fov: 30 }}>
           <BoardScene
             board={board}
             playerPosition={state.playerPosition}
