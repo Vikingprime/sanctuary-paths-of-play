@@ -112,7 +112,8 @@ const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
 };
 
 // Dice that floats in front of the camera inside the main scene
-function DiceInScene({ visible, value }: { visible: boolean; value: number }) {
+// Dice rendered as an HTML overlay with its own tiny Canvas
+function DiceOverlay({ visible, value }: { visible: boolean; value: number }) {
   const { scene } = useGLTF('/models/Dice.glb');
   const cloned = useMemo(() => {
     const c = scene.clone(true);
@@ -121,18 +122,29 @@ function DiceInScene({ visible, value }: { visible: boolean; value: number }) {
     return c;
   }, [scene]);
 
+  if (!visible) return null;
+
   const rot = DICE_FACE_ROTATIONS[value] || [0, 0, 0];
 
-  // Always render a red debug cube at [0, 6, 5] so we can confirm visibility
-  // The dice appears at the same spot when visible
   return (
-    <group position={[0, 13.5, 9.5]}>
-      {visible && (
-        <group rotation={new THREE.Euler(rot[0], rot[1], rot[2])}>
-          <primitive object={cloned} scale={0.0012} />
-        </group>
-      )}
-    </group>
+    <div
+      className="fixed inset-0 flex items-center justify-center pointer-events-none"
+      style={{ zIndex: 9999 }}
+    >
+      <div className="w-[100vw] h-[100vh]">
+        <Canvas
+          camera={{ position: [0, 0, 5], fov: 45 }}
+          style={{ background: 'transparent' }}
+          gl={{ alpha: true }}
+        >
+          <ambientLight intensity={0.8} />
+          <directionalLight position={[2, 3, 4]} intensity={1} />
+          <group rotation={new THREE.Euler(rot[0], rot[1], rot[2])}>
+            <primitive object={cloned} scale={0.006} />
+          </group>
+        </Canvas>
+      </div>
+    </div>
   );
 }
 
@@ -216,12 +228,10 @@ function SceneryTrees() {
   );
 }
 
-function BoardScene({ board, playerPosition, animalEmoji, diceVisible, diceValue }: {
+function BoardScene({ board, playerPosition, animalEmoji }: {
   board: BoardSquare[];
   playerPosition: number;
   animalEmoji: string;
-  diceVisible: boolean;
-  diceValue: number;
 }) {
   return (
     <>
@@ -269,8 +279,6 @@ function BoardScene({ board, playerPosition, animalEmoji, diceVisible, diceValue
       {/* Scenery trees */}
       <SceneryTrees />
 
-      {/* Dice floating in front of camera */}
-      <DiceInScene visible={diceVisible} value={diceValue} />
 
       <OrbitControls
         enablePan={true}
@@ -433,11 +441,12 @@ export const BoardGameMode = ({
             board={board}
             playerPosition={state.playerPosition}
             animalEmoji={animalEmoji}
-            diceVisible={diceVisible}
-            diceValue={state.lastRoll ?? diceDisplay}
           />
         </Canvas>
       </div>
+
+      {/* Dice overlay - separate Canvas on top */}
+      <DiceOverlay visible={diceVisible} value={state.lastRoll ?? diceDisplay} />
 
       {/* Bottom HUD */}
       <div className="absolute bottom-0 left-0 right-0 z-10 p-4 space-y-3">
