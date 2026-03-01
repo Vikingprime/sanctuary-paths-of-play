@@ -678,10 +678,7 @@ export const BoardGameMode = ({
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
           <ArrowLeft className="w-4 h-4" /> Back
         </Button>
-        <div className="flex items-center gap-4 text-sm font-medium">
-          <span>🎲 {state.rollsRemaining} rolls</span>
-          <span>⭐ {state.starsEarned}</span>
-        </div>
+        <div className="flex items-center gap-4 text-sm font-medium" />
       </div>
 
       {/* 3D Board */}
