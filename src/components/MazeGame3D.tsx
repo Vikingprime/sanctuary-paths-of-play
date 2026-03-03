@@ -708,7 +708,7 @@ export const MazeGame3D = ({
     // No more chained dialogues - close dialogue and enter post-dialogue pause
     setActiveDialogue(null);
     setDialogueMessageIndex(0);
-    setPostDialoguePause(true);
+    handleRailStop();
     
     // For story mode: check if all required dialogues are now complete
     // If so, end the chapter immediately (no need to reach end cell)
@@ -1798,7 +1798,7 @@ export const MazeGame3D = ({
                   } else {
                     // All messages shown, complete the dialogue and enter post-dialogue pause
                     setActiveAppleDialogue(null);
-                    setPostDialoguePause(true);
+                    handleRailStop();
                     onAppleDialogueComplete?.();
                   }
                 }}
@@ -1811,23 +1811,6 @@ export const MazeGame3D = ({
         );
       })()}
 
-      {/* Post-Dialogue Resume Overlay */}
-      {postDialoguePause && !gameOver && (
-        <div className="fixed inset-0 z-30 flex items-end justify-center p-2 sm:p-4 pointer-events-none animate-fade-in">
-          <div className="mb-4 sm:mb-8 pointer-events-auto">
-            <Button
-              onClick={() => setPostDialoguePause(false)}
-              size="lg"
-              className="px-8 py-4 text-lg gap-2 shadow-warm-lg"
-            >
-              Continue
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
-              </svg>
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Mini Map Overlay */}
       <MiniMap
