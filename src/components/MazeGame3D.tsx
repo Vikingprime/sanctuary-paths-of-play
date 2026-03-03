@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { cn } from '@/lib/utils';
 import { Maze, AnimalType, MedalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { StoryProgress } from '@/types/quest';
 import { StoryMaze, StoryDialogue } from '@/data/storyMazes';
@@ -233,6 +234,7 @@ export const MazeGame3D = ({
   const [activeDialogue, setActiveDialogue] = useState<DialogueTrigger | null>(null);
   const [triggeredDialogues, setTriggeredDialogues] = useState<Set<string>>(new Set());
   const [dialogueMessageIndex, setDialogueMessageIndex] = useState(0); // For multi-message dialogues
+  const [postDialoguePause, setPostDialoguePause] = useState(false); // Pause after dialogue ends until player clicks to resume
   
   // Apple dialogue state (separate from maze dialogues)
   const [activeAppleDialogue, setActiveAppleDialogue] = useState<{
@@ -414,7 +416,7 @@ export const MazeGame3D = ({
     if (isPreviewing || gameOver) return;
     
     // Track when any dialogue starts to pause timer (including apple dialogue)
-    const isInDialogue = activeDialogue !== null || activeAppleDialogue !== null;
+    const isInDialogue = activeDialogue !== null || activeAppleDialogue !== null || postDialoguePause;
     
     if (isInDialogue && dialoguePauseStartRef.current === null) {
       dialoguePauseStartRef.current = Date.now();
@@ -433,8 +435,8 @@ export const MazeGame3D = ({
       gameStartTimeRef.current = Date.now();
     }
 
-    // In debug mode, don't count down time
-    if (debugMode) return;
+    // In debug mode or when timer is disabled, don't count down time
+    if (debugMode || maze.timerDisabled) return;
     
     gameTimerRef.current = setInterval(() => {
       const now = Date.now();
@@ -459,7 +461,7 @@ export const MazeGame3D = ({
         gameTimerRef.current = null;
       }
     };
-  }, [isPreviewing, gameOver, activeDialogue, activeAppleDialogue, maze.timeLimit, debugMode]);
+  }, [isPreviewing, gameOver, activeDialogue, activeAppleDialogue, postDialoguePause, maze.timeLimit, debugMode]);
 
   // Show compass when game starts (preview ends)
   useEffect(() => {
@@ -516,12 +518,14 @@ export const MazeGame3D = ({
     return dialogue.requires.every(reqId => triggeredDialogues.has(reqId));
   }, [triggeredDialogues]);
 
-  // Check if a dialogue can be triggered at the given cell
+  // Check if a dialogue can be triggered at the given cell (proximity-based only)
   const checkDialogueAtCell = useCallback((gridX: number, gridY: number, currentTriggered: Set<string>): DialogueTrigger | null => {
     if (!maze.dialogues) return null;
     
     for (const dialogue of maze.dialogues) {
       if (currentTriggered.has(dialogue.id)) continue;
+      // Skip click-triggered dialogues - they're handled by character clicks
+      if (dialogue.triggerType === 'click') continue;
       
       // Check requirements inline to avoid stale closure
       if (dialogue.requires && dialogue.requires.length > 0) {
@@ -538,6 +542,30 @@ export const MazeGame3D = ({
     return null;
   }, [maze.dialogues]);
 
+  // Handle click-triggered dialogue for a specific character
+  const handleCharacterClick = useCallback((characterId: string) => {
+    if (!maze.dialogues || activeDialogue || activeAppleDialogue) return;
+    
+    // Find a click-triggered dialogue linked to this character
+    for (const dialogue of maze.dialogues) {
+      if (triggeredDialogues.has(dialogue.id)) continue;
+      if (dialogue.triggerType !== 'click') continue;
+      if (dialogue.speakerCharacterId !== characterId) continue;
+      
+      // Check requirements
+      if (dialogue.requires && dialogue.requires.length > 0) {
+        const requirementsMet = dialogue.requires.every(reqId => triggeredDialogues.has(reqId));
+        if (!requirementsMet) continue;
+      }
+      
+      console.log('[Dialogue] Click-triggered:', dialogue.id, 'speaker:', dialogue.speaker);
+      setActiveDialogue(dialogue);
+      setDialogueMessageIndex(0);
+      setTriggeredDialogues(prev => new Set([...prev, dialogue.id]));
+      return;
+    }
+  }, [maze.dialogues, triggeredDialogues, activeDialogue, activeAppleDialogue]);
+
   // Check if all required dialogues for end are completed
   const canEndLevel = useCallback((): boolean => {
     if (!maze.endConditions?.requiredDialogues) return true;
@@ -553,6 +581,18 @@ export const MazeGame3D = ({
       const result = checkCellInteraction(maze, x, y, collectedPowerUps);
       const gridX = Math.floor(x);
       const gridY = Math.floor(y);
+
+      // Check if player reached the goal character (if configured)
+      if (maze.goalCharacterId && maze.characters) {
+        const goalChar = maze.characters.find(c => c.id === maze.goalCharacterId);
+        if (goalChar) {
+          const goalGridX = Math.floor(goalChar.position.x);
+          const goalGridY = Math.floor(goalChar.position.y);
+          if (gridX === goalGridX && gridY === goalGridY) {
+            result.reachedEnd = true;
+          }
+        }
+      }
 
       if (result.collectPowerUp && result.powerUpKey) {
         setCollectedPowerUps((prev) => new Set([...prev, result.powerUpKey!]));
@@ -576,7 +616,7 @@ export const MazeGame3D = ({
         return;
       }
       
-      // Check for any dialogue at this cell (pass current triggered set for fresh check)
+      // Check for any dialogue at this cell
       const dialogue = checkDialogueAtCell(gridX, gridY, triggeredDialogues);
       
       if (dialogue) {
@@ -665,9 +705,10 @@ export const MazeGame3D = ({
       return;
     }
     
-    // No more chained dialogues - close dialogue
+    // No more chained dialogues - close dialogue and enter post-dialogue pause
     setActiveDialogue(null);
     setDialogueMessageIndex(0);
+    setPostDialoguePause(true);
     
     // For story mode: check if all required dialogues are now complete
     // If so, end the chapter immediately (no need to reach end cell)
@@ -1089,12 +1130,18 @@ export const MazeGame3D = ({
       setMapStationAvailable(nearStation);
     };
     
+    // If freeMapAccess is enabled, always show map button
+    if (maze.freeMapAccess) {
+      setMapStationAvailable(true);
+      return;
+    }
+    
     // Check every 100ms for smooth response
     const interval = setInterval(checkProximity, 100);
     checkProximity(); // Initial check
     
     return () => clearInterval(interval);
-  }, [isPreviewing, gameOver, showMiniMap, showMapOptions, mapCountdown]);
+  }, [isPreviewing, gameOver, showMiniMap, showMapOptions, mapCountdown, maze.freeMapAccess]);
 
   // Dialogue is now checked via cell-based logic in handleCellInteraction, not proximity
 
@@ -1187,6 +1234,7 @@ export const MazeGame3D = ({
 
   // Restart the maze (reset all game state)
   const handleRestart = useCallback(() => {
+    
     // Reset player position
     playerStateRef.current = {
       x: startPos.x,
@@ -1220,6 +1268,8 @@ export const MazeGame3D = ({
     setTriggeredDialogues(new Set());
     setCompletedObjectives(new Set());
     setDialogueMessageIndex(0);
+    setPostDialoguePause(false);
+    pendingEndGameRef.current = false;
     
     // Reset timing refs
     gameStartTimeRef.current = null;
@@ -1384,7 +1434,8 @@ export const MazeGame3D = ({
         cameraYawRef={cameraYawRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
-        isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null}
+        onCharacterClick={handleCharacterClick}
+        isPaused={showMiniMap || isPreviewing || showMapOptions || mapCountdown !== null || activeDialogue !== null || postDialoguePause}
         isMuted={isMuted}
         onSceneReady={() => setSceneReady(true)}
         onRendererInfo={setRendererInfo}
@@ -1612,14 +1663,18 @@ export const MazeGame3D = ({
         </button>
       )}
 
-      {/* Map Station Button - appears when station is available but not viewing or in dialogue */}
+      {/* Map Button - always visible with freeMapAccess, otherwise only near stations */}
       {mapStationAvailable && !showMiniMap && !showMapOptions && mapCountdown === null && !activeDialogue && (
         <button
           onClick={handleMapStationClick}
-          className="fixed right-4 top-1/2 -translate-y-1/2 z-40 bg-primary text-primary-foreground px-4 py-3 rounded-l-xl shadow-lg animate-pulse hover:animate-none hover:bg-primary/90 transition-colors font-display font-semibold flex items-center gap-2"
+          className={cn(
+            "fixed right-4 top-1/2 -translate-y-1/2 z-40 bg-primary text-primary-foreground px-4 py-3 rounded-l-xl shadow-lg transition-colors font-display font-semibold flex items-center gap-2",
+            !maze.freeMapAccess && "animate-pulse hover:animate-none",
+            "hover:bg-primary/90"
+          )}
         >
           <span className="text-xl">🗺️</span>
-          <span className="hidden sm:inline">View Map</span>
+          <span className="hidden sm:inline">{maze.freeMapAccess ? 'Map' : 'View Map'}</span>
         </button>
       )}
 
@@ -1674,7 +1729,7 @@ export const MazeGame3D = ({
       )}
 
       {/* Dialogue Overlay - supports multi-message dialogues via messages array */}
-      {activeDialogue && (() => {
+      {activeDialogue && !isPreviewing && !gameOver && (() => {
         // Determine current speaker/message based on dialogueMessageIndex
         const isFirstMessage = dialogueMessageIndex === 0;
         const currentMessage = isFirstMessage 
@@ -1709,7 +1764,7 @@ export const MazeGame3D = ({
       })()}
 
       {/* Apple Dialogue Overlay - for feeding animals */}
-      {activeAppleDialogue && (() => {
+      {activeAppleDialogue && !isPreviewing && !gameOver && (() => {
         const currentMessage = activeAppleDialogue.messages[activeAppleDialogue.currentIndex];
         if (!currentMessage) return null;
         
@@ -1741,8 +1796,9 @@ export const MazeGame3D = ({
                       currentIndex: activeAppleDialogue.currentIndex + 1,
                     });
                   } else {
-                    // All messages shown, complete the dialogue
+                    // All messages shown, complete the dialogue and enter post-dialogue pause
                     setActiveAppleDialogue(null);
+                    setPostDialoguePause(true);
                     onAppleDialogueComplete?.();
                   }
                 }}
@@ -1754,6 +1810,24 @@ export const MazeGame3D = ({
           </div>
         );
       })()}
+
+      {/* Post-Dialogue Resume Overlay */}
+      {postDialoguePause && !gameOver && (
+        <div className="fixed inset-0 z-30 flex items-end justify-center p-2 sm:p-4 pointer-events-none animate-fade-in">
+          <div className="mb-4 sm:mb-8 pointer-events-auto">
+            <Button
+              onClick={() => setPostDialoguePause(false)}
+              size="lg"
+              className="px-8 py-4 text-lg gap-2 shadow-warm-lg"
+            >
+              Continue
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+              </svg>
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Mini Map Overlay */}
       <MiniMap

@@ -78,6 +78,7 @@ export interface DialogueTrigger {
   characterModel?: string; // GLB model file name - used if speakerCharacterId not set
   characterAnimation?: string; // Animation to play during dialogue
   speakerCharacterId?: string; // ID of placed character to zoom camera to
+  triggerType?: 'proximity' | 'click'; // How this dialogue is triggered (default: 'proximity')
 }
 
 export interface IntroDialogue {
@@ -105,6 +106,9 @@ export interface Maze {
   endConditions?: {
     requiredDialogues?: string[]; // Dialogues that must be completed before end cell triggers level complete
   };
+  goalCharacterId?: string; // ID of placed character that acts as the goal (reaching them completes the level)
+  timerDisabled?: boolean; // If true, no countdown timer (free exploration)
+  freeMapAccess?: boolean; // If true, map button is always visible (not just near map stations)
 }
 
 export interface GameState {

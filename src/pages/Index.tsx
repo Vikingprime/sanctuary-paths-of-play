@@ -19,9 +19,10 @@ import { useSave } from '@/hooks/useSave';
 import { useBackButton } from '@/hooks/useBackButton';
 import { Volume2, VolumeX, ArrowLeft } from 'lucide-react';
 import { storyMazes, storyMazeToMaze, StoryMaze, storyChapters } from '@/data/storyMazes';
+import { BoardGameMode } from '@/components/BoardGameMode';
 
 // Flow: home -> mode_select -> animal_select -> levels/story_levels -> playing
-type GameScreen = 'home' | 'mode_select' | 'animal_select' | 'levels' | 'story_levels' | 'playing';
+type GameScreen = 'mode_select' | 'animal_select' | 'levels' | 'story_levels' | 'playing' | 'board_game';
 
 const Index = () => {
   const { save, loading, refresh, startAttempt, completeLevel, addScore, unlockMeal, updateSettings, isMazeUnlocked, unlockMazeWithCurrency } = useSave();
@@ -38,7 +39,7 @@ const Index = () => {
     pendingAppleDialogue,
     completePendingDialogue,
   } = useAppleSystem();
-  const [screen, setScreen] = useState<GameScreen>('home');
+  const [screen, setScreen] = useState<GameScreen>('mode_select');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
@@ -64,13 +65,16 @@ const Index = () => {
     }
   }, [save.player.currentAnimal]);
 
-  const handleStartGame = () => {
-    setScreen('mode_select');
-  };
-
   const handleModeSelect = (mode: GameMode) => {
     setSelectedMode(mode);
-    setScreen('animal_select');
+    if (mode === 'story') {
+      setScreen('story_levels');
+    } else if (mode === 'board_game') {
+      // Board game needs animal selection first
+      setScreen('animal_select');
+    } else {
+      setScreen('animal_select');
+    }
   };
 
   const handleAnimalSelect = (animalId: AnimalType) => {
@@ -80,8 +84,15 @@ const Index = () => {
   const handleAnimalConfirm = () => {
     if (!selectedAnimal || !selectedMode) return;
     
+    if (selectedMode === 'board_game') {
+      setScreen('board_game');
+      return;
+    }
+    
     if (selectedMode === 'story') {
-      setScreen('story_levels');
+      if (selectedMaze) {
+        startAttempt(selectedMaze.id).then(() => setScreen('playing'));
+      }
     } else {
       setScreen('levels');
     }
@@ -98,8 +109,8 @@ const Index = () => {
     setSelectedStoryMaze(storyMaze);
     const maze = storyMazeToMaze(storyMaze);
     setSelectedMaze(maze);
-    await startAttempt(maze.id);
-    setScreen('playing');
+    // In story mode, go to animal select after choosing a maze
+    setScreen('animal_select');
   };
 
   const handleGameComplete = async (timeUsed: number) => {
@@ -144,16 +155,24 @@ const Index = () => {
   };
 
   const handleBackToAnimalSelect = () => {
-    setScreen('animal_select');
+    if (selectedMode === 'story') {
+      setScreen('story_levels');
+      setSelectedMaze(null);
+      setSelectedStoryMaze(null);
+    } else {
+      setScreen('animal_select');
+    }
   };
 
   const handleBackToModeSelect = () => {
     setScreen('mode_select');
     setSelectedAnimal(null);
+    setSelectedMaze(null);
+    setSelectedStoryMaze(null);
   };
 
   const handleBackToHome = () => {
-    setScreen('home');
+    setScreen('mode_select');
     setSelectedMaze(null);
     setSelectedStoryMaze(null);
     setSelectedMode(null);
@@ -162,16 +181,48 @@ const Index = () => {
 
   // Hardware back button handler
   const handleHardwareBack = useCallback(() => {
-    if (screen === 'levels' || screen === 'story_levels') {
+    if (screen === 'levels') {
       handleBackToAnimalSelect();
-    } else if (screen === 'animal_select') {
+    } else if (screen === 'story_levels') {
       handleBackToModeSelect();
+    } else if (screen === 'animal_select') {
+      if (selectedMode === 'story') {
+        setScreen('story_levels');
+        setSelectedMaze(null);
+        setSelectedStoryMaze(null);
+      } else {
+        handleBackToModeSelect();
+      }
     } else if (screen === 'mode_select') {
-      handleBackToHome();
+      // Already at top level, do nothing
     }
-  }, [screen]);
+  }, [screen, selectedMode]);
 
   useBackButton(handleHardwareBack, screen === 'levels' || screen === 'story_levels' || screen === 'mode_select' || screen === 'animal_select');
+
+  // Count gold medals for board game rolls
+  const goldMedalCount = Object.values(save.levels).filter(l => l.medal === 'gold').length;
+
+  if (screen === 'board_game' && selectedAnimal) {
+    const animal = animals.find(a => a.id === selectedAnimal);
+    return (
+      <BoardGameMode
+        animalType={selectedAnimal}
+        animalEmoji={animal?.emoji || '🐷'}
+        goldMedals={goldMedalCount}
+        onBack={handleBackToHome}
+        onStarsEarned={async (stars) => {
+          const s = await import('@/services/SaveManager').then(m => m.SaveManager);
+          await s.addCurrency(stars);
+          refresh();
+        }}
+        onFeedSent={async () => {
+          await unlockMeal();
+          refresh();
+        }}
+      />
+    );
+  }
 
   if (screen === 'playing' && selectedAnimal && selectedMaze) {
     return (
@@ -223,112 +274,6 @@ const Index = () => {
         appleCount={appleCount}
       />
       <main className="container max-w-4xl mx-auto px-4 py-8">
-        {screen === 'home' && (
-          <div className="space-y-6 md:space-y-8">
-            {/* Hero Section */}
-            <div className="text-center space-y-2 md:space-y-4 animate-fade-in">
-              <div className="text-4xl md:text-6xl mb-2 md:mb-4">🐷🐮🐔</div>
-              <h1 className="font-display text-3xl md:text-5xl font-bold text-gradient">
-                Foggy Farm
-              </h1>
-              <p className="text-sm md:text-lg text-muted-foreground max-w-md mx-auto">
-                Navigate 3D corn mazes with adorable farm animals and help unlock
-                real meals for sanctuary residents!
-              </p>
-            </div>
-
-            {/* Start Button */}
-            <div className="flex flex-col items-center gap-4 animate-fade-in-delay-1">
-              <Button
-                variant="sunset"
-                size="xl"
-                onClick={handleStartGame}
-                className="min-w-48"
-              >
-                Start Adventure 🌾
-              </Button>
-              
-              {/* Sound Toggle */}
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                {save.settings.musicVolume > 0 ? (
-                  <Volume2 className="h-4 w-4" />
-                ) : (
-                  <VolumeX className="h-4 w-4" />
-                )}
-                <Switch
-                  id="sound-toggle"
-                  checked={save.settings.musicVolume > 0}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    musicVolume: checked ? 0.7 : 0,
-                    sfxVolume: checked ? 1.0 : 0 
-                  })}
-                />
-                <Label htmlFor="sound-toggle" className="cursor-pointer">
-                  Sound
-                </Label>
-              </div>
-              
-              {/* Debug Mode Toggle */}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Switch
-                  id="debug-mode"
-                  checked={save.settings.debugMode}
-                  onCheckedChange={(checked) => updateSettings({ debugMode: checked })}
-                />
-                <Label htmlFor="debug-mode" className="cursor-pointer">
-                  Debug Mode (skip preview, infinite time)
-                </Label>
-              </div>
-            </div>
-
-            {/* Progress Tracker */}
-            <div className="max-w-sm mx-auto animate-fade-in-delay-2">
-              <ProgressTracker
-                mealsUnlocked={save.player.totalMealsUnlocked}
-                currentProgress={mealProgress}
-                targetMeals={5}
-              />
-            </div>
-
-            {/* How it works */}
-            <div className="bg-card rounded-2xl p-6 shadow-warm animate-fade-in-delay-3">
-              <h3 className="font-display text-lg font-bold text-foreground mb-4 text-center">
-                Quick Overview
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
-                <div className="space-y-2">
-                  <div className="text-3xl">👀</div>
-                  <h4 className="font-semibold text-foreground">Memorize</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Study the maze from above
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-3xl">🌽</div>
-                  <h4 className="font-semibold text-foreground">Explore 3D</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Navigate from inside the corn maze
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-3xl">📍</div>
-                  <h4 className="font-semibold text-foreground">Find Stations</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Lost? Find map stations for help
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-3xl">🍽️</div>
-                  <h4 className="font-semibold text-foreground">Unlock Meals</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Feed real sanctuary animals
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {screen === 'mode_select' && (
           <ModeSelectScreen
             onSelectMode={handleModeSelect}
@@ -338,6 +283,15 @@ const Index = () => {
               completedQuests: storyProgress.completedQuests.length,
               totalQuests: storyChapters.reduce((sum, c) => sum + c.quests.length, 0),
             }}
+            isSoundOn={save.settings.musicVolume > 0}
+            onSoundToggle={(on) => updateSettings({ 
+              musicVolume: on ? 0.7 : 0,
+              sfxVolume: on ? 1.0 : 0 
+            })}
+            debugMode={save.settings.debugMode}
+            onDebugToggle={(on) => updateSettings({ debugMode: on })}
+            mealsUnlocked={save.player.totalMealsUnlocked}
+            mealProgress={mealProgress}
           />
         )}
 
@@ -346,7 +300,7 @@ const Index = () => {
             {/* Back button */}
             <Button
               variant="ghost"
-              onClick={handleBackToModeSelect}
+              onClick={selectedMode === 'story' ? () => { setScreen('story_levels'); setSelectedMaze(null); setSelectedStoryMaze(null); } : handleBackToModeSelect}
               className="flex items-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -404,10 +358,10 @@ const Index = () => {
           />
         )}
 
-        {screen === 'story_levels' && selectedAnimal && (
+        {screen === 'story_levels' && (
           <StoryLevelSelect
             onSelect={handleStoryLevelSelect}
-            onBack={handleBackToAnimalSelect}
+            onBack={handleBackToModeSelect}
             storyProgress={storyProgress}
             debugMode={save.settings.debugMode}
           />

@@ -1,14 +1,211 @@
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StoryProgress } from '@/types/quest';
-import { StoryMaze, storyChapters, getChapterMaze } from '@/data/storyMazes';
+import { StoryAct, StoryNode } from '@/types/storyActs';
+import { storyActs, isNodeUnlocked, isActComplete, getStoryAct } from '@/data/storyActsData';
+import { StoryMaze, getChapterMaze } from '@/data/storyMazes';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Lock, Check, BookOpen, Edit } from 'lucide-react';
+import { ArrowLeft, Lock, Check, ChevronRight, Clock, Play, Edit, X } from 'lucide-react';
 
 interface StoryLevelSelectProps {
   onSelect: (storyMaze: StoryMaze) => void;
   onBack: () => void;
   storyProgress: StoryProgress;
   debugMode?: boolean;
+}
+
+// Layout constants
+const NODE_W = 160;
+const NODE_H = 72;
+const LAYER_GAP_Y = 100;
+const SIBLING_GAP_X = 180;
+const PADDING_X = 40;
+const PADDING_TOP = 20;
+
+interface LayoutNode {
+  node: StoryNode;
+  x: number;
+  y: number;
+  depth: number;
+}
+
+interface Edge {
+  from: LayoutNode;
+  to: LayoutNode;
+}
+
+function layoutAct(act: StoryAct): { nodes: LayoutNode[]; edges: Edge[]; width: number; height: number } {
+  const nodeMap = new Map<string, StoryNode>();
+  act.nodes.forEach(n => nodeMap.set(n.id, n));
+
+  // Build parent map
+  const parentMap = new Map<string, string[]>();
+  act.nodes.forEach(n => {
+    (n.unlocks || []).forEach(childId => {
+      const parents = parentMap.get(childId) || [];
+      parents.push(n.id);
+      parentMap.set(childId, parents);
+    });
+  });
+
+  // BFS depth (max depth from all parents)
+  const depthMap = new Map<string, number>();
+  const queue: string[] = [act.startNodeId];
+  depthMap.set(act.startNodeId, 0);
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    const node = nodeMap.get(id);
+    if (!node) continue;
+    const d = depthMap.get(id)!;
+    (node.unlocks || []).forEach(childId => {
+      const existing = depthMap.get(childId);
+      if (existing === undefined || d + 1 > existing) {
+        depthMap.set(childId, d + 1);
+      }
+      if (!queue.includes(childId)) queue.push(childId);
+    });
+  }
+
+  const maxDepth = Math.max(...Array.from(depthMap.values()), 0);
+  const layers: StoryNode[][] = [];
+  for (let d = 0; d <= maxDepth; d++) {
+    layers.push(act.nodes.filter(n => depthMap.get(n.id) === d));
+  }
+
+  // Determine total width from widest layer
+  let totalWidth = 0;
+  layers.forEach(l => { totalWidth = Math.max(totalWidth, l.length * SIBLING_GAP_X); });
+  totalWidth = Math.max(totalWidth, SIBLING_GAP_X) + PADDING_X * 2;
+
+  const posMap = new Map<string, { x: number; y: number }>();
+
+  // Top-down layout: position each layer
+  layers.forEach((layerNodes, depth) => {
+    if (depth === 0) {
+      // Root node centered
+      layerNodes.forEach((node, i) => {
+        const count = layerNodes.length;
+        posMap.set(node.id, {
+          x: totalWidth / 2 + (i - (count - 1) / 2) * SIBLING_GAP_X,
+          y: PADDING_TOP + depth * LAYER_GAP_Y + NODE_H / 2,
+        });
+      });
+      return;
+    }
+
+    // For each node, compute ideal x = average of parent x positions
+    const idealXs: { node: StoryNode; idealX: number }[] = layerNodes.map(node => {
+      const parents = parentMap.get(node.id) || [];
+      if (parents.length > 0) {
+        const parentXs = parents.map(pid => posMap.get(pid)?.x ?? totalWidth / 2);
+        return { node, idealX: parentXs.reduce((a, b) => a + b, 0) / parentXs.length };
+      }
+      return { node, idealX: totalWidth / 2 };
+    });
+
+    // Sort by ideal x so left-to-right order matches parent positions
+    idealXs.sort((a, b) => a.idealX - b.idealX);
+
+    // Place nodes at their ideal positions, then resolve overlaps
+    idealXs.forEach(({ node, idealX }) => {
+      posMap.set(node.id, {
+        x: idealX,
+        y: PADDING_TOP + depth * LAYER_GAP_Y + NODE_H / 2,
+      });
+    });
+
+    // Resolve overlaps (preserve order)
+    const sorted = idealXs.map(ix => ix.node);
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = posMap.get(sorted[i - 1].id)!;
+      const curr = posMap.get(sorted[i].id)!;
+      if (curr.x - prev.x < SIBLING_GAP_X) {
+        curr.x = prev.x + SIBLING_GAP_X;
+      }
+    }
+
+    // Center the group around the ideal center of all parents in this layer
+    if (sorted.length > 1) {
+      const minX = posMap.get(sorted[0].id)!.x;
+      const maxX = posMap.get(sorted[sorted.length - 1].id)!.x;
+      const currentCenter = (minX + maxX) / 2;
+      // Use original ideal center (average of all ideal positions)
+      const idealCenter = idealXs.reduce((s, ix) => s + ix.idealX, 0) / idealXs.length;
+      const offset = idealCenter - currentCenter;
+      sorted.forEach(n => { posMap.get(n.id)!.x += offset; });
+    }
+  });
+
+  // Ensure all nodes fit within bounds
+  const allXs = Array.from(posMap.values()).map(p => p.x);
+  const minNodeX = Math.min(...allXs) - NODE_W / 2;
+  if (minNodeX < PADDING_X) {
+    const shift = PADDING_X - minNodeX;
+    posMap.forEach(p => { p.x += shift; });
+  }
+  const allXs2 = Array.from(posMap.values()).map(p => p.x);
+  const maxNodeX = Math.max(...allXs2) + NODE_W / 2 + PADDING_X;
+  const finalWidth = Math.max(maxNodeX, totalWidth);
+
+  const layoutNodes = new Map<string, LayoutNode>();
+  posMap.forEach((pos, id) => {
+    const node = nodeMap.get(id)!;
+    layoutNodes.set(id, { node, x: pos.x, y: pos.y, depth: depthMap.get(id)! });
+  });
+
+  // Build edges
+  const edges: Edge[] = [];
+  act.nodes.forEach(n => {
+    const from = layoutNodes.get(n.id);
+    if (!from) return;
+    (n.unlocks || []).forEach(childId => {
+      const to = layoutNodes.get(childId);
+      if (to) edges.push({ from, to });
+    });
+  });
+
+  const height = PADDING_TOP + (maxDepth + 1) * LAYER_GAP_Y + 20;
+
+  return {
+    nodes: Array.from(layoutNodes.values()),
+    edges,
+    width: finalWidth,
+    height,
+  };
+}
+
+function edgePath(from: LayoutNode, to: LayoutNode, allNodes: LayoutNode[]): string {
+  const x1 = from.x;
+  const y1 = from.y + NODE_H / 2 + 2;
+  const x2 = to.x;
+  const y2 = to.y - NODE_H / 2 - 2;
+  const depthSpan = to.depth - from.depth;
+
+  if (depthSpan > 1) {
+    // Edge skips layers - route around intermediate nodes
+    const midNodes = allNodes.filter(n => n.depth > from.depth && n.depth < to.depth);
+    if (midNodes.length > 0) {
+      const midXs = midNodes.map(n => n.x);
+      const midMinX = Math.min(...midXs) - NODE_W / 2 - 30;
+      const midMaxX = Math.max(...midXs) + NODE_W / 2 + 30;
+
+      // Route on whichever side is closer to the from node
+      const routeRight = x1 >= (midMinX + midMaxX) / 2;
+      const sideX = routeRight ? midMaxX : midMinX;
+
+      // Straight line down, jog out, straight down, jog back in
+      const midY1 = y1 + 15;
+      const midY2 = y2 - 15;
+      return `M ${x1} ${y1} L ${x1} ${midY1} Q ${x1} ${midY1 + 15}, ${sideX} ${midY1 + 15} L ${sideX} ${midY2 - 15} Q ${sideX} ${midY2}, ${x2} ${midY2} L ${x2} ${y2}`;
+    }
+  }
+
+  // Direct parent-child: straight line if aligned, gentle curve otherwise
+  if (Math.abs(x1 - x2) < 5) {
+    return `M ${x1} ${y1} L ${x2} ${y2}`;
+  }
+  const cy = (y1 + y2) / 2;
+  return `M ${x1} ${y1} C ${x1} ${cy}, ${x2} ${cy}, ${x2} ${y2}`;
 }
 
 export const StoryLevelSelect = ({
@@ -18,40 +215,193 @@ export const StoryLevelSelect = ({
   debugMode = false,
 }: StoryLevelSelectProps) => {
   const navigate = useNavigate();
-  const isChapterUnlocked = (chapterId: string): boolean => {
-    const chapter = storyChapters.find(c => c.id === chapterId);
-    if (!chapter) return false;
-    
-    // First chapter is always unlocked
-    if (!chapter.unlockCondition) return true;
-    
-    // Check if required quest is completed
-    return storyProgress.completedQuests.includes(chapter.unlockCondition.questId);
+  const [expandedAct, setExpandedAct] = useState<string | null>(() => {
+    const firstIncomplete = storyActs.find(a => !isActComplete(a, storyProgress.completedQuests));
+    return firstIncomplete?.id ?? storyActs[0]?.id ?? null;
+  });
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  const completedNodes = storyProgress.completedQuests;
+
+  const isActUnlocked = (act: StoryAct): boolean => {
+    if (!act.unlockCondition) return true;
+    const requiredAct = getStoryAct(act.unlockCondition.actId);
+    if (!requiredAct) return false;
+    return isActComplete(requiredAct, completedNodes);
   };
 
-  const isChapterCompleted = (chapterId: string): boolean => {
-    const chapter = storyChapters.find(c => c.id === chapterId);
-    if (!chapter) return false;
-    
-    // Check if all quests in chapter are completed
-    return chapter.quests.every(q => storyProgress.completedQuests.includes(q.id));
+  const getMazeForNode = (node: StoryNode): StoryMaze | undefined => {
+    return getChapterMaze(
+      node.id === 'find_clues' ? 'chapter_1' :
+      node.id === 'cousin_riddle' ? 'chapter_2' : 'chapter_1'
+    );
   };
 
-  const handleChapterSelect = (chapterId: string) => {
-    const maze = getChapterMaze(chapterId);
-    if (maze) {
-      onSelect(maze);
-    }
+  const handleNodeClick = (node: StoryNode) => {
+    const maze = getMazeForNode(node);
+    if (maze) onSelect(maze);
+  };
+
+  const renderNodeDetailOverlay = () => {
+    if (!selectedNodeId || !expandedAct) return null;
+    const act = storyActs.find(a => a.id === expandedAct);
+    if (!act) return null;
+    const node = act.nodes.find(n => n.id === selectedNodeId);
+    if (!node) return null;
+    const isDone = completedNodes.includes(node.id);
+    const isUnlocked = isNodeUnlocked(node, completedNodes);
+    const canPlay = isUnlocked;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setSelectedNodeId(null)}>
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+        <div
+          className="relative w-full max-w-md p-5 rounded-2xl border-2 border-primary/30 bg-card shadow-lg animate-fade-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setSelectedNodeId(null)}
+            className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="flex items-start gap-3">
+            <span className="text-3xl">{node.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-display font-bold text-lg text-foreground">{node.title}</h3>
+              <p className="text-sm text-muted-foreground mt-1">{node.description}</p>
+              <div className="flex items-center gap-2 mt-3 flex-wrap">
+                {node.timed && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    <Clock className="w-3 h-3" /> Timed
+                  </span>
+                )}
+                {isDone && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-green-500/10 text-green-700 px-2 py-0.5 rounded-full">
+                    <Check className="w-3 h-3" /> Completed
+                  </span>
+                )}
+                {!isUnlocked && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
+                    <Lock className="w-3 h-3" /> Locked
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          {canPlay && !isDone && (
+            <Button onClick={() => handleNodeClick(node)} className="w-full mt-4">
+              <Play className="w-4 h-4 mr-2" /> Play Level
+            </Button>
+          )}
+          {debugMode && (() => {
+            const maze = getMazeForNode(node);
+            return maze ? (
+              <Button variant="outline" onClick={() => navigate(`/editor?mazeId=${maze.id}`)} className="w-full mt-2">
+                <Edit className="w-4 h-4 mr-2" /> Edit in Maze Editor
+              </Button>
+            ) : null;
+          })()}
+        </div>
+      </div>
+    );
+  };
+
+  const renderGraph = (act: StoryAct) => {
+    const layout = layoutAct(act);
+
+    return (
+      <>
+        <div className="overflow-x-auto overflow-y-hidden -mx-4 px-4">
+          <svg
+            width={layout.width}
+            height={layout.height}
+            viewBox={`0 0 ${layout.width} ${layout.height}`}
+            className="mx-auto block"
+            style={{ minWidth: Math.min(layout.width, 300) }}
+          >
+            {/* Edges */}
+            {layout.edges.map((edge, i) => {
+              const fromDone = completedNodes.includes(edge.from.node.id);
+              const toDone = completedNodes.includes(edge.to.node.id);
+              const toUnlocked = isNodeUnlocked(edge.to.node, completedNodes);
+              return (
+                <path
+                  key={i}
+                  d={edgePath(edge.from, edge.to, layout.nodes)}
+                  fill="none"
+                  stroke={
+                    toDone
+                      ? 'hsl(var(--primary))' 
+                      : fromDone && toUnlocked
+                        ? 'hsl(var(--primary) / 0.5)'
+                        : 'hsl(var(--muted-foreground) / 0.2)'
+                  }
+                  strokeWidth={toDone ? 3 : 2}
+                  strokeDasharray={!fromDone && !toDone ? '6 4' : undefined}
+                  className="transition-all duration-500"
+                />
+              );
+            })}
+
+            {/* Nodes */}
+            {layout.nodes.map(ln => {
+              const { node, x, y } = ln;
+              const isDone = completedNodes.includes(node.id);
+              const isUnlocked = isNodeUnlocked(node, completedNodes);
+              const canPlay = isUnlocked;
+              const nx = x - NODE_W / 2;
+              const ny = y - NODE_H / 2;
+
+              return (
+                <g
+                  key={node.id}
+                  onClick={(e) => { e.stopPropagation(); setSelectedNodeId(selectedNodeId === node.id ? null : node.id); }}
+                  className="cursor-pointer outline-none"
+                  role="button"
+                  tabIndex={0}
+                >
+                  <rect
+                    x={nx} y={ny} width={NODE_W} height={NODE_H} rx={12}
+                    fill={isDone ? 'hsl(142 71% 45% / 0.12)' : isUnlocked ? 'hsl(var(--card))' : 'hsl(var(--muted) / 0.3)'}
+                    stroke={selectedNodeId === node.id ? 'hsl(30 100% 50%)' : isDone ? 'hsl(142 71% 45% / 0.5)' : isUnlocked && canPlay ? 'hsl(var(--primary) / 0.5)' : 'hsl(var(--border) / 0.4)'}
+                    strokeWidth={selectedNodeId === node.id ? 2.5 : isDone ? 2 : 1.5}
+                  />
+                  <circle cx={nx + 24} cy={y} r={14} fill={isDone ? 'hsl(142 71% 45%)' : isUnlocked ? 'hsl(var(--primary) / 0.15)' : 'hsl(var(--muted))'} />
+                  {isDone ? (
+                    <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fill="white" fontSize="12">✓</text>
+                  ) : !isUnlocked ? (
+                    <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fill="hsl(var(--muted-foreground))" fontSize="10">🔒</text>
+                  ) : (
+                    <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fontSize="14">{node.emoji}</text>
+                  )}
+                  <text x={nx + 44} y={ny + 22} fill={isUnlocked ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))'} fontSize="12" fontWeight="600" fontFamily="var(--font-display), system-ui" className="select-none">
+                    {node.title.length > 16 ? node.title.slice(0, 15) + '…' : node.title}
+                  </text>
+                  <text x={nx + 44} y={ny + 38} fill="hsl(var(--muted-foreground))" fontSize="10" className="select-none">
+                    {isDone ? 'Completed' : !isUnlocked ? 'Locked' : node.timed ? '⏱ Timed' : 'Ready'}
+                  </text>
+                  {node.timed && isUnlocked && !isDone && (
+                    <circle cx={nx + NODE_W - 14} cy={ny + 14} r={8} fill="hsl(var(--primary) / 0.15)" />
+                  )}
+                  {canPlay && !isDone && (
+                    <polygon points={`${nx + NODE_W - 20},${ny + NODE_H - 24} ${nx + NODE_W - 20},${ny + NODE_H - 12} ${nx + NODE_W - 10},${ny + NODE_H - 18}`} fill="hsl(var(--primary))" />
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </>
+    );
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Back button */}
-      <Button
-        variant="ghost"
-        onClick={onBack}
-        className="flex items-center gap-2"
-      >
+    <div className="space-y-6 animate-fade-in max-w-3xl mx-auto">
+      {/* Node detail overlay */}
+      {renderNodeDetailOverlay()}
+      {/* Back */}
+      <Button variant="ghost" onClick={onBack} className="flex items-center gap-2">
         <ArrowLeft className="w-4 h-4" />
         Back
       </Button>
@@ -62,121 +412,80 @@ export const StoryLevelSelect = ({
         <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
           Story Mode
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Solve the mystery of the missing wedding ring!
         </p>
       </div>
 
-      {/* Chapter Cards */}
-      <div className="space-y-4 max-w-xl mx-auto">
-        {storyChapters.map((chapter, index) => {
-          const unlocked = isChapterUnlocked(chapter.id);
-          const completed = isChapterCompleted(chapter.id);
-          const maze = getChapterMaze(chapter.id);
-          
+      {/* Acts */}
+      <div className="space-y-4">
+        {storyActs.map(act => {
+          const unlocked = isActUnlocked(act);
+          const completed = isActComplete(act, completedNodes);
+          const isExpanded = expandedAct === act.id;
+          const completedCount = act.nodes.filter(n => completedNodes.includes(n.id)).length;
+
           return (
-            <button
-              key={chapter.id}
-              onClick={() => unlocked && handleChapterSelect(chapter.id)}
-              disabled={!unlocked}
-              className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${
-                unlocked
-                  ? completed
-                    ? 'bg-green-500/10 border-green-500/50 hover:border-green-500'
-                    : 'bg-card border-primary/30 hover:border-primary hover:scale-[1.02]'
-                  : 'bg-muted/50 border-border opacity-60 cursor-not-allowed'
+            <div
+              key={act.id}
+              className={`rounded-xl border-2 overflow-hidden transition-all duration-300 ${
+                completed
+                  ? 'border-green-500/40 bg-green-500/5'
+                  : unlocked
+                    ? 'border-primary/30 bg-card'
+                    : 'border-border/40 bg-muted/30 opacity-60'
               }`}
             >
-              <div className="flex items-start gap-4">
-                {/* Chapter Number / Status */}
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  completed
-                    ? 'bg-green-500 text-white'
-                    : unlocked
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground'
+              {/* Header */}
+              <button
+                onClick={() => { setSelectedNodeId(null); setExpandedAct(isExpanded ? null : act.id); }}
+                className="w-full text-left p-4 flex items-center gap-4"
+              >
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 text-xl ${
+                  completed ? 'bg-green-500 text-white'
+                    : unlocked ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground'
                 }`}>
-                  {completed ? (
-                    <Check className="w-6 h-6" />
-                  ) : unlocked ? (
-                    <BookOpen className="w-5 h-5" />
-                  ) : (
-                    <Lock className="w-5 h-5" />
-                  )}
+                  {completed ? <Check className="w-6 h-6" /> :
+                   !unlocked ? <Lock className="w-5 h-5" /> :
+                   act.emoji}
                 </div>
-
-                {/* Chapter Info */}
                 <div className="flex-1 min-w-0">
-                  <h3 className={`font-display font-bold text-lg ${
-                    unlocked ? 'text-foreground' : 'text-muted-foreground'
-                  }`}>
-                    {chapter.title}
-                  </h3>
-                  <p className={`text-sm mt-1 ${
-                    unlocked ? 'text-muted-foreground' : 'text-muted-foreground/60'
-                  }`}>
-                    {chapter.description}
-                  </p>
-                  
-                  {/* Quest info */}
-                  {maze && unlocked && (
-                    <div className="mt-2 flex items-center gap-2 text-xs">
-                      <span className="bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                        {maze.quest.title}
-                      </span>
-                      {completed && (
-                        <span className="bg-green-500/20 text-green-600 px-2 py-0.5 rounded-full">
-                          ✓ Completed
-                        </span>
-                      )}
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                    Act {act.actNumber}
+                  </span>
+                  <h2 className={`font-display font-bold text-lg ${unlocked ? 'text-foreground' : 'text-muted-foreground'}`}>
+                    {act.title}
+                  </h2>
+                  {unlocked && (
+                    <div className="mt-1">
+                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden max-w-[200px]">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all duration-500"
+                          style={{ width: `${(completedCount / act.nodes.length) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{completedCount}/{act.nodes.length}</span>
                     </div>
                   )}
-                  
-                  {/* Lock reason */}
-                  {!unlocked && chapter.unlockCondition && (
-                    <p className="text-xs text-muted-foreground/60 mt-2 italic">
-                      Complete previous chapter to unlock
-                    </p>
-                  )}
                 </div>
+                <ChevronRight className={`w-5 h-5 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+              </button>
 
-                {/* Play/Edit indicators */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {debugMode && maze && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/editor?mazeId=${maze.id}`);
-                      }}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                  )}
-                  {unlocked && !completed && (
-                    <div className="text-primary font-semibold text-sm">
-                      Play →
-                    </div>
-                  )}
-                  {completed && (
-                    <div className="text-green-600 font-semibold text-sm">
-                      Replay →
-                    </div>
-                  )}
+              {/* Graph */}
+              {isExpanded && (
+                <div className="border-t border-border/30 pt-3 pb-4">
+                  {renderGraph(act)}
                 </div>
-              </div>
-            </button>
+              )}
+            </div>
           );
         })}
       </div>
 
-      {/* Progress Summary */}
+      {/* Progress */}
       <div className="text-center text-sm text-muted-foreground">
-        <p>
-          📖 {storyProgress.completedQuests.length} / {storyChapters.length} chapters completed
-        </p>
+        📖 {completedNodes.length} / {storyActs.reduce((s, a) => s + a.nodes.length, 0)} levels
       </div>
     </div>
   );

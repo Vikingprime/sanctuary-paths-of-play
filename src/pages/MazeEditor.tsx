@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple } from 'lucide-react';
 import { toast } from 'sonner';
@@ -51,7 +52,9 @@ interface MazeConfig {
   difficulty: 'easy' | 'medium' | 'hard';
   timeLimit: number;
   previewTime: number;
+  timerDisabled?: boolean;
   requiredDialogues?: string[];
+  goalCharacterId?: string;
 }
 
 const CELL_LABELS: Record<CellType, string> = {
@@ -94,6 +97,7 @@ const AVAILABLE_MODELS = [
   'Hen.glb',
   'Hen_idle.glb',
   'Hen_walk.glb',
+  'Rat.glb',
 ];
 
 const AVAILABLE_ANIMATIONS = [
@@ -122,6 +126,8 @@ const MazeEditor: React.FC = () => {
     timeLimit: 60,
     previewTime: 5,
     requiredDialogues: [],
+    timerDisabled: false,
+    goalCharacterId: undefined,
   });
   const [isDragging, setIsDragging] = useState(false);
   const [dialogues, setDialogues] = useState<DialogueConfig[]>([]);
@@ -181,6 +187,8 @@ const MazeEditor: React.FC = () => {
       timeLimit: maze.timeLimit,
       previewTime: maze.previewTime,
       requiredDialogues: maze.endConditions?.requiredDialogues || [],
+      timerDisabled: maze.timerDisabled || false,
+      goalCharacterId: maze.goalCharacterId,
     });
     
     // Load dialogues
@@ -442,13 +450,23 @@ ${dialogues.map(d => {
   },` 
       : '';
 
+    const goalCharacterSchema = config.goalCharacterId 
+      ? `
+  goalCharacterId: '${config.goalCharacterId}',`
+      : '';
+
+    const timerDisabledSchema = config.timerDisabled
+      ? `
+  timerDisabled: true,`
+      : '';
+
     const schema = `{
   id: ${loadedMazeId || Date.now()},
   name: '${config.name}',
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
-  previewTime: ${config.previewTime},
-  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endConditionsSchema}
+  previewTime: ${config.previewTime},${timerDisabledSchema}
+  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
   ]),
@@ -702,6 +720,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                       value={config.timeLimit}
                       onChange={e => setConfig(c => ({ ...c, timeLimit: parseInt(e.target.value) || 60 }))}
                       min={10}
+                      disabled={config.timerDisabled}
                     />
                   </div>
                   <div className="space-y-1">
@@ -714,6 +733,38 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     />
                   </div>
                 </div>
+
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Disable Timer</Label>
+                  <Switch
+                    checked={config.timerDisabled || false}
+                    onCheckedChange={(checked) => setConfig(c => ({ ...c, timerDisabled: checked }))}
+                  />
+                </div>
+
+                {/* Goal Character */}
+                {characters.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Goal Character</Label>
+                    <Select
+                      value={config.goalCharacterId || '_none'}
+                      onValueChange={(v) => setConfig(c => ({ ...c, goalCharacterId: v === '_none' ? undefined : v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="None (use end cell)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none">None (use end cell)</SelectItem>
+                        {characters.map(ch => (
+                          <SelectItem key={ch.id} value={ch.id}>
+                            {ch.emoji} {ch.name} ({ch.id})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Reaching this character completes the level</p>
+                  </div>
+                )}
 
                 {/* Characters Toggle */}
                 <div className="pt-2 border-t">

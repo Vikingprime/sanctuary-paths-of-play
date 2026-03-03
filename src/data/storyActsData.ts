@@ -1,0 +1,467 @@
+import { StoryAct, StoryNode } from '@/types/storyActs';
+
+// ============================================================
+// ACT 1: The Missing Ring
+// ============================================================
+const act1: StoryAct = {
+  id: 'act_1',
+  actNumber: 1,
+  title: 'The Missing Ring',
+  subtitle: 'Help Stella find her wedding ring',
+  description: 'Sanctuary Stella has lost her wedding ring. Explore the corn maze, find allies, and gather clues.',
+  emoji: '💍',
+  startNodeId: 'find_clues',
+  nodes: [
+    {
+      id: 'find_clues',
+      title: 'The Mystery Begins',
+      description: 'Stella lost her wedding ring! Find Remy the Rat for clues, then report back.',
+      emoji: '🔍',
+      timed: false,
+      mazeId: 101,
+      implemented: true,
+      unlocks: ['cousin_riddle'],
+    },
+    {
+      id: 'cousin_riddle',
+      title: "Remy's Cousins",
+      description: "Talk to Remy's cousins in the right order. The final cousin reveals: Raccoon knows more, but wants items for a feast first.",
+      emoji: '🐀',
+      timed: false,
+      mazeId: 102,
+      implemented: true,
+      requiresAll: ['find_clues'],
+      unlocks: ['berry_fetch', 'pumpkin_hunt', 'rootbeer_cellar'],
+    },
+    // === BRANCH A: Berries ===
+    {
+      id: 'berry_fetch',
+      title: 'Berry Picking',
+      description: 'Fetch a berry from the bushes and bring it back — but watch out for the possessive birds!',
+      emoji: '🫐',
+      timed: false,
+      requiresAll: ['cousin_riddle'],
+      branchLabel: 'Feast Items',
+      unlocks: ['berry_gauntlet'],
+    },
+    {
+      id: 'berry_gauntlet',
+      title: 'Berry Gauntlet',
+      description: 'Collect ALL the berries across a larger maze with even more bird watchers.',
+      emoji: '🐦',
+      timed: false,
+      requiresAll: ['berry_fetch'],
+      unlocks: ['rat_city'],
+    },
+    // === BRANCH B: Pumpkin ===
+    {
+      id: 'pumpkin_hunt',
+      title: 'The Pumpkin Race',
+      description: "Find the pumpkin before the pig's cousins get to it! Horses patrol the paths.",
+      emoji: '🎃',
+      timed: true,
+      requiresAll: ['cousin_riddle'],
+      branchLabel: 'Feast Items',
+      unlocks: ['llama_blockade'],
+    },
+    {
+      id: 'llama_blockade',
+      title: 'Llama Roadblock',
+      description: "A llama blocks the only path to the pumpkin patch. Lure the llamas away and find an alternate route.",
+      emoji: '🦙',
+      timed: false,
+      requiresAll: ['pumpkin_hunt'],
+      unlocks: ['rat_city'],
+    },
+    // === BRANCH C: Root Beer ===
+    {
+      id: 'rootbeer_cellar',
+      title: "Remy's Root Beer Run",
+      description: "Navigate Remy through an underground cellar. Push boxes to reach the root beer stash.",
+      emoji: '🍺',
+      timed: false,
+      requiresAll: ['cousin_riddle'],
+      branchLabel: 'Feast Items',
+      unlocks: ['rat_city'],
+    },
+    {
+      id: 'rat_city',
+      title: 'Rat City',
+      description: "Find Remy's cousin in the bustling underground rat city.",
+      emoji: '🏙️',
+      timed: false,
+      requiresAll: ['berry_gauntlet', 'llama_blockade', 'rootbeer_cellar'],
+      unlocks: ['attend_feast'],
+    },
+    // === CONVERGENCE: The Feast ===
+    {
+      id: 'attend_feast',
+      title: 'The Grand Feast',
+      description: "All items gathered! Raccoon says you need an offering and a small friend to meet Porcupine Boss.",
+      emoji: '🍽️',
+      timed: true,
+      requiresAll: ['rat_city'],
+      unlocks: ['find_chicken', 'rat_gamble'],
+    },
+    // === BRANCH: Make a Friend ===
+    {
+      id: 'find_chicken',
+      title: 'Make a Friend',
+      description: "Find a chicken before sunset. There are many nests — but which one is hers?",
+      emoji: '🐔',
+      timed: true,
+      requiresAll: ['attend_feast'],
+      branchLabel: 'Porcupine Prep',
+      unlocks: ['herd_chicks'],
+    },
+    {
+      id: 'herd_chicks',
+      title: 'Herd the Chicks',
+      description: "Chicken agrees to help, but first: her chicks have escaped! Herd them all back.",
+      emoji: '🐥',
+      timed: false,
+      requiresAll: ['find_chicken'],
+      unlocks: ['porcupine_barn'],
+    },
+    // === BRANCH: The Gambler ===
+    {
+      id: 'rat_gamble',
+      title: "Remy's Gamble",
+      description: "Porcupine wants an offering of glitter. Remy will wager his gold coins — beat him in a dice maze race!",
+      emoji: '🎲',
+      timed: false,
+      requiresAll: ['attend_feast'],
+      branchLabel: 'Porcupine Prep',
+      unlocks: ['porcupine_barn'],
+    },
+    // === CONVERGENCE: Porcupine Boss ===
+    {
+      id: 'porcupine_barn',
+      title: 'The Barn (Porcupine Boss)',
+      description: "Enter the barn as Chicken. Dodge fox patrols and cut through the wire fences.",
+      emoji: '🦔',
+      timed: false,
+      requiresAll: ['herd_chicks', 'rat_gamble'],
+      unlocks: ['porcupine_dark'],
+    },
+    {
+      id: 'porcupine_dark',
+      title: 'Lights Out',
+      description: "The lights go out! Use limited visibility to navigate past foxes and reach Porcupine Boss.",
+      emoji: '🔦',
+      timed: false,
+      requiresAll: ['porcupine_barn'],
+    },
+  ],
+};
+
+// ============================================================
+// ACT 2: Investigation
+// ============================================================
+const act2: StoryAct = {
+  id: 'act_2',
+  actNumber: 2,
+  title: 'Investigation',
+  subtitle: 'Unravel the trail of the stolen ring',
+  description: "Porcupine's intel points to several suspects. Investigate each one to find the truth.",
+  emoji: '🔎',
+  startNodeId: 'find_ally',
+  unlockCondition: { actId: 'act_1' },
+  nodes: [
+    {
+      id: 'find_ally',
+      title: "Porcupine's Ally",
+      description: "Remy suggests investigating Porcupine too. Find the sympathetic bodyguard via riddles, then report back.",
+      emoji: '🦊',
+      timed: false,
+      unlocks: ['fox_safe'],
+    },
+    {
+      id: 'fox_safe',
+      title: "The Fox's Safe",
+      description: "Play as Fox. Click safes in the right order to find the hidden safe. Reveals a note to 'the night bandit'.",
+      emoji: '🔐',
+      timed: false,
+      requiresAll: ['find_ally'],
+      unlocks: ['odd_sheep', 'scavenger_1', 'skunk_trail_1', 'ferret_market'],
+    },
+    // === BRANCH: Sheep ===
+    {
+      id: 'odd_sheep',
+      title: 'Odd Sheep Out',
+      description: "Find the sheep that doesn't belong and click it.",
+      emoji: '🐑',
+      timed: false,
+      requiresAll: ['fox_safe'],
+      branchLabel: 'Suspects',
+      unlocks: ['sheep_herd'],
+    },
+    {
+      id: 'sheep_herd',
+      title: 'Lead the Flock',
+      description: "Help bring the sheep back to the herd (2 at a time). The odd sheep rewards you with a clue.",
+      emoji: '🐏',
+      timed: false,
+      requiresAll: ['odd_sheep'],
+      unlocks: ['firefly_boss'],
+    },
+    // === BRANCH: Scavenger Hunts ===
+    {
+      id: 'scavenger_1',
+      title: 'Scavenger Hunt: The Note',
+      description: "Follow treasure-hunt clues (\"3 rights + the # of directions at a junction\"). Find the hidden note.",
+      emoji: '🗺️',
+      timed: false,
+      requiresAll: ['fox_safe'],
+      branchLabel: 'Suspects',
+      unlocks: ['scavenger_2'],
+    },
+    {
+      id: 'scavenger_2',
+      title: 'Scavenger Hunt: Trail Markers',
+      description: "Use items on the ground as clues to navigate to the next stash.",
+      emoji: '👣',
+      timed: false,
+      requiresAll: ['scavenger_1'],
+      unlocks: ['scavenger_3'],
+    },
+    {
+      id: 'scavenger_3',
+      title: 'Scavenger Hunt: Bird Guards',
+      description: "Birds guard the paths to the shiny stash. Sneak past them to claim it.",
+      emoji: '🦅',
+      timed: false,
+      requiresAll: ['scavenger_2'],
+      unlocks: ['firefly_boss'],
+    },
+    // === BRANCH: Skunk ===
+    {
+      id: 'skunk_trail_1',
+      title: 'Find the Skunk',
+      description: "Use smell trails to find the skunk before sunrise. But it's the wrong skunk!",
+      emoji: '🦨',
+      timed: true,
+      requiresAll: ['fox_safe'],
+      branchLabel: 'Suspects',
+      unlocks: ['skunk_trail_2'],
+    },
+    {
+      id: 'skunk_trail_2',
+      title: 'The Red Trail',
+      description: "Find the skunk trail with the red haze. Beware — the hazes mix together!",
+      emoji: '🔴',
+      timed: true,
+      requiresAll: ['skunk_trail_1'],
+      unlocks: ['firefly_boss'],
+    },
+    // === BRANCH: Ferrets ===
+    {
+      id: 'ferret_market',
+      title: 'Ferret Market',
+      description: "Check all ferrets with shiny things. None have the ring, but they point to a secret stash.",
+      emoji: '🦦',
+      timed: false,
+      requiresAll: ['fox_safe'],
+      branchLabel: 'Suspects',
+      unlocks: ['firefly_boss'],
+    },
+    // === BOSS ===
+    {
+      id: 'firefly_boss',
+      title: 'Firefly Night Search',
+      description: "Play as a firefly at night. Find the owner of the stash before your light drains!",
+      emoji: '✨',
+      timed: true,
+      requiresAll: ['sheep_herd', 'scavenger_3', 'skunk_trail_2', 'ferret_market'],
+      unlocks: ['firefly_boss_2'],
+    },
+    {
+      id: 'firefly_boss_2',
+      title: 'Firefly: Dodge the Birds',
+      description: "Continue as firefly — dodge swooping birds while your light fades.",
+      emoji: '🌙',
+      timed: true,
+      requiresAll: ['firefly_boss'],
+    },
+  ],
+};
+
+// ============================================================
+// ACT 3: Find the Ring
+// ============================================================
+const act3: StoryAct = {
+  id: 'act_3',
+  actNumber: 3,
+  title: 'Find the Ring',
+  subtitle: 'Recover the ring and bring it home',
+  description: "You know who has it. Now recover the ring and return it to Stella.",
+  emoji: '👑',
+  startNodeId: 'deliver_message',
+  unlockCondition: { actId: 'act_2' },
+  nodes: [
+    {
+      id: 'deliver_message',
+      title: 'Message to Porcupine',
+      description: "Deliver a message to Porcupine Boss while dodging birds. Fly higher or lower!",
+      emoji: '✉️',
+      timed: false,
+      unlocks: ['dodge_birds_2'],
+    },
+    {
+      id: 'dodge_birds_2',
+      title: 'Bird Gauntlet',
+      description: "Larger maze, more birds, nighttime. Llamas block some paths.",
+      emoji: '🦅',
+      timed: false,
+      requiresAll: ['deliver_message'],
+      unlocks: ['dodge_birds_3'],
+    },
+    {
+      id: 'dodge_birds_3',
+      title: 'Bird Gauntlet: Night',
+      description: "Birds, llamas, and fireflies in the dark. The final aerial challenge.",
+      emoji: '🌑',
+      timed: false,
+      requiresAll: ['dodge_birds_2'],
+      unlocks: ['find_raccoon'],
+    },
+    {
+      id: 'find_raccoon',
+      title: 'Find Raccoon',
+      description: "Search a large corn maze to locate Raccoon.",
+      emoji: '🦝',
+      timed: false,
+      requiresAll: ['dodge_birds_3'],
+      unlocks: ['raccoon_map'],
+    },
+    {
+      id: 'raccoon_map',
+      title: "Raccoon's Map",
+      description: "Recover pieces of Raccoon's map by following the largest bat colony.",
+      emoji: '🗺️',
+      timed: false,
+      requiresAll: ['find_raccoon'],
+      unlocks: ['dog_race'],
+    },
+    {
+      id: 'dog_race',
+      title: 'Dog Race',
+      description: "Beat the dogs in a map race to earn their help.",
+      emoji: '🐕',
+      timed: true,
+      requiresAll: ['raccoon_map'],
+      unlocks: ['llama_search'],
+    },
+    {
+      id: 'llama_search',
+      title: 'Llama Search',
+      description: "Search the llama droppings for clues. Not glamorous, but necessary.",
+      emoji: '💩',
+      timed: false,
+      requiresAll: ['dog_race'],
+      unlocks: ['stash_1'],
+    },
+    {
+      id: 'stash_1',
+      title: 'Secret Stash #1',
+      description: "Use the maps to find the first secret stash. Barrels and llamas stand in your way.",
+      emoji: '📦',
+      timed: false,
+      requiresAll: ['llama_search'],
+      unlocks: ['stash_2'],
+    },
+    {
+      id: 'stash_2',
+      title: 'Secret Stash #2',
+      description: "Chameleon puzzle + riddle. Things aren't what they seem.",
+      emoji: '🦎',
+      timed: false,
+      requiresAll: ['stash_1'],
+      unlocks: ['stash_3'],
+    },
+    {
+      id: 'stash_3',
+      title: 'Secret Stash #3',
+      description: "The stash is moving! Chase the ferret carrying it.",
+      emoji: '💨',
+      timed: false,
+      requiresAll: ['stash_2'],
+      unlocks: ['stash_4'],
+    },
+    {
+      id: 'stash_4',
+      title: 'Secret Stash #4',
+      description: "Skunk and sheep collaborate on the final stash puzzle.",
+      emoji: '🧩',
+      timed: false,
+      requiresAll: ['stash_3'],
+      unlocks: ['collect_jewelry'],
+    },
+    {
+      id: 'collect_jewelry',
+      title: 'Collect All Jewelry',
+      description: "Gather all the jewelry pieces and bring them back to Remy. Weight slows you down!",
+      emoji: '💎',
+      timed: true,
+      requiresAll: ['stash_4'],
+      unlocks: ['deliver_ring'],
+    },
+    {
+      id: 'deliver_ring',
+      title: 'Deliver the Ring',
+      description: "Bring the ring to Porcupine. Dodge magnets, barrels, and foxes.",
+      emoji: '💍',
+      timed: false,
+      requiresAll: ['collect_jewelry'],
+      unlocks: ['deliver_stella'],
+    },
+    {
+      id: 'deliver_stella',
+      title: 'Return to Stella',
+      description: "The final delivery — bring the ring to Stella. Foxes prowl the path.",
+      emoji: '👰',
+      timed: false,
+      requiresAll: ['deliver_ring'],
+      unlocks: ['find_raccoon_final'],
+    },
+    {
+      id: 'find_raccoon_final',
+      title: 'Find Raccoon',
+      description: "Track Raccoon using pawprints, chase him down, and solve a lantern riddle.",
+      emoji: '🔍',
+      timed: false,
+      requiresAll: ['deliver_stella'],
+      unlocks: ['find_raccoon_final_2'],
+    },
+    {
+      id: 'find_raccoon_final_2',
+      title: 'Raccoon Confrontation',
+      description: "The final encounter with Raccoon. The truth comes out.",
+      emoji: '🎭',
+      timed: false,
+      requiresAll: ['find_raccoon_final'],
+    },
+  ],
+};
+
+export const storyActs: StoryAct[] = [act1, act2, act3];
+
+// Helper: get act by ID
+export const getStoryAct = (actId: string): StoryAct | undefined =>
+  storyActs.find(a => a.id === actId);
+
+// Helper: check if a node is unlocked given completed nodes
+export const isNodeUnlocked = (node: StoryNode, completedNodes: string[]): boolean => {
+  if (!node.requiresAll && !node.requiresAny) return true; // start node
+  if (node.requiresAll) return node.requiresAll.every(id => completedNodes.includes(id));
+  if (node.requiresAny) return node.requiresAny.some(id => completedNodes.includes(id));
+  return false;
+};
+
+// Helper: check if an act is fully completed
+export const isActComplete = (act: StoryAct, completedNodes: string[]): boolean =>
+  act.nodes.every(n => completedNodes.includes(n.id));
+
+// Helper: get the terminal nodes of an act (nodes with no unlocks)
+export const getActTerminalNodes = (act: StoryAct): StoryNode[] =>
+  act.nodes.filter(n => !n.unlocks || n.unlocks.length === 0);
