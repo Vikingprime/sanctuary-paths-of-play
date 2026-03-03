@@ -519,8 +519,30 @@ export const MazeGame3D = ({
   }, [triggeredDialogues]);
 
   // Check if a dialogue can be triggered at the given cell (proximity-based only)
+  // Also checks NPC vision zones (visionCells on characters)
   const checkDialogueAtCell = useCallback((gridX: number, gridY: number, currentTriggered: Set<string>): DialogueTrigger | null => {
     if (!maze.dialogues) return null;
+    
+    // First check vision zones on characters
+    if (maze.characters) {
+      for (const char of maze.characters) {
+        if (!char.visionCells || !char.visionDialogueId) continue;
+        if (currentTriggered.has(char.visionDialogueId)) continue;
+        
+        const inVision = char.visionCells.some(cell => cell.x === gridX && cell.y === gridY);
+        if (inVision) {
+          const visionDialogue = maze.dialogues.find(d => d.id === char.visionDialogueId);
+          if (visionDialogue && !currentTriggered.has(visionDialogue.id)) {
+            // Check requirements
+            if (visionDialogue.requires && visionDialogue.requires.length > 0) {
+              const requirementsMet = visionDialogue.requires.every(reqId => currentTriggered.has(reqId));
+              if (!requirementsMet) continue;
+            }
+            return visionDialogue;
+          }
+        }
+      }
+    }
     
     for (const dialogue of maze.dialogues) {
       if (currentTriggered.has(dialogue.id)) continue;
@@ -540,7 +562,7 @@ export const MazeGame3D = ({
       }
     }
     return null;
-  }, [maze.dialogues]);
+  }, [maze.dialogues, maze.characters]);
 
   // Handle click-triggered dialogue for a specific character
   const handleCharacterClick = useCallback((characterId: string) => {
@@ -705,9 +727,18 @@ export const MazeGame3D = ({
       return;
     }
     
-    // No more chained dialogues - close dialogue and enter post-dialogue pause
+    // No more chained dialogues - close dialogue and check for effects
+    const completedDialogue = activeDialogue;
     setActiveDialogue(null);
     setDialogueMessageIndex(0);
+    
+    // Check for game-over effect (e.g., watcher NPC caught the player)
+    if (completedDialogue.effect === 'game_over') {
+      setHasWon(false);
+      setGameOver(true);
+      return;
+    }
+    
     handleRailStop();
     
     // For story mode: check if all required dialogues are now complete
