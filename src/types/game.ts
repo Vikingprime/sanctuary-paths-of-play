@@ -56,6 +56,9 @@ export interface MazeCharacter {
   alwaysFacePlayer?: boolean; // If true, character always rotates to face player (default: false, only faces during dialogue)
   // Per-animal dialogue sequence - defines the order of apple and normal dialogues
   dialogueSequence?: DialogueSequenceItem[];
+  // Vision zone: cells this NPC watches. Entering triggers visionDialogueId.
+  visionCells?: { x: number; y: number }[];
+  visionDialogueId?: string; // ID of dialogue triggered when player enters vision zone
 }
 
 // Defines a single item in a per-animal dialogue sequence
@@ -79,6 +82,7 @@ export interface DialogueTrigger {
   characterAnimation?: string; // Animation to play during dialogue
   speakerCharacterId?: string; // ID of placed character to zoom camera to
   triggerType?: 'proximity' | 'click'; // How this dialogue is triggered (default: 'proximity')
+  effect?: 'game_over'; // Effect triggered when this dialogue completes (e.g., watcher NPC catches player)
 }
 
 export interface IntroDialogue {
