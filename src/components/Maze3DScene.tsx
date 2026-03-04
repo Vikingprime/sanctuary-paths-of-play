@@ -2016,9 +2016,11 @@ const OverShoulderCameraController = ({
       playerZ
     );
     
-    // Calculate target head position (for raycasting origin) - use character-scaled height
+    // Calculate target head position (for raycasting origin) - use autopush headHeight
+    // to ensure rays have enough horizontal component to hit wall colliders
     // Reuse ref to avoid GC
-    headPosRef.current.set(playerX, targetHeight, playerZ);
+    const rayOriginHeight = Math.max(targetHeight, autopush.headHeight);
+    headPosRef.current.set(playerX, rayOriginHeight, playerZ);
     
     // === AUTOPUSH LOGIC ===
     // Reuse ref instead of cloning
@@ -2144,20 +2146,6 @@ const OverShoulderCameraController = ({
       // Use the ref-based hitCells for all subsequent logic
       const hitCells = hitCellsRef.current;
       
-      // DEBUG: Log raycast results every second
-      if (Math.floor(now / 1000) !== Math.floor((now - 16) / 1000)) {
-        console.log('[CORN-FADE-DEBUG]', {
-          closestHitDist: closestHitDist.toFixed(2),
-          rayLength: rayLength.toFixed(2),
-          hitCellsSize: hitCells.size,
-          hitCells: Array.from(hitCells),
-          blockerCount: cameraBlockers.length,
-          opacityFadeEnabled,
-          fadedCellsCount: fadedCellsRef.current.size,
-          headPos: `${headPosRef.current.x.toFixed(1)},${headPosRef.current.y.toFixed(1)},${headPosRef.current.z.toFixed(1)}`,
-          cameraPos: `${targetPos.current.x.toFixed(1)},${targetPos.current.y.toFixed(1)},${targetPos.current.z.toFixed(1)}`,
-        });
-      }
       
       if (closestHitDist < rayLength) {
         // We have a hit - camera should be IN FRONT of the wall, not behind it
