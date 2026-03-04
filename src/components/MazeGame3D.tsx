@@ -538,6 +538,10 @@ export const MazeGame3D = ({
               const requirementsMet = visionDialogue.requires.every(reqId => currentTriggered.has(reqId));
               if (!requirementsMet) continue;
             }
+            if (visionDialogue.requiresNot && visionDialogue.requiresNot.length > 0) {
+              const anyBlocked = visionDialogue.requiresNot.some(reqId => currentTriggered.has(reqId));
+              if (anyBlocked) continue;
+            }
             return visionDialogue;
           }
         }
@@ -553,6 +557,11 @@ export const MazeGame3D = ({
       if (dialogue.requires && dialogue.requires.length > 0) {
         const requirementsMet = dialogue.requires.every(reqId => currentTriggered.has(reqId));
         if (!requirementsMet) continue;
+      }
+      // Check negative requirements (dialogue must NOT have been triggered)
+      if (dialogue.requiresNot && dialogue.requiresNot.length > 0) {
+        const anyBlocked = dialogue.requiresNot.some(reqId => currentTriggered.has(reqId));
+        if (anyBlocked) continue;
       }
       
       // Check if this cell is in the dialogue's trigger cells
@@ -578,6 +587,10 @@ export const MazeGame3D = ({
       if (dialogue.requires && dialogue.requires.length > 0) {
         const requirementsMet = dialogue.requires.every(reqId => triggeredDialogues.has(reqId));
         if (!requirementsMet) continue;
+      }
+      if (dialogue.requiresNot && dialogue.requiresNot.length > 0) {
+        const anyBlocked = dialogue.requiresNot.some(reqId => triggeredDialogues.has(reqId));
+        if (anyBlocked) continue;
       }
       
       console.log('[Dialogue] Click-triggered:', dialogue.id, 'speaker:', dialogue.speaker);

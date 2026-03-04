@@ -78,6 +78,7 @@ export interface DialogueTrigger {
   cells: { x: number; y: number }[]; // All cells that trigger this dialogue
   speakerPosition?: { x: number; y: number }; // Where the speaker model appears (defaults to first cell center)
   requires?: string[]; // IDs of dialogues that must be completed before this one can trigger
+  requiresNot?: string[]; // IDs of dialogues that must NOT be completed for this to trigger (for "wrong order" gates)
   characterModel?: string; // GLB model file name - used if speakerCharacterId not set
   characterAnimation?: string; // Animation to play during dialogue
   speakerCharacterId?: string; // ID of placed character to zoom camera to

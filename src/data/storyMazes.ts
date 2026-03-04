@@ -287,6 +287,7 @@ const chapter2Maze: StoryMaze = {
       message: "*bouncing in place* Whoa there! You need to find the LEGEND first! The pet-turned-escapee!",
       cells: [{ x: 15, y: 4 }, { x: 16, y: 4 }, { x: 17, y: 4 }, { x: 16, y: 5 }],
       speakerCharacterId: 'cousin_kangaroo',
+      requiresNot: ['hamster_correct'],
     },
     // Squirrel before completing hamster + kangaroo
     {
@@ -296,6 +297,7 @@ const chapter2Maze: StoryMaze = {
       message: "*busy sorting acorns* Not yet! You haven't solved the first two parts of the riddle!",
       cells: [{ x: 15, y: 14 }, { x: 16, y: 14 }, { x: 17, y: 14 }, { x: 16, y: 15 }],
       speakerCharacterId: 'cousin_squirrel',
+      requiresNot: ['kangaroo_correct'],
     },
 
     // --- CORRECT ORDER DIALOGUES ---
