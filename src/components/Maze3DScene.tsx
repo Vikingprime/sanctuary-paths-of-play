@@ -2171,29 +2171,19 @@ const OverShoulderCameraController = ({
           targetDist = potentialBlockedDist;
           lastHitTime.current = now; // Record hit time for hysteresis
           
-          // === APPLY CORN FADING ONLY AFTER AUTOPUSH LERP HAS SETTLED ===
-          // Only do corn fading if opacityFadeEnabled is true
+          // === APPLY CORN FADING IMMEDIATELY WHEN RAYCASTS HIT ===
+          // Don't wait for autopush lerp to settle - fade corn as soon as rays detect it
           if (opacityFadeEnabled) {
-            // Check if camera has finished lerping (current distance is close to target)
-            const lerpSettled = currentAutopushDist.current !== null && 
-              Math.abs(currentAutopushDist.current - potentialBlockedDist) < 0.15;
+            const hasExistingFadedCells = fadedCellsRef.current.size > 0;
+            frameMetrics.activeFadedCells = fadedCellsRef.current.size;
             
-            if (lerpSettled) {
-              // Mark hit cells as needing fade only after camera settles
-              // Check if we already have faded cells (autopush already active)
-              const hasExistingFadedCells = fadedCellsRef.current.size > 0;
-              frameMetrics.activeFadedCells = fadedCellsRef.current.size; // Track for debug
-              
-              for (const cellKey of hitCells) {
-                const existing = fadedCellsRef.current.get(cellKey);
-                if (existing) {
-                  existing.lastHitTime = now;
-                } else {
-                  // If autopush is already active with faded cells, start new cells at target opacity
-                  // This prevents blinking when turning and hitting new cells
-                  const startOpacity = hasExistingFadedCells ? FADE_TARGET : 1.0;
-                  fadedCellsRef.current.set(cellKey, { opacity: startOpacity, lastHitTime: now });
-                }
+            for (const cellKey of hitCells) {
+              const existing = fadedCellsRef.current.get(cellKey);
+              if (existing) {
+                existing.lastHitTime = now;
+              } else {
+                const startOpacity = hasExistingFadedCells ? FADE_TARGET : 1.0;
+                fadedCellsRef.current.set(cellKey, { opacity: startOpacity, lastHitTime: now });
               }
             }
           }
@@ -2206,15 +2196,10 @@ const OverShoulderCameraController = ({
           }
         }
         
-        // Update all faded cells (always update opacity animation)
-        // But only fade OUT if camera lerp has settled
-        // Only run if opacityFadeEnabled is true
+        // Update all faded cells - fade immediately without waiting for lerp
         if (opacityFadeEnabled) {
-          const lerpSettledForFade = currentAutopushDist.current !== null && 
-            Math.abs(currentAutopushDist.current - targetDist) < 0.15;
-          
           for (const [cellKey, state] of fadedCellsRef.current) {
-            const isCurrentlyHit = hitCells.has(cellKey) && isSignificantHit && lerpSettledForFade;
+            const isCurrentlyHit = hitCells.has(cellKey) && isSignificantHit;
             const timeSinceHit = now - state.lastHitTime;
             
             if (isCurrentlyHit) {
