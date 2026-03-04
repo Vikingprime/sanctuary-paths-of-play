@@ -2,6 +2,14 @@ import { createGrid } from '@/hooks/useMazeStorage';
 import { computeMedialAxis } from '@/game/MedialAxis';
 import { buildSmoothedPolylines, type PolylineGraph } from '@/game/SkeletonPolyline';
 import { Maze } from '@/types/game';
+import {
+  applyDeletedSpineFineCells,
+  createSpineFineCellSet,
+  extractSpineFineCells,
+  getSpineFineCellKey,
+  SPINE_FINE_GRID_SCALE,
+  type SpineFineCellCoordinate,
+} from '@/lib/spineFineCells';
 
 export type MazeEditorCell = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D';
 
@@ -9,9 +17,12 @@ export interface MazeEditorSpineAnalysis {
   maze: Maze;
   graph: PolylineGraph | null;
   traversedCellKeys: Set<string>;
+  fineScale: number;
+  fineSpineCells: SpineFineCellCoordinate[];
+  fineSpineCellKeys: Set<string>;
+  deletedFineCellKeys: Set<string>;
 }
 
-const MEDIAL_AXIS_SCALE = 20;
 const SPINE_SAMPLE_SPACING = 0.05;
 
 export const getMazeCellKey = (x: number, y: number) => `${x},${y}`;
@@ -90,7 +101,10 @@ function collectTraversedCells(
   return traversedCellKeys;
 }
 
-export function buildMazeEditorSpine(grid: MazeEditorCell[][]): MazeEditorSpineAnalysis | null {
+export function buildMazeEditorSpine(
+  grid: MazeEditorCell[][],
+  deletedSpineFineCells: SpineFineCellCoordinate[] = []
+): MazeEditorSpineAnalysis | null {
   const gridHeight = grid.length;
   const gridWidth = grid[0]?.length ?? 0;
 
@@ -99,7 +113,14 @@ export function buildMazeEditorSpine(grid: MazeEditorCell[][]): MazeEditorSpineA
   }
 
   const maze = buildMazeFromEditorGrid(grid);
-  const axisResult = computeMedialAxis(maze, MEDIAL_AXIS_SCALE);
+  const axisResult = computeMedialAxis(maze, SPINE_FINE_GRID_SCALE);
+  const deletedFineCellKeys = applyDeletedSpineFineCells(axisResult.fineGrid, deletedSpineFineCells);
+  const fineSpineCells = extractSpineFineCells(axisResult.fineGrid);
+  const fineSpineCellKeys = createSpineFineCellSet(fineSpineCells);
+  const fallbackPoints = fineSpineCells.map((cell) => ({
+    x: (cell.x + 0.5) * axisResult.fineCellSize,
+    z: (cell.y + 0.5) * axisResult.fineCellSize,
+  }));
 
   const isWallFn = (worldX: number, worldZ: number): boolean => {
     const mazeX = Math.floor(worldX);
@@ -125,12 +146,11 @@ export function buildMazeEditorSpine(grid: MazeEditorCell[][]): MazeEditorSpineA
   return {
     maze,
     graph,
-    traversedCellKeys: collectTraversedCells(
-      graph,
-      axisResult.skeletonPoints,
-      gridWidth,
-      gridHeight
-    ),
+    traversedCellKeys: collectTraversedCells(graph, fallbackPoints, gridWidth, gridHeight),
+    fineScale: axisResult.scale,
+    fineSpineCells,
+    fineSpineCellKeys,
+    deletedFineCellKeys,
   };
 }
 
@@ -140,3 +160,5 @@ export function cellsTouchSpine(
 ): boolean {
   return cells.some((cell) => traversedCellKeys.has(getMazeCellKey(cell.x, cell.y)));
 }
+
+export { getSpineFineCellKey };
