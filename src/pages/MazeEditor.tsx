@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,13 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple } from 'lucide-react';
+import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple, Route } from 'lucide-react';
 import { toast } from 'sonner';
-import { useMazeStorage, createGrid, gridToLayout } from '@/hooks/useMazeStorage';
+import { useMazeStorage, createGrid } from '@/hooks/useMazeStorage';
 import { Maze, DialogueSequenceItem } from '@/types/game';
 import { useBackButton } from '@/hooks/useBackButton';
 import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
 import { canBeFedApples } from '@/types/appleDialogue';
+import { buildMazeEditorSpine, cellsTouchSpine, getMazeCellKey } from '@/lib/mazeEditorSpine';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -141,9 +142,11 @@ const MazeEditor: React.FC = () => {
   const [singleTileMode, setSingleTileMode] = useState(false);
   const [showMazeList, setShowMazeList] = useState(true);
   const [showAppleDialoguePanel, setShowAppleDialoguePanel] = useState(false);
+  const [showSpineOverlay, setShowSpineOverlay] = useState(true);
   const [editableAppleDialogues, setEditableAppleDialogues] = useState<AnimalAppleDialogues[]>(() => 
     JSON.parse(JSON.stringify(animalAppleDialogues))
   );
+  const spineAnalysis = useMemo(() => buildMazeEditorSpine(grid), [grid]);
 
   // Hardware back button - navigate back to home
   useBackButton(() => navigate('/'), true);
@@ -526,6 +529,10 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     if (endCells.length === 0) {
       warnings.push('⚠️ No end (goal) tiles set');
     }
+
+    if (!spineAnalysis || spineAnalysis.traversedCellKeys.size === 0) {
+      warnings.push('⚠️ Traversal spine could not be generated for the current maze layout');
+    }
     
     characters.forEach(char => {
       if (!char.position) {
@@ -549,11 +556,15 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
         if (!hasNearbyTrigger) {
           warnings.push(`⚠️ Character "${char.name}" dialogue triggers are far from character position`);
         }
+
+        if (spineAnalysis && !cellsTouchSpine(charDialogue.cells, spineAnalysis.traversedCellKeys)) {
+          warnings.push(`⚠️ Character "${char.name}" dialogue trigger cells do not touch the traversal spine`);
+        }
       }
     });
     
     return warnings;
-  }, [grid, dialogues, characters]);
+  }, [grid, dialogues, characters, spineAnalysis]);
 
   const allMazes = isLoaded ? getAllMazes() : [];
 
@@ -828,18 +839,31 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
             {/* Grid Editor */}
             <Card className="lg:col-span-2">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center justify-between gap-3">
                   <span>Grid ({grid[0]?.length || 0} x {grid.length})</span>
-                  {placingCharacterId && (
-                    <span className="text-sm text-primary animate-pulse">
-                      Click to place character...
-                    </span>
-                  )}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-sm font-normal">
+                      <Route className="h-4 w-4 text-primary" />
+                      <Label htmlFor="show-spine-overlay" className="cursor-pointer text-sm font-normal">
+                        Show spine
+                      </Label>
+                      <Switch
+                        id="show-spine-overlay"
+                        checked={showSpineOverlay}
+                        onCheckedChange={setShowSpineOverlay}
+                      />
+                    </div>
+                    {placingCharacterId && (
+                      <span className="text-sm text-primary animate-pulse">
+                        Click to place character...
+                      </span>
+                    )}
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div 
-                  className="overflow-auto max-h-[60vh] border rounded-lg p-2 bg-white"
+                  className="overflow-auto max-h-[60vh] border rounded-lg p-2 bg-background"
                   style={{ touchAction: 'none' }}
                 >
                   <div 
@@ -855,22 +879,26 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const isDialogueCell = !!dialogue;
                         const dialogueColor = dialogue ? getDialogueColor(dialogue.id) : '';
                         const isSelectedDialogue = dialogue?.id === selectedDialogueId;
+                        const isOnSpine = showSpineOverlay && (spineAnalysis?.traversedCellKeys.has(getMazeCellKey(x, y)) ?? false);
                         
                         return (
                           <div
                             key={`${x}-${y}`}
                             className={`
                               w-4 h-4 md:w-5 md:h-5 cursor-crosshair transition-colors relative
-                              ${character ? 'ring-2 ring-purple-600' : ''}
+                              ${character ? 'ring-2 ring-primary' : ''}
                               ${isDialogueCell ? dialogueColor : CELL_COLORS[cell]}
-                              ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-black' : ''}
+                              ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
                             `}
                             onMouseDown={() => handleMouseDown(x, y)}
                             onMouseEnter={() => handleMouseEnter(x, y)}
-                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${dialogue ? ` - ${dialogue.speaker}` : ''}${character ? ` - ${character.name}` : ''}`}
+                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${dialogue ? ` - ${dialogue.speaker}` : ''}${character ? ` - ${character.name}` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
                           >
+                            {isOnSpine && (
+                              <span className="pointer-events-none absolute inset-[3px] rounded-full border border-primary bg-primary/35" />
+                            )}
                             {character && (
-                              <span className="absolute inset-0 flex items-center justify-center text-[10px]">
+                              <span className="absolute inset-0 z-10 flex items-center justify-center text-[10px]">
                                 {character.emoji}
                               </span>
                             )}
@@ -880,6 +908,11 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     )}
                   </div>
                 </div>
+                {showSpineOverlay && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Spine markers show the rail traversal footprint so you can verify dialogue trigger cells intersect the path.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
