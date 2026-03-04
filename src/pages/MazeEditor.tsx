@@ -17,7 +17,7 @@ import { useBackButton } from '@/hooks/useBackButton';
 import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
 import { canBeFedApples } from '@/types/appleDialogue';
 import { buildMazeEditorSpine, cellsTouchSpine, getMazeCellKey } from '@/lib/mazeEditorSpine';
-import { branchContainsFineCell, expandDeletedSpineBranches, getSpineBranchRangeForCell, getSpineFineCellKey, normalizeSpineFineBranches, normalizeSpineFineCells, SPINE_FINE_GRID_SCALE, type SpineFineBranchRange, type SpineFineCellCoordinate } from '@/lib/spineFineCells';
+import { branchContainsFineCell, expandDeletedSpineBranches, getSpineBranchCells, getSpineBranchRangeForCell, getSpineFineCellKey, normalizeSpineFineBranches, normalizeSpineFineCells, SPINE_FINE_GRID_SCALE, type SpineFineBranchRange, type SpineFineCellCoordinate } from '@/lib/spineFineCells';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -419,16 +419,19 @@ const MazeEditor: React.FC = () => {
       setDeletedSpineBranches((prev) =>
         normalizeSpineFineBranches(prev).filter((branch) => getSpineBranchKey(branch) !== existingKey)
       );
+      toast.success('Branch restored.');
       return;
     }
 
     const branch = getSpineBranchRangeForCell(cell, sourceSet);
     if (!branch) {
-      toast.error('Click a non-junction spine branch cell to toggle the full branch.');
+      toast.error('Click a non-junction fine spine cell below to delete a full branch.');
       return;
     }
 
+    const branchCellCount = getSpineBranchCells(branch, sourceSet).length;
     setDeletedSpineBranches((prev) => normalizeSpineFineBranches([...prev, branch]));
+    toast.success(`Deleted branch (${branchCellCount} fine cells).`);
   }, [baseSpineAnalysis, enableFineSpineEditing, normalizedDeletedSpineBranches]);
 
   const handleFineSpineToggle = useCallback((cell: SpineFineCellCoordinate) => {
@@ -1056,14 +1059,22 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                           <Button
                             size="sm"
                             variant={spineEditMode === 'branch' ? 'default' : 'outline'}
-                            onClick={() => setSpineEditMode('branch')}
+                            onClick={() => {
+                              setSpineEditMode('branch');
+                              setEnableFineSpineEditing(true);
+                              toast.info('Branch mode active. Click a non-junction fine spine cell below.');
+                            }}
                           >
                             Delete branch
                           </Button>
                           <Button
                             size="sm"
                             variant={spineEditMode === 'cell' ? 'default' : 'outline'}
-                            onClick={() => setSpineEditMode('cell')}
+                            onClick={() => {
+                              setSpineEditMode('cell');
+                              setEnableFineSpineEditing(true);
+                              toast.info('Cell mode active. Click a fine spine cell below.');
+                            }}
                           >
                             Delete cell
                           </Button>
@@ -1080,6 +1091,12 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                           </Button>
                         </div>
                       </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        {spineEditMode === 'branch'
+                          ? 'Delete branch is a two-step action: click the button, then click a non-junction fine spine cell in the grid below.'
+                          : 'Delete cell is a two-step action: click the button, then click an individual fine spine cell below.'}
+                      </p>
 
                       <FineSpineEditor
                         mazeWidth={grid[0]?.length || 0}
