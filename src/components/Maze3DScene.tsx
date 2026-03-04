@@ -2170,23 +2170,6 @@ const OverShoulderCameraController = ({
           // Significant hit - push camera in front of wall
           targetDist = potentialBlockedDist;
           lastHitTime.current = now; // Record hit time for hysteresis
-          
-          // === APPLY CORN FADING IMMEDIATELY WHEN RAYCASTS HIT ===
-          // Don't wait for autopush lerp to settle - fade corn as soon as rays detect it
-          if (opacityFadeEnabled) {
-            const hasExistingFadedCells = fadedCellsRef.current.size > 0;
-            frameMetrics.activeFadedCells = fadedCellsRef.current.size;
-            
-            for (const cellKey of hitCells) {
-              const existing = fadedCellsRef.current.get(cellKey);
-              if (existing) {
-                existing.lastHitTime = now;
-              } else {
-                const startOpacity = hasExistingFadedCells ? FADE_TARGET : 1.0;
-                fadedCellsRef.current.set(cellKey, { opacity: startOpacity, lastHitTime: now });
-              }
-            }
-          }
         } else {
           // Grazing hit - ignore, but check hysteresis
           const timeSinceHit = now - lastHitTime.current;
@@ -2196,10 +2179,27 @@ const OverShoulderCameraController = ({
           }
         }
         
-        // Update all faded cells - fade immediately without waiting for lerp
+        // === CORN FADING: trigger for ANY hit, not just significant ones ===
+        // This ensures corn becomes translucent whenever it blocks the view
+        if (opacityFadeEnabled && hitCells.size > 0) {
+          const hasExistingFadedCells = fadedCellsRef.current.size > 0;
+          frameMetrics.activeFadedCells = fadedCellsRef.current.size;
+          
+          for (const cellKey of hitCells) {
+            const existing = fadedCellsRef.current.get(cellKey);
+            if (existing) {
+              existing.lastHitTime = now;
+            } else {
+              const startOpacity = hasExistingFadedCells ? FADE_TARGET : 1.0;
+              fadedCellsRef.current.set(cellKey, { opacity: startOpacity, lastHitTime: now });
+            }
+          }
+        }
+        
+        // Update all faded cells
         if (opacityFadeEnabled) {
           for (const [cellKey, state] of fadedCellsRef.current) {
-            const isCurrentlyHit = hitCells.has(cellKey) && isSignificantHit;
+            const isCurrentlyHit = hitCells.has(cellKey);
             const timeSinceHit = now - state.lastHitTime;
             
             if (isCurrentlyHit) {
