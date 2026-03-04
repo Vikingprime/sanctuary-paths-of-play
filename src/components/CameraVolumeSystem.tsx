@@ -261,8 +261,9 @@ export const CameraVolumeController = ({
       finalCameraPos.y = desiredCameraPos.y;
     }
 
-    // Initialize on first frame
-    if (!initialized.current) {
+    // Initialize on first frame (but wait for autopush to be ready if enabled)
+    const autopushReady = !autopush.enabled || !foliageGroupRef || currentAutopushDist.current !== null;
+    if (!initialized.current && autopushReady) {
       currentPosition.current.copy(finalCameraPos);
       currentLookAt.current.copy(targetLookAt);
       currentFov.current = targetFov;
