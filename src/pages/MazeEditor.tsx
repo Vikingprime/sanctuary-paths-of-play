@@ -10,12 +10,14 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple, Route } from 'lucide-react';
 import { toast } from 'sonner';
+import { FineSpineEditor } from '@/components/FineSpineEditor';
 import { useMazeStorage, createGrid } from '@/hooks/useMazeStorage';
 import { Maze, DialogueSequenceItem } from '@/types/game';
 import { useBackButton } from '@/hooks/useBackButton';
 import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
 import { canBeFedApples } from '@/types/appleDialogue';
 import { buildMazeEditorSpine, cellsTouchSpine, getMazeCellKey } from '@/lib/mazeEditorSpine';
+import { getSpineFineCellKey, normalizeSpineFineCells, SPINE_FINE_GRID_SCALE, type SpineFineCellCoordinate } from '@/lib/spineFineCells';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -143,10 +145,26 @@ const MazeEditor: React.FC = () => {
   const [showMazeList, setShowMazeList] = useState(true);
   const [showAppleDialoguePanel, setShowAppleDialoguePanel] = useState(false);
   const [showSpineOverlay, setShowSpineOverlay] = useState(true);
+  const [enableFineSpineEditing, setEnableFineSpineEditing] = useState(false);
+  const [deletedSpineFineCells, setDeletedSpineFineCells] = useState<SpineFineCellCoordinate[]>([]);
   const [editableAppleDialogues, setEditableAppleDialogues] = useState<AnimalAppleDialogues[]>(() => 
     JSON.parse(JSON.stringify(animalAppleDialogues))
   );
-  const spineAnalysis = useMemo(() => buildMazeEditorSpine(grid), [grid]);
+  const normalizedDeletedSpineFineCells = useMemo(
+    () => normalizeSpineFineCells(deletedSpineFineCells),
+    [deletedSpineFineCells]
+  );
+  const deletedSpineFineCellKeys = useMemo(
+    () => new Set(normalizedDeletedSpineFineCells.map((cell) => getSpineFineCellKey(cell.x, cell.y))),
+    [normalizedDeletedSpineFineCells]
+  );
+  const baseSpineAnalysis = useMemo(() => buildMazeEditorSpine(grid), [grid]);
+  const spineAnalysis = useMemo(
+    () => normalizedDeletedSpineFineCells.length === 0
+      ? baseSpineAnalysis
+      : buildMazeEditorSpine(grid, normalizedDeletedSpineFineCells),
+    [baseSpineAnalysis, grid, normalizedDeletedSpineFineCells]
+  );
 
   // Hardware back button - navigate back to home
   useBackButton(() => navigate('/'), true);
@@ -193,6 +211,7 @@ const MazeEditor: React.FC = () => {
       timerDisabled: maze.timerDisabled || false,
       goalCharacterId: maze.goalCharacterId,
     });
+    setDeletedSpineFineCells(normalizeSpineFineCells(maze.deletedSpineFineCells || []));
     
     // Load dialogues
     if (maze.dialogues) {
@@ -251,6 +270,7 @@ const MazeEditor: React.FC = () => {
     if (width !== evenWidth) setWidth(evenWidth);
     if (height !== evenHeight) setHeight(evenHeight);
     setDialogues([]);
+    setDeletedSpineFineCells([]);
   }, [width, height]);
 
   const paintCell = useCallback((x: number, y: number) => {
@@ -335,6 +355,32 @@ const MazeEditor: React.FC = () => {
   const handleMouseUp = () => {
     setIsDragging(false);
   };
+
+  const toggleDeletedSpineFineCell = useCallback((cell: SpineFineCellCoordinate) => {
+    if (!enableFineSpineEditing) return;
+
+    setDeletedSpineFineCells((prev) => {
+      const nextKeys = new Set(normalizeSpineFineCells(prev).map((fineCell) => getSpineFineCellKey(fineCell.x, fineCell.y)));
+      const fineKey = getSpineFineCellKey(cell.x, cell.y);
+
+      if (!baseSpineAnalysis?.fineSpineCellKeys.has(fineKey) && !nextKeys.has(fineKey)) {
+        return prev;
+      }
+
+      if (nextKeys.has(fineKey)) {
+        nextKeys.delete(fineKey);
+      } else {
+        nextKeys.add(fineKey);
+      }
+
+      return normalizeSpineFineCells(
+        Array.from(nextKeys).map((key) => {
+          const [x, y] = key.split(',').map(Number);
+          return { x, y };
+        })
+      );
+    });
+  }, [baseSpineAnalysis, enableFineSpineEditing]);
 
   const addDialogue = () => {
     const newId = `dialogue_${Date.now()}`;
@@ -463,12 +509,19 @@ ${dialogues.map(d => {
   timerDisabled: true,`
       : '';
 
+    const deletedSpineFineCellsSchema = normalizedDeletedSpineFineCells.length > 0
+      ? `
+  deletedSpineFineCells: [
+${normalizedDeletedSpineFineCells.map((cell) => `    { x: ${cell.x}, y: ${cell.y} },`).join('\n')}
+  ],`
+      : '';
+
     const schema = `{
   id: ${loadedMazeId || Date.now()},
   name: '${config.name}',
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
-  previewTime: ${config.previewTime},${timerDisabledSchema}
+  previewTime: ${config.previewTime},${timerDisabledSchema}${deletedSpineFineCellsSchema}
   medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
@@ -476,7 +529,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
 },`;
     
     return schema;
-  }, [grid, config, dialogues, characters, loadedMazeId]);
+  }, [grid, config, dialogues, characters, loadedMazeId, normalizedDeletedSpineFineCells]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateSchema());
@@ -498,6 +551,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     setGrid(createEmptyGrid(width, height));
     setDialogues([]);
     setSelectedDialogueId(null);
+    setDeletedSpineFineCells([]);
     toast.info('Grid cleared');
   };
 
@@ -841,7 +895,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center justify-between gap-3">
                   <span>Grid ({grid[0]?.length || 0} x {grid.length})</span>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center justify-end gap-3">
                     <div className="flex items-center gap-2 text-sm font-normal">
                       <Route className="h-4 w-4 text-primary" />
                       <Label htmlFor="show-spine-overlay" className="cursor-pointer text-sm font-normal">
@@ -851,6 +905,16 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         id="show-spine-overlay"
                         checked={showSpineOverlay}
                         onCheckedChange={setShowSpineOverlay}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 text-sm font-normal">
+                      <Label htmlFor="edit-fine-spine" className="cursor-pointer text-sm font-normal">
+                        Edit fine spine
+                      </Label>
+                      <Switch
+                        id="edit-fine-spine"
+                        checked={enableFineSpineEditing}
+                        onCheckedChange={setEnableFineSpineEditing}
                       />
                     </div>
                     {placingCharacterId && (
@@ -909,9 +973,58 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                   </div>
                 </div>
                 {showSpineOverlay && (
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Spine markers show the rail traversal footprint so you can verify dialogue trigger cells intersect the path.
-                  </p>
+                  <div className="mt-4 space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                      Cell markers show the traversed maze cells; the fine editor below shows the true {SPINE_FINE_GRID_SCALE}×{SPINE_FINE_GRID_SCALE} subsquare spine resolution used for rail generation.
+                    </p>
+
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium">Fine spine editor</p>
+                          <p className="text-xs text-muted-foreground">
+                            Toggle “Edit fine spine” to delete or restore individual subsquare spine cells before exporting the maze config.
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDeletedSpineFineCells([])}
+                          disabled={normalizedDeletedSpineFineCells.length === 0}
+                        >
+                          Reset deletions
+                        </Button>
+                      </div>
+
+                      <FineSpineEditor
+                        mazeWidth={grid[0]?.length || 0}
+                        mazeHeight={grid.length}
+                        fineScale={baseSpineAnalysis?.fineScale ?? SPINE_FINE_GRID_SCALE}
+                        fineSpineCells={baseSpineAnalysis?.fineSpineCells ?? []}
+                        deletedFineCellKeys={deletedSpineFineCellKeys}
+                        editable={enableFineSpineEditing}
+                        onToggleFineCell={toggleDeletedSpineFineCell}
+                      />
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>
+                          {(baseSpineAnalysis?.fineSpineCells.length ?? 0).toLocaleString()} fine spine cells • {normalizedDeletedSpineFineCells.length.toLocaleString()} deleted
+                        </span>
+                        <span>
+                          {enableFineSpineEditing ? 'Click a fine cell to toggle deletion.' : 'Enable “Edit fine spine” to toggle deletions.'}
+                        </span>
+                      </div>
+
+                      <Textarea
+                        readOnly
+                        value={normalizedDeletedSpineFineCells.length > 0
+                          ? normalizedDeletedSpineFineCells.map((cell) => `{ x: ${cell.x}, y: ${cell.y} }`).join('\n')
+                          : '// No deletedSpineFineCells'
+                        }
+                        className="h-24 resize-none font-mono text-xs"
+                      />
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>

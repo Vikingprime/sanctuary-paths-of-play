@@ -114,6 +114,7 @@ export interface Maze {
   goalCharacterId?: string; // ID of placed character that acts as the goal (reaching them completes the level)
   timerDisabled?: boolean; // If true, no countdown timer (free exploration)
   freeMapAccess?: boolean; // If true, map button is always visible (not just near map stations)
+  deletedSpineFineCells?: { x: number; y: number }[]; // Fine-grid spine cells removed from generated traversal paths
 }
 
 export interface GameState {
