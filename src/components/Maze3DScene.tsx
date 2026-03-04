@@ -1871,7 +1871,7 @@ const OverShoulderCameraController = ({
   // Track if player has moved and camera distance
   const initialPlayerPos = useRef<{ x: number; z: number } | null>(null);
   const hasPlayerMoved = useRef(false);
-  const currentDistance = useRef(0.4);
+  const currentDistance = useRef(1.2);
   const lastRestartKey = useRef(restartKey);
   
   // Autopush state - scalar-based distance easing
@@ -1903,7 +1903,7 @@ const OverShoulderCameraController = ({
       initialized.current = false;
       hasPlayerMoved.current = false;
       initialPlayerPos.current = null;
-      currentDistance.current = 0.4;
+      currentDistance.current = 1.2;
       currentAutopushDist.current = null;
       // Clear faded cells to prevent stale fade states
       fadedCellsRef.current.clear();
@@ -1923,9 +1923,9 @@ const OverShoulderCameraController = ({
   const targetHeight = Math.max(0.25, Math.min(1.2, 0.6 * animalHeight));
   const softMinDist = Math.max(1.0, Math.min(2.4, 1.2 * animalHeight));
   
+  const CAMERA_DISTANCE_START = 1.2; // Start closer than normal but far enough for autopush to work
   const CAMERA_DISTANCE_NORMAL = Math.max(softMinDist, 2.0); // Use softMinDist as minimum comfortable distance
-  const CAMERA_DISTANCE_START = CAMERA_DISTANCE_NORMAL; // Start at full distance so autopush can work immediately
-  const CAMERA_HEIGHT_START = 1.8;
+  const CAMERA_HEIGHT_START = 2.2;
   const CAMERA_HEIGHT_NORMAL = 2.4;
   const LOOK_AHEAD = 1.3;
   const LOOK_HEIGHT_START = 0.0;
@@ -1934,7 +1934,7 @@ const OverShoulderCameraController = ({
   const POSITION_SMOOTHING = railMode ? 0.5 : 0.15;
   const ROTATION_SMOOTHING = railMode ? 0.5 : 0.12;
   const DISTANCE_ZOOM_SPEED = 0.02; // How fast camera pulls back
-  const MOVEMENT_THRESHOLD = 0.3; // How far player must move from spawn to trigger zoom
+  const MOVEMENT_THRESHOLD = 0.15; // Reduced threshold so camera zooms out sooner
   
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
