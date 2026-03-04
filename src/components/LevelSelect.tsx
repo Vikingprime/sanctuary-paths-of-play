@@ -78,7 +78,7 @@ export const LevelSelect = ({
   const handleMazeClick = async (maze: Maze) => {
     const isUnlocked = unlockedStatus[maze.id];
     
-    if (isUnlocked) {
+    if (isUnlocked || save.settings.debugMode) {
       onSelect(maze);
       return;
     }
@@ -190,7 +190,7 @@ export const LevelSelect = ({
               <button
                 key={maze.id}
                 onClick={() => handleMazeClick(maze)}
-                disabled={!isUnlocked && (!maze.currencyCost || !canAfford)}
+                disabled={!isUnlocked && !save.settings.debugMode && (!maze.currencyCost || !canAfford)}
                 className={cn(
                   'group relative overflow-hidden rounded-2xl p-6 text-left transition-all duration-300',
                   'bg-gradient-card border-2',
