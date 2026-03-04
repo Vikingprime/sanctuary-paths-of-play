@@ -1821,7 +1821,7 @@ const DEFAULT_AUTOPUSH: AutopushConfig = {
   relaxLerp: 0.04,      // Very slow relax-out (prevents pumping)
   headHeight: 1.2,      // Raised ray origin to cow head height (avoids ground/body hits)
   rayCount: 3,          // Use 3 rays for stability
-  raySpread: 0.12,      // ~7 degrees spread for side rays
+  raySpread: 0.25,      // ~14 degrees spread for side rays (wider to catch adjacent corn)
   holdTimeMs: 250,      // Keep pushed-in for 250ms after ray clears
   minPushDelta: 0.25,   // Ignore grazing hits (was 0.6, too strict; 0.05 too loose)
 };
@@ -2099,17 +2099,13 @@ const OverShoulderCameraController = ({
       frameMetrics.raycastCount++; // Track raycasts for debug
       hitCellsRef.current.forEach(cell => centerRayHitCellsRef.current.add(cell));
       
-      // Side rays (if enabled) - only for autopush, NOT for fading
+      // Side rays (if enabled) - for autopush AND fading
       if (autopush.rayCount === 3) {
         // Calculate perpendicular direction in XZ plane
         const perpX = -rayDir.current.z;
         const perpZ = rayDir.current.x;
         
-        // Save center ray hits, clear for side rays (they don't contribute to fading)
-        // No allocation needed - we already have centerRayHitCellsRef
-        hitCellsRef.current.clear();
-        
-        // Left ray
+        // Left ray (adds to hitCellsRef alongside center ray hits)
         tempVec.current.set(
           rayDir.current.x + perpX * autopush.raySpread,
           rayDir.current.y,
@@ -2126,9 +2122,6 @@ const OverShoulderCameraController = ({
         ).normalize();
         performRaycast(tempVec.current);
         frameMetrics.raycastCount++;
-        // Restore only center ray hits for fading
-        hitCellsRef.current.clear();
-        centerRayHitCellsRef.current.forEach(cell => hitCellsRef.current.add(cell));
       }
       
       // Get current time for hysteresis
@@ -2150,6 +2143,21 @@ const OverShoulderCameraController = ({
       
       // Use the ref-based hitCells for all subsequent logic
       const hitCells = hitCellsRef.current;
+      
+      // DEBUG: Log raycast results every second
+      if (Math.floor(now / 1000) !== Math.floor((now - 16) / 1000)) {
+        console.log('[CORN-FADE-DEBUG]', {
+          closestHitDist: closestHitDist.toFixed(2),
+          rayLength: rayLength.toFixed(2),
+          hitCellsSize: hitCells.size,
+          hitCells: Array.from(hitCells),
+          blockerCount: cameraBlockers.length,
+          opacityFadeEnabled,
+          fadedCellsCount: fadedCellsRef.current.size,
+          headPos: `${headPosRef.current.x.toFixed(1)},${headPosRef.current.y.toFixed(1)},${headPosRef.current.z.toFixed(1)}`,
+          cameraPos: `${targetPos.current.x.toFixed(1)},${targetPos.current.y.toFixed(1)},${targetPos.current.z.toFixed(1)}`,
+        });
+      }
       
       if (closestHitDist < rayLength) {
         // We have a hit - camera should be IN FRONT of the wall, not behind it
