@@ -8,6 +8,7 @@ import {
   extractSpineFineCells,
   getSpineFineCellKey,
   SPINE_FINE_GRID_SCALE,
+  type SpineFineBranchRange,
   type SpineFineCellCoordinate,
 } from '@/lib/spineFineCells';
 
@@ -103,7 +104,8 @@ function collectTraversedCells(
 
 export function buildMazeEditorSpine(
   grid: MazeEditorCell[][],
-  deletedSpineFineCells: SpineFineCellCoordinate[] = []
+  deletedSpineFineCells: SpineFineCellCoordinate[] = [],
+  deletedSpineBranches: SpineFineBranchRange[] = []
 ): MazeEditorSpineAnalysis | null {
   const gridHeight = grid.length;
   const gridWidth = grid[0]?.length ?? 0;
@@ -114,7 +116,7 @@ export function buildMazeEditorSpine(
 
   const maze = buildMazeFromEditorGrid(grid);
   const axisResult = computeMedialAxis(maze, SPINE_FINE_GRID_SCALE);
-  const deletedFineCellKeys = applyDeletedSpineFineCells(axisResult.fineGrid, deletedSpineFineCells);
+  const deletedFineCellKeys = applyDeletedSpineFineCells(axisResult.fineGrid, deletedSpineFineCells, deletedSpineBranches);
   const fineSpineCells = extractSpineFineCells(axisResult.fineGrid);
   const fineSpineCellKeys = createSpineFineCellSet(fineSpineCells);
   const fallbackPoints = fineSpineCells.map((cell) => ({

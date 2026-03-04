@@ -17,7 +17,7 @@ import { useBackButton } from '@/hooks/useBackButton';
 import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
 import { canBeFedApples } from '@/types/appleDialogue';
 import { buildMazeEditorSpine, cellsTouchSpine, getMazeCellKey } from '@/lib/mazeEditorSpine';
-import { getSpineFineCellKey, normalizeSpineFineCells, SPINE_FINE_GRID_SCALE, type SpineFineCellCoordinate } from '@/lib/spineFineCells';
+import { branchContainsFineCell, expandDeletedSpineBranches, getSpineBranchRangeForCell, getSpineFineCellKey, normalizeSpineFineBranches, normalizeSpineFineCells, SPINE_FINE_GRID_SCALE, type SpineFineBranchRange, type SpineFineCellCoordinate } from '@/lib/spineFineCells';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -112,6 +112,11 @@ const AVAILABLE_ANIMATIONS = [
   'celebrate',
 ];
 
+type SpineEditMode = 'cell' | 'branch';
+
+const getSpineBranchKey = (branch: SpineFineBranchRange) =>
+  `${getSpineFineCellKey(branch.start.x, branch.start.y)}:${getSpineFineCellKey(branch.end.x, branch.end.y)}`;
+
 const MazeEditor: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -146,7 +151,9 @@ const MazeEditor: React.FC = () => {
   const [showAppleDialoguePanel, setShowAppleDialoguePanel] = useState(false);
   const [showSpineOverlay, setShowSpineOverlay] = useState(true);
   const [enableFineSpineEditing, setEnableFineSpineEditing] = useState(false);
+  const [spineEditMode, setSpineEditMode] = useState<SpineEditMode>('branch');
   const [deletedSpineFineCells, setDeletedSpineFineCells] = useState<SpineFineCellCoordinate[]>([]);
+  const [deletedSpineBranches, setDeletedSpineBranches] = useState<SpineFineBranchRange[]>([]);
   const [editableAppleDialogues, setEditableAppleDialogues] = useState<AnimalAppleDialogues[]>(() => 
     JSON.parse(JSON.stringify(animalAppleDialogues))
   );
@@ -154,16 +161,33 @@ const MazeEditor: React.FC = () => {
     () => normalizeSpineFineCells(deletedSpineFineCells),
     [deletedSpineFineCells]
   );
+  const normalizedDeletedSpineBranches = useMemo(
+    () => normalizeSpineFineBranches(deletedSpineBranches),
+    [deletedSpineBranches]
+  );
   const deletedSpineFineCellKeys = useMemo(
     () => new Set(normalizedDeletedSpineFineCells.map((cell) => getSpineFineCellKey(cell.x, cell.y))),
     [normalizedDeletedSpineFineCells]
   );
   const baseSpineAnalysis = useMemo(() => buildMazeEditorSpine(grid), [grid]);
+  const deletedSpineBranchCellKeys = useMemo(() => {
+    if (!baseSpineAnalysis) return new Set<string>();
+
+    return new Set(
+      expandDeletedSpineBranches(normalizedDeletedSpineBranches, baseSpineAnalysis.fineSpineCellKeys).map((cell) =>
+        getSpineFineCellKey(cell.x, cell.y)
+      )
+    );
+  }, [baseSpineAnalysis, normalizedDeletedSpineBranches]);
+  const deletedSpineCellKeys = useMemo(
+    () => new Set([...deletedSpineFineCellKeys, ...deletedSpineBranchCellKeys]),
+    [deletedSpineBranchCellKeys, deletedSpineFineCellKeys]
+  );
   const spineAnalysis = useMemo(
-    () => normalizedDeletedSpineFineCells.length === 0
+    () => normalizedDeletedSpineFineCells.length === 0 && normalizedDeletedSpineBranches.length === 0
       ? baseSpineAnalysis
-      : buildMazeEditorSpine(grid, normalizedDeletedSpineFineCells),
-    [baseSpineAnalysis, grid, normalizedDeletedSpineFineCells]
+      : buildMazeEditorSpine(grid, normalizedDeletedSpineFineCells, normalizedDeletedSpineBranches),
+    [baseSpineAnalysis, grid, normalizedDeletedSpineFineCells, normalizedDeletedSpineBranches]
   );
 
   // Hardware back button - navigate back to home
@@ -211,6 +235,7 @@ const MazeEditor: React.FC = () => {
       timerDisabled: maze.timerDisabled || false,
       goalCharacterId: maze.goalCharacterId,
     });
+    setDeletedSpineBranches(normalizeSpineFineBranches(maze.deletedSpineBranches || []));
     setDeletedSpineFineCells(normalizeSpineFineCells(maze.deletedSpineFineCells || []));
     
     // Load dialogues
@@ -270,6 +295,7 @@ const MazeEditor: React.FC = () => {
     if (width !== evenWidth) setWidth(evenWidth);
     if (height !== evenHeight) setHeight(evenHeight);
     setDialogues([]);
+    setDeletedSpineBranches([]);
     setDeletedSpineFineCells([]);
   }, [width, height]);
 
@@ -381,6 +407,38 @@ const MazeEditor: React.FC = () => {
       );
     });
   }, [baseSpineAnalysis, enableFineSpineEditing]);
+
+  const toggleDeletedSpineBranch = useCallback((cell: SpineFineCellCoordinate) => {
+    if (!enableFineSpineEditing || !baseSpineAnalysis) return;
+
+    const sourceSet = baseSpineAnalysis.fineSpineCellKeys;
+    const existingBranch = normalizedDeletedSpineBranches.find((branch) => branchContainsFineCell(branch, cell, sourceSet));
+
+    if (existingBranch) {
+      const existingKey = getSpineBranchKey(existingBranch);
+      setDeletedSpineBranches((prev) =>
+        normalizeSpineFineBranches(prev).filter((branch) => getSpineBranchKey(branch) !== existingKey)
+      );
+      return;
+    }
+
+    const branch = getSpineBranchRangeForCell(cell, sourceSet);
+    if (!branch) {
+      toast.error('Click a non-junction spine branch cell to toggle the full branch.');
+      return;
+    }
+
+    setDeletedSpineBranches((prev) => normalizeSpineFineBranches([...prev, branch]));
+  }, [baseSpineAnalysis, enableFineSpineEditing, normalizedDeletedSpineBranches]);
+
+  const handleFineSpineToggle = useCallback((cell: SpineFineCellCoordinate) => {
+    if (spineEditMode === 'branch') {
+      toggleDeletedSpineBranch(cell);
+      return;
+    }
+
+    toggleDeletedSpineFineCell(cell);
+  }, [spineEditMode, toggleDeletedSpineBranch, toggleDeletedSpineFineCell]);
 
   const addDialogue = () => {
     const newId = `dialogue_${Date.now()}`;
@@ -509,6 +567,13 @@ ${dialogues.map(d => {
   timerDisabled: true,`
       : '';
 
+    const deletedSpineBranchesSchema = normalizedDeletedSpineBranches.length > 0
+      ? `
+  deletedSpineBranches: [
+${normalizedDeletedSpineBranches.map((branch) => `    { start: { x: ${branch.start.x}, y: ${branch.start.y} }, end: { x: ${branch.end.x}, y: ${branch.end.y} } },`).join('\n')}
+  ],`
+      : '';
+
     const deletedSpineFineCellsSchema = normalizedDeletedSpineFineCells.length > 0
       ? `
   deletedSpineFineCells: [
@@ -521,7 +586,7 @@ ${normalizedDeletedSpineFineCells.map((cell) => `    { x: ${cell.x}, y: ${cell.y
   name: '${config.name}',
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
-  previewTime: ${config.previewTime},${timerDisabledSchema}${deletedSpineFineCellsSchema}
+  previewTime: ${config.previewTime},${timerDisabledSchema}${deletedSpineBranchesSchema}${deletedSpineFineCellsSchema}
   medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
@@ -529,7 +594,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
 },`;
     
     return schema;
-  }, [grid, config, dialogues, characters, loadedMazeId, normalizedDeletedSpineFineCells]);
+  }, [grid, config, dialogues, characters, loadedMazeId, normalizedDeletedSpineBranches, normalizedDeletedSpineFineCells]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateSchema());
@@ -551,6 +616,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     setGrid(createEmptyGrid(width, height));
     setDialogues([]);
     setSelectedDialogueId(null);
+    setDeletedSpineBranches([]);
     setDeletedSpineFineCells([]);
     toast.info('Grid cleared');
   };
@@ -983,17 +1049,36 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         <div>
                           <p className="text-sm font-medium">Fine spine editor</p>
                           <p className="text-xs text-muted-foreground">
-                            Toggle “Edit fine spine” to delete or restore individual subsquare spine cells before exporting the maze config.
+                            Use branch mode for compact start/end deletions, or cell mode for manual cleanup before exporting the maze config.
                           </p>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setDeletedSpineFineCells([])}
-                          disabled={normalizedDeletedSpineFineCells.length === 0}
-                        >
-                          Reset deletions
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant={spineEditMode === 'branch' ? 'default' : 'outline'}
+                            onClick={() => setSpineEditMode('branch')}
+                          >
+                            Delete branch
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={spineEditMode === 'cell' ? 'default' : 'outline'}
+                            onClick={() => setSpineEditMode('cell')}
+                          >
+                            Delete cell
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setDeletedSpineBranches([]);
+                              setDeletedSpineFineCells([]);
+                            }}
+                            disabled={normalizedDeletedSpineBranches.length === 0 && normalizedDeletedSpineFineCells.length === 0}
+                          >
+                            Reset deletions
+                          </Button>
+                        </div>
                       </div>
 
                       <FineSpineEditor
@@ -1001,25 +1086,37 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         mazeHeight={grid.length}
                         fineScale={baseSpineAnalysis?.fineScale ?? SPINE_FINE_GRID_SCALE}
                         fineSpineCells={baseSpineAnalysis?.fineSpineCells ?? []}
-                        deletedFineCellKeys={deletedSpineFineCellKeys}
+                        deletedFineCellKeys={deletedSpineCellKeys}
                         editable={enableFineSpineEditing}
-                        onToggleFineCell={toggleDeletedSpineFineCell}
+                        editMode={spineEditMode}
+                        onToggleFineCell={handleFineSpineToggle}
                       />
 
                       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                         <span>
-                          {(baseSpineAnalysis?.fineSpineCells.length ?? 0).toLocaleString()} fine spine cells • {normalizedDeletedSpineFineCells.length.toLocaleString()} deleted
+                          {(baseSpineAnalysis?.fineSpineCells.length ?? 0).toLocaleString()} fine spine cells • {normalizedDeletedSpineBranches.length.toLocaleString()} branches • {normalizedDeletedSpineFineCells.length.toLocaleString()} cells • {deletedSpineCellKeys.size.toLocaleString()} hidden
                         </span>
                         <span>
-                          {enableFineSpineEditing ? 'Click a fine cell to toggle deletion.' : 'Enable “Edit fine spine” to toggle deletions.'}
+                          {enableFineSpineEditing
+                            ? spineEditMode === 'branch'
+                              ? 'Click a non-junction fine spine cell to toggle its whole branch.'
+                              : 'Click a fine cell to toggle a single deletion.'
+                            : 'Enable “Edit fine spine” to toggle deletions.'}
                         </span>
                       </div>
 
                       <Textarea
                         readOnly
-                        value={normalizedDeletedSpineFineCells.length > 0
-                          ? normalizedDeletedSpineFineCells.map((cell) => `{ x: ${cell.x}, y: ${cell.y} }`).join('\n')
-                          : '// No deletedSpineFineCells'
+                        value={normalizedDeletedSpineBranches.length > 0 || normalizedDeletedSpineFineCells.length > 0
+                          ? [
+                              normalizedDeletedSpineBranches.length > 0
+                                ? `deletedSpineBranches: [\n${normalizedDeletedSpineBranches.map((branch) => `  { start: { x: ${branch.start.x}, y: ${branch.start.y} }, end: { x: ${branch.end.x}, y: ${branch.end.y} } },`).join('\n')}\n]`
+                                : '',
+                              normalizedDeletedSpineFineCells.length > 0
+                                ? `deletedSpineFineCells: [\n${normalizedDeletedSpineFineCells.map((cell) => `  { x: ${cell.x}, y: ${cell.y} },`).join('\n')}\n]`
+                                : '',
+                            ].filter(Boolean).join('\n\n')
+                          : '// No deletedSpineBranches or deletedSpineFineCells'
                         }
                         className="h-24 resize-none font-mono text-xs"
                       />

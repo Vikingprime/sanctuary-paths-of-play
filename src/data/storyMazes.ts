@@ -620,6 +620,7 @@ export const storyMazeToMaze = (storyMaze: StoryMaze): Maze => {
     dialogues: storyMaze.dialogues,
     endConditions: storyMaze.endConditions,
     freeMapAccess: storyMaze.freeMapAccess ?? true, // Default to true for story mazes
+    deletedSpineBranches: storyMaze.deletedSpineBranches,
     deletedSpineFineCells: storyMaze.deletedSpineFineCells,
   };
 };
