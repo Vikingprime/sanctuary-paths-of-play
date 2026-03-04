@@ -1923,8 +1923,8 @@ const OverShoulderCameraController = ({
   const targetHeight = Math.max(0.25, Math.min(1.2, 0.6 * animalHeight));
   const softMinDist = Math.max(1.0, Math.min(2.4, 1.2 * animalHeight));
   
-  const CAMERA_DISTANCE_START = 0.4;
   const CAMERA_DISTANCE_NORMAL = Math.max(softMinDist, 2.0); // Use softMinDist as minimum comfortable distance
+  const CAMERA_DISTANCE_START = CAMERA_DISTANCE_NORMAL; // Start at full distance so autopush can work immediately
   const CAMERA_HEIGHT_START = 1.8;
   const CAMERA_HEIGHT_NORMAL = 2.4;
   const LOOK_AHEAD = 1.3;
