@@ -7,10 +7,17 @@ interface FineSpineEditorProps {
   fineSpineCells: SpineFineCellCoordinate[];
   deletedFineCellKeys: Set<string>;
   editable: boolean;
+  editMode: 'cell' | 'branch';
   onToggleFineCell: (cell: SpineFineCellCoordinate) => void;
 }
 
 const FINE_CELL_RENDER_SIZE = 4;
+
+const getBranchActionLabel = (cell: SpineFineCellCoordinate, isDeleted: boolean) =>
+  `${isDeleted ? 'Restore' : 'Delete'} spine branch containing (${cell.x}, ${cell.y})`;
+
+const getCellActionLabel = (cell: SpineFineCellCoordinate, isDeleted: boolean) =>
+  `${isDeleted ? 'Restore' : 'Delete'} fine spine cell (${cell.x}, ${cell.y})`;
 
 export function FineSpineEditor({
   mazeWidth,
@@ -19,6 +26,7 @@ export function FineSpineEditor({
   fineSpineCells,
   deletedFineCellKeys,
   editable,
+  editMode,
   onToggleFineCell,
 }: FineSpineEditorProps) {
   const fineWidth = mazeWidth * fineScale;
@@ -90,7 +98,9 @@ export function FineSpineEditor({
               }}
             >
               <title>
-                {`${isDeleted ? 'Restore' : 'Delete'} fine spine cell (${cell.x}, ${cell.y})`}
+                {editMode === 'branch'
+                  ? getBranchActionLabel(cell, isDeleted)
+                  : getCellActionLabel(cell, isDeleted)}
               </title>
             </rect>
           );

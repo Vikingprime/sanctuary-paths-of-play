@@ -203,7 +203,7 @@ export function buildMagnetismCache(
 ): MagnetismCache {
   const result = computeMedialAxis(maze, 20, spurConfig);
   const { fineGrid, scale, fineCellSize } = result;
-  applyDeletedSpineFineCells(fineGrid, maze.deletedSpineFineCells);
+  applyDeletedSpineFineCells(fineGrid, maze.deletedSpineFineCells, maze.deletedSpineBranches);
   
   const fineHeight = fineGrid.length;
   const fineWidth = fineGrid[0]?.length ?? 0;

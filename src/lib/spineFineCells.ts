@@ -3,6 +3,11 @@ export interface SpineFineCellCoordinate {
   y: number;
 }
 
+export interface SpineFineBranchRange {
+  start: SpineFineCellCoordinate;
+  end: SpineFineCellCoordinate;
+}
+
 interface FineGridCellLike {
   isSkeleton: boolean;
   isSpur?: boolean;
@@ -10,20 +15,136 @@ interface FineGridCellLike {
 
 export const SPINE_FINE_GRID_SCALE = 20;
 
+const EIGHT_NEIGHBOR_OFFSETS: Array<readonly [number, number]> = [
+  [-1, -1],
+  [0, -1],
+  [1, -1],
+  [-1, 0],
+  [1, 0],
+  [-1, 1],
+  [0, 1],
+  [1, 1],
+];
+
 export const getSpineFineCellKey = (x: number, y: number) => `${x},${y}`;
+
+const normalizeSpineFineCellCoordinate = (cell: SpineFineCellCoordinate): SpineFineCellCoordinate => ({
+  x: Math.max(0, Math.floor(cell.x)),
+  y: Math.max(0, Math.floor(cell.y)),
+});
+
+const compareSpineFineCellCoordinates = (a: SpineFineCellCoordinate, b: SpineFineCellCoordinate) => {
+  if (a.y !== b.y) return a.y - b.y;
+  return a.x - b.x;
+};
+
+const normalizeSpineFineCellSource = (
+  source: SpineFineCellCoordinate[] | Set<string> = []
+): Set<string> => (source instanceof Set ? source : createSpineFineCellSet(source));
+
+const getNeighborSpineFineCells = (
+  cell: SpineFineCellCoordinate,
+  source: SpineFineCellCoordinate[] | Set<string>
+): SpineFineCellCoordinate[] => {
+  const sourceSet = normalizeSpineFineCellSource(source);
+
+  return EIGHT_NEIGHBOR_OFFSETS.flatMap(([dx, dy]) => {
+    const x = cell.x + dx;
+    const y = cell.y + dy;
+    return sourceSet.has(getSpineFineCellKey(x, y)) ? [{ x, y }] : [];
+  }).sort(compareSpineFineCellCoordinates);
+};
+
+const walkToSpineBranchBoundary = (
+  previousCell: SpineFineCellCoordinate,
+  currentCell: SpineFineCellCoordinate,
+  source: SpineFineCellCoordinate[] | Set<string>
+): SpineFineCellCoordinate => {
+  let prev = previousCell;
+  let current = currentCell;
+  const sourceSet = normalizeSpineFineCellSource(source);
+
+  while (sourceSet.has(getSpineFineCellKey(current.x, current.y))) {
+    const neighbors = getNeighborSpineFineCells(current, sourceSet);
+    if (neighbors.length !== 2) {
+      return current;
+    }
+
+    const nextCell = neighbors.find(
+      (neighbor) => neighbor.x !== prev.x || neighbor.y !== prev.y
+    );
+
+    if (!nextCell) {
+      return current;
+    }
+
+    prev = current;
+    current = nextCell;
+  }
+
+  return prev;
+};
+
+const reconstructSpineFinePath = (
+  previousByKey: Map<string, string>,
+  startKey: string,
+  endKey: string
+): SpineFineCellCoordinate[] => {
+  const pathKeys: string[] = [];
+  let currentKey: string | undefined = endKey;
+
+  while (currentKey) {
+    pathKeys.push(currentKey);
+    if (currentKey === startKey) break;
+    currentKey = previousByKey.get(currentKey);
+  }
+
+  if (pathKeys[pathKeys.length - 1] !== startKey) {
+    return [];
+  }
+
+  return pathKeys.reverse().map((key) => {
+    const [x, y] = key.split(',').map(Number);
+    return { x, y };
+  });
+};
+
+const normalizeSpineBranchEndpoints = (
+  start: SpineFineCellCoordinate,
+  end: SpineFineCellCoordinate
+): SpineFineBranchRange => {
+  const normalizedStart = normalizeSpineFineCellCoordinate(start);
+  const normalizedEnd = normalizeSpineFineCellCoordinate(end);
+
+  return compareSpineFineCellCoordinates(normalizedStart, normalizedEnd) <= 0
+    ? { start: normalizedStart, end: normalizedEnd }
+    : { start: normalizedEnd, end: normalizedStart };
+};
 
 export function normalizeSpineFineCells(cells: SpineFineCellCoordinate[] = []): SpineFineCellCoordinate[] {
   const uniqueCells = new Map<string, SpineFineCellCoordinate>();
 
   for (const cell of cells) {
-    const x = Math.max(0, Math.floor(cell.x));
-    const y = Math.max(0, Math.floor(cell.y));
-    uniqueCells.set(getSpineFineCellKey(x, y), { x, y });
+    const normalizedCell = normalizeSpineFineCellCoordinate(cell);
+    uniqueCells.set(getSpineFineCellKey(normalizedCell.x, normalizedCell.y), normalizedCell);
   }
 
-  return Array.from(uniqueCells.values()).sort((a, b) => {
-    if (a.y !== b.y) return a.y - b.y;
-    return a.x - b.x;
+  return Array.from(uniqueCells.values()).sort(compareSpineFineCellCoordinates);
+}
+
+export function normalizeSpineFineBranches(branches: SpineFineBranchRange[] = []): SpineFineBranchRange[] {
+  const uniqueBranches = new Map<string, SpineFineBranchRange>();
+
+  for (const branch of branches) {
+    const normalizedBranch = normalizeSpineBranchEndpoints(branch.start, branch.end);
+    const branchKey = `${getSpineFineCellKey(normalizedBranch.start.x, normalizedBranch.start.y)}:${getSpineFineCellKey(normalizedBranch.end.x, normalizedBranch.end.y)}`;
+    uniqueBranches.set(branchKey, normalizedBranch);
+  }
+
+  return Array.from(uniqueBranches.values()).sort((a, b) => {
+    const startComparison = compareSpineFineCellCoordinates(a.start, b.start);
+    if (startComparison !== 0) return startComparison;
+    return compareSpineFineCellCoordinates(a.end, b.end);
   });
 }
 
@@ -31,11 +152,115 @@ export function createSpineFineCellSet(cells: SpineFineCellCoordinate[] = []): S
   return new Set(normalizeSpineFineCells(cells).map((cell) => getSpineFineCellKey(cell.x, cell.y)));
 }
 
+export function getSpineBranchRangeForCell(
+  cell: SpineFineCellCoordinate,
+  source: SpineFineCellCoordinate[] | Set<string>
+): SpineFineBranchRange | null {
+  const normalizedCell = normalizeSpineFineCellCoordinate(cell);
+  const sourceSet = normalizeSpineFineCellSource(source);
+  const cellKey = getSpineFineCellKey(normalizedCell.x, normalizedCell.y);
+
+  if (!sourceSet.has(cellKey)) {
+    return null;
+  }
+
+  const neighbors = getNeighborSpineFineCells(normalizedCell, sourceSet);
+
+  if (neighbors.length === 0) {
+    return { start: normalizedCell, end: normalizedCell };
+  }
+
+  if (neighbors.length >= 3) {
+    return null;
+  }
+
+  if (neighbors.length === 1) {
+    return normalizeSpineBranchEndpoints(
+      normalizedCell,
+      walkToSpineBranchBoundary(normalizedCell, neighbors[0], sourceSet)
+    );
+  }
+
+  return normalizeSpineBranchEndpoints(
+    walkToSpineBranchBoundary(normalizedCell, neighbors[0], sourceSet),
+    walkToSpineBranchBoundary(normalizedCell, neighbors[1], sourceSet)
+  );
+}
+
+export function getSpineBranchCells(
+  branch: SpineFineBranchRange,
+  source: SpineFineCellCoordinate[] | Set<string>
+): SpineFineCellCoordinate[] {
+  const normalizedBranch = normalizeSpineBranchEndpoints(branch.start, branch.end);
+  const sourceSet = normalizeSpineFineCellSource(source);
+  const startKey = getSpineFineCellKey(normalizedBranch.start.x, normalizedBranch.start.y);
+  const endKey = getSpineFineCellKey(normalizedBranch.end.x, normalizedBranch.end.y);
+
+  if (!sourceSet.has(startKey) || !sourceSet.has(endKey)) {
+    return [];
+  }
+
+  if (startKey === endKey) {
+    return [{ ...normalizedBranch.start }];
+  }
+
+  const queue: string[] = [startKey];
+  const visited = new Set<string>([startKey]);
+  const previousByKey = new Map<string, string>();
+
+  while (queue.length > 0) {
+    const currentKey = queue.shift();
+    if (!currentKey) continue;
+    if (currentKey === endKey) break;
+
+    const [x, y] = currentKey.split(',').map(Number);
+    for (const neighbor of getNeighborSpineFineCells({ x, y }, sourceSet)) {
+      const neighborKey = getSpineFineCellKey(neighbor.x, neighbor.y);
+      if (visited.has(neighborKey)) continue;
+      visited.add(neighborKey);
+      previousByKey.set(neighborKey, currentKey);
+      queue.push(neighborKey);
+    }
+  }
+
+  return reconstructSpineFinePath(previousByKey, startKey, endKey);
+}
+
+export function expandDeletedSpineBranches(
+  branches: SpineFineBranchRange[] = [],
+  source: SpineFineCellCoordinate[] | Set<string>
+): SpineFineCellCoordinate[] {
+  const expandedCells: SpineFineCellCoordinate[] = [];
+
+  for (const branch of normalizeSpineFineBranches(branches)) {
+    expandedCells.push(...getSpineBranchCells(branch, source));
+  }
+
+  return normalizeSpineFineCells(expandedCells);
+}
+
+export function branchContainsFineCell(
+  branch: SpineFineBranchRange,
+  cell: SpineFineCellCoordinate,
+  source: SpineFineCellCoordinate[] | Set<string>
+): boolean {
+  const target = normalizeSpineFineCellCoordinate(cell);
+  return getSpineBranchCells(branch, source).some(
+    (branchCell) => branchCell.x === target.x && branchCell.y === target.y
+  );
+}
+
 export function applyDeletedSpineFineCells<T extends FineGridCellLike>(
   fineGrid: T[][],
-  deletedCells: SpineFineCellCoordinate[] = []
+  deletedCells: SpineFineCellCoordinate[] = [],
+  deletedBranches: SpineFineBranchRange[] = []
 ): Set<string> {
+  const sourceCells = extractSpineFineCells(fineGrid);
   const deletedCellKeys = createSpineFineCellSet(deletedCells);
+
+  for (const cell of expandDeletedSpineBranches(deletedBranches, sourceCells)) {
+    deletedCellKeys.add(getSpineFineCellKey(cell.x, cell.y));
+  }
 
   for (const key of deletedCellKeys) {
     const [xString, yString] = key.split(',');
