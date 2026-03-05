@@ -450,19 +450,22 @@ const MazeEditor: React.FC = () => {
     toggleDeletedSpineFineCell(cell);
   }, [spineEditMode, toggleDeletedSpineBranch, toggleDeletedSpineFineCell]);
 
-  const addDialogue = () => {
+  const addDialogue = (preLinkedCharacterId?: string) => {
     const newId = `dialogue_${Date.now()}`;
+    const linkedChar = preLinkedCharacterId ? characters.find(c => c.id === preLinkedCharacterId) : undefined;
     const newDialogue: DialogueConfig = {
       id: newId,
-      speaker: 'Farmer',
-      speakerEmoji: '👨‍🌾',
+      speaker: linkedChar?.name || 'Farmer',
+      speakerEmoji: linkedChar?.emoji || '👨‍🌾',
       message: 'Hello there!',
       cells: [],
-      characterModel: 'Farmer.glb',
+      characterModel: linkedChar ? undefined : 'Farmer.glb',
       characterAnimation: 'idle',
+      speakerCharacterId: preLinkedCharacterId,
     };
     setDialogues(prev => [...prev, newDialogue]);
     setSelectedDialogueId(newId);
+    setSelectedTool('D');
     setShowDialoguePanel(true);
     toast.success('Dialogue created! Now click cells on the grid to add trigger zones.');
   };
@@ -1261,8 +1264,86 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             {char.position ? `(${char.position.x}, ${char.position.y})` : 'Place'}
                           </Button>
                         </div>
-                        
-                        {/* Dialogue Sequence Editor - only for feedable animals */}
+
+                        {/* Linked Dialogues Section */}
+                        {(() => {
+                          const charDialogues = dialogues.filter(d => d.speakerCharacterId === char.id);
+                          // Check overlap: do all dialogues for this character share at least some cells?
+                          const cellSets = charDialogues.map(d => new Set(d.cells.map(c => `${c.x},${c.y}`)));
+                          const hasOverlapIssue = charDialogues.length >= 2 && (() => {
+                            // Check that each pair shares at least one cell
+                            for (let i = 0; i < cellSets.length; i++) {
+                              for (let j = i + 1; j < cellSets.length; j++) {
+                                const shared = [...cellSets[i]].filter(k => cellSets[j].has(k));
+                                if (shared.length === 0) return true;
+                              }
+                            }
+                            return false;
+                          })();
+                          const allOverlap = charDialogues.length >= 2 && !hasOverlapIssue;
+
+                          return (
+                            <div className="mt-3 pt-3 border-t space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs font-semibold flex items-center gap-1">
+                                  <MessageSquare className="w-3 h-3" />
+                                  Dialogues ({charDialogues.length})
+                                </Label>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-xs px-2"
+                                  onClick={(e) => { e.stopPropagation(); addDialogue(char.id); }}
+                                >
+                                  <Plus className="w-3 h-3 mr-1" /> New
+                                </Button>
+                              </div>
+                              
+                              {charDialogues.length >= 2 && (
+                                <div className={`text-xs px-2 py-1 rounded ${allOverlap ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                  {allOverlap 
+                                    ? '✅ All dialogues share trigger cells' 
+                                    : '⚠️ Some dialogues have NO overlapping cells'}
+                                </div>
+                              )}
+
+                              {charDialogues.length === 0 ? (
+                                <p className="text-xs text-muted-foreground italic">No dialogues linked</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {charDialogues.map((d) => {
+                                    const dIndex = dialogues.findIndex(dd => dd.id === d.id);
+                                    const color = DIALOGUE_COLORS[dIndex % DIALOGUE_COLORS.length];
+                                    const isSelected = selectedDialogueId === d.id;
+                                    return (
+                                      <div
+                                        key={d.id}
+                                        className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors text-xs ${
+                                          isSelected 
+                                            ? 'ring-2 ring-primary bg-primary/10' 
+                                            : 'hover:bg-muted'
+                                        } ${color.replace('bg-', 'border-l-4 border-')}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedDialogueId(d.id);
+                                          setSelectedTool('D');
+                                        }}
+                                      >
+                                        <div className="flex-1 truncate">
+                                          <span className="font-medium">{d.speaker}</span>
+                                          <span className="text-muted-foreground ml-1">({d.cells.length} cells)</span>
+                                          {d.requires && d.requires.length > 0 && (
+                                            <span className="text-muted-foreground ml-1">• req: {d.requires.join(', ')}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {canBeFedApples(char.id) && (
                           <div className="mt-3 pt-3 border-t-2 border-primary/40 bg-primary/5 rounded-md p-2">
                             <div className="flex items-center gap-1 mb-1">
@@ -1355,7 +1436,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
               <CardTitle className="text-lg flex items-center justify-between">
                 <span>Dialogues</span>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={addDialogue}>
+                  <Button size="sm" onClick={() => addDialogue()}>
                     <Plus className="w-4 h-4 mr-1" /> Add Dialogue
                   </Button>
                   <Button size="icon" variant="ghost" onClick={() => setShowDialoguePanel(false)}>
