@@ -151,9 +151,9 @@ const chapter2Maze: StoryMaze = {
   timerDisabled: true,
   previewTime: 12,
   medalTimes: {
-    gold: 80,
-    silver: 120,
-    bronze: 180,
+    gold: 15,
+    silver: 25,
+    bronze: 40,
   },
   characters: [],
   storyCharacters: [
@@ -163,7 +163,7 @@ const chapter2Maze: StoryMaze = {
       emoji: '🐹',
       model: 'Hamster.glb',
       animation: 'idle',
-      position: { x: 4, y: 14 },
+      position: { x: 2, y: 14 },
       hiddenFromPreview: true,
       questRelevant: 'talk_hamster',
     },
@@ -173,7 +173,7 @@ const chapter2Maze: StoryMaze = {
       emoji: '🐀',
       model: 'Kangaroo_rat.glb',
       animation: 'idle',
-      position: { x: 16, y: 4 },
+      position: { x: 17, y: 4 },
       hiddenFromPreview: true,
       questRelevant: 'talk_kangaroo',
     },
@@ -183,7 +183,7 @@ const chapter2Maze: StoryMaze = {
       emoji: '🐿️',
       model: 'Squirrel.glb',
       animation: 'idle',
-      position: { x: 16, y: 14 },
+      position: { x: 14, y: 8 },
       hiddenFromPreview: true,
       questRelevant: 'talk_squirrel',
     },
@@ -193,7 +193,7 @@ const chapter2Maze: StoryMaze = {
       emoji: '🐀',
       model: 'Rat-2.glb',
       animation: 'idle',
-      position: { x: 10, y: 4 },
+      position: { x: 15, y: 1 },
       hiddenFromPreview: true,
     },
     {
@@ -241,20 +241,12 @@ const chapter2Maze: StoryMaze = {
     riddleHint: "\"First, rendez-vous with the legend, a pet-turned escapee,\nthen, locate the athlete, the jumper,\nfinally, find the collector, the one that stores their treasures.\"",
   },
   dialogues: [
-    // --- DECOY DIALOGUES (always available, give flavor but no quest progress) ---
     {
       id: 'scuttle_chat',
       speaker: 'Scuttle',
       speakerEmoji: '🐀',
       message: "Hey there! I'm Scuttle. I'm not part of any riddle, but I saw something shiny earlier...",
-      messages: [
-        {
-          speaker: 'Scuttle',
-          speakerEmoji: '🐀',
-          message: "It was near the south side of the maze. Maybe one of my cousins knows more?",
-        },
-      ],
-      cells: [{ x: 9, y: 4 }, { x: 10, y: 4 }, { x: 11, y: 4 }, { x: 10, y: 5 }],
+      cells: [{ x: 14, y: 1 }, { x: 14, y: 2 }, { x: 15, y: 2 }, { x: 15, y: 1 }],
       speakerCharacterId: 'cousin_rat2',
     },
     {
@@ -262,169 +254,77 @@ const chapter2Maze: StoryMaze = {
       speaker: 'Bristle',
       speakerEmoji: '🐁',
       message: "*prickles up* Oh! You startled me! I'm Bristle, the spiny mouse.",
-      messages: [
-        {
-          speaker: 'Bristle',
-          speakerEmoji: '🐁',
-          message: "I don't know much about riddles, but I heard there's a hamster around here who used to be someone's pet!",
-        },
-        {
-          speaker: 'Bristle',
-          speakerEmoji: '🐁',
-          message: "Check the southwest part of the maze. That little guy loves hiding in corners.",
-        },
-      ],
       cells: [{ x: 9, y: 10 }, { x: 10, y: 10 }, { x: 11, y: 10 }, { x: 10, y: 11 }],
       speakerCharacterId: 'cousin_spiny',
     },
-
-    // --- WRONG ORDER DIALOGUES ---
-    // Kangaroo rat before hamster
     {
       id: 'kangaroo_wrong',
       speaker: 'Bounce',
       speakerEmoji: '🐀',
       message: "*bouncing in place* Whoa there! You need to find the LEGEND first! The pet-turned-escapee!",
-      cells: [{ x: 15, y: 4 }, { x: 16, y: 4 }, { x: 17, y: 4 }, { x: 16, y: 5 }],
+      cells: [{ x: 16, y: 4 }, { x: 16, y: 5 }, { x: 17, y: 5 }, { x: 17, y: 4 }],
       speakerCharacterId: 'cousin_kangaroo',
       requiresNot: ['hamster_correct'],
     },
-    // Squirrel before completing hamster + kangaroo
     {
       id: 'squirrel_wrong',
       speaker: 'Stash',
       speakerEmoji: '🐿️',
       message: "*busy sorting acorns* Not yet! You haven't solved the first two parts of the riddle!",
-      cells: [{ x: 15, y: 14 }, { x: 16, y: 14 }, { x: 17, y: 14 }, { x: 16, y: 15 }],
+      cells: [{ x: 15, y: 8 }, { x: 14, y: 9 }, { x: 14, y: 8 }],
       speakerCharacterId: 'cousin_squirrel',
       requiresNot: ['kangaroo_correct'],
     },
-
-    // --- CORRECT ORDER DIALOGUES ---
-    // 1st: Hamster (The Legend)
     {
       id: 'hamster_correct',
       speaker: 'Nugget',
       speakerEmoji: '🐹',
       message: "*squeaks excitedly* You found me! I'm Nugget — the LEGEND!",
-      messages: [
-        {
-          speaker: 'Nugget',
-          speakerEmoji: '🐹',
-          message: "I used to live in a cozy cage with a running wheel and everything. But one day, the cage door was left open...",
-        },
-        {
-          speaker: 'Nugget',
-          speakerEmoji: '🐹',
-          message: "I made my great escape! Now I'm the most famous rodent at the sanctuary!",
-        },
-        {
-          speaker: 'Nugget',
-          speakerEmoji: '🐹',
-          message: "That night the ring went missing, I heard a lot of commotion near the barn. Something was digging...",
-        },
-        {
-          speaker: 'Nugget',
-          speakerEmoji: '🐹',
-          message: "Now go find the ATHLETE — the jumper! He's in the northeast. You can't miss him, he never sits still!",
-        },
-      ],
-      cells: [{ x: 3, y: 14 }, { x: 4, y: 14 }, { x: 5, y: 14 }, { x: 4, y: 15 }],
+      cells: [{ x: 3, y: 14 }, { x: 2, y: 15 }, { x: 2, y: 14 }],
       speakerCharacterId: 'cousin_hamster',
       questAction: { type: 'complete_objective', objectiveId: 'talk_hamster' },
     },
-    // 2nd: Kangaroo Rat (The Athlete)
     {
       id: 'kangaroo_correct',
       speaker: 'Bounce',
       speakerEmoji: '🐀',
       message: "*lands from a huge leap* Woah! You solved the first clue! I'm Bounce, the ATHLETE!",
-      messages: [
-        {
-          speaker: 'Bounce',
-          speakerEmoji: '🐀',
-          message: "I can jump 9 feet in a single bound! That's like 45 times my body length!",
-        },
-        {
-          speaker: 'Bounce',
-          speakerEmoji: '🐀',
-          message: "I was out jumping that night and I saw something black and white sneaking around the barn...",
-        },
-        {
-          speaker: 'Bounce',
-          speakerEmoji: '🐀',
-          message: "It was definitely digging for something. And it smelled TERRIBLE!",
-        },
-        {
-          speaker: 'Bounce',
-          speakerEmoji: '🐀',
-          message: "One more cousin to go — find the COLLECTOR! The one who stores their treasures. She's in the southeast!",
-        },
-      ],
-      cells: [{ x: 15, y: 4 }, { x: 16, y: 4 }, { x: 17, y: 4 }, { x: 16, y: 5 }],
+      cells: [{ x: 16, y: 4 }, { x: 16, y: 5 }, { x: 17, y: 5 }, { x: 17, y: 4 }],
       speakerCharacterId: 'cousin_kangaroo',
       requires: ['hamster_correct'],
       questAction: { type: 'complete_objective', objectiveId: 'talk_kangaroo' },
     },
-    // 3rd: Squirrel (The Collector)
     {
       id: 'squirrel_correct',
       speaker: 'Stash',
       speakerEmoji: '🐿️',
       message: "*surrounded by acorn piles* You made it! And in the right order too! I'm Stash!",
-      messages: [
-        {
-          speaker: 'Stash',
-          speakerEmoji: '🐿️',
-          message: "I collect EVERYTHING. Acorns, berries, shiny things... if it fits in my cheeks, it's mine!",
-        },
-        {
-          speaker: 'Stash',
-          speakerEmoji: '🐿️',
-          message: "In fact... *looks around nervously* ...I found something very interesting near the barn that night.",
-        },
-        {
-          speaker: 'Stash',
-          speakerEmoji: '🐿️',
-          message: "A shiny gold ring! But before I could grab it, a SKUNK snatched it up and ran off!",
-        },
-        {
-          speaker: 'Stash',
-          speakerEmoji: '🐿️',
-          message: "The skunk went toward the old oak tree on the far side of the farm. That's your next lead!",
-        },
-        {
-          speaker: 'Stash',
-          speakerEmoji: '👀',
-          message: "Be careful though — skunks don't like being followed. You might want to sneak up on this one!",
-        },
-      ],
-      cells: [{ x: 15, y: 14 }, { x: 16, y: 14 }, { x: 17, y: 14 }, { x: 16, y: 15 }],
+      cells: [],
       speakerCharacterId: 'cousin_squirrel',
       requires: ['kangaroo_correct'],
       questAction: { type: 'complete_objective', objectiveId: 'talk_squirrel' },
-    },
+    }
   ],
   endConditions: {
     requiredDialogues: ['hamster_correct', 'kangaroo_correct', 'squirrel_correct'],
   },
   grid: createGrid([
     '######################',
-    '######################',
-    '##SS          ########',
+    '############    ######',
+    '##SS            ######',
     '##            ########',
-    '##    ####        ####',
-    '##    ####        ####',
+    '####  ######      ####',
+    '####  ######      ####',
     '####          ########',
     '####          ########',
     '######    ####    ####',
     '######    ####    ####',
-    '##            ##    ##',
-    '##            ##    ##',
-    '####    ####        ##',
-    '####    ####        ##',
-    '##        ##      EE##',
-    '##        ##      EE##',
+    '##            ##  ####',
+    '##            ##  ####',
+    '####    ####  ##  ####',
+    '####    ####  ##  ####',
+    '##        ##      ####',
+    '##        ##      ####',
     '######################',
     '######################',
   ]),
