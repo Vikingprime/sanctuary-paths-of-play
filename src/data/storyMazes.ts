@@ -155,8 +155,7 @@ const chapter2Maze: StoryMaze = {
     silver: 25,
     bronze: 40,
   },
-  characters: [],
-  storyCharacters: [
+  characters: [
     {
       id: 'cousin_hamster',
       name: 'Nugget',
@@ -164,8 +163,6 @@ const chapter2Maze: StoryMaze = {
       model: 'Hamster.glb',
       animation: 'idle',
       position: { x: 3, y: 15 },
-      hiddenFromPreview: true,
-      questRelevant: 'talk_hamster',
     },
     {
       id: 'cousin_kangaroo',
@@ -174,8 +171,6 @@ const chapter2Maze: StoryMaze = {
       model: 'Kangaroo_rat.glb',
       animation: 'idle',
       position: { x: 17, y: 5 },
-      hiddenFromPreview: true,
-      questRelevant: 'talk_kangaroo',
     },
     {
       id: 'cousin_squirrel',
@@ -184,8 +179,6 @@ const chapter2Maze: StoryMaze = {
       model: 'Squirrel.glb',
       animation: 'idle',
       position: { x: 17, y: 9 },
-      hiddenFromPreview: true,
-      questRelevant: 'talk_squirrel',
     },
     {
       id: 'cousin_rat2',
@@ -193,8 +186,7 @@ const chapter2Maze: StoryMaze = {
       emoji: '🐀',
       model: 'Rat-2.glb',
       animation: 'idle',
-      position: { x: 15, y: 2 },
-      hiddenFromPreview: true,
+      position: { x: 2, y: 6 },
     },
     {
       id: 'cousin_spiny',
@@ -203,9 +195,9 @@ const chapter2Maze: StoryMaze = {
       model: 'Spiny_mouse.glb',
       animation: 'idle',
       position: { x: 2, y: 10 },
-      hiddenFromPreview: true,
     },
   ],
+  storyCharacters: [],
   quest: {
     id: 'quest_ch2_cousin_riddle',
     title: 'The Cousin Riddle',
@@ -246,7 +238,7 @@ const chapter2Maze: StoryMaze = {
       speaker: 'Scuttle',
       speakerEmoji: '🐀',
       message: "Hey there! I'm Scuttle. I'm not part of any riddle, but I saw something shiny earlier...",
-      cells: [{ x: 14, y: 1 }, { x: 15, y: 1 }, { x: 14, y: 2 }, { x: 15, y: 2 }],
+      cells: [{ x: 1, y: 5 }, { x: 1, y: 7 }, { x: 1, y: 6 }, { x: 2, y: 6 }, { x: 2, y: 5 }, { x: 2, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 6 }, { x: 3, y: 5 }],
       speakerCharacterId: 'cousin_rat2',
     },
     {
@@ -254,7 +246,7 @@ const chapter2Maze: StoryMaze = {
       speaker: 'Bristle',
       speakerEmoji: '🐁',
       message: "*prickles up* Oh! You startled me! I'm Bristle, the spiny mouse.",
-      cells: [{ x: 1, y: 10 }, { x: 2, y: 10 }, { x: 3, y: 10 }, { x: 1, y: 11 }, { x: 2, y: 11 }, { x: 3, y: 11 }],
+      cells: [{ x: 1, y: 10 }, { x: 2, y: 10 }, { x: 3, y: 10 }, { x: 1, y: 11 }, { x: 2, y: 11 }, { x: 3, y: 11 }, { x: 2, y: 9 }, { x: 3, y: 9 }, { x: 1, y: 9 }],
       speakerCharacterId: 'cousin_spiny',
     },
     {
@@ -262,7 +254,7 @@ const chapter2Maze: StoryMaze = {
       speaker: 'Bounce',
       speakerEmoji: '🐀',
       message: "*bouncing in place* Whoa there! You need to find the LEGEND first! The pet-turned-escapee!",
-      cells: [{ x: 14, y: 4 }, { x: 15, y: 4 }, { x: 16, y: 4 }, { x: 14, y: 5 }, { x: 15, y: 5 }, { x: 16, y: 5 }],
+      cells: [{ x: 16, y: 5 }, { x: 17, y: 4 }, { x: 18, y: 4 }, { x: 18, y: 5 }, { x: 18, y: 6 }, { x: 17, y: 6 }, { x: 16, y: 6 }, { x: 17, y: 5 }, { x: 16, y: 4 }],
       speakerCharacterId: 'cousin_kangaroo',
     },
     {
@@ -287,7 +279,7 @@ const chapter2Maze: StoryMaze = {
       speaker: 'Bounce',
       speakerEmoji: '🐀',
       message: "*lands from a huge leap* Woah! You solved the first clue! I'm Bounce, the ATHLETE!",
-      cells: [{ x: 14, y: 4 }, { x: 15, y: 4 }, { x: 16, y: 4 }, { x: 14, y: 5 }, { x: 15, y: 5 }, { x: 16, y: 5 }],
+      cells: [{ x: 17, y: 4 }, { x: 18, y: 4 }, { x: 18, y: 5 }, { x: 18, y: 6 }, { x: 17, y: 6 }, { x: 16, y: 6 }, { x: 16, y: 4 }],
       speakerCharacterId: 'cousin_kangaroo',
       requires: ['hamster_correct'],
       questAction: { type: 'complete_objective', objectiveId: 'talk_kangaroo' },
@@ -301,20 +293,20 @@ const chapter2Maze: StoryMaze = {
       speakerCharacterId: 'cousin_squirrel',
       requires: ['kangaroo_correct'],
       questAction: { type: 'complete_objective', objectiveId: 'talk_squirrel' },
-    }
+    },
   ],
   endConditions: {
     requiredDialogues: ['hamster_correct', 'kangaroo_correct', 'squirrel_correct'],
   },
   grid: createGrid([
     '######################',
-    '############     #####',
-    '##SS             #####',
+    '######################',
+    '##SS          ########',
     '##            ########',
     '####  ######       ###',
-    '####  ######       ###',
-    '####          ##   ###',
-    '####          ########',
+    '#     ######       ###',
+    '#             ##   ###',
+    '#             ########',
     '######    ######   ###',
     '#   ##    ######   ###',
     '#             ##   ###',
