@@ -97,7 +97,6 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     yOffset: 0.16,
     height: 0.507,
     debugPlaneColor: '#777777',
-    tintColor: 'hsl(0 0% 58%)',
   },
   'Spiny_mouse.glb': {
     scale: 0.297,
