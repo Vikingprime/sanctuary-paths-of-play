@@ -2354,9 +2354,10 @@ const CutsceneCameraController = ({
     const playerX = playerStateRef.current.x;
     const playerZ = playerStateRef.current.y;
     const speakerHeight = Math.max(0.25, dialogueTarget.speakerHeight || 1.0);
-    const cameraHeight = Math.min(2.4, Math.max(1.3, 1.1 + speakerHeight * 0.85));
-    const lookHeight = Math.min(1.25, Math.max(0.22, speakerHeight * 0.72));
-    const zoomDistance = Math.min(3.0, Math.max(1.4, 1.05 + speakerHeight * 1.15));
+    const smallNpcBias = Math.min(1, Math.max(0, (0.6 - speakerHeight) / 0.35));
+    const cameraHeight = Math.min(2.4, Math.max(1.22, 1.1 + speakerHeight * 0.85 + smallNpcBias * 0.18));
+    const lookHeight = Math.min(1.35, Math.max(0.22, speakerHeight * 0.72 + smallNpcBias * 0.12));
+    const baseZoomDistance = Math.min(3.0, Math.max(1.05, 1.05 + speakerHeight * 1.15 - smallNpcBias * 0.45));
     
     // Speaker is at dialogueTarget position + 0.5 (center of cell)
     const speakerX = dialogueTarget.speakerX + 0.5;
@@ -2378,10 +2379,18 @@ const CutsceneCameraController = ({
       dirX = dx / dist;
       dirZ = dz / dist;
     }
+
+    // For tiny characters, move the camera closer than the player's silhouette and add a slight side offset.
+    const maxZoomBeforePlayer = dist > 0.5
+      ? Math.max(0.72, dist - (0.5 + smallNpcBias * 0.45))
+      : baseZoomDistance;
+    const zoomDistance = smallNpcBias > 0 ? Math.min(baseZoomDistance, maxZoomBeforePlayer) : baseZoomDistance;
+    const sideOffset = smallNpcBias * 0.55;
+    const perpX = -dirZ;
+    const perpZ = dirX;
     
-    // Position camera based on the speaker's world height.
-    const camX = speakerX + dirX * zoomDistance;
-    const camZ = speakerZ + dirZ * zoomDistance;
+    const camX = speakerX + dirX * zoomDistance + perpX * sideOffset;
+    const camZ = speakerZ + dirZ * zoomDistance + perpZ * sideOffset;
     
     camera.position.set(camX, cameraHeight, camZ);
     camera.up.set(0, 1, 0);
