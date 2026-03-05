@@ -2066,7 +2066,7 @@ const OverShoulderCameraController = ({
       hitCellsRef.current.clear();
       centerRayHitCellsRef.current.clear();
       
-      const performRaycast = (direction: Vector3) => {
+      const performRaycast = (direction: Vector3, collectFadeCells = false) => {
         rayOrigin.current.copy(headPosRef.current);
         raycaster.current.set(rayOrigin.current, direction);
         raycaster.current.far = rayLength;
@@ -2080,28 +2080,14 @@ const OverShoulderCameraController = ({
             hitObjectName = intersects[0].object.name || 'unnamed';
           }
           
-          // Collect hit cells for corn fading using userData (not hit.point)
-          for (const hit of intersects) {
-            const cellX = hit.object.userData.cellX;
-            const cellZ = hit.object.userData.cellZ;
-            if (cellX !== undefined && cellZ !== undefined) {
-              hitCellsRef.current.add(`${cellX},${cellZ}`);
-              
-              // Also fade adjacent cells to catch visual corn leaves extending from neighbors
-              if (maze) {
-                const adjacents = [
-                  [cellX - 1, cellZ], [cellX + 1, cellZ],
-                  [cellX, cellZ - 1], [cellX, cellZ + 1]
-                ];
-                for (const [ax, az] of adjacents) {
-                  // Only add if it's a valid wall cell in the maze
-                  if (ax >= 0 && az >= 0 && 
-                      az < maze.grid.length && 
-                      ax < maze.grid[0].length && 
-                      maze.grid[az][ax].isWall) {
-                    hitCellsRef.current.add(`${ax},${az}`);
-                  }
-                }
+          // Only the center ray contributes cells for translucency.
+          // Side rays are used for autopush only so corn at the edges doesn't fade while moving.
+          if (collectFadeCells) {
+            for (const hit of intersects) {
+              const cellX = hit.object.userData.cellX;
+              const cellZ = hit.object.userData.cellZ;
+              if (cellX !== undefined && cellZ !== undefined) {
+                centerRayHitCellsRef.current.add(`${cellX},${cellZ}`);
               }
             }
           }
@@ -2109,17 +2095,16 @@ const OverShoulderCameraController = ({
       };
       
       // Center ray - collect hits for both autopush AND fading
-      performRaycast(rayDir.current);
+      performRaycast(rayDir.current, true);
       frameMetrics.raycastCount++; // Track raycasts for debug
-      hitCellsRef.current.forEach(cell => centerRayHitCellsRef.current.add(cell));
       
-      // Side rays (if enabled) - for autopush AND fading
+      // Side rays (if enabled) - autopush only
       if (autopush.rayCount === 3) {
         // Calculate perpendicular direction in XZ plane
         const perpX = -rayDir.current.z;
         const perpZ = rayDir.current.x;
         
-        // Left ray (adds to hitCellsRef alongside center ray hits)
+        // Left ray
         tempVec.current.set(
           rayDir.current.x + perpX * autopush.raySpread,
           rayDir.current.y,
@@ -2155,9 +2140,8 @@ const OverShoulderCameraController = ({
       let targetDist = rayLength; // Default: no blocking, use full distance
       const desiredDistForAutopush = rayLength;
       
-      // Use the ref-based hitCells for all subsequent logic
-      const hitCells = hitCellsRef.current;
-      
+      // Only the center ray may drive translucency.
+      const fadeCells = centerRayHitCellsRef.current;
       
       if (closestHitDist < rayLength) {
         // We have a hit - camera should be IN FRONT of the wall, not behind it
@@ -2187,19 +2171,16 @@ const OverShoulderCameraController = ({
           }
         }
         
-        // === CORN FADING: trigger for ANY hit, not just significant ones ===
-        // This ensures corn becomes translucent whenever it blocks the view
-        if (opacityFadeEnabled && hitCells.size > 0) {
-          const hasExistingFadedCells = fadedCellsRef.current.size > 0;
+        // Only fade for direct, significant center-ray occlusion.
+        if (opacityFadeEnabled && isSignificantHit && fadeCells.size > 0) {
           frameMetrics.activeFadedCells = fadedCellsRef.current.size;
           
-          for (const cellKey of hitCells) {
+          for (const cellKey of fadeCells) {
             const existing = fadedCellsRef.current.get(cellKey);
             if (existing) {
               existing.lastHitTime = now;
             } else {
-              const startOpacity = hasExistingFadedCells ? FADE_TARGET : 1.0;
-              fadedCellsRef.current.set(cellKey, { opacity: startOpacity, lastHitTime: now });
+              fadedCellsRef.current.set(cellKey, { opacity: 1.0, lastHitTime: now });
             }
           }
         }
@@ -2207,7 +2188,7 @@ const OverShoulderCameraController = ({
         // Update all faded cells
         if (opacityFadeEnabled) {
           for (const [cellKey, state] of fadedCellsRef.current) {
-            const isCurrentlyHit = hitCells.has(cellKey);
+            const isCurrentlyHit = fadeCells.has(cellKey) && isSignificantHit;
             const timeSinceHit = now - state.lastHitTime;
             
             if (isCurrentlyHit) {
@@ -2242,7 +2223,6 @@ const OverShoulderCameraController = ({
         }
         
         // No autopush active - fade all cells back to opaque
-        // Only run if opacityFadeEnabled is true
         if (opacityFadeEnabled) {
           for (const [cellKey, state] of fadedCellsRef.current) {
             const timeSinceHitCell = now - state.lastHitTime;
@@ -2265,74 +2245,7 @@ const OverShoulderCameraController = ({
         }
       }
       
-      // === GRID-BASED PROXIMITY FADING ===
-      // When camera is close (small animals), raycasts may miss corn that visually blocks.
-      // Instead, find wall cells adjacent to the player in the camera's direction and fade them.
-      if (opacityFadeEnabled && maze) {
-        const camDirX = targetPos.current.x - playerX;
-        const camDirZ = targetPos.current.z - playerZ;
-        const playerCellX = Math.floor(playerX);
-        const playerCellZ = Math.floor(playerZ);
-        
-        // Check cells in a 2-cell radius in the camera direction
-        const checkRadius = 2;
-        for (let dx = -checkRadius; dx <= checkRadius; dx++) {
-          for (let dz = -checkRadius; dz <= checkRadius; dz++) {
-            if (dx === 0 && dz === 0) continue;
-            
-            const cx = playerCellX + dx;
-            const cz = playerCellZ + dz;
-            
-            // Skip out-of-bounds
-            if (cz < 0 || cz >= maze.grid.length || cx < 0 || cx >= maze.grid[0].length) continue;
-            
-            // Only fade wall cells
-            if (!maze.grid[cz][cx].isWall) continue;
-            
-            // Check if this cell is roughly in the camera's direction from the player
-            // Dot product of (dx, dz) with camera direction
-            const dot = dx * camDirX + dz * camDirZ;
-            if (dot <= 0) continue; // Cell is not in camera direction
-            
-            const cellKey = `${cx},${cz}`;
-            const existing = fadedCellsRef.current.get(cellKey);
-            if (existing) {
-              existing.lastHitTime = now;
-            } else {
-              const hasExisting = fadedCellsRef.current.size > 0;
-              fadedCellsRef.current.set(cellKey, { 
-                opacity: hasExisting ? FADE_TARGET : 1.0, 
-                lastHitTime: now 
-              });
-            }
-          }
-        }
-        
-        // Update all faded cells (animate opacity)
-        for (const [cellKey, state] of fadedCellsRef.current) {
-          const timeSinceHit = now - state.lastHitTime;
-          
-          if (timeSinceHit < HOLD_TIME) {
-            // Recently hit - fade to transparent
-            state.opacity = Math.max(FADE_TARGET, state.opacity - FADE_IN_SPEED);
-          } else {
-            // Fade back to opaque
-            state.opacity = Math.min(1.0, state.opacity + FADE_OUT_SPEED);
-          }
-          
-          const [ccx, ccz] = cellKey.split(',').map(Number);
-          setCellOpacity(ccx, ccz, state.opacity);
-          frameMetrics.opacityBufferUpdates++;
-          
-          // Clean up
-          if (state.opacity >= 0.99 && timeSinceHit > 1000) {
-            setCellOpacity(ccx, ccz, 1.0);
-            fadedCellsRef.current.delete(cellKey);
-          }
-        }
-        
-        frameMetrics.activeFadedCells = fadedCellsRef.current.size;
-      }
+      frameMetrics.activeFadedCells = fadedCellsRef.current.size;
       
       // Initialize autopush distance on first frame
       if (currentAutopushDist.current === null) {
