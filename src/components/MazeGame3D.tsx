@@ -23,6 +23,7 @@ import { setAutopushEnabled as setDebugAutopush, setLOSFaderEnabled as setDebugL
 import { useBackButton } from '@/hooks/useBackButton';
 import { Point2D } from '@/game/SkeletonPolyline';
 import { MagnetismCache } from '@/game/CorridorMagnetism';
+import { getCharacterHeight } from '@/game/CharacterConfig';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -278,7 +279,31 @@ export const MazeGame3D = ({
     }
     
     return null;
-  }, [maze.dialogues, maze.grid, maze.characters]);
+  }, [maze.dialogues, maze.characters]);
+
+  const findSpeakerHeightForDialogue = useCallback((dialogue: DialogueTrigger | null): number => {
+    if (!dialogue || !maze.dialogues) return 1.0;
+
+    if (dialogue.speakerCharacterId) {
+      const character = maze.characters?.find(c => c.id === dialogue.speakerCharacterId);
+      if (character) {
+        return getCharacterHeight(character.model);
+      }
+    }
+
+    if (dialogue.characterModel) {
+      return getCharacterHeight(dialogue.characterModel);
+    }
+
+    if (dialogue.requires && dialogue.requires.length > 0) {
+      const parentDialogue = maze.dialogues.find(d => d.id === dialogue.requires?.[0]);
+      if (parentDialogue) {
+        return findSpeakerHeightForDialogue(parentDialogue);
+      }
+    }
+
+    return 1.0;
+  }, [maze.dialogues, maze.characters]);
 
   // Find all station positions in the maze
   const stationPositions = useRef<Array<{ x: number; y: number }>>([]);
@@ -1488,8 +1513,9 @@ export const MazeGame3D = ({
         dialogueTarget={activeDialogue ? (() => {
           const pos = findSpeakerPositionForDialogue(activeDialogue);
           return {
-            speakerX: pos?.x ?? playerStateRef.current.x, 
-            speakerZ: pos?.y ?? playerStateRef.current.y 
+            speakerX: pos?.x ?? playerStateRef.current.x,
+            speakerZ: pos?.y ?? playerStateRef.current.y,
+            speakerHeight: findSpeakerHeightForDialogue(activeDialogue),
           };
         })() : null}
         topDownCamera={topDownCamera}

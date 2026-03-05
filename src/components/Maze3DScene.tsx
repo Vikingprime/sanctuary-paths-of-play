@@ -61,6 +61,7 @@ export interface PerformanceInfo {
 interface DialogueTarget {
   speakerX: number;
   speakerZ: number;
+  speakerHeight: number;
 }
 
 interface Maze3DSceneProps {
@@ -2343,13 +2344,13 @@ const CutsceneCameraController = ({
 }) => {
   const { camera } = useThree();
   
-  const CAMERA_HEIGHT = 1.5;  // Raised 0.5 units for better character visibility
-  const LOOK_HEIGHT = 0.9;   // Look at farmer's chest/face level
-  const ZOOM_DISTANCE = 1.8; // Closer to center the farmer
-  
   useFrame(() => {
     const playerX = playerStateRef.current.x;
     const playerZ = playerStateRef.current.y;
+    const speakerHeight = Math.max(0.25, dialogueTarget.speakerHeight || 1.0);
+    const cameraHeight = Math.min(2.4, Math.max(1.3, 1.1 + speakerHeight * 0.85));
+    const lookHeight = Math.min(1.25, Math.max(0.22, speakerHeight * 0.72));
+    const zoomDistance = Math.min(3.0, Math.max(1.4, 1.05 + speakerHeight * 1.15));
     
     // Speaker is at dialogueTarget position + 0.5 (center of cell)
     const speakerX = dialogueTarget.speakerX + 0.5;
@@ -2372,13 +2373,13 @@ const CutsceneCameraController = ({
       dirZ = dz / dist;
     }
     
-    // Position camera ZOOM_DISTANCE away from speaker, toward player
-    const camX = speakerX + dirX * ZOOM_DISTANCE;
-    const camZ = speakerZ + dirZ * ZOOM_DISTANCE;
+    // Position camera based on the speaker's world height.
+    const camX = speakerX + dirX * zoomDistance;
+    const camZ = speakerZ + dirZ * zoomDistance;
     
-    camera.position.set(camX, CAMERA_HEIGHT, camZ);
+    camera.position.set(camX, cameraHeight, camZ);
     camera.up.set(0, 1, 0);
-    camera.lookAt(speakerX, LOOK_HEIGHT, speakerZ);
+    camera.lookAt(speakerX, lookHeight, speakerZ);
   });
   
   return null;
