@@ -202,7 +202,7 @@ const chapter2Maze: StoryMaze = {
       emoji: '🐁',
       model: 'Spiny_mouse.glb',
       animation: 'idle',
-      position: { x: 10, y: 10 },
+      position: { x: 2, y: 10 },
       hiddenFromPreview: true,
     },
   ],
@@ -254,7 +254,7 @@ const chapter2Maze: StoryMaze = {
       speaker: 'Bristle',
       speakerEmoji: '🐁',
       message: "*prickles up* Oh! You startled me! I'm Bristle, the spiny mouse.",
-      cells: [{ x: 9, y: 10 }, { x: 10, y: 10 }, { x: 11, y: 10 }, { x: 10, y: 11 }],
+      cells: [{ x: 2, y: 10 }, { x: 2, y: 11 }, { x: 3, y: 10 }, { x: 3, y: 11 }],
       speakerCharacterId: 'cousin_spiny',
     },
     {
