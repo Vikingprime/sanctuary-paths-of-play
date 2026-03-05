@@ -74,9 +74,9 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
   
   // Chapter 2 cousin models - normalized to ~0.3 world height (rat-sized)
   'Hamster.glb': {
-    scale: 0.008,
-    yOffset: 0.20,
-    height: 0.3,
+    scale: 0.006,
+    yOffset: 0.15,
+    height: 0.225,
     debugPlaneColor: '#cc8844',
   },
   'Kangaroo_rat.glb': {
@@ -92,7 +92,7 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     debugPlaneColor: '#996622',
   },
   'Rat-2.glb': {
-    scale: 0.00044,
+    scale: 0.0044,
     yOffset: 0.20,
     height: 0.3,
     debugPlaneColor: '#777777',
