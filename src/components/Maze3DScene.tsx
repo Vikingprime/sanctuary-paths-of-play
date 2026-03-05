@@ -7,7 +7,7 @@ import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision, checkCollision } from '@/game/GameLogic';
-import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor } from '@/game/CharacterConfig';
+import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor, getCharacterTintColor } from '@/game/CharacterConfig';
 import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics, checkGcSpike } from '@/lib/debug';
@@ -859,6 +859,7 @@ const CharacterRenderer = ({
   const characterScale = getCharacterScale(modelFile);
   const characterYOffset = getCharacterYOffset(modelFile);
   const debugPlaneColor = getCharacterDebugPlaneColor(modelFile);
+  const tintColor = getCharacterTintColor(modelFile);
   
   // Calculate initial facing direction using same approach as dialogue code
   // findBestDirectionAngle returns angle from +X axis (0 = +X, π/2 = +Z)
@@ -894,6 +895,11 @@ const CharacterRenderer = ({
             const clonedMat = mat.clone();
             (clonedMat as any).transparent = true;
             (clonedMat as any).opacity = 1;
+
+            if (tintColor && clonedMat instanceof MeshStandardMaterial) {
+              clonedMat.color.lerp(new Color(tintColor), 0.55);
+            }
+
             mats.push(clonedMat);
             return clonedMat;
           });
@@ -904,7 +910,7 @@ const CharacterRenderer = ({
     });
 
     return { model: clone, materials: mats };
-  }, [scene]);
+  }, [scene, tintColor]);
   
   // Set up animation mixer
   useEffect(() => {
