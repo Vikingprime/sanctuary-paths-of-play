@@ -1358,6 +1358,14 @@ export const MazeGame3D = ({
 
   // Handle map station button click
   const handleMapStationClick = () => {
+    if (isStoryMode) {
+      setShowMiniMap(true);
+      setMapViewTimeLeft(null);
+      setShowMapOptions(false);
+      setMapCountdown(null);
+      return;
+    }
+
     setShowMapOptions(true);
   };
 
@@ -1750,7 +1758,7 @@ export const MazeGame3D = ({
       )}
 
       {/* Map Options Modal */}
-      {showMapOptions && (
+      {!isStoryMode && showMapOptions && (
         <div className="fixed inset-0 z-50 bg-foreground/80 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-card rounded-2xl p-6 shadow-warm-lg max-w-sm w-full">
             <div className="text-center mb-6">
@@ -1788,7 +1796,7 @@ export const MazeGame3D = ({
       )}
 
       {/* Map Countdown Overlay */}
-      {mapCountdown !== null && (
+      {!isStoryMode && mapCountdown !== null && (
         <div className="fixed inset-0 z-50 bg-foreground/80 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-card rounded-2xl p-8 shadow-warm-lg text-center">
             <p className="text-muted-foreground mb-2">Map unlocking in...</p>
