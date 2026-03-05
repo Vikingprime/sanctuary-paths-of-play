@@ -92,9 +92,9 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     debugPlaneColor: '#996622',
   },
   'Rat-2.glb': {
-    scale: 0.044,
+    scale: 0.176,
     yOffset: 0.16,
-    height: 0.38,
+    height: 1.52,
     debugPlaneColor: '#777777',
   },
   'Spiny_mouse.glb': {
