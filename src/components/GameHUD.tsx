@@ -214,6 +214,7 @@ interface GameHUDProps {
   animalType: AnimalType;
   timeLeft: number;
   mazeName: string;
+  showTimer?: boolean;
   abilityUsed: boolean;
   onUseAbility: () => void;
   onQuit: () => void;
@@ -316,6 +317,7 @@ export const GameHUD = ({
   animalType,
   timeLeft,
   mazeName,
+  showTimer = true,
   abilityUsed,
   onUseAbility,
   onQuit,
@@ -416,21 +418,23 @@ export const GameHUD = ({
         </div>
 
         {/* Center: Timer */}
-        <div
-          className={cn(
-            'bg-card/90 backdrop-blur-sm rounded-full px-4 py-2 sm:px-6 sm:py-3 shadow-lg',
-            timeLeft <= 10 && 'bg-destructive/90 animate-pulse'
-          )}
-        >
-          <span
+        {showTimer && (
+          <div
             className={cn(
-              'font-display font-bold text-lg sm:text-2xl',
-              timeLeft <= 10 ? 'text-destructive-foreground' : 'text-foreground'
+              'bg-card/90 backdrop-blur-sm rounded-full px-4 py-2 sm:px-6 sm:py-3 shadow-lg',
+              timeLeft <= 10 && 'bg-destructive/90 animate-pulse'
             )}
           >
-            ⏱️ {Math.ceil(timeLeft)}s
-          </span>
-        </div>
+            <span
+              className={cn(
+                'font-display font-bold text-lg sm:text-2xl',
+                timeLeft <= 10 ? 'text-destructive-foreground' : 'text-foreground'
+              )}
+            >
+              ⏱️ {Math.ceil(timeLeft)}s
+            </span>
+          </div>
+        )}
 
         {/* Right: Controls */}
         <div className="flex flex-col gap-1 sm:gap-2 pointer-events-auto">

@@ -460,8 +460,8 @@ export const MazeGame3D = ({
       gameStartTimeRef.current = Date.now();
     }
 
-    // In debug mode or when timer is disabled, don't count down time
-    if (debugMode || maze.timerDisabled) return;
+    // In debug mode, story mode, or when timer is disabled, don't count down time
+    if (debugMode || isStoryMode || maze.timerDisabled) return;
     
     gameTimerRef.current = setInterval(() => {
       const now = Date.now();
@@ -486,7 +486,7 @@ export const MazeGame3D = ({
         gameTimerRef.current = null;
       }
     };
-  }, [isPreviewing, gameOver, activeDialogue, activeAppleDialogue, postDialoguePause, maze.timeLimit, debugMode]);
+  }, [isPreviewing, gameOver, activeDialogue, activeAppleDialogue, postDialoguePause, maze.timeLimit, debugMode, isStoryMode, maze.timerDisabled]);
 
   // Show compass when game starts (preview ends)
   useEffect(() => {
@@ -1586,6 +1586,7 @@ export const MazeGame3D = ({
           animalType={animalType}
           timeLeft={timeLeft}
           mazeName={maze.name}
+          showTimer={!isStoryMode && !maze.timerDisabled}
           abilityUsed={abilityUsed}
           onUseAbility={useAbility}
           onQuit={onQuit}

@@ -193,7 +193,7 @@ const chapter2Maze: StoryMaze = {
       emoji: '🐀',
       model: 'Rat-2.glb',
       animation: 'idle',
-      position: { x: 15, y: 1 },
+      position: { x: 15, y: 2 },
       hiddenFromPreview: true,
     },
     {
@@ -246,7 +246,7 @@ const chapter2Maze: StoryMaze = {
       speaker: 'Scuttle',
       speakerEmoji: '🐀',
       message: "Hey there! I'm Scuttle. I'm not part of any riddle, but I saw something shiny earlier...",
-      cells: [{ x: 14, y: 1 }, { x: 14, y: 2 }, { x: 15, y: 2 }, { x: 15, y: 1 }],
+      cells: [{ x: 13, y: 1 }, { x: 14, y: 1 }, { x: 15, y: 1 }, { x: 16, y: 1 }, { x: 13, y: 2 }, { x: 14, y: 2 }, { x: 15, y: 2 }, { x: 16, y: 2 }],
       speakerCharacterId: 'cousin_rat2',
     },
     {
@@ -299,7 +299,7 @@ const chapter2Maze: StoryMaze = {
       speaker: 'Stash',
       speakerEmoji: '🐿️',
       message: "*surrounded by acorn piles* You made it! And in the right order too! I'm Stash!",
-      cells: [],
+      cells: [{ x: 14, y: 8 }, { x: 15, y: 8 }, { x: 14, y: 9 }, { x: 15, y: 9 }],
       speakerCharacterId: 'cousin_squirrel',
       requires: ['kangaroo_correct'],
       questAction: { type: 'complete_objective', objectiveId: 'talk_squirrel' },
