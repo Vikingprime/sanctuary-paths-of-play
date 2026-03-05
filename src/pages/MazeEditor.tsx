@@ -354,6 +354,13 @@ const MazeEditor: React.FC = () => {
         newGrid[y][x] = selectedTool;
         return newGrid;
       });
+      // When placing a wall, remove this cell from all dialogue trigger zones
+      if (selectedTool === '#') {
+        setDialogues(prev => prev.map(d => ({
+          ...d,
+          cells: d.cells.filter(c => !(c.x === x && c.y === y)),
+        })));
+      }
     }
   }, [selectedTool, selectedDialogueId, singleTileMode]);
 
