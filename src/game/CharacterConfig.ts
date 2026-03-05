@@ -14,6 +14,7 @@ export interface CharacterModelConfig {
   height?: number; // Approximate world-space height of the character (for camera framing)
   rotationOffset?: number; // Rotation offset in radians to correct model's default facing direction
   debugPlaneColor?: string; // Color for debug ground plane (HSL format preferred)
+  tintColor?: string; // Optional material tint applied to the rendered model
 }
 
 export const CharacterConfig: Record<string, CharacterModelConfig> = {
@@ -92,10 +93,11 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     debugPlaneColor: '#996622',
   },
   'Rat-2.glb': {
-    scale: 0.088,
+    scale: 0.0587,
     yOffset: 0.16,
-    height: 0.76,
+    height: 0.507,
     debugPlaneColor: '#777777',
+    tintColor: 'hsl(0 0% 72%)',
   },
   'Spiny_mouse.glb': {
     scale: 0.297,
@@ -144,4 +146,8 @@ export function getCharacterRotationOffset(modelFile: string): number {
  */
 export function getCharacterDebugPlaneColor(modelFile: string): string {
   return CharacterConfig[modelFile]?.debugPlaneColor ?? '#ffffff';
+}
+
+export function getCharacterTintColor(modelFile: string): string | undefined {
+  return CharacterConfig[modelFile]?.tintColor;
 }

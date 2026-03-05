@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PerspectiveCamera, Sky, useGLTF, useAnimations } from '@react-three/drei';
 import { Maze, MazeCharacter } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import * as THREE from 'three';
 import { Suspense } from 'react';
+import { getCharacterTintColor } from '@/game/CharacterConfig';
 
 interface IntroDialogue {
   characterId?: string;
@@ -257,6 +258,29 @@ const IntroCharacterModel = ({ modelPath, position }: IntroCharacterModelProps) 
   const { scene, animations } = useGLTF(modelPath);
   const groupRef = useRef<THREE.Group>(null);
   const { actions } = useAnimations(animations, groupRef);
+  const tintColor = useMemo(() => getCharacterTintColor(modelPath.split('/').pop() || ''), [modelPath]);
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone();
+
+    clone.traverse((child) => {
+      if (!(child instanceof THREE.Mesh) || !child.material) return;
+
+      const childMats = Array.isArray(child.material) ? child.material : [child.material];
+      const clonedChildMats = childMats.map((mat) => {
+        const clonedMat = mat.clone();
+
+        if (tintColor && clonedMat instanceof THREE.MeshStandardMaterial) {
+          clonedMat.color.lerp(new THREE.Color(tintColor), 0.55);
+        }
+
+        return clonedMat;
+      });
+
+      child.material = Array.isArray(child.material) ? clonedChildMats : clonedChildMats[0];
+    });
+
+    return clone;
+  }, [scene, tintColor]);
 
   useEffect(() => {
     // Try to play idle animation
@@ -271,7 +295,7 @@ const IntroCharacterModel = ({ modelPath, position }: IntroCharacterModelProps) 
 
   return (
     <group ref={groupRef} position={position} rotation={[0, Math.PI, 0]}>
-      <primitive object={scene.clone()} castShadow />
+      <primitive object={clonedScene} castShadow />
     </group>
   );
 };
