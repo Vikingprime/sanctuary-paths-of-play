@@ -871,25 +871,37 @@ const CharacterRenderer = ({
   }, [maze, position.x, position.y]);
   
   // Clone the scene using SkeletonUtils for skinned meshes
-  // Make materials transparent for opacity fading
+  // Force visibility on clones and disable frustum culling for tiny models
+  // Some GLTFs arrive with hidden children or unreliable bounds after cloning
   const { model, materials } = useMemo(() => {
     const clone = SkeletonUtils.clone(scene);
     const mats: Material[] = [];
+
+    clone.visible = true;
     clone.traverse((child: any) => {
+      child.visible = true;
+
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        // Enable transparency for fading
+        child.frustumCulled = false;
+
+        // Clone materials per instance and enable transparency for fading
         if (child.material) {
           const childMats = Array.isArray(child.material) ? child.material : [child.material];
-          childMats.forEach((mat: Material) => {
-            (mat as any).transparent = true;
-            (mat as any).opacity = 1;
-            mats.push(mat);
+          const clonedChildMats = childMats.map((mat: Material) => {
+            const clonedMat = mat.clone();
+            (clonedMat as any).transparent = true;
+            (clonedMat as any).opacity = 1;
+            mats.push(clonedMat);
+            return clonedMat;
           });
+
+          child.material = Array.isArray(child.material) ? clonedChildMats : clonedChildMats[0];
         }
       }
     });
+
     return { model: clone, materials: mats };
   }, [scene]);
   
