@@ -81,9 +81,9 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     debugPlaneColor: '#cc8844',
   },
   'Kangaroo_rat.glb': {
-    scale: 0.189,
+    scale: 0.0945,
     yOffset: 0.15,
-    height: 0.225,
+    height: 0.1125,
     debugPlaneColor: '#aa6633',
   },
   'Squirrel.glb': {
