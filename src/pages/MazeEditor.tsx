@@ -92,6 +92,18 @@ const DIALOGUE_COLORS = [
   'bg-amber-500',
 ];
 
+// Raw hex colors matching DIALOGUE_COLORS for use in CSS gradients
+const DIALOGUE_HEX_COLORS = [
+  '#ec4899',
+  '#06b6d4',
+  '#f97316',
+  '#84cc16',
+  '#8b5cf6',
+  '#f43f5e',
+  '#14b8a6',
+  '#f59e0b',
+];
+
 const AVAILABLE_MODELS = [
   'Farmer.glb',
   'Animated_Woman.glb',
@@ -638,6 +650,10 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     return dialogues.find(d => d.cells.some(c => c.x === x && c.y === y));
   };
 
+  const getCellDialogues = (x: number, y: number): DialogueConfig[] => {
+    return dialogues.filter(d => d.cells.some(c => c.x === x && c.y === y));
+  };
+
   const getDialogueIndex = (id: string): number => {
     return dialogues.findIndex(d => d.id === id);
   };
@@ -645,6 +661,27 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
   const getDialogueColor = (id: string): string => {
     const index = getDialogueIndex(id);
     return DIALOGUE_COLORS[index % DIALOGUE_COLORS.length];
+  };
+
+  const getDialogueHexColor = (id: string): string => {
+    const index = getDialogueIndex(id);
+    return DIALOGUE_HEX_COLORS[index % DIALOGUE_HEX_COLORS.length];
+  };
+
+  const getStripedBackground = (dialogueConfigs: DialogueConfig[]): React.CSSProperties => {
+    if (dialogueConfigs.length <= 1) return {};
+    const colors = dialogueConfigs.map(d => getDialogueHexColor(d.id));
+    const stripeW = 4; // px per stripe band
+    const totalW = colors.length * stripeW;
+    const stops: string[] = [];
+    colors.forEach((color, i) => {
+      stops.push(`${color} ${i * stripeW}px`);
+      stops.push(`${color} ${(i + 1) * stripeW}px`);
+    });
+    return {
+      background: `repeating-linear-gradient(135deg, ${stops.join(', ')})`,
+      backgroundSize: `${totalW * 1.414}px ${totalW * 1.414}px`,
+    };
   };
 
   const getValidationWarnings = useCallback((): string[] => {
@@ -1017,12 +1054,16 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                   >
                     {grid.map((row, y) =>
                       row.map((cell, x) => {
-                        const dialogue = getCellDialogue(x, y);
+                        const cellDialogues = getCellDialogues(x, y);
+                        const dialogue = cellDialogues[0];
                         const character = getCharacterAtCell(x, y);
-                        const isDialogueCell = !!dialogue;
+                        const isDialogueCell = cellDialogues.length > 0;
+                        const isMultiDialogue = cellDialogues.length > 1;
                         const dialogueColor = dialogue ? getDialogueColor(dialogue.id) : '';
-                        const isSelectedDialogue = dialogue?.id === selectedDialogueId;
+                        const isSelectedDialogue = cellDialogues.some(d => d.id === selectedDialogueId);
                         const isOnSpine = showSpineOverlay && (spineAnalysis?.traversedCellKeys.has(getMazeCellKey(x, y)) ?? false);
+                        const stripedStyle = isMultiDialogue ? getStripedBackground(cellDialogues) : {};
+                        const dialogueNames = cellDialogues.map(d => d.speaker).join(', ');
                         
                         return (
                           <div
@@ -1030,12 +1071,14 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             className={`
                               w-4 h-4 md:w-5 md:h-5 cursor-crosshair transition-colors relative
                               ${character ? 'ring-2 ring-primary' : ''}
-                              ${isDialogueCell ? dialogueColor : CELL_COLORS[cell]}
+                              ${isDialogueCell && !isMultiDialogue ? dialogueColor : ''}
+                              ${!isDialogueCell ? CELL_COLORS[cell] : ''}
                               ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
                             `}
+                            style={stripedStyle}
                             onMouseDown={() => handleMouseDown(x, y)}
                             onMouseEnter={() => handleMouseEnter(x, y)}
-                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${dialogue ? ` - ${dialogue.speaker}` : ''}${character ? ` - ${character.name}` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
+                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
                           >
                             {isOnSpine && (
                               <span className="pointer-events-none absolute inset-[3px] rounded-full border border-primary bg-primary/35" />
