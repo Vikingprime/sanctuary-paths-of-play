@@ -18,6 +18,7 @@ import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue, getAppleDial
 import { canBeFedApples } from '@/types/appleDialogue';
 import { buildMazeEditorSpine, cellsTouchSpine, getMazeCellKey } from '@/lib/mazeEditorSpine';
 import { branchContainsFineCell, expandDeletedSpineBranches, getSpineBranchCells, getSpineBranchRangeForCell, getSpineFineCellKey, normalizeSpineFineBranches, normalizeSpineFineCells, SPINE_FINE_GRID_SCALE, type SpineFineBranchRange, type SpineFineCellCoordinate } from '@/lib/spineFineCells';
+import { getCharacterAnimations } from '@/game/CharacterConfig';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -124,14 +125,7 @@ const AVAILABLE_MODELS = [
   'Bush_with_Berries.glb',
 ];
 
-const AVAILABLE_ANIMATIONS = [
-  'idle',
-  'walk',
-  'talk',
-  'wave',
-  'point',
-  'celebrate',
-];
+
 
 type SpineEditMode = 'cell' | 'branch';
 
@@ -1341,19 +1335,28 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             ))}
                           </SelectContent>
                         </Select>
-                        <Select
-                          value={char.animation}
-                          onValueChange={v => updateCharacter(char.id, { animation: v })}
-                        >
-                          <SelectTrigger className="text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AVAILABLE_ANIMATIONS.map(a => (
-                              <SelectItem key={a} value={a}>{a}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {(() => {
+                          const modelAnimations = getCharacterAnimations(char.model);
+                          const hasCurrentAnim = modelAnimations.includes(char.animation);
+                          return (
+                            <Select
+                              value={hasCurrentAnim ? char.animation : '__none__'}
+                              onValueChange={v => updateCharacter(char.id, { animation: v === '__none__' ? 'idle' : v })}
+                            >
+                              <SelectTrigger className="text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {modelAnimations.length === 0 && (
+                                  <SelectItem value="__none__" disabled>No animations</SelectItem>
+                                )}
+                                {modelAnimations.map(a => (
+                                  <SelectItem key={a} value={a}>{a}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          );
+                        })()}
                         <div className="flex gap-2">
                           <Button 
                             size="sm" 
