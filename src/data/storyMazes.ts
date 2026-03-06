@@ -483,20 +483,34 @@ const chapter4BerryFetch: StoryMaze = {
       animation: 'idle',
       position: { x: 8, y: 7 },
       alwaysFacePlayer: false,
-      visionCells: [
-        // Vision looking south (down)
-        { x: 7, y: 8 }, { x: 8, y: 8 }, { x: 9, y: 8 },
-        { x: 7, y: 9 }, { x: 8, y: 9 }, { x: 9, y: 9 },
-        { x: 7, y: 10 }, { x: 8, y: 10 }, { x: 9, y: 10 },
-      ],
       visionDialogueId: 'sparrow_caught',
+      // Directional vision: relative offsets from sparrow's position
+      directionalVision: {
+        south: { cells: [
+          { dx: -1, dy: 1 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 },
+          { dx: -1, dy: 2 }, { dx: 0, dy: 2 }, { dx: 1, dy: 2 },
+          { dx: -1, dy: 3 }, { dx: 0, dy: 3 }, { dx: 1, dy: 3 },
+        ]},
+        north: { cells: [
+          { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
+          { dx: -1, dy: -2 }, { dx: 0, dy: -2 }, { dx: 1, dy: -2 },
+          { dx: -1, dy: -3 }, { dx: 0, dy: -3 }, { dx: 1, dy: -3 },
+        ]},
+      },
+      // Ping-pong between south and north every 3 seconds
+      turning: {
+        pattern: 'ping-pong',
+        directions: ['south', 'north'],
+        intervalMs: 3000,
+        initialDirection: 'south',
+      },
     },
   ],
   storyCharacters: [],
   quest: {
     id: 'quest_ch4_berry_fetch',
     title: 'Berry Picking',
-    description: 'Grab a berry from the bush and get back — but don\'t let the sparrow see you!',
+    description: 'Grab a berry from the bush and sneak back — don\'t let the sparrow see you!',
     objectives: [
       {
         id: 'reach_bush',
@@ -504,6 +518,14 @@ const chapter4BerryFetch: StoryMaze = {
         description: 'Reach the berry bush',
         targetCharacterId: 'berry_bush',
         completed: false,
+      },
+      {
+        id: 'return_berry',
+        type: 'reach',
+        description: 'Bring the berry back to the start',
+        targetPosition: { x: 2, y: 2 }, // Start position
+        completed: false,
+        hidden: true, // Revealed after picking up berry
       },
     ],
     rewards: { stars: 10, medal: true },
@@ -527,7 +549,7 @@ const chapter4BerryFetch: StoryMaze = {
         {
           speaker: 'You',
           speakerEmoji: '🐀',
-          message: "Got them! Now I need to sneak back to the exit without the sparrow spotting me!",
+          message: "Got them! Now I need to sneak back to the start without the sparrow spotting me!",
         },
       ],
       cells: [
@@ -538,14 +560,15 @@ const chapter4BerryFetch: StoryMaze = {
     },
   ],
   goalCharacterId: undefined,
+  // End cell is at the start — player must return after picking berries
   endConditions: {
     requiredDialogues: ['bush_found'],
   },
   grid: createGrid([
     '################',
     '################',
+    '##EE        ####',
     '##SS        ####',
-    '##          ####',
     '##  ######    ##',
     '##      ##    ##',
     '##  ##  ##    ##',
@@ -554,8 +577,8 @@ const chapter4BerryFetch: StoryMaze = {
     '##          ####',
     '##  ####      ##',
     '##  ####      ##',
-    '##EE          ##',
-    '##EE          ##',
+    '##            ##',
+    '##            ##',
     '################',
     '################',
   ]),

@@ -46,6 +46,33 @@ export interface DialogueMessage {
   message: string;
 }
 
+// Direction-keyed vision zones for NPCs that turn
+export type CardinalDirection = 'north' | 'south' | 'east' | 'west';
+
+// Vision cells defined relative to the NPC's position (offsets)
+export interface RelativeVisionZone {
+  cells: { dx: number; dy: number }[]; // Offsets from NPC position
+}
+
+// Directional vision: different zones per facing direction
+export type DirectionalVision = Partial<Record<CardinalDirection, RelativeVisionZone>>;
+
+// Turning behavior: ping-pong between directions
+export interface TurningConfig {
+  pattern: 'ping-pong';
+  directions: CardinalDirection[]; // e.g., ['north', 'south'] — sweeps back and forth
+  intervalMs: number; // Time spent facing each direction before turning
+  initialDirection?: CardinalDirection; // Starting direction (defaults to first in list)
+}
+
+// Patrol waypoint config
+export interface PatrolConfig {
+  pattern: 'loop'; // Walks through waypoints then loops back to start
+  waypoints: { x: number; y: number }[]; // Grid positions to walk through
+  speedCellsPerSec: number; // Movement speed in grid cells per second
+  pauseMs?: number; // Optional pause at each waypoint (ms)
+}
+
 export interface MazeCharacter {
   id: string;
   name: string;
@@ -56,9 +83,15 @@ export interface MazeCharacter {
   alwaysFacePlayer?: boolean; // If true, character always rotates to face player (default: false, only faces during dialogue)
   // Per-animal dialogue sequence - defines the order of apple and normal dialogues
   dialogueSequence?: DialogueSequenceItem[];
-  // Vision zone: cells this NPC watches. Entering triggers visionDialogueId.
+  // Legacy: absolute vision cells (for static NPCs without turning)
   visionCells?: { x: number; y: number }[];
   visionDialogueId?: string; // ID of dialogue triggered when player enters vision zone
+  // Directional vision: different zones per facing direction (relative to NPC)
+  directionalVision?: DirectionalVision;
+  // Turning behavior
+  turning?: TurningConfig;
+  // Patrol behavior
+  patrol?: PatrolConfig;
 }
 
 // Defines a single item in a per-animal dialogue sequence
