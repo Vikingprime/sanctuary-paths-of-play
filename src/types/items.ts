@@ -1,6 +1,6 @@
 // Item system types
 
-export type ItemType = 'apple' | 'temporary_boost';
+export type ItemType = 'apple' | 'berry' | 'temporary_boost';
 
 export interface BaseItem {
   id: string;
@@ -15,8 +15,19 @@ export interface Apple extends BaseItem {
   type: 'apple';
 }
 
+// Berry - collectible picked from bushes, used for quests
+export interface Berry extends BaseItem {
+  type: 'berry';
+}
+
 // Player's inventory of apples
 export interface AppleInventory {
+  count: number;
+  totalCollected: number; // Lifetime count
+}
+
+// Player's inventory of berries
+export interface BerryInventory {
   count: number;
   totalCollected: number; // Lifetime count
 }
