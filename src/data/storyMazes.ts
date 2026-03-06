@@ -281,6 +281,7 @@ const chapter2Maze: StoryMaze = {
       message: "*bouncing in place* Whoa there! You need to find the LEGEND first! The pet-turned-escapee!",
       cells: [{ x: 16, y: 5 }, { x: 17, y: 4 }, { x: 18, y: 4 }, { x: 18, y: 5 }, { x: 18, y: 6 }, { x: 17, y: 6 }, { x: 16, y: 6 }, { x: 17, y: 5 }, { x: 16, y: 4 }],
       speakerCharacterId: 'cousin_kangaroo',
+      requiresNot: ['hamster_correct'],
     },
     {
       id: 'squirrel_wrong',
@@ -289,6 +290,7 @@ const chapter2Maze: StoryMaze = {
       message: "*busy sorting acorns* Not yet! You haven't solved the first two parts of the riddle!",
       cells: [{ x: 16, y: 8 }, { x: 17, y: 8 }, { x: 18, y: 8 }, { x: 16, y: 9 }, { x: 17, y: 9 }, { x: 18, y: 9 }, { x: 16, y: 10 }, { x: 17, y: 10 }, { x: 18, y: 10 }],
       speakerCharacterId: 'cousin_squirrel',
+      requiresNot: ['kangaroo_correct'],
     },
     {
       id: 'hamster_correct',
