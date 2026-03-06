@@ -35,6 +35,8 @@ interface CharacterConfig {
   animation: string;
   position: { x: number; y: number } | null;
   dialogueSequence?: DialogueSequenceItem[]; // Per-animal dialogue sequence
+  visionCells?: { x: number; y: number }[];
+  visionDialogueId?: string;
 }
 
 interface DialogueConfig {
@@ -164,6 +166,7 @@ const MazeEditor: React.FC = () => {
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
   const [placingCharacterId, setPlacingCharacterId] = useState<string | null>(null);
+  const [paintingVisionCharacterId, setPaintingVisionCharacterId] = useState<string | null>(null);
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
   const [showMazeList, setShowMazeList] = useState(true);
@@ -283,6 +286,8 @@ const MazeEditor: React.FC = () => {
         model: c.model,
         animation: c.animation,
         position: c.position,
+        visionCells: (c as any).visionCells || [],
+        visionDialogueId: (c as any).visionDialogueId || undefined,
       })));
     } else {
       setCharacters([]);
@@ -383,7 +388,26 @@ const MazeEditor: React.FC = () => {
     }
   }, [selectedTool, selectedDialogueId, singleTileMode]);
 
+  const toggleVisionCell = useCallback((x: number, y: number) => {
+    if (!paintingVisionCharacterId) return;
+    setCharacters(prev => prev.map(c => {
+      if (c.id !== paintingVisionCharacterId) return c;
+      const cells = c.visionCells || [];
+      const exists = cells.some(vc => vc.x === x && vc.y === y);
+      return {
+        ...c,
+        visionCells: exists
+          ? cells.filter(vc => !(vc.x === x && vc.y === y))
+          : [...cells, { x, y }],
+      };
+    }));
+  }, [paintingVisionCharacterId]);
+
   const handleMouseDown = (x: number, y: number) => {
+    if (paintingVisionCharacterId) {
+      toggleVisionCell(x, y);
+      return;
+    }
     if (placingCharacterId) {
       const char = characters.find(c => c.id === placingCharacterId);
       if (char) {
@@ -399,7 +423,7 @@ const MazeEditor: React.FC = () => {
   };
 
   const handleMouseEnter = (x: number, y: number) => {
-    if (isDragging && !placingCharacterId) {
+    if (isDragging && !placingCharacterId && !paintingVisionCharacterId) {
       paintCell(x, y);
     }
   };
@@ -533,6 +557,9 @@ const MazeEditor: React.FC = () => {
     if (placingCharacterId === id) {
       setPlacingCharacterId(null);
     }
+    if (paintingVisionCharacterId === id) {
+      setPaintingVisionCharacterId(null);
+    }
     setDialogues(prev => prev.map(d => 
       d.speakerCharacterId === id ? { ...d, speakerCharacterId: undefined } : d
     ));
@@ -540,6 +567,10 @@ const MazeEditor: React.FC = () => {
 
   const getCharacterAtCell = (x: number, y: number): CharacterConfig | undefined => {
     return characters.find(c => c.position?.x === x && c.position?.y === y);
+  };
+
+  const getVisionCharacterAtCell = (x: number, y: number): CharacterConfig | undefined => {
+    return characters.find(c => c.visionCells?.some(vc => vc.x === x && vc.y === y));
   };
 
   const generateSchema = useCallback(() => {
@@ -551,13 +582,19 @@ ${characters.filter(c => c.position).map(c => {
   const dialogueSeqStr = c.dialogueSequence && c.dialogueSequence.length > 0
     ? `\n      dialogueSequence: [${c.dialogueSequence.map(item => `{ type: '${item.type}', id: '${item.id}' }`).join(', ')}],`
     : '';
+  const visionStr = c.visionCells && c.visionCells.length > 0
+    ? `\n      visionCells: [${c.visionCells.map(vc => `{ x: ${vc.x}, y: ${vc.y} }`).join(', ')}],`
+    : '';
+  const visionDlgStr = c.visionDialogueId
+    ? `\n      visionDialogueId: '${c.visionDialogueId}',`
+    : '';
   return `    {
       id: '${c.id}',
       name: '${c.name}',
       emoji: '${c.emoji}',
       model: '${c.model}',
       animation: '${c.animation}',
-      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}
+      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${visionStr}${visionDlgStr}
     }`;
 }).join(',\n')}
   ],` : '';
@@ -1045,6 +1082,11 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         Click to place character...
                       </span>
                     )}
+                    {paintingVisionCharacterId && (
+                      <span className="text-sm text-cyan-600 animate-pulse">
+                        👁 Click cells to toggle vision...
+                      </span>
+                    )}
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -1064,6 +1106,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const cellDialogues = getCellDialogues(x, y);
                         const dialogue = cellDialogues[0];
                         const character = getCharacterAtCell(x, y);
+                        const visionChar = getVisionCharacterAtCell(x, y);
                         const isDialogueCell = cellDialogues.length > 0;
                         const isMultiDialogue = cellDialogues.length > 1;
                         const dialogueColor = dialogue ? getDialogueColor(dialogue.id) : '';
@@ -1071,6 +1114,8 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const isOnSpine = showSpineOverlay && (spineAnalysis?.traversedCellKeys.has(getMazeCellKey(x, y)) ?? false);
                         const stripedStyle = isMultiDialogue ? getStripedBackground(cellDialogues) : {};
                         const dialogueNames = cellDialogues.map(d => d.speaker).join(', ');
+                        const isVisionCell = !!visionChar;
+                        const isPaintingVision = !!paintingVisionCharacterId;
                         
                         return (
                           <div
@@ -1079,16 +1124,21 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                               w-4 h-4 md:w-5 md:h-5 cursor-crosshair transition-colors relative
                               ${character ? 'ring-2 ring-primary' : ''}
                               ${isDialogueCell && !isMultiDialogue ? dialogueColor : ''}
-                              ${!isDialogueCell ? CELL_COLORS[cell] : ''}
+                              ${!isDialogueCell && !isVisionCell ? CELL_COLORS[cell] : ''}
+                              ${!isDialogueCell && isVisionCell ? 'bg-cyan-400/70' : ''}
                               ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
+                              ${isPaintingVision ? 'cursor-pointer' : ''}
                             `}
                             style={stripedStyle}
                             onMouseDown={() => handleMouseDown(x, y)}
                             onMouseEnter={() => handleMouseEnter(x, y)}
-                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
+                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${isVisionCell ? ` - 👁 ${visionChar.name} vision` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
                           >
                             {isOnSpine && (
                               <span className="pointer-events-none absolute inset-[3px] rounded-full border border-primary bg-primary/35" />
+                            )}
+                            {isVisionCell && !character && (
+                              <span className="absolute inset-0 flex items-center justify-center text-[8px] pointer-events-none">👁</span>
                             )}
                             {character && (
                               <span className="absolute inset-0 z-10 flex items-center justify-center text-[10px]">
@@ -1315,7 +1365,56 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                           </Button>
                         </div>
 
-                        {/* Linked Dialogues Section */}
+                        {/* Vision Cells Section */}
+                        <div className="mt-3 pt-3 border-t space-y-2">
+                          <Label className="text-xs font-semibold flex items-center gap-1">
+                            👁 Vision ({char.visionCells?.length || 0} cells)
+                          </Label>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant={paintingVisionCharacterId === char.id ? 'default' : 'outline'}
+                              className="flex-1 text-xs"
+                              onClick={() => {
+                                setPaintingVisionCharacterId(
+                                  paintingVisionCharacterId === char.id ? null : char.id
+                                );
+                                setPlacingCharacterId(null);
+                              }}
+                            >
+                              {paintingVisionCharacterId === char.id ? '✓ Painting vision...' : 'Paint Vision Cells'}
+                            </Button>
+                            {(char.visionCells?.length || 0) > 0 && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs text-destructive"
+                                onClick={() => updateCharacter(char.id, { visionCells: [] })}
+                              >
+                                Clear
+                              </Button>
+                            )}
+                          </div>
+                          <div>
+                            <Label className="text-xs">Vision triggers dialogue</Label>
+                            <Select
+                              value={char.visionDialogueId || '__none__'}
+                              onValueChange={v => updateCharacter(char.id, { visionDialogueId: v === '__none__' ? undefined : v })}
+                            >
+                              <SelectTrigger className="text-xs h-7">
+                                <SelectValue placeholder="None" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">None</SelectItem>
+                                {dialogues.map(d => (
+                                  <SelectItem key={d.id} value={d.id}>{d.speaker}: {d.message.slice(0, 30)}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+
                         {(() => {
                           const charDialogues = dialogues.filter(d => d.speakerCharacterId === char.id);
                           // Check overlap: do all dialogues for this character share at least some cells?
