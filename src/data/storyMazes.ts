@@ -21,6 +21,7 @@ const createGrid = (layout: string[]): MazeCell[][] => {
 // Extended dialogue type for story mode
 export interface StoryDialogue extends DialogueTrigger {
   questAction?: QuestDialogueAction;
+  questActions?: QuestDialogueAction[]; // Multiple actions for a single dialogue
 }
 
 // Story mode specific maze with quest data
@@ -557,6 +558,10 @@ const chapter4BerryFetch: StoryMaze = {
       ],
       speakerCharacterId: 'berry_bush',
       questAction: { type: 'complete_objective', objectiveId: 'reach_bush' },
+      questActions: [
+        { type: 'complete_objective', objectiveId: 'reach_bush' },
+        { type: 'grant_item', itemType: 'berry', itemCount: 1 },
+      ],
     },
   ],
   goalCharacterId: undefined,

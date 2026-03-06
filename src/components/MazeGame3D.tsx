@@ -24,6 +24,14 @@ import { useBackButton } from '@/hooks/useBackButton';
 import { Point2D } from '@/game/SkeletonPolyline';
 import { MagnetismCache } from '@/game/CorridorMagnetism';
 import { getCharacterHeight } from '@/game/CharacterConfig';
+import { 
+  initNPCRuntimeStates, 
+  updateNPCTurning, 
+  resolveVisionCells, 
+  directionToRotation,
+  updateNPCPatrol,
+  NPCRuntimeState,
+} from '@/game/NPCRuntime';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -84,6 +92,9 @@ interface MazeGame3DProps {
     nextTier: { id: string; name: string; pointsRequired: number } | null;
     progress: number;
   };
+  // Berry system
+  onBerryCollect?: (count: number) => void;
+  berryCount?: number;
 }
 
 export const MazeGame3D = ({
@@ -110,6 +121,8 @@ export const MazeGame3D = ({
   pendingAppleDialogue,
   onAppleDialogueComplete,
   friendshipProgress,
+  onBerryCollect,
+  berryCount = 0,
 }: MazeGame3DProps) => {
   // Initialize from pure game logic
   const startPos = findStartPosition(maze);
@@ -245,6 +258,13 @@ export const MazeGame3D = ({
   
   // Quest objective tracking for story mode
   const [completedObjectives, setCompletedObjectives] = useState<Set<string>>(new Set());
+  
+  // NPC runtime state (turning, patrol, directional vision)
+  const npcRuntimeStatesRef = useRef<Map<string, NPCRuntimeState>>(
+    initNPCRuntimeStates(maze.characters ?? [])
+  );
+  // NPC rotation overrides for the 3D scene (characterId -> Y rotation)
+  const [npcRotations, setNpcRotations] = useState<Record<string, number>>({});
   
   // Helper to find the speaker position for a dialogue
   const findSpeakerPositionForDialogue = useCallback((dialogue: DialogueTrigger | null): { x: number; y: number } | null => {
@@ -537,7 +557,48 @@ export const MazeGame3D = ({
     };
   }, [isPreviewing, gameOver]);
 
-  // Check if all required dialogues for a given dialogue are completed
+  // NPC turning timer - updates facing directions for NPCs with turning config
+  useEffect(() => {
+    if (isPreviewing || gameOver) return;
+    
+    const characters = maze.characters ?? [];
+    const hasAnyTurning = characters.some(c => c.turning || c.patrol);
+    if (!hasAnyTurning) return;
+    
+    const TICK_MS = 100; // Update every 100ms for smooth turning
+    const interval = setInterval(() => {
+      const states = npcRuntimeStatesRef.current;
+      const newRotations: Record<string, number> = {};
+      let changed = false;
+      
+      for (const char of characters) {
+        const state = states.get(char.id);
+        if (!state) continue;
+        
+        // Update turning
+        if (char.turning) {
+          const didTurn = updateNPCTurning(state, char, TICK_MS);
+          if (didTurn) changed = true;
+        }
+        
+        // Update patrol
+        if (char.patrol) {
+          const isWall = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
+          const didMove = updateNPCPatrol(state, char, TICK_MS / 1000, isWall);
+          if (didMove) changed = true;
+        }
+        
+        newRotations[char.id] = directionToRotation(state.currentDirection);
+      }
+      
+      if (changed) {
+        setNpcRotations({ ...newRotations });
+      }
+    }, TICK_MS);
+    
+    return () => clearInterval(interval);
+  }, [isPreviewing, gameOver, maze.characters, maze.grid]);
+
   const areRequirementsMet = useCallback((dialogue: DialogueTrigger): boolean => {
     if (!dialogue.requires || dialogue.requires.length === 0) return true;
     return dialogue.requires.every(reqId => triggeredDialogues.has(reqId));
@@ -548,13 +609,18 @@ export const MazeGame3D = ({
   const checkDialogueAtCell = useCallback((gridX: number, gridY: number, currentTriggered: Set<string>): DialogueTrigger | null => {
     if (!maze.dialogues) return null;
     
-    // First check vision zones on characters
+    // First check vision zones on characters (supports both legacy visionCells and directionalVision)
     if (maze.characters) {
       for (const char of maze.characters) {
-        if (!char.visionCells || !char.visionDialogueId) continue;
+        if (!char.visionDialogueId) continue;
         if (currentTriggered.has(char.visionDialogueId)) continue;
         
-        const inVision = char.visionCells.some(cell => cell.x === gridX && cell.y === gridY);
+        // Resolve active vision cells (handles directional + legacy)
+        const npcState = npcRuntimeStatesRef.current.get(char.id);
+        const activeCells = resolveVisionCells(char, npcState);
+        if (activeCells.length === 0) continue;
+        
+        const inVision = activeCells.some(cell => cell.x === gridX && cell.y === gridY);
         if (inVision) {
           const visionDialogue = maze.dialogues.find(d => d.id === char.visionDialogueId);
           if (visionDialogue && !currentTriggered.has(visionDialogue.id)) {
@@ -740,16 +806,26 @@ export const MazeGame3D = ({
       return;
     }
     
-    // Process quest action if this is a story dialogue
+    // Process quest actions if this is a story dialogue
     if (isStoryMode && storyMaze) {
       const storyDialogue = storyMaze.dialogues.find(d => d.id === activeDialogue.id) as StoryDialogue | undefined;
-      if (storyDialogue?.questAction) {
-        const action = storyDialogue.questAction;
+      
+      // Collect all actions: from questActions array, or single questAction
+      const actions = storyDialogue?.questActions ?? 
+        (storyDialogue?.questAction ? [storyDialogue.questAction] : []);
+      
+      for (const action of actions) {
         if (action.type === 'complete_objective' && action.objectiveId) {
-          // Mark objective as complete locally
           setCompletedObjectives(prev => new Set([...prev, action.objectiveId!]));
-          // Notify parent
           onObjectiveComplete?.(action.objectiveId);
+        } else if (action.type === 'grant_item') {
+          const count = action.itemCount ?? 1;
+          if (action.itemType === 'berry') {
+            onBerryCollect?.(count);
+            toast.success(`🫐 Got ${count} berr${count > 1 ? 'ies' : 'y'}!`);
+          } else if (action.itemType === 'apple') {
+            onAppleCollect?.(count);
+          }
         }
       }
     }
@@ -1340,6 +1416,10 @@ export const MazeGame3D = ({
     setPostDialoguePause(false);
     pendingEndGameRef.current = false;
     
+    // Reset NPC runtime states (turning, patrol)
+    npcRuntimeStatesRef.current = initNPCRuntimeStates(maze.characters ?? []);
+    setNpcRotations({});
+    
     // Reset timing refs
     gameStartTimeRef.current = null;
     pausedTimeRef.current = 0;
@@ -1570,6 +1650,7 @@ export const MazeGame3D = ({
         railTargetAngleRef={railTargetAngleRef}
         railTurnSpeed={railTurnSpeed}
         onRailMoveComplete={handleRailStop}
+        npcRotations={npcRotations}
       />}
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -1672,6 +1753,7 @@ export const MazeGame3D = ({
           // Apple/Item system
           appleCount={appleCount}
           onAppleDrop={handleAppleDrop}
+          berryCount={berryCount}
           friendshipProgress={friendshipProgress}
         />
       )}

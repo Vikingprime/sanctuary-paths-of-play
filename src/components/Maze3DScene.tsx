@@ -127,6 +127,8 @@ interface Maze3DSceneProps {
   railTurnSpeed?: number;
   onRailMoveComplete?: () => void;
   onMagnetismCacheReady?: (cache: MagnetismCache) => void;
+  // NPC rotation overrides (characterId -> Y rotation in radians)
+  npcRotations?: Record<string, number>;
 }
 
 // Ground shader using multiple photo textures with random patches
@@ -835,6 +837,7 @@ interface CharacterRendererProps {
   alwaysFacePlayer?: boolean; // If true, character always faces player even outside dialogue
   maze: Maze; // Required for raycasting initial facing direction
   showCollisionDebug?: boolean; // Show debug ground plane under character
+  rotationOverride?: number; // If set, overrides default facing rotation (for NPC turning)
 }
 
 const CharacterRenderer = ({
@@ -847,6 +850,7 @@ const CharacterRenderer = ({
   alwaysFacePlayer = false,
   maze,
   showCollisionDebug = false,
+  rotationOverride,
 }: CharacterRendererProps) => {
   const groupRef = useRef<Group>(null);
   const mixerRef = useRef<AnimationMixer | null>(null);
@@ -958,6 +962,9 @@ const CharacterRenderer = ({
         const dz = playerZ - charZ;
         const angle = Math.atan2(dx, dz);
         groupRef.current.rotation.y = angle;
+      } else if (rotationOverride !== undefined) {
+        // Apply NPC turning rotation override
+        groupRef.current.rotation.y = rotationOverride;
       }
       
       // Apply opacity fade based on distance from player
@@ -1040,6 +1047,7 @@ const PlacedCharacter = ({
   maze,
   showCollisionDebug,
   onClick,
+  rotationOverride,
 }: { 
   character: MazeCharacter;
   playerStateRef?: MutableRefObject<PlayerState>;
@@ -1047,6 +1055,7 @@ const PlacedCharacter = ({
   maze: Maze;
   showCollisionDebug?: boolean;
   onClick?: (characterId: string) => void;
+  rotationOverride?: number; // Y rotation in radians, overrides default facing
 }) => {
   // Check if this character has any click-triggered dialogues
   const hasClickDialogue = maze.dialogues?.some(
@@ -1069,6 +1078,7 @@ const PlacedCharacter = ({
         alwaysFacePlayer={character.alwaysFacePlayer}
         maze={maze}
         showCollisionDebug={showCollisionDebug}
+        rotationOverride={rotationOverride}
       />
     </group>
   );
@@ -2597,7 +2607,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, onCharacterClick, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, debugMode = false, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, onCharacterClick, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, debugMode = false, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady, npcRotations = {} }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2801,6 +2811,7 @@ return (
           maze={maze}
           showCollisionDebug={showCollisionDebug}
           onClick={onCharacterClick}
+          rotationOverride={npcRotations[character.id]}
         />
       ))}
       
