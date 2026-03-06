@@ -565,14 +565,11 @@ const chapter4BerryFetch: StoryMaze = {
   endConditions: {
     requiredDialogues: ['bush_found'],
   },
-  // Simple straight corridor with sparrow nook below
-  // S=start, E=exit (same spot), B=berry bush at far end
-  // Sparrow sits in nook at (6,4), looks north across path then east (away)
+  // Straight horizontal corridor — sparrow in a nook below mid-path
   grid: createGrid([
     '###########',
-    '#         #',
     '#SE      B#',
-    '#    #    #',
+    '#    #   B#',
     '#    #    #',
     '#   ###   #',
     '###########',
