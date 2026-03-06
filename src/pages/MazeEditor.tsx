@@ -113,6 +113,13 @@ const AVAILABLE_MODELS = [
   'Hen_idle.glb',
   'Hen_walk.glb',
   'Rat.glb',
+  'Hamster.glb',
+  'Kangaroo_rat.glb',
+  'Squirrel.glb',
+  'Rat-2.glb',
+  'Spiny_mouse.glb',
+  'Sparrow.glb',
+  'Bush_with_Berries.glb',
 ];
 
 const AVAILABLE_ANIMATIONS = [
