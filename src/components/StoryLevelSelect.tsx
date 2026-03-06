@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { StoryProgress } from '@/types/quest';
 import { StoryAct, StoryNode } from '@/types/storyActs';
 import { storyActs, isNodeUnlocked, isActComplete, getStoryAct } from '@/data/storyActsData';
-import { StoryMaze, getChapterMaze } from '@/data/storyMazes';
+import { StoryMaze, storyMazes, getChapterMaze } from '@/data/storyMazes';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Lock, Check, ChevronRight, Clock, Play, Edit, X } from 'lucide-react';
 
@@ -231,10 +231,12 @@ export const StoryLevelSelect = ({
   };
 
   const getMazeForNode = (node: StoryNode): StoryMaze | undefined => {
-    return getChapterMaze(
-      node.id === 'find_clues' ? 'chapter_1' :
-      node.id === 'cousin_riddle' ? 'chapter_2' : 'chapter_1'
-    );
+    if (node.mazeId != null) {
+      return storyMazes.find(m => m.id === node.mazeId);
+    }
+    // Fallback for nodes without mazeId
+    return getChapterMaze(node.id === 'find_clues' ? 'chapter_1' :
+      node.id === 'cousin_riddle' ? 'chapter_2' : 'chapter_1');
   };
 
   const handleNodeClick = (node: StoryNode) => {
