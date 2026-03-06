@@ -474,7 +474,7 @@ const chapter4BerryFetch: StoryMaze = {
       emoji: '🫐',
       model: 'Bush_with_Berries.glb',
       animation: 'idle',
-      position: { x: 13, y: 5 },
+      position: { x: 9, y: 2 },
     },
     {
       id: 'sparrow_watcher',
@@ -482,28 +482,25 @@ const chapter4BerryFetch: StoryMaze = {
       emoji: '🐦',
       model: 'Sparrow.glb',
       animation: 'idle',
-      position: { x: 8, y: 7 },
+      position: { x: 6, y: 4 },
       alwaysFacePlayer: false,
       visionDialogueId: 'sparrow_caught',
-      // Directional vision: relative offsets from sparrow's position
+      // Looks north (across corridor) then east (away into nook wall)
       directionalVision: {
-        south: { cells: [
-          { dx: -1, dy: 1 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 },
-          { dx: -1, dy: 2 }, { dx: 0, dy: 2 }, { dx: 1, dy: 2 },
-          { dx: -1, dy: 3 }, { dx: 0, dy: 3 }, { dx: 1, dy: 3 },
-        ]},
         north: { cells: [
           { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
           { dx: -1, dy: -2 }, { dx: 0, dy: -2 }, { dx: 1, dy: -2 },
-          { dx: -1, dy: -3 }, { dx: 0, dy: -3 }, { dx: 1, dy: -3 },
+        ]},
+        east: { cells: [
+          { dx: 1, dy: -1 }, { dx: 1, dy: 0 }, { dx: 1, dy: 1 },
+          { dx: 2, dy: -1 }, { dx: 2, dy: 0 }, { dx: 2, dy: 1 },
         ]},
       },
-      // Ping-pong between south and north every 3 seconds
       turning: {
         pattern: 'ping-pong',
-        directions: ['south', 'north'],
+        directions: ['north', 'east'],
         intervalMs: 3000,
-        initialDirection: 'south',
+        initialDirection: 'north',
       },
     },
   ],
@@ -524,9 +521,9 @@ const chapter4BerryFetch: StoryMaze = {
         id: 'return_berry',
         type: 'reach',
         description: 'Bring the berry back to the start',
-        targetPosition: { x: 2, y: 2 }, // Start position
+        targetPosition: { x: 1, y: 2 },
         completed: false,
-        hidden: true, // Revealed after picking up berry
+        hidden: true,
       },
     ],
     rewards: { stars: 10, medal: true },
@@ -536,7 +533,7 @@ const chapter4BerryFetch: StoryMaze = {
       id: 'sparrow_caught',
       speaker: 'Sparrow',
       speakerEmoji: '🐦',
-      message: "CHEEP CHEEP! Those are MY berries! Get away from here!",
+      message: "CHEEP CHEEP! Get away from my berries!",
       cells: [],
       speakerCharacterId: 'sparrow_watcher',
       effect: 'game_over',
@@ -550,11 +547,11 @@ const chapter4BerryFetch: StoryMaze = {
         {
           speaker: 'You',
           speakerEmoji: '🐀',
-          message: "Got them! Now I need to sneak back to the start without the sparrow spotting me!",
+          message: "Got them! Now I need to sneak back without the sparrow spotting me!",
         },
       ],
       cells: [
-        { x: 12, y: 5 }, { x: 13, y: 5 }, { x: 12, y: 6 }, { x: 13, y: 6 },
+        { x: 8, y: 2 }, { x: 9, y: 2 }, { x: 9, y: 1 },
       ],
       speakerCharacterId: 'berry_bush',
       questAction: { type: 'complete_objective', objectiveId: 'reach_bush' },
@@ -565,27 +562,20 @@ const chapter4BerryFetch: StoryMaze = {
     },
   ],
   goalCharacterId: undefined,
-  // End cell is at the start — player must return after picking berries
   endConditions: {
     requiredDialogues: ['bush_found'],
   },
+  // Simple straight corridor with sparrow nook below
+  // S=start, E=exit (same spot), B=berry bush at far end
+  // Sparrow sits in nook at (6,4), looks north across path then east (away)
   grid: createGrid([
-    '################',
-    '################',
-    '##EE        ####',
-    '##SS        ####',
-    '##  ######    ##',
-    '##      ##    ##',
-    '##  ##  ##    ##',
-    '##  ##        ##',
-    '##  ######  ####',
-    '##          ####',
-    '##  ####      ##',
-    '##  ####      ##',
-    '##            ##',
-    '##            ##',
-    '################',
-    '################',
+    '###########',
+    '#         #',
+    '#SE      B#',
+    '#    #    #',
+    '#    #    #',
+    '#   ###   #',
+    '###########',
   ]),
 };
 
