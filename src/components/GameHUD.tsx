@@ -306,6 +306,7 @@ interface GameHUDProps {
   // Apple/Item system props
   appleCount?: number;
   onAppleDrop?: () => void;
+  berryCount?: number;
   friendshipProgress?: {
     currentTier: { id: string; name: string; pointsRequired: number };
     nextTier: { id: string; name: string; pointsRequired: number } | null;
@@ -392,6 +393,7 @@ export const GameHUD = ({
   // Apple/Item system
   appleCount = 0,
   onAppleDrop,
+  berryCount = 0,
   friendshipProgress,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
@@ -481,6 +483,22 @@ export const GameHUD = ({
               appleCount={appleCount}
               onAppleDrop={onAppleDrop}
             />
+          )}
+          
+          {/* Berry count display */}
+          {berryCount > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-2xl">🫐</span>
+              <span 
+                className="font-display font-bold text-2xl"
+                style={{ 
+                  color: '#ffffff',
+                  textShadow: '2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)'
+                }}
+              >
+                ×{berryCount}
+              </span>
+            </div>
           )}
           
           {/* Debug toggle indicator - shows expand button when collapsed */}
