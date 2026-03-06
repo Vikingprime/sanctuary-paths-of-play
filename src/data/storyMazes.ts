@@ -452,11 +452,122 @@ const chapter3Maze: StoryMaze = {
   ]),
 };
 
+// === CHAPTER 4: Berry Picking (Fetch a berry, avoid the sparrow watcher) ===
+const chapter4BerryFetch: StoryMaze = {
+  id: 104,
+  name: "Berry Picking",
+  chapterId: 'berry_fetch',
+  difficulty: 'easy',
+  timeLimit: 120,
+  timerDisabled: true,
+  previewTime: 10,
+  medalTimes: {
+    gold: 30,
+    silver: 50,
+    bronze: 80,
+  },
+  characters: [
+    {
+      id: 'berry_bush',
+      name: 'Berry Bush',
+      emoji: '🫐',
+      model: 'Bush_with_Berries.glb',
+      animation: 'idle',
+      position: { x: 12, y: 3 },
+    },
+    {
+      id: 'sparrow_watcher',
+      name: 'Sparrow',
+      emoji: '🐦',
+      model: 'Sparrow.glb',
+      animation: 'idle',
+      position: { x: 7, y: 5 },
+      alwaysFacePlayer: false,
+      visionCells: [
+        // Vision looking down the corridor
+        { x: 7, y: 6 }, { x: 7, y: 7 }, { x: 7, y: 8 },
+        { x: 8, y: 6 }, { x: 8, y: 7 }, { x: 8, y: 8 },
+        { x: 6, y: 6 }, { x: 6, y: 7 }, { x: 6, y: 8 },
+      ],
+      visionDialogueId: 'sparrow_caught',
+    },
+  ],
+  storyCharacters: [],
+  quest: {
+    id: 'quest_ch4_berry_fetch',
+    title: 'Berry Picking',
+    description: 'Grab a berry from the bush and get back — but don\'t let the sparrow see you!',
+    objectives: [
+      {
+        id: 'reach_bush',
+        type: 'talk_to',
+        description: 'Reach the berry bush',
+        targetCharacterId: 'berry_bush',
+        completed: false,
+      },
+    ],
+    rewards: { stars: 10, medal: true },
+  },
+  dialogues: [
+    {
+      id: 'sparrow_caught',
+      speaker: 'Sparrow',
+      speakerEmoji: '🐦',
+      message: "CHEEP CHEEP! Those are MY berries! Get away from here!",
+      cells: [],
+      speakerCharacterId: 'sparrow_watcher',
+      effect: 'game_over',
+    },
+    {
+      id: 'bush_found',
+      speaker: 'You',
+      speakerEmoji: '🐀',
+      message: "Found the berry bush! Let me grab some berries...",
+      messages: [
+        {
+          speaker: 'You',
+          speakerEmoji: '🐀',
+          message: "Got them! Now I need to sneak back to the exit without the sparrow spotting me!",
+        },
+      ],
+      cells: [
+        { x: 11, y: 3 }, { x: 12, y: 3 }, { x: 13, y: 3 },
+        { x: 11, y: 4 }, { x: 12, y: 4 }, { x: 13, y: 4 },
+      ],
+      speakerCharacterId: 'berry_bush',
+      questAction: { type: 'complete_objective', objectiveId: 'reach_bush' },
+    },
+  ],
+  goalCharacterId: undefined,
+  endConditions: {
+    requiredDialogues: ['bush_found'],
+  },
+  grid: createGrid([
+    '################',
+    '################',
+    '##SS          ##',
+    '##          ####',
+    '####  ##    ####',
+    '####  ##      ##',
+    '##        ##  ##',
+    '##        ##  ##',
+    '####  ##      ##',
+    '####  ##      ##',
+    '##          ####',
+    '##          ####',
+    '##  ####  ##EE##',
+    '##  ####  ##EE##',
+    '################',
+    '################',
+  ]),
+};
+
 // All story mazes
 export const storyMazes: StoryMaze[] = [
   chapter1Maze,
   chapter2Maze,
   chapter3Maze,
+  chapter4BerryFetch,
 ];
 
 // Story chapters
@@ -485,6 +596,17 @@ export const storyChapters: StoryChapter[] = [
     description: "Follow the trail to find the skunk who was spotted that night.",
     quests: [chapter3Maze.quest],
     mazeId: 103,
+    unlockCondition: {
+      chapterId: 'chapter_2',
+      questId: 'quest_ch2_cousin_riddle',
+    },
+  },
+  {
+    id: 'berry_fetch',
+    title: 'Berry Picking',
+    description: "Fetch berries from the bush — but watch out for the sparrow!",
+    quests: [chapter4BerryFetch.quest],
+    mazeId: 104,
     unlockCondition: {
       chapterId: 'chapter_2',
       questId: 'quest_ch2_cousin_riddle',

@@ -104,6 +104,18 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     height: 0.075,
     debugPlaneColor: '#999999',
   },
+  'Sparrow.glb': {
+    scale: 0.005,
+    yOffset: 0.15,
+    height: 0.25,
+    debugPlaneColor: '#dd8844',
+  },
+  'Bush_with_Berries.glb': {
+    scale: 0.4,
+    yOffset: 0.0,
+    height: 0.6,
+    debugPlaneColor: '#22aa44',
+  },
 } as const;
 
 /**
