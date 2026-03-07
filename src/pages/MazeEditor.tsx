@@ -803,20 +803,25 @@ ${normalizedDeletedSpineFineCells.map((cell) => `    { x: ${cell.x}, y: ${cell.y
   ],`
       : '';
 
+    const obstaclesSchema = obstacles.filter(o => o.position).length > 0 ? `
+  obstacles: [
+${obstacles.filter(o => o.position).map(o => `    { id: '${o.id}', model: '${o.model}', position: { x: ${o.position!.x}, y: ${o.position!.y} }${o.rotation ? `, rotation: ${o.rotation}` : ''} },`).join('\n')}
+  ],` : '';
+
     const schema = `{
   id: ${loadedMazeId || Date.now()},
   name: '${config.name}',
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
   previewTime: ${config.previewTime},${timerDisabledSchema}${deletedSpineBranchesSchema}${deletedSpineFineCellsSchema}
-  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
+  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${obstaclesSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
   ]),
 },`;
     
     return schema;
-  }, [grid, config, dialogues, characters, loadedMazeId, normalizedDeletedSpineBranches, normalizedDeletedSpineFineCells]);
+  }, [grid, config, dialogues, characters, obstacles, loadedMazeId, normalizedDeletedSpineBranches, normalizedDeletedSpineFineCells]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateSchema());
