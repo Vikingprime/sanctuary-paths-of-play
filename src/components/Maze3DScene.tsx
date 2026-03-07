@@ -2128,6 +2128,14 @@ const OverShoulderCameraController = ({
         playerZ
       );
       initialized.current = true;
+      
+      // Skip lerp this frame - snap camera directly
+      camera.position.copy(currentPosition.current);
+      camera.lookAt(currentLookAt.current);
+      if ('fov' in camera) {
+        (camera as any).updateProjectionMatrix();
+      }
+      return; // Don't run any lerp/smoothing on the init frame
     }
     
     // Smoothly interpolate camera rotation using shortest path
