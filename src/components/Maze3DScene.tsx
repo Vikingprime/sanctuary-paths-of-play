@@ -2051,7 +2051,7 @@ const OverShoulderCameraController = ({
     // Also pause drift when Q/E keys are held
     const qeActive = keysPressed?.current?.has('q') || keysPressed?.current?.has('e');
     
-    if (!railMode && cameraYawRef && !orbitActive && !touchActive && !qeActive) {
+    if (cameraYawRef && !orbitActive && !touchActive && !qeActive) {
       let diff = playerRotation - cameraYawRef.current;
       // Shortest path wrap-around
       if (diff > Math.PI) diff -= Math.PI * 2;
