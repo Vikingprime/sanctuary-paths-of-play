@@ -440,6 +440,29 @@ const MazeEditor: React.FC = () => {
     if (!paintingVisionCharacterId) return;
     setCharacters(prev => prev.map(c => {
       if (c.id !== paintingVisionCharacterId) return c;
+      
+      // If character has directionalVision, paint relative offsets for the selected direction
+      if (c.directionalVision !== undefined && c.position) {
+        const dx = x - c.position.x;
+        const dy = y - c.position.y;
+        const dir = paintingVisionDirection;
+        const currentZone = c.directionalVision[dir];
+        const cells = currentZone?.cells || [];
+        const exists = cells.some(cell => cell.dx === dx && cell.dy === dy);
+        return {
+          ...c,
+          directionalVision: {
+            ...c.directionalVision,
+            [dir]: {
+              cells: exists
+                ? cells.filter(cell => !(cell.dx === dx && cell.dy === dy))
+                : [...cells, { dx, dy }],
+            },
+          },
+        };
+      }
+      
+      // Legacy absolute vision cells
       const cells = c.visionCells || [];
       const exists = cells.some(vc => vc.x === x && vc.y === y);
       return {
@@ -449,7 +472,7 @@ const MazeEditor: React.FC = () => {
           : [...cells, { x, y }],
       };
     }));
-  }, [paintingVisionCharacterId]);
+  }, [paintingVisionCharacterId, paintingVisionDirection]);
 
   const handleMouseDown = (x: number, y: number) => {
     if (paintingVisionCharacterId) {
@@ -618,7 +641,18 @@ const MazeEditor: React.FC = () => {
   };
 
   const getVisionCharacterAtCell = (x: number, y: number): CharacterConfig | undefined => {
-    return characters.find(c => c.visionCells?.some(vc => vc.x === x && vc.y === y));
+    // Check legacy absolute vision cells
+    const legacyMatch = characters.find(c => c.visionCells?.some(vc => vc.x === x && vc.y === y));
+    if (legacyMatch) return legacyMatch;
+    // Check directional vision (show all directions' cells)
+    return characters.find(c => {
+      if (!c.directionalVision || !c.position) return false;
+      return Object.values(c.directionalVision).some(zone => 
+        zone && (zone as RelativeVisionZone).cells.some(cell => 
+          c.position!.x + cell.dx === x && c.position!.y + cell.dy === y
+        )
+      );
+    });
   };
 
   const generateSchema = useCallback(() => {
