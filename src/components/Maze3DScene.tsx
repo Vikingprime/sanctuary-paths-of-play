@@ -1454,6 +1454,14 @@ const RefBasedPlayer = ({
           }
         }
         
+        // In rail mode, still apply camera orbit delta from touch
+        if (cameraYawRef && cameraOrbitDeltaRef && cameraOrbitDeltaRef.current !== 0) {
+          cameraYawRef.current += cameraOrbitDeltaRef.current;
+          cameraOrbitDeltaRef.current = 0;
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
         // Skip normal movement processing in rail mode
       } else {
         // === NORMAL MOVEMENT (keyboard/joystick) ===
