@@ -224,6 +224,9 @@ export const MazeGame3D = ({
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   // Camera orbit yaw - controlled by joystick X, used for orbit camera
   const cameraYawRef = useRef(startRotation); // Camera yaw angle (orbits around player)
+  // Camera orbit touch refs (right side of screen)
+  const cameraOrbitDeltaRef = useRef(0); // Per-frame delta from orbit touch
+  const cameraOrbitActiveRef = useRef(false); // Whether orbit touch is currently held
   
   // Control mode: 'joystick' or 'rail' (on-rail navigation)
   // Rail mode is the default for all modes
@@ -1589,6 +1592,8 @@ export const MazeGame3D = ({
         mobileIsMovingRef={mobileIsMovingRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
         cameraYawRef={cameraYawRef}
+        cameraOrbitDeltaRef={cameraOrbitDeltaRef}
+        cameraOrbitActiveRef={cameraOrbitActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         onCharacterClick={handleCharacterClick}
