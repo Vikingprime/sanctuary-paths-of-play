@@ -614,7 +614,7 @@ export function RailControls({
   
   return (
      <div className={`fixed left-1/2 -translate-x-1/2 z-20 ${isLandscape ? 'bottom-2' : 'bottom-20'}`}>
-      <div className="relative w-40 h-40">
+      <div ref={containerRef} className="relative w-40 h-40" style={{ transition: 'none' }}>
         {/* Direction buttons - positioned at actual path angles, disabled briefly after stop */}
         {directions.map((dir, idx) => (
           <RadialDirectionButton
