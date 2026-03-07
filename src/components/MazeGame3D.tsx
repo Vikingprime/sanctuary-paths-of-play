@@ -579,6 +579,9 @@ export const MazeGame3D = ({
     
     const TICK_MS = 100; // Update every 100ms for smooth turning
     const interval = setInterval(() => {
+      // Pause NPC turning/patrol during dialogue
+      if (activeDialogue || activeAppleDialogue || postDialoguePause) return;
+      
       const states = npcRuntimeStatesRef.current;
       const newRotations: Record<string, number> = {};
       let changed = false;
