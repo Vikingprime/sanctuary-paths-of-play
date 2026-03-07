@@ -488,7 +488,7 @@ const chapter4BerryFetch: StoryMaze = {
       position: { x: 5, y: 3 },
       alwaysFacePlayer: false,
       visionDialogueId: 'sparrow_caught',
-      coneVision: { range: 3, spreadPerCell: 1 },
+      coneVision: { range: 5, spreadPerCell: 1 },
       turning: {
         pattern: 'ping-pong',
         directions: ['north', 'south'],
