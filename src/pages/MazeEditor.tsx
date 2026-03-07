@@ -1173,6 +1173,17 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                   </Button>
                 </div>
 
+                {/* Obstacles Toggle */}
+                <div className="pt-2">
+                  <Button 
+                    onClick={() => setShowObstaclePanel(!showObstaclePanel)} 
+                    variant={placingObstacleId ? 'default' : 'outline'}
+                    className="w-full"
+                  >
+                    🪵 Obstacles ({obstacles.length})
+                  </Button>
+                </div>
+
                 {/* Apple Dialogues Toggle */}
                 <div className="pt-2">
                   <Button 
