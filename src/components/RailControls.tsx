@@ -536,7 +536,7 @@ export function RailControls({
       );
       setDirections(availableDirs);
     }
-  }, [enabled, cache, playerX, playerZ, animalRotation, isMoving]);
+  }, [enabled, cache, playerX, playerZ, animalRotation, cameraYaw, isMoving]);
   
   const handleDirectionClick = useCallback((dir: DirectionOption) => {
     if (dir.isTurnAround) {
