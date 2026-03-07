@@ -351,10 +351,23 @@ const MazeEditor: React.FC = () => {
         visionCells: c.visionCells || [],
         visionDialogueId: c.visionDialogueId || undefined,
         directionalVision: c.directionalVision || undefined,
+        coneVision: c.coneVision || undefined,
         turning: c.turning || undefined,
       })));
     } else {
       setCharacters([]);
+    }
+    
+    // Load obstacles
+    if (maze.obstacles) {
+      setObstacles(maze.obstacles.map(o => ({
+        id: o.id,
+        model: o.model,
+        position: o.position,
+        rotation: o.rotation,
+      })));
+    } else {
+      setObstacles([]);
     }
     
     setLoadedMazeId(mazeId);
@@ -502,6 +515,14 @@ const MazeEditor: React.FC = () => {
         toast.success(`${char.name} placed at (${x}, ${y})`);
         setPlacingCharacterId(null);
       }
+      return;
+    }
+    if (placingObstacleId) {
+      setObstacles(prev => prev.map(o => 
+        o.id === placingObstacleId ? { ...o, position: { x, y } } : o
+      ));
+      toast.success(`Obstacle placed at (${x}, ${y})`);
+      setPlacingObstacleId(null);
       return;
     }
     
