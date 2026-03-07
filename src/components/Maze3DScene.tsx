@@ -77,6 +77,8 @@ interface Maze3DSceneProps {
   mobileIsMovingRef?: MutableRefObject<boolean>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
   cameraYawRef?: MutableRefObject<number>; // Camera orbit yaw angle
+  cameraOrbitDeltaRef?: MutableRefObject<number>; // Per-frame orbit delta from touch
+  cameraOrbitActiveRef?: MutableRefObject<boolean>; // Whether orbit touch is active
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   onCharacterClick?: (characterId: string) => void; // For click-triggered dialogues

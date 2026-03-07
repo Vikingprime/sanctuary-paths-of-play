@@ -1791,6 +1791,8 @@ export const MazeGame3D = ({
           joystickYRef={joystickYRef}
           isMovingRef={mobileIsMovingRef}
           mobileTouchActiveRef={mobileTouchActiveRef}
+          cameraOrbitDeltaRef={cameraOrbitDeltaRef}
+          cameraOrbitActiveRef={cameraOrbitActiveRef}
           debugMode={debugMode}
         />
       )}
