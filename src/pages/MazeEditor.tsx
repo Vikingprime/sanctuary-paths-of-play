@@ -332,8 +332,10 @@ const MazeEditor: React.FC = () => {
         model: c.model,
         animation: c.animation,
         position: c.position,
-        visionCells: (c as any).visionCells || [],
-        visionDialogueId: (c as any).visionDialogueId || undefined,
+        visionCells: c.visionCells || [],
+        visionDialogueId: c.visionDialogueId || undefined,
+        directionalVision: c.directionalVision || undefined,
+        turning: c.turning || undefined,
       })));
     } else {
       setCharacters([]);
@@ -634,13 +636,21 @@ ${characters.filter(c => c.position).map(c => {
   const visionDlgStr = c.visionDialogueId
     ? `\n      visionDialogueId: '${c.visionDialogueId}',`
     : '';
+  const dirVisionStr = c.directionalVision && Object.keys(c.directionalVision).length > 0
+    ? `\n      directionalVision: {\n${Object.entries(c.directionalVision).map(([dir, zone]) => 
+        `        ${dir}: { cells: [${(zone as RelativeVisionZone).cells.map(cell => `{ dx: ${cell.dx}, dy: ${cell.dy} }`).join(', ')}] },`
+      ).join('\n')}\n      },`
+    : '';
+  const turningStr = c.turning
+    ? `\n      turning: { pattern: '${c.turning.pattern}', directions: [${c.turning.directions.map(d => `'${d}'`).join(', ')}], intervalMs: ${c.turning.intervalMs}${c.turning.initialDirection ? `, initialDirection: '${c.turning.initialDirection}'` : ''} },`
+    : '';
   return `    {
       id: '${c.id}',
       name: '${c.name}',
       emoji: '${c.emoji}',
       model: '${c.model}',
       animation: '${c.animation}',
-      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${visionStr}${visionDlgStr}
+      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${visionStr}${dirVisionStr}${turningStr}${visionDlgStr}
     }`;
 }).join(',\n')}
   ],` : '';
