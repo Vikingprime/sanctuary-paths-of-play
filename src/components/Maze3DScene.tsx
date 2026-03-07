@@ -1183,6 +1183,8 @@ const VisionConeOverlay = ({
   
   if (!coneGeometry && visionCells.length === 0) return null;
   
+  console.log(`[VisionCone] ${character.id}: coneGeometry=${!!coneGeometry}, coneVision=${JSON.stringify(character.coneVision)}, fallbackCells=${visionCells.length}`);
+  
   const pos = character.position;
   
   return (
