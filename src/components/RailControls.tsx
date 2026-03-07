@@ -22,8 +22,8 @@ export interface RailControlsProps {
   playerZ: number;
   /** Current animal rotation (radians) - used to classify directions relative to animal's facing */
   animalRotation: number;
-  /** Camera yaw (radians) - when provided, arrows are positioned relative to camera view */
-  cameraYaw?: number;
+  /** Camera yaw ref - when provided, arrows are positioned relative to camera view */
+  cameraYawRef?: React.MutableRefObject<number>;
   /** Callback when direction is selected - provides target position and direction */
   onDirectionSelect: (targetX: number, targetZ: number, pathPoints: Point2D[]) => void;
   /** Callback when stop is pressed */
