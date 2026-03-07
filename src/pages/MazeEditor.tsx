@@ -12,7 +12,7 @@ import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple
 import { toast } from 'sonner';
 import { FineSpineEditor } from '@/components/FineSpineEditor';
 import { useMazeStorage, createGrid } from '@/hooks/useMazeStorage';
-import { Maze, DialogueSequenceItem } from '@/types/game';
+import { Maze, DialogueSequenceItem, CardinalDirection, DirectionalVision, TurningConfig, RelativeVisionZone } from '@/types/game';
 import { useBackButton } from '@/hooks/useBackButton';
 import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
 import { canBeFedApples } from '@/types/appleDialogue';
@@ -35,10 +35,61 @@ interface CharacterConfig {
   model: string;
   animation: string;
   position: { x: number; y: number } | null;
-  dialogueSequence?: DialogueSequenceItem[]; // Per-animal dialogue sequence
+  dialogueSequence?: DialogueSequenceItem[];
   visionCells?: { x: number; y: number }[];
   visionDialogueId?: string;
+  directionalVision?: DirectionalVision;
+  turning?: TurningConfig;
 }
+
+type VisionConePreset = 'none' | 'narrow' | 'wide' | 'long';
+
+const VISION_CONE_PRESETS: Record<VisionConePreset, { label: string; description: string }> = {
+  none: { label: 'None', description: 'No vision' },
+  narrow: { label: 'Narrow', description: '1-wide, 3 deep' },
+  wide: { label: 'Wide', description: '3-wide, 2 deep' },
+  long: { label: 'Long', description: '1-wide, 5 deep' },
+};
+
+// Generate relative vision cells for a cone preset facing north (dy negative = north)
+// Other directions are derived by rotating these offsets
+function generateConeOffsets(preset: VisionConePreset): { dx: number; dy: number }[] {
+  switch (preset) {
+    case 'narrow':
+      return [
+        { dx: 0, dy: -1 }, { dx: 0, dy: -2 }, { dx: 0, dy: -3 },
+      ];
+    case 'wide':
+      return [
+        { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
+        { dx: -1, dy: -2 }, { dx: 0, dy: -2 }, { dx: 1, dy: -2 },
+      ];
+    case 'long':
+      return [
+        { dx: 0, dy: -1 }, { dx: 0, dy: -2 }, { dx: 0, dy: -3 },
+        { dx: 0, dy: -4 }, { dx: 0, dy: -5 },
+      ];
+    default:
+      return [];
+  }
+}
+
+// Rotate "north-facing" offsets to another direction
+function rotateOffsets(cells: { dx: number; dy: number }[], dir: CardinalDirection): { dx: number; dy: number }[] {
+  return cells.map(({ dx, dy }) => {
+    switch (dir) {
+      case 'north': return { dx, dy };
+      case 'south': return { dx: -dx, dy: -dy };
+      case 'east': return { dx: -dy, dy: dx };
+      case 'west': return { dx: dy, dy: -dx };
+    }
+  });
+}
+
+const ALL_DIRECTIONS: CardinalDirection[] = ['north', 'south', 'east', 'west'];
+const DIRECTION_LABELS: Record<CardinalDirection, string> = {
+  north: '⬆ North', south: '⬇ South', east: '➡ East', west: '⬅ West',
+};
 
 interface DialogueConfig {
   id: string;
@@ -161,6 +212,7 @@ const MazeEditor: React.FC = () => {
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
   const [placingCharacterId, setPlacingCharacterId] = useState<string | null>(null);
   const [paintingVisionCharacterId, setPaintingVisionCharacterId] = useState<string | null>(null);
+  const [paintingVisionDirection, setPaintingVisionDirection] = useState<CardinalDirection>('north');
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
   const [showMazeList, setShowMazeList] = useState(true);
@@ -280,8 +332,10 @@ const MazeEditor: React.FC = () => {
         model: c.model,
         animation: c.animation,
         position: c.position,
-        visionCells: (c as any).visionCells || [],
-        visionDialogueId: (c as any).visionDialogueId || undefined,
+        visionCells: c.visionCells || [],
+        visionDialogueId: c.visionDialogueId || undefined,
+        directionalVision: c.directionalVision || undefined,
+        turning: c.turning || undefined,
       })));
     } else {
       setCharacters([]);
@@ -386,6 +440,29 @@ const MazeEditor: React.FC = () => {
     if (!paintingVisionCharacterId) return;
     setCharacters(prev => prev.map(c => {
       if (c.id !== paintingVisionCharacterId) return c;
+      
+      // If character has directionalVision, paint relative offsets for the selected direction
+      if (c.directionalVision !== undefined && c.position) {
+        const dx = x - c.position.x;
+        const dy = y - c.position.y;
+        const dir = paintingVisionDirection;
+        const currentZone = c.directionalVision[dir];
+        const cells = currentZone?.cells || [];
+        const exists = cells.some(cell => cell.dx === dx && cell.dy === dy);
+        return {
+          ...c,
+          directionalVision: {
+            ...c.directionalVision,
+            [dir]: {
+              cells: exists
+                ? cells.filter(cell => !(cell.dx === dx && cell.dy === dy))
+                : [...cells, { dx, dy }],
+            },
+          },
+        };
+      }
+      
+      // Legacy absolute vision cells
       const cells = c.visionCells || [];
       const exists = cells.some(vc => vc.x === x && vc.y === y);
       return {
@@ -395,7 +472,7 @@ const MazeEditor: React.FC = () => {
           : [...cells, { x, y }],
       };
     }));
-  }, [paintingVisionCharacterId]);
+  }, [paintingVisionCharacterId, paintingVisionDirection]);
 
   const handleMouseDown = (x: number, y: number) => {
     if (paintingVisionCharacterId) {
@@ -564,7 +641,18 @@ const MazeEditor: React.FC = () => {
   };
 
   const getVisionCharacterAtCell = (x: number, y: number): CharacterConfig | undefined => {
-    return characters.find(c => c.visionCells?.some(vc => vc.x === x && vc.y === y));
+    // Check legacy absolute vision cells
+    const legacyMatch = characters.find(c => c.visionCells?.some(vc => vc.x === x && vc.y === y));
+    if (legacyMatch) return legacyMatch;
+    // Check directional vision (show all directions' cells)
+    return characters.find(c => {
+      if (!c.directionalVision || !c.position) return false;
+      return Object.values(c.directionalVision).some(zone => 
+        zone && (zone as RelativeVisionZone).cells.some(cell => 
+          c.position!.x + cell.dx === x && c.position!.y + cell.dy === y
+        )
+      );
+    });
   };
 
   const generateSchema = useCallback(() => {
@@ -582,13 +670,21 @@ ${characters.filter(c => c.position).map(c => {
   const visionDlgStr = c.visionDialogueId
     ? `\n      visionDialogueId: '${c.visionDialogueId}',`
     : '';
+  const dirVisionStr = c.directionalVision && Object.keys(c.directionalVision).length > 0
+    ? `\n      directionalVision: {\n${Object.entries(c.directionalVision).map(([dir, zone]) => 
+        `        ${dir}: { cells: [${(zone as RelativeVisionZone).cells.map(cell => `{ dx: ${cell.dx}, dy: ${cell.dy} }`).join(', ')}] },`
+      ).join('\n')}\n      },`
+    : '';
+  const turningStr = c.turning
+    ? `\n      turning: { pattern: '${c.turning.pattern}', directions: [${c.turning.directions.map(d => `'${d}'`).join(', ')}], intervalMs: ${c.turning.intervalMs}${c.turning.initialDirection ? `, initialDirection: '${c.turning.initialDirection}'` : ''} },`
+    : '';
   return `    {
       id: '${c.id}',
       name: '${c.name}',
       emoji: '${c.emoji}',
       model: '${c.model}',
       animation: '${c.animation}',
-      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${visionStr}${visionDlgStr}
+      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${visionStr}${dirVisionStr}${turningStr}${visionDlgStr}
     }`;
 }).join(',\n')}
   ],` : '';
@@ -1078,7 +1174,9 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     )}
                     {paintingVisionCharacterId && (
                       <span className="text-sm text-cyan-600 animate-pulse">
-                        👁 Click cells to toggle vision...
+                        👁 Painting {characters.find(c => c.id === paintingVisionCharacterId)?.directionalVision !== undefined 
+                          ? `${paintingVisionDirection} vision` 
+                          : 'vision'} — click cells to toggle...
                       </span>
                     )}
                   </div>
@@ -1368,36 +1466,136 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                           </Button>
                         </div>
 
-                        {/* Vision Cells Section */}
+                        {/* Vision & Turning Section */}
                         <div className="mt-3 pt-3 border-t space-y-2">
                           <Label className="text-xs font-semibold flex items-center gap-1">
-                            👁 Vision ({char.visionCells?.length || 0} cells)
+                            👁 Vision
                           </Label>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant={paintingVisionCharacterId === char.id ? 'default' : 'outline'}
-                              className="flex-1 text-xs"
-                              onClick={() => {
-                                setPaintingVisionCharacterId(
-                                  paintingVisionCharacterId === char.id ? null : char.id
-                                );
-                                setPlacingCharacterId(null);
+                          
+                          {/* Vision mode toggle */}
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs">Mode:</Label>
+                            <Select
+                              value={char.directionalVision !== undefined ? 'directional' : 'legacy'}
+                              onValueChange={v => {
+                                if (v === 'directional') {
+                                  updateCharacter(char.id, { directionalVision: {}, visionCells: [] });
+                                } else {
+                                  updateCharacter(char.id, { directionalVision: undefined });
+                                }
                               }}
                             >
-                              {paintingVisionCharacterId === char.id ? '✓ Painting vision...' : 'Paint Vision Cells'}
-                            </Button>
-                            {(char.visionCells?.length || 0) > 0 && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-xs text-destructive"
-                                onClick={() => updateCharacter(char.id, { visionCells: [] })}
-                              >
-                                Clear
-                              </Button>
-                            )}
+                              <SelectTrigger className="text-xs h-7 flex-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="legacy">Absolute (legacy)</SelectItem>
+                                <SelectItem value="directional">Directional (per-facing)</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
+
+                          {/* Directional vision UI */}
+                          {char.directionalVision !== undefined ? (
+                            <div className="space-y-2">
+                              {/* Cone preset */}
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs">Preset:</Label>
+                                <Select
+                                  value="__apply__"
+                                  onValueChange={(v) => {
+                                    const preset = v as VisionConePreset;
+                                    if (preset === 'none') {
+                                      updateCharacter(char.id, { directionalVision: {} });
+                                      return;
+                                    }
+                                    const baseOffsets = generateConeOffsets(preset);
+                                    // Generate for all directions that are in the turning config (or all 4)
+                                    const dirs = char.turning?.directions || ALL_DIRECTIONS;
+                                    const newDV: DirectionalVision = {};
+                                    for (const dir of dirs) {
+                                      newDV[dir] = { cells: rotateOffsets(baseOffsets, dir) };
+                                    }
+                                    updateCharacter(char.id, { directionalVision: newDV });
+                                    toast.success(`Applied ${VISION_CONE_PRESETS[preset].label} preset to ${dirs.length} directions`);
+                                  }}
+                                >
+                                  <SelectTrigger className="text-xs h-7 flex-1">
+                                    <SelectValue placeholder="Apply preset..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {(Object.keys(VISION_CONE_PRESETS) as VisionConePreset[]).map(p => (
+                                      <SelectItem key={p} value={p}>{VISION_CONE_PRESETS[p].label} — {VISION_CONE_PRESETS[p].description}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              {/* Direction tabs for fine-tuning */}
+                              <div className="flex flex-wrap gap-1">
+                                {ALL_DIRECTIONS.map(dir => {
+                                  const zone = char.directionalVision?.[dir];
+                                  const cellCount = zone?.cells.length || 0;
+                                  const isActive = paintingVisionCharacterId === char.id && paintingVisionDirection === dir;
+                                  return (
+                                    <Button
+                                      key={dir}
+                                      size="sm"
+                                      variant={isActive ? 'default' : 'outline'}
+                                      className="text-xs px-2 h-7"
+                                      onClick={() => {
+                                        if (isActive) {
+                                          setPaintingVisionCharacterId(null);
+                                        } else {
+                                          setPaintingVisionCharacterId(char.id);
+                                          setPaintingVisionDirection(dir);
+                                          setPlacingCharacterId(null);
+                                        }
+                                      }}
+                                    >
+                                      {DIRECTION_LABELS[dir]} ({cellCount})
+                                    </Button>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {paintingVisionCharacterId === char.id 
+                                  ? `🎨 Painting ${paintingVisionDirection} vision — click cells on grid` 
+                                  : 'Select a direction above, then click cells to paint'}
+                              </p>
+                            </div>
+                          ) : (
+                            /* Legacy absolute vision */
+                            <div className="space-y-2">
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant={paintingVisionCharacterId === char.id ? 'default' : 'outline'}
+                                  className="flex-1 text-xs"
+                                  onClick={() => {
+                                    setPaintingVisionCharacterId(
+                                      paintingVisionCharacterId === char.id ? null : char.id
+                                    );
+                                    setPlacingCharacterId(null);
+                                  }}
+                                >
+                                  {paintingVisionCharacterId === char.id ? '✓ Painting...' : `Paint (${char.visionCells?.length || 0} cells)`}
+                                </Button>
+                                {(char.visionCells?.length || 0) > 0 && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-xs text-destructive"
+                                    onClick={() => updateCharacter(char.id, { visionCells: [] })}
+                                  >
+                                    Clear
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Vision triggers dialogue */}
                           <div>
                             <Label className="text-xs">Vision triggers dialogue</Label>
                             <Select
@@ -1414,6 +1612,73 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                 ))}
                               </SelectContent>
                             </Select>
+                          </div>
+
+                          {/* Turning config */}
+                          <div className="mt-2 pt-2 border-t space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs font-semibold">🔄 Turning</Label>
+                              <Switch
+                                checked={!!char.turning}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    updateCharacter(char.id, {
+                                      turning: {
+                                        pattern: 'ping-pong',
+                                        directions: ['north', 'south'],
+                                        intervalMs: 3000,
+                                      },
+                                      directionalVision: char.directionalVision ?? {},
+                                    });
+                                  } else {
+                                    updateCharacter(char.id, { turning: undefined });
+                                  }
+                                }}
+                              />
+                            </div>
+                            {char.turning && (
+                              <div className="space-y-2 pl-2">
+                                <div>
+                                  <Label className="text-xs">Directions (ping-pong)</Label>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {ALL_DIRECTIONS.map(dir => {
+                                      const isIn = char.turning!.directions.includes(dir);
+                                      return (
+                                        <Button
+                                          key={dir}
+                                          size="sm"
+                                          variant={isIn ? 'default' : 'outline'}
+                                          className="text-xs px-2 h-6"
+                                          onClick={() => {
+                                            const dirs = isIn
+                                              ? char.turning!.directions.filter(d => d !== dir)
+                                              : [...char.turning!.directions, dir];
+                                            if (dirs.length >= 2) {
+                                              updateCharacter(char.id, {
+                                                turning: { ...char.turning!, directions: dirs as CardinalDirection[] },
+                                              });
+                                            }
+                                          }}
+                                        >
+                                          {DIRECTION_LABELS[dir]}
+                                        </Button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-xs">Interval (ms)</Label>
+                                  <Input
+                                    type="number"
+                                    value={char.turning.intervalMs}
+                                    onChange={e => updateCharacter(char.id, {
+                                      turning: { ...char.turning!, intervalMs: parseInt(e.target.value) || 1000 },
+                                    })}
+                                    className="text-xs h-7 w-24"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
 
