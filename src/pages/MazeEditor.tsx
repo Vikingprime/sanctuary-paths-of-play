@@ -678,6 +678,18 @@ const MazeEditor: React.FC = () => {
   };
 
   const getVisionCharacterAtCell = (x: number, y: number): CharacterConfig | undefined => {
+    // Check cone vision
+    const coneMatch = characters.find(c => {
+      if (!c.coneVision || !c.position) return false;
+      const { generateConeVisionOffsets } = require('@/game/NPCRuntime');
+      // Show cone for all directions if turning, otherwise default south
+      const dirs: CardinalDirection[] = c.turning?.directions || ['south'];
+      return dirs.some(dir => {
+        const offsets = generateConeVisionOffsets(c.coneVision!, dir);
+        return offsets.some(o => c.position!.x + o.dx === x && c.position!.y + o.dy === y);
+      });
+    });
+    if (coneMatch) return coneMatch;
     // Check legacy absolute vision cells
     const legacyMatch = characters.find(c => c.visionCells?.some(vc => vc.x === x && vc.y === y));
     if (legacyMatch) return legacyMatch;
