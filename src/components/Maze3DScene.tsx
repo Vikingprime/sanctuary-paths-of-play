@@ -2050,7 +2050,13 @@ const OverShoulderCameraController = ({
       currentAutopushDist.current = null;
       fadedCellsRef.current.clear();
       debugFrameCount.current = 0;
-      console.log('[CAM-DEBUG] === RESTART DETECTED ===');
+      // Reset camera yaw to player rotation HERE (synchronous in render loop)
+      // because resetting in handleRestart gets overwritten by movement useFrame
+      // before this detection fires
+      if (cameraYawRef) {
+        cameraYawRef.current = playerRotation;
+      }
+      console.log('[CAM-DEBUG] === RESTART DETECTED ===', { playerRot: playerRotation });
     }
     
     // === CAMERA DRIFT-BACK ===
