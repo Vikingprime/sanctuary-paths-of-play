@@ -2030,7 +2030,7 @@ const OverShoulderCameraController = ({
   // Track if player has moved and camera distance
   const initialPlayerPos = useRef<{ x: number; z: number } | null>(null);
   const hasPlayerMoved = useRef(false);
-  const currentDistance = useRef(CAMERA_DISTANCE_NORMAL);
+  const currentDistance = useRef(2.0); // Will be set to CAMERA_DISTANCE_NORMAL on first frame
   const lastRestartKey = useRef(restartKey);
   
   // Autopush state - scalar-based distance easing
