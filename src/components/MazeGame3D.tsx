@@ -1397,6 +1397,9 @@ export const MazeGame3D = ({
     };
     setPlayerStateForUI(playerStateRef.current);
     
+    // Reset camera yaw to match player facing direction
+    cameraYawRef.current = startRotation;
+    
     // Reset rail movement state so player starts stopped with direction arrows
     setIsRailMoving(false);
     railPathRef.current = [];
