@@ -692,6 +692,29 @@ const MazeEditor: React.FC = () => {
     });
   };
 
+  const getObstacleAtCell = (x: number, y: number): ObstacleConfig | undefined => {
+    return obstacles.find(o => o.position?.x === x && o.position?.y === y);
+  };
+
+  const addObstacle = () => {
+    const newId = `obstacle_${Date.now()}`;
+    const newObstacle: ObstacleConfig = {
+      id: newId,
+      model: 'Log.glb',
+      position: null,
+      rotation: 0,
+    };
+    setObstacles(prev => [...prev, newObstacle]);
+    setPlacingObstacleId(newId);
+    setShowObstaclePanel(true);
+    toast.success('Obstacle created! Click on the grid to place it.');
+  };
+
+  const removeObstacle = (id: string) => {
+    setObstacles(prev => prev.filter(o => o.id !== id));
+    if (placingObstacleId === id) setPlacingObstacleId(null);
+  };
+
   const generateSchema = useCallback(() => {
     const gridStrings = grid.map(row => row.join('').replace(/D/g, ' '));
     
