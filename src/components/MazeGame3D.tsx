@@ -1435,6 +1435,11 @@ export const MazeGame3D = ({
     // which will snap the player to the polyline
     setRestartKey(prev => prev + 1);
     
+    // Reset camera orbit yaw to start rotation so camera doesn't drift on restart
+    cameraYawRef.current = startRotation;
+    cameraOrbitDeltaRef.current = 0;
+    cameraOrbitActiveRef.current = false;
+    
     // Clear keys
     keysPressed.current.clear();
   }, [startPos, startRotation, debugMode, maze.timeLimit, maze.previewTime, onRestartProp]);
