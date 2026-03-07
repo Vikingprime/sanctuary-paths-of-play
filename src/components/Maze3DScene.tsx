@@ -1968,6 +1968,7 @@ const OverShoulderCameraController = ({
   const currentPosition = useRef(new Vector3());
   const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
+  const snapFrames = useRef(0); // Skip lerp for N frames after restart
   // Reusable vectors to avoid GC (creating new Vector3 every frame causes jitter)
   const targetPos = useRef(new Vector3());
   const targetLookAt = useRef(new Vector3());
@@ -2117,17 +2118,21 @@ const OverShoulderCameraController = ({
         hasPlayerMoved.current = true;
       }
       
+      // Match EXACTLY what the running code computes (including LOOK_AHEAD)
+      // so no lerp drift occurs on the next frame
+      const initLookAhead = isFirstLoad.current ? 0 : LOOK_AHEAD;
       currentPosition.current.set(
         playerX - Math.sin(rot) * initDist,
         initHeight,
         playerZ + Math.cos(rot) * initDist
       );
       currentLookAt.current.set(
-        playerX,
+        playerX + Math.sin(rot) * initLookAhead,
         initLookHeight,
-        playerZ
+        playerZ - Math.cos(rot) * initLookAhead
       );
       initialized.current = true;
+      snapFrames.current = isFirstLoad.current ? 0 : 3; // Skip lerp for 3 frames on restart
       
       // Skip lerp this frame - snap camera directly
       camera.position.copy(currentPosition.current);
@@ -2440,9 +2445,16 @@ const OverShoulderCameraController = ({
       playerZ - Math.cos(rot) * LOOK_AHEAD
     );
     
-    // Smooth position interpolation
-    currentPosition.current.lerp(finalTargetPosRef.current, POSITION_SMOOTHING);
-    currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
+    // Snap (no lerp) for a few frames after restart to prevent any drift
+    if (snapFrames.current > 0) {
+      snapFrames.current--;
+      currentPosition.current.copy(finalTargetPosRef.current);
+      currentLookAt.current.copy(targetLookAt.current);
+    } else {
+      // Smooth position interpolation
+      currentPosition.current.lerp(finalTargetPosRef.current, POSITION_SMOOTHING);
+      currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
+    }
     
     // Apply to camera
     if (groundLevelCamera) {
