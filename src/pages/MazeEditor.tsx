@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple, Route } from 'lucide-react';
+import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple, Route, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import { FineSpineEditor } from '@/components/FineSpineEditor';
 import { useMazeStorage, createGrid } from '@/hooks/useMazeStorage';
