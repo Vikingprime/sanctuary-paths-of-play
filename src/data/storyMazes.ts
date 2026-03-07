@@ -488,18 +488,7 @@ const chapter4BerryFetch: StoryMaze = {
       position: { x: 5, y: 3 },
       alwaysFacePlayer: false,
       visionDialogueId: 'sparrow_caught',
-      // Looks north (across corridor toward berries) then south (away)
-      directionalVision: {
-        north: { cells: [
-          { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
-          { dx: -1, dy: -2 }, { dx: 0, dy: -2 }, { dx: 1, dy: -2 },
-          { dx: 0, dy: -3 },
-        ]},
-        south: { cells: [
-          { dx: -1, dy: 1 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 },
-          { dx: -1, dy: 2 }, { dx: 0, dy: 2 }, { dx: 1, dy: 2 },
-        ]},
-      },
+      coneVision: { range: 3, spreadPerCell: 1 },
       turning: {
         pattern: 'ping-pong',
         directions: ['north', 'south'],
