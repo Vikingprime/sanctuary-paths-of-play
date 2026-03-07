@@ -94,6 +94,7 @@ interface MazeGame3DProps {
   };
   // Berry system
   onBerryCollect?: (count: number) => void;
+  onBerryReset?: () => void;
   berryCount?: number;
 }
 
@@ -122,6 +123,7 @@ export const MazeGame3D = ({
   onAppleDialogueComplete,
   friendshipProgress,
   onBerryCollect,
+  onBerryReset,
   berryCount = 0,
 }: MazeGame3DProps) => {
   // Initialize from pure game logic
@@ -1428,6 +1430,12 @@ export const MazeGame3D = ({
     pausedTimeRef.current = 0;
     dialoguePauseStartRef.current = null;
     
+    // Reset intro sequence for story mode
+    setIsShowingIntro(!debugMode && (maze.introDialogues?.length ?? 0) > 0);
+    
+    // Reset berry count (temporary items)
+    onBerryReset?.();
+    
     // Record the restart attempt in persistent storage
     onRestartProp?.();
     
@@ -1437,7 +1445,7 @@ export const MazeGame3D = ({
     
     // Clear keys
     keysPressed.current.clear();
-  }, [startPos, startRotation, debugMode, maze.timeLimit, maze.previewTime, onRestartProp]);
+  }, [startPos, startRotation, debugMode, maze.timeLimit, maze.previewTime, maze.introDialogues, onRestartProp, onBerryReset]);
 
   // Handle map station button click
   const handleMapStationClick = () => {
