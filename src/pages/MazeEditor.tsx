@@ -234,8 +234,7 @@ const MazeEditor: React.FC = () => {
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
   const [placingCharacterId, setPlacingCharacterId] = useState<string | null>(null);
-  const [paintingVisionCharacterId, setPaintingVisionCharacterId] = useState<string | null>(null);
-  const [paintingVisionDirection, setPaintingVisionDirection] = useState<CardinalDirection>('north');
+  // Legacy vision painting removed - vision is now always cone-based
   const [obstacles, setObstacles] = useState<ObstacleConfig[]>([]);
   const [showObstaclePanel, setShowObstaclePanel] = useState(false);
   const [placingObstacleId, setPlacingObstacleId] = useState<string | null>(null);
@@ -476,49 +475,9 @@ const MazeEditor: React.FC = () => {
     }
   }, [selectedTool, selectedDialogueId, singleTileMode]);
 
-  const toggleVisionCell = useCallback((x: number, y: number) => {
-    if (!paintingVisionCharacterId) return;
-    setCharacters(prev => prev.map(c => {
-      if (c.id !== paintingVisionCharacterId) return c;
-      
-      // If character has directionalVision, paint relative offsets for the selected direction
-      if (c.directionalVision !== undefined && c.position) {
-        const dx = x - c.position.x;
-        const dy = y - c.position.y;
-        const dir = paintingVisionDirection;
-        const currentZone = c.directionalVision[dir];
-        const cells = currentZone?.cells || [];
-        const exists = cells.some(cell => cell.dx === dx && cell.dy === dy);
-        return {
-          ...c,
-          directionalVision: {
-            ...c.directionalVision,
-            [dir]: {
-              cells: exists
-                ? cells.filter(cell => !(cell.dx === dx && cell.dy === dy))
-                : [...cells, { dx, dy }],
-            },
-          },
-        };
-      }
-      
-      // Legacy absolute vision cells
-      const cells = c.visionCells || [];
-      const exists = cells.some(vc => vc.x === x && vc.y === y);
-      return {
-        ...c,
-        visionCells: exists
-          ? cells.filter(vc => !(vc.x === x && vc.y === y))
-          : [...cells, { x, y }],
-      };
-    }));
-  }, [paintingVisionCharacterId, paintingVisionDirection]);
+  // Vision painting removed - vision is now cone-based only
 
   const handleMouseDown = (x: number, y: number) => {
-    if (paintingVisionCharacterId) {
-      toggleVisionCell(x, y);
-      return;
-    }
     if (placingCharacterId) {
       const char = characters.find(c => c.id === placingCharacterId);
       if (char) {
@@ -542,7 +501,7 @@ const MazeEditor: React.FC = () => {
   };
 
   const handleMouseEnter = (x: number, y: number) => {
-    if (isDragging && !placingCharacterId && !paintingVisionCharacterId) {
+    if (isDragging && !placingCharacterId) {
       paintCell(x, y);
     }
   };
@@ -676,9 +635,6 @@ const MazeEditor: React.FC = () => {
     if (placingCharacterId === id) {
       setPlacingCharacterId(null);
     }
-    if (paintingVisionCharacterId === id) {
-      setPaintingVisionCharacterId(null);
-    }
     setDialogues(prev => prev.map(d => 
       d.speakerCharacterId === id ? { ...d, speakerCharacterId: undefined } : d
     ));
@@ -689,28 +645,23 @@ const MazeEditor: React.FC = () => {
   };
 
   const getVisionCharacterAtCell = (x: number, y: number): CharacterConfig | undefined => {
-    // Check cone vision
-    const coneMatch = characters.find(c => {
+    // Only cone vision - check all facing directions, filtered by walls
+    return characters.find(c => {
       if (!c.coneVision || !c.position) return false;
-      // Show cone for all directions if turning, otherwise default south
       const dirs: CardinalDirection[] = c.turning?.directions || ['south'];
       return dirs.some(dir => {
         const offsets = generateConeVisionOffsets(c.coneVision!, dir);
-        return offsets.some(o => c.position!.x + o.dx === x && c.position!.y + o.dy === y);
+        return offsets.some(o => {
+          const cx = c.position!.x + o.dx;
+          const cy = c.position!.y + o.dy;
+          if (cx === x && cy === y) {
+            // Check wall blocking: is there a wall between NPC and this cell?
+            if (cy >= 0 && cy < grid.length && cx >= 0 && cx < grid[0].length && grid[cy][cx] === '#') return false;
+            return true;
+          }
+          return false;
+        });
       });
-    });
-    if (coneMatch) return coneMatch;
-    // Check legacy absolute vision cells
-    const legacyMatch = characters.find(c => c.visionCells?.some(vc => vc.x === x && vc.y === y));
-    if (legacyMatch) return legacyMatch;
-    // Check directional vision (show all directions' cells)
-    return characters.find(c => {
-      if (!c.directionalVision || !c.position) return false;
-      return Object.values(c.directionalVision).some(zone => 
-        zone && (zone as RelativeVisionZone).cells.some(cell => 
-          c.position!.x + cell.dx === x && c.position!.y + cell.dy === y
-        )
-      );
     });
   };
 
@@ -1376,13 +1327,6 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         🪵 Click to place obstacle...
                       </span>
                     )}
-                    {paintingVisionCharacterId && (
-                      <span className="text-sm text-cyan-600 animate-pulse">
-                        👁 Painting {characters.find(c => c.id === paintingVisionCharacterId)?.directionalVision !== undefined 
-                          ? `${paintingVisionDirection} vision` 
-                          : 'vision'} — click cells to toggle...
-                      </span>
-                    )}
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -1411,8 +1355,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const isOnSpine = showSpineOverlay && (spineAnalysis?.traversedCellKeys.has(getMazeCellKey(x, y)) ?? false);
                         const stripedStyle = isMultiDialogue ? getStripedBackground(cellDialogues) : {};
                         const dialogueNames = cellDialogues.map(d => d.speaker).join(', ');
-                        const isVisionCell = !!visionChar;
-                        const isPaintingVision = !!paintingVisionCharacterId;
+                         const isVisionCell = !!visionChar;
                         
                         return (
                           <div
@@ -1427,7 +1370,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                               ${!isDialogueCell && isVisionCell ? 'bg-cyan-400/70' : ''}
                               ${!isDialogueCell && !isVisionCell && obstacle ? 'bg-amber-600' : ''}
                               ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
-                              ${isPaintingVision ? 'cursor-pointer' : ''}
+                              
                               ${selectedCharacterId && character?.id === selectedCharacterId ? 'ring-2 ring-offset-1 ring-blue-500' : ''}
                             `}
                             style={stripedStyle}
@@ -1699,53 +1642,33 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                           </Button>
                         </div>
 
-                        {/* Vision & Turning Section */}
+                        {/* Vision Section - Cone only */}
                         <div className="mt-3 pt-3 border-t space-y-2">
-                          <Label className="text-xs font-semibold flex items-center gap-1">
-                            👁 Vision
-                          </Label>
-                          
-                          {/* Vision mode toggle */}
-                          <div className="flex items-center gap-2">
-                            <Label className="text-xs">Mode:</Label>
-                            <Select
-                              value={char.coneVision ? 'cone' : (char.directionalVision !== undefined ? 'directional' : 'legacy')}
-                              onValueChange={v => {
-                                if (v === 'cone') {
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-semibold flex items-center gap-1">
+                              👁 Vision Cone
+                            </Label>
+                            <Switch
+                              checked={!!char.coneVision}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
                                   updateCharacter(char.id, { 
-                                    coneVision: { range: 4, spreadPerCell: 1 }, 
-                                    directionalVision: undefined, 
-                                    visionCells: [] 
-                                  });
-                                } else if (v === 'directional') {
-                                  updateCharacter(char.id, { 
-                                    directionalVision: {}, 
-                                    coneVision: undefined, 
-                                    visionCells: [] 
+                                    coneVision: { range: 4, spreadPerCell: 1 },
+                                    directionalVision: undefined,
+                                    visionCells: [],
                                   });
                                 } else {
                                   updateCharacter(char.id, { 
-                                    directionalVision: undefined, 
-                                    coneVision: undefined 
+                                    coneVision: undefined,
+                                    visionDialogueId: undefined,
                                   });
                                 }
                               }}
-                            >
-                              <SelectTrigger className="text-xs h-7 flex-1">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="legacy">Absolute (legacy)</SelectItem>
-                                <SelectItem value="directional">Directional (per-facing)</SelectItem>
-                                <SelectItem value="cone">Cone (triangle)</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            />
                           </div>
 
-                          {/* Cone vision config */}
                           {char.coneVision && (
                             <div className="space-y-2 p-2 bg-muted rounded">
-                              <p className="text-xs font-medium">🔺 Triangle Cone</p>
                               <div className="flex items-center gap-2">
                                 <Label className="text-xs">Range:</Label>
                                 <Input
@@ -1758,9 +1681,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                   min={1}
                                   max={10}
                                 />
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Label className="text-xs">Spread/cell:</Label>
+                                <Label className="text-xs">Spread:</Label>
                                 <Input
                                   type="number"
                                   value={char.coneVision.spreadPerCell}
@@ -1773,129 +1694,46 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                 />
                               </div>
                               <p className="text-xs text-muted-foreground">
-                                Cells at depth N: 1 + 2×spread×(N-1). Follows current facing direction.
+                                Triangle vision blocked by walls. Follows facing direction.
                               </p>
-                            </div>
-                          )}
 
-                          {/* Directional vision UI */}
-                          {!char.coneVision && char.directionalVision !== undefined ? (
-                            <div className="space-y-2">
-                              {/* Cone preset */}
-                              <div className="flex items-center gap-2">
-                                <Label className="text-xs">Preset:</Label>
-                                <Select
-                                  value="__apply__"
-                                  onValueChange={(v) => {
-                                    const preset = v as VisionConePreset;
-                                    if (preset === 'none') {
-                                      updateCharacter(char.id, { directionalVision: {} });
-                                      return;
-                                    }
-                                    const baseOffsets = generateConeOffsets(preset);
-                                    // Generate for all directions that are in the turning config (or all 4)
-                                    const dirs = char.turning?.directions || ALL_DIRECTIONS;
-                                    const newDV: DirectionalVision = {};
-                                    for (const dir of dirs) {
-                                      newDV[dir] = { cells: rotateOffsets(baseOffsets, dir) };
-                                    }
-                                    updateCharacter(char.id, { directionalVision: newDV });
-                                    toast.success(`Applied ${VISION_CONE_PRESETS[preset].label} preset to ${dirs.length} directions`);
-                                  }}
-                                >
-                                  <SelectTrigger className="text-xs h-7 flex-1">
-                                    <SelectValue placeholder="Apply preset..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {(Object.keys(VISION_CONE_PRESETS) as VisionConePreset[]).map(p => (
-                                      <SelectItem key={p} value={p}>{VISION_CONE_PRESETS[p].label} — {VISION_CONE_PRESETS[p].description}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              {/* Direction tabs for fine-tuning */}
-                              <div className="flex flex-wrap gap-1">
-                                {ALL_DIRECTIONS.map(dir => {
-                                  const zone = char.directionalVision?.[dir];
-                                  const cellCount = zone?.cells.length || 0;
-                                  const isActive = paintingVisionCharacterId === char.id && paintingVisionDirection === dir;
-                                  return (
+                              {/* Vision dialogue */}
+                              <div>
+                                <Label className="text-xs">On vision → trigger dialogue</Label>
+                                <div className="flex gap-1 mt-1">
+                                  <Select
+                                    value={char.visionDialogueId || '__none__'}
+                                    onValueChange={v => updateCharacter(char.id, { visionDialogueId: v === '__none__' ? undefined : v })}
+                                  >
+                                    <SelectTrigger className="text-xs h-7 flex-1">
+                                      <SelectValue placeholder="None" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__none__">None</SelectItem>
+                                      {dialogues.map(d => (
+                                        <SelectItem key={d.id} value={d.id}>{d.speaker}: {d.message.slice(0, 30)}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {!char.visionDialogueId && (
                                     <Button
-                                      key={dir}
                                       size="sm"
-                                      variant={isActive ? 'default' : 'outline'}
-                                      className="text-xs px-2 h-7"
-                                      onClick={() => {
-                                        if (isActive) {
-                                          setPaintingVisionCharacterId(null);
-                                        } else {
-                                          setPaintingVisionCharacterId(char.id);
-                                          setPaintingVisionDirection(dir);
-                                          setPlacingCharacterId(null);
-                                        }
+                                      variant="outline"
+                                      className="text-xs h-7 px-2"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const dlg = addDialogue(char.id);
+                                        // Link the new dialogue to this character's vision
+                                        const newDlgId = dialogues[dialogues.length]?.id; // Will be set after state update
                                       }}
                                     >
-                                      {DIRECTION_LABELS[dir]} ({cellCount})
+                                      <Plus className="w-3 h-3 mr-1" /> New
                                     </Button>
-                                  );
-                                })}
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                {paintingVisionCharacterId === char.id 
-                                  ? `🎨 Painting ${paintingVisionDirection} vision — click cells on grid` 
-                                  : 'Select a direction above, then click cells to paint'}
-                              </p>
-                            </div>
-                          ) : !char.coneVision ? (
-                            /* Legacy absolute vision */
-                            <div className="space-y-2">
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant={paintingVisionCharacterId === char.id ? 'default' : 'outline'}
-                                  className="flex-1 text-xs"
-                                  onClick={() => {
-                                    setPaintingVisionCharacterId(
-                                      paintingVisionCharacterId === char.id ? null : char.id
-                                    );
-                                    setPlacingCharacterId(null);
-                                  }}
-                                >
-                                  {paintingVisionCharacterId === char.id ? '✓ Painting...' : `Paint (${char.visionCells?.length || 0} cells)`}
-                                </Button>
-                                {(char.visionCells?.length || 0) > 0 && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-xs text-destructive"
-                                    onClick={() => updateCharacter(char.id, { visionCells: [] })}
-                                  >
-                                    Clear
-                                  </Button>
-                                )}
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          ) : null}
-
-                          {/* Vision triggers dialogue */}
-                          <div>
-                            <Label className="text-xs">Vision triggers dialogue</Label>
-                            <Select
-                              value={char.visionDialogueId || '__none__'}
-                              onValueChange={v => updateCharacter(char.id, { visionDialogueId: v === '__none__' ? undefined : v })}
-                            >
-                              <SelectTrigger className="text-xs h-7">
-                                <SelectValue placeholder="None" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">None</SelectItem>
-                                {dialogues.map(d => (
-                                  <SelectItem key={d.id} value={d.id}>{d.speaker}: {d.message.slice(0, 30)}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
+                          )}
 
                           {/* Turning config */}
                           <div className="mt-2 pt-2 border-t space-y-2">

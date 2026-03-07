@@ -620,9 +620,10 @@ export const MazeGame3D = ({
         if (!char.visionDialogueId) continue;
         if (currentTriggered.has(char.visionDialogueId)) continue;
         
-        // Resolve active vision cells (handles directional + legacy)
+        // Resolve active vision cells with wall blocking
         const npcState = npcRuntimeStatesRef.current.get(char.id);
-        const activeCells = resolveVisionCells(char, npcState);
+        const isWallFn = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
+        const activeCells = resolveVisionCells(char, npcState, isWallFn);
         if (activeCells.length === 0) continue;
         
         const inVision = activeCells.some(cell => cell.x === gridX && cell.y === gridY);

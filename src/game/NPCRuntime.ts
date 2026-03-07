@@ -138,31 +138,71 @@ export function generateConeVisionOffsets(
  */
 export function resolveVisionCells(
   character: MazeCharacter, 
-  npcState?: NPCRuntimeState
+  npcState?: NPCRuntimeState,
+  isWallFn?: (x: number, y: number) => boolean
 ): { x: number; y: number }[] {
   const pos = npcState?.patrolPosition ?? character.position;
   const direction = npcState?.currentDirection ?? 'south';
   
-  // Cone vision takes priority if defined
+  // Cone vision (primary)
   if (character.coneVision) {
     const offsets = generateConeVisionOffsets(character.coneVision, direction);
-    return offsets.map(o => ({ x: pos.x + o.dx, y: pos.y + o.dy }));
+    const cells = offsets.map(o => ({ x: pos.x + o.dx, y: pos.y + o.dy }));
+    // Filter by walls - walls block all vision behind them
+    if (isWallFn) {
+      return filterVisionByWalls(pos, cells, isWallFn);
+    }
+    return cells;
   }
   
   // If directional vision is defined and we have a runtime state, use that
   if (character.directionalVision && npcState) {
     const zone = character.directionalVision[npcState.currentDirection];
     if (zone) {
-      return zone.cells.map(cell => ({
+      const cells = zone.cells.map(cell => ({
         x: pos.x + cell.dx,
         y: pos.y + cell.dy,
       }));
+      if (isWallFn) {
+        return filterVisionByWalls(pos, cells, isWallFn);
+      }
+      return cells;
     }
     return [];
   }
   
-  // Legacy: return absolute vision cells
-  return character.visionCells ?? [];
+  // Legacy: return absolute vision cells (also filter walls)
+  const legacy = character.visionCells ?? [];
+  if (isWallFn && legacy.length > 0) {
+    return filterVisionByWalls(pos, legacy, isWallFn);
+  }
+  return legacy;
+}
+
+/**
+ * Filter vision cells by wall blocking.
+ * A wall cell blocks all cells behind it from the observer's perspective.
+ * Uses ray-marching: walk from observer to each target cell, stop if we hit a wall.
+ */
+function filterVisionByWalls(
+  observer: { x: number; y: number },
+  cells: { x: number; y: number }[],
+  isWall: (x: number, y: number) => boolean
+): { x: number; y: number }[] {
+  return cells.filter(cell => {
+    // Walk from observer toward cell, check for walls in between
+    const dx = cell.x - observer.x;
+    const dy = cell.y - observer.y;
+    const steps = Math.max(Math.abs(dx), Math.abs(dy));
+    if (steps <= 0) return true;
+    
+    for (let s = 1; s <= steps; s++) {
+      const cx = Math.round(observer.x + (dx * s) / steps);
+      const cy = Math.round(observer.y + (dy * s) / steps);
+      if (isWall(cx, cy)) return false;
+    }
+    return true;
+  });
 }
 
 /**
