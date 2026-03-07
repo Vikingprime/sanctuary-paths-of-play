@@ -20,6 +20,15 @@ import { buildMazeEditorSpine, cellsTouchSpine, getMazeCellKey } from '@/lib/maz
 import { branchContainsFineCell, expandDeletedSpineBranches, getSpineBranchCells, getSpineBranchRangeForCell, getSpineFineCellKey, normalizeSpineFineBranches, normalizeSpineFineCells, SPINE_FINE_GRID_SCALE, type SpineFineBranchRange, type SpineFineCellCoordinate } from '@/lib/spineFineCells';
 import { getCharacterAnimations } from '@/game/CharacterConfig';
 import { generateConeVisionOffsets } from '@/game/NPCRuntime';
+import { 
+  EditorPalette, 
+  DRAG_TYPE_CHARACTER, 
+  DRAG_TYPE_OBSTACLE, 
+  DRAG_TYPE_PLACED_CHARACTER, 
+  DRAG_TYPE_PLACED_OBSTACLE,
+  type DragCharacterData,
+  type DragObstacleData,
+} from '@/components/maze-editor/EditorPalette';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
