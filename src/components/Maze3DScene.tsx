@@ -2140,6 +2140,16 @@ const OverShoulderCameraController = ({
       if ('fov' in camera) {
         (camera as any).updateProjectionMatrix();
       }
+      console.log('[CAM-DEBUG] INIT frame', {
+        isFirstLoad: isFirstLoad.current,
+        snapFrames: snapFrames.current,
+        camPos: `${camera.position.x.toFixed(3)}, ${camera.position.y.toFixed(3)}, ${camera.position.z.toFixed(3)}`,
+        playerPos: `${playerX.toFixed(3)}, ${playerZ.toFixed(3)}`,
+        rot: targetCameraYaw.toFixed(3),
+        playerRot: playerRotation.toFixed(3),
+        initDist,
+        initHeight,
+      });
       return; // Don't run any lerp/smoothing on the init frame
     }
     
