@@ -1183,6 +1183,8 @@ const VisionConeOverlay = ({
   
   if (!coneGeometry && visionCells.length === 0) return null;
   
+  
+  
   const pos = character.position;
   
   return (
