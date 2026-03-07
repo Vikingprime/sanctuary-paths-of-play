@@ -1628,10 +1628,10 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                 Cells at depth N: 1 + 2×spread×(N-1). Follows current facing direction.
                               </p>
                             </div>
-                          )
+                          )}
 
                           {/* Directional vision UI */}
-                          {char.directionalVision !== undefined ? (
+                          {!char.coneVision && char.directionalVision !== undefined ? (
                             <div className="space-y-2">
                               {/* Cone preset */}
                               <div className="flex items-center gap-2">
