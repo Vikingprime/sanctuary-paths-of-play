@@ -1090,32 +1090,41 @@ const PlacedCharacter = ({
 const VisionConeOverlay = ({ 
   character, 
   rotationOverride,
+  maze,
 }: { 
   character: MazeCharacter;
   rotationOverride?: number;
+  maze: Maze;
 }) => {
   // Resolve which vision cells to show based on current direction
   const visionCells = useMemo(() => {
-    if (character.directionalVision) {
-      // Determine current direction from rotation override
-      let direction: 'north' | 'south' | 'east' | 'west' = 'south';
-      if (rotationOverride !== undefined) {
-        const normalized = ((rotationOverride % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-        if (normalized < Math.PI * 0.25 || normalized > Math.PI * 1.75) direction = 'south';
-        else if (normalized < Math.PI * 0.75) direction = 'west';
-        else if (normalized < Math.PI * 1.25) direction = 'north';
-        else direction = 'east';
-      }
-      
-      const zone = character.directionalVision[direction];
-      if (!zone) return [];
-      return zone.cells.map(c => ({
-        x: character.position.x + c.dx,
-        y: character.position.y + c.dy,
-      }));
+    // Determine current direction from rotation override
+    let direction: 'north' | 'south' | 'east' | 'west' = 'south';
+    if (rotationOverride !== undefined) {
+      const normalized = ((rotationOverride % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      if (normalized < Math.PI * 0.25 || normalized > Math.PI * 1.75) direction = 'south';
+      else if (normalized < Math.PI * 0.75) direction = 'west';
+      else if (normalized < Math.PI * 1.25) direction = 'north';
+      else direction = 'east';
     }
-    return character.visionCells ?? [];
-  }, [character, rotationOverride]);
+    
+    const isWallFn = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
+    
+    // Use resolveVisionCells with wall blocking
+    const fakeState: NPCRuntimeState = {
+      characterId: character.id,
+      currentDirection: direction,
+      pingPongIndex: 0,
+      pingPongForward: true,
+      elapsedMs: 0,
+      patrolWaypointIndex: 0,
+      patrolPosition: { x: character.position.x, y: character.position.y },
+      patrolPauseElapsed: 0,
+      isPatrolPaused: false,
+    };
+    
+    return resolveVisionCells(character, fakeState, isWallFn);
+  }, [character, rotationOverride, maze.grid]);
   
   if (visionCells.length === 0) return null;
   
@@ -2969,12 +2978,13 @@ return (
         />
       ))}
       
-      {/* Vision Cone overlays for NPCs with directional vision */}
-      {maze.characters?.filter(c => c.directionalVision || (c.visionCells && c.visionCells.length > 0)).map((character) => (
+      {/* Vision Cone overlays for NPCs with vision */}
+      {maze.characters?.filter(c => c.coneVision || c.directionalVision || (c.visionCells && c.visionCells.length > 0)).map((character) => (
         <VisionConeOverlay
           key={`vision-${character.id}`}
           character={character}
           rotationOverride={npcRotations[character.id]}
+          maze={maze}
         />
       ))}
       
