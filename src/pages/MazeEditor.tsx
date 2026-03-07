@@ -35,10 +35,61 @@ interface CharacterConfig {
   model: string;
   animation: string;
   position: { x: number; y: number } | null;
-  dialogueSequence?: DialogueSequenceItem[]; // Per-animal dialogue sequence
+  dialogueSequence?: DialogueSequenceItem[];
   visionCells?: { x: number; y: number }[];
   visionDialogueId?: string;
+  directionalVision?: DirectionalVision;
+  turning?: TurningConfig;
 }
+
+type VisionConePreset = 'none' | 'narrow' | 'wide' | 'long';
+
+const VISION_CONE_PRESETS: Record<VisionConePreset, { label: string; description: string }> = {
+  none: { label: 'None', description: 'No vision' },
+  narrow: { label: 'Narrow', description: '1-wide, 3 deep' },
+  wide: { label: 'Wide', description: '3-wide, 2 deep' },
+  long: { label: 'Long', description: '1-wide, 5 deep' },
+};
+
+// Generate relative vision cells for a cone preset facing north (dy negative = north)
+// Other directions are derived by rotating these offsets
+function generateConeOffsets(preset: VisionConePreset): { dx: number; dy: number }[] {
+  switch (preset) {
+    case 'narrow':
+      return [
+        { dx: 0, dy: -1 }, { dx: 0, dy: -2 }, { dx: 0, dy: -3 },
+      ];
+    case 'wide':
+      return [
+        { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
+        { dx: -1, dy: -2 }, { dx: 0, dy: -2 }, { dx: 1, dy: -2 },
+      ];
+    case 'long':
+      return [
+        { dx: 0, dy: -1 }, { dx: 0, dy: -2 }, { dx: 0, dy: -3 },
+        { dx: 0, dy: -4 }, { dx: 0, dy: -5 },
+      ];
+    default:
+      return [];
+  }
+}
+
+// Rotate "north-facing" offsets to another direction
+function rotateOffsets(cells: { dx: number; dy: number }[], dir: CardinalDirection): { dx: number; dy: number }[] {
+  return cells.map(({ dx, dy }) => {
+    switch (dir) {
+      case 'north': return { dx, dy };
+      case 'south': return { dx: -dx, dy: -dy };
+      case 'east': return { dx: -dy, dy: dx };
+      case 'west': return { dx: dy, dy: -dx };
+    }
+  });
+}
+
+const ALL_DIRECTIONS: CardinalDirection[] = ['north', 'south', 'east', 'west'];
+const DIRECTION_LABELS: Record<CardinalDirection, string> = {
+  north: '⬆ North', south: '⬇ South', east: '➡ East', west: '⬅ West',
+};
 
 interface DialogueConfig {
   id: string;
