@@ -1135,6 +1135,8 @@ const RefBasedPlayer = ({
   mobileIsMovingRef,
   mobileTouchActiveRef,
   cameraYawRef,
+  cameraOrbitDeltaRef,
+  cameraOrbitActiveRef,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1170,6 +1172,8 @@ const RefBasedPlayer = ({
   mobileIsMovingRef?: MutableRefObject<boolean>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
   cameraYawRef?: MutableRefObject<number>;
+  cameraOrbitDeltaRef?: MutableRefObject<number>;
+  cameraOrbitActiveRef?: MutableRefObject<boolean>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1874,6 +1878,8 @@ const OverShoulderCameraController = ({
   maze,
   opacityFadeEnabled = true,
   cameraYawRef,
+  cameraOrbitActiveRef,
+  mobileTouchActiveRef,
   railMode = false,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1886,6 +1892,8 @@ const OverShoulderCameraController = ({
   maze?: Maze;
   opacityFadeEnabled?: boolean;
   cameraYawRef?: MutableRefObject<number>;
+  cameraOrbitActiveRef?: MutableRefObject<boolean>;
+  mobileTouchActiveRef?: MutableRefObject<boolean>;
   railMode?: boolean;
 }) => {
   const { camera, scene } = useThree();
@@ -2843,6 +2851,8 @@ return (
         mobileIsMovingRef={mobileIsMovingRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
         cameraYawRef={cameraYawRef}
+        cameraOrbitDeltaRef={cameraOrbitDeltaRef}
+        cameraOrbitActiveRef={cameraOrbitActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}
@@ -2876,8 +2886,8 @@ return (
         </>
       ) : (
         <>
-          <OverShoulderCameraController 
-            playerStateRef={playerStateRef}
+           <OverShoulderCameraController 
+2882:             playerStateRef={playerStateRef}
             restartKey={restartKey}
             topDownCamera={topDownCamera}
             groundLevelCamera={groundLevelCamera}
@@ -2886,6 +2896,8 @@ return (
             maze={maze}
             opacityFadeEnabled={opacityFadeEnabled}
             cameraYawRef={cameraYawRef}
+            cameraOrbitActiveRef={cameraOrbitActiveRef}
+            mobileTouchActiveRef={mobileTouchActiveRef}
             railMode={railMode}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
