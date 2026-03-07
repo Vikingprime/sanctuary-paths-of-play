@@ -1661,11 +1661,31 @@ const RefBasedPlayer = ({
           collisionIntensityRef.current = 0; // Reset collision state when idle
         }
       } else {
-        // No input - no movement
+        // No joystick/keyboard input - but still apply camera orbit delta from touch
+        if (cameraYawRef && cameraOrbitDeltaRef && cameraOrbitDeltaRef.current !== 0) {
+          cameraYawRef.current += cameraOrbitDeltaRef.current;
+          cameraOrbitDeltaRef.current = 0;
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
+        // Keyboard Q/E for camera orbit
+        if (cameraYawRef) {
+          const KEYBOARD_ORBIT_SPEED = 2.0;
+          if (keysPressed.current.has('q')) {
+            cameraYawRef.current -= KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          if (keysPressed.current.has('e')) {
+            cameraYawRef.current += KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
         isMovingRef.current = false;
         isTurningRef.current = false;
         moveSpeedRef.current = 0;
-        collisionIntensityRef.current = 0; // Reset collision state when idle
+        collisionIntensityRef.current = 0;
       }
       } // End of else block for normal movement (non-rail mode)
       
