@@ -77,6 +77,8 @@ interface Maze3DSceneProps {
   mobileIsMovingRef?: MutableRefObject<boolean>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
   cameraYawRef?: MutableRefObject<number>; // Camera orbit yaw angle
+  cameraOrbitDeltaRef?: MutableRefObject<number>; // Per-frame orbit delta from touch
+  cameraOrbitActiveRef?: MutableRefObject<boolean>; // Whether orbit touch is active
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   onCharacterClick?: (characterId: string) => void; // For click-triggered dialogues
@@ -1133,6 +1135,8 @@ const RefBasedPlayer = ({
   mobileIsMovingRef,
   mobileTouchActiveRef,
   cameraYawRef,
+  cameraOrbitDeltaRef,
+  cameraOrbitActiveRef,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1168,6 +1172,8 @@ const RefBasedPlayer = ({
   mobileIsMovingRef?: MutableRefObject<boolean>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
   cameraYawRef?: MutableRefObject<number>;
+  cameraOrbitDeltaRef?: MutableRefObject<number>;
+  cameraOrbitActiveRef?: MutableRefObject<boolean>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1448,6 +1454,14 @@ const RefBasedPlayer = ({
           }
         }
         
+        // In rail mode, still apply camera orbit delta from touch
+        if (cameraYawRef && cameraOrbitDeltaRef && cameraOrbitDeltaRef.current !== 0) {
+          cameraYawRef.current += cameraOrbitDeltaRef.current;
+          cameraOrbitDeltaRef.current = 0;
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
         // Skip normal movement processing in rail mode
       } else {
         // === NORMAL MOVEMENT (keyboard/joystick) ===
@@ -1496,6 +1510,15 @@ const RefBasedPlayer = ({
         if (cameraYawRef) {
           cameraYawRef.current += joyX * ORBIT_SPEED * clampedDelta;
           // Normalize to 0-2PI
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
+        // Apply camera orbit delta from touch (right side of screen)
+        if (cameraYawRef && cameraOrbitDeltaRef) {
+          cameraYawRef.current += cameraOrbitDeltaRef.current;
+          cameraOrbitDeltaRef.current = 0; // Consume delta
+          // Normalize
           while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
           while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
         }
@@ -1646,11 +1669,31 @@ const RefBasedPlayer = ({
           collisionIntensityRef.current = 0; // Reset collision state when idle
         }
       } else {
-        // No input - no movement
+        // No joystick/keyboard input - but still apply camera orbit delta from touch
+        if (cameraYawRef && cameraOrbitDeltaRef && cameraOrbitDeltaRef.current !== 0) {
+          cameraYawRef.current += cameraOrbitDeltaRef.current;
+          cameraOrbitDeltaRef.current = 0;
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
+        // Keyboard Q/E for camera orbit
+        if (cameraYawRef) {
+          const KEYBOARD_ORBIT_SPEED = 2.0;
+          if (keysPressed.current.has('q')) {
+            cameraYawRef.current -= KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          if (keysPressed.current.has('e')) {
+            cameraYawRef.current += KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
         isMovingRef.current = false;
         isTurningRef.current = false;
         moveSpeedRef.current = 0;
-        collisionIntensityRef.current = 0; // Reset collision state when idle
+        collisionIntensityRef.current = 0;
       }
       } // End of else block for normal movement (non-rail mode)
       
@@ -1872,6 +1915,8 @@ const OverShoulderCameraController = ({
   maze,
   opacityFadeEnabled = true,
   cameraYawRef,
+  cameraOrbitActiveRef,
+  mobileTouchActiveRef,
   railMode = false,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1884,6 +1929,8 @@ const OverShoulderCameraController = ({
   maze?: Maze;
   opacityFadeEnabled?: boolean;
   cameraYawRef?: MutableRefObject<number>;
+  cameraOrbitActiveRef?: MutableRefObject<boolean>;
+  mobileTouchActiveRef?: MutableRefObject<boolean>;
   railMode?: boolean;
 }) => {
   const { camera, scene } = useThree();
@@ -1967,6 +2014,26 @@ const OverShoulderCameraController = ({
   
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
+    
+    // === CAMERA DRIFT-BACK ===
+    // When no orbit touch is active AND no joystick is being used, drift camera back behind player
+    const orbitActive = cameraOrbitActiveRef?.current ?? false;
+    const touchActive = mobileTouchActiveRef?.current ?? false;
+    
+    if (!railMode && cameraYawRef && !orbitActive && !touchActive) {
+      let diff = playerRotation - cameraYawRef.current;
+      // Shortest path wrap-around
+      if (diff > Math.PI) diff -= Math.PI * 2;
+      if (diff < -Math.PI) diff += Math.PI * 2;
+      // Only drift if there's meaningful difference
+      if (Math.abs(diff) > 0.01) {
+        const DRIFT_SPEED = 0.025; // Slow, smooth drift
+        cameraYawRef.current += diff * DRIFT_SPEED;
+        // Normalize
+        while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+        while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+      }
+    }
     
     // In rail mode, camera follows animal's rotation directly for smooth path following
     // In orbit mode, use cameraYawRef, otherwise fall back to player rotation
@@ -2607,7 +2674,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, onCharacterClick, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, debugMode = false, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady, npcRotations = {} }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, cameraOrbitDeltaRef, cameraOrbitActiveRef, speedBoostActive, onCellInteraction, onCharacterClick, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, debugMode = false, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady, npcRotations = {} }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2841,6 +2908,8 @@ return (
         mobileIsMovingRef={mobileIsMovingRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
         cameraYawRef={cameraYawRef}
+        cameraOrbitDeltaRef={cameraOrbitDeltaRef}
+        cameraOrbitActiveRef={cameraOrbitActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}
@@ -2874,7 +2943,7 @@ return (
         </>
       ) : (
         <>
-          <OverShoulderCameraController 
+           <OverShoulderCameraController 
             playerStateRef={playerStateRef}
             restartKey={restartKey}
             topDownCamera={topDownCamera}
@@ -2884,6 +2953,8 @@ return (
             maze={maze}
             opacityFadeEnabled={opacityFadeEnabled}
             cameraYawRef={cameraYawRef}
+            cameraOrbitActiveRef={cameraOrbitActiveRef}
+            mobileTouchActiveRef={mobileTouchActiveRef}
             railMode={railMode}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}

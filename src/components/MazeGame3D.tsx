@@ -224,6 +224,9 @@ export const MazeGame3D = ({
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   // Camera orbit yaw - controlled by joystick X, used for orbit camera
   const cameraYawRef = useRef(startRotation); // Camera yaw angle (orbits around player)
+  // Camera orbit touch refs (right side of screen)
+  const cameraOrbitDeltaRef = useRef(0); // Per-frame delta from orbit touch
+  const cameraOrbitActiveRef = useRef(false); // Whether orbit touch is currently held
   
   // Control mode: 'joystick' or 'rail' (on-rail navigation)
   // Rail mode is the default for all modes
@@ -1589,6 +1592,8 @@ export const MazeGame3D = ({
         mobileIsMovingRef={mobileIsMovingRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
         cameraYawRef={cameraYawRef}
+        cameraOrbitDeltaRef={cameraOrbitDeltaRef}
+        cameraOrbitActiveRef={cameraOrbitActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         onCharacterClick={handleCharacterClick}
@@ -1786,23 +1791,69 @@ export const MazeGame3D = ({
           joystickYRef={joystickYRef}
           isMovingRef={mobileIsMovingRef}
           mobileTouchActiveRef={mobileTouchActiveRef}
+          cameraOrbitDeltaRef={cameraOrbitDeltaRef}
+          cameraOrbitActiveRef={cameraOrbitActiveRef}
           debugMode={debugMode}
         />
       )}
       
       {/* Rail Controls - on-rail navigation mode */}
       {!isPreviewing && mobileControlsEnabled && controlMode === 'rail' && (
-        <RailControls
-          cache={magnetismCacheRef.current}
-          playerX={playerStateForUI.x}
-          playerZ={playerStateForUI.y}
-          animalRotation={playerStateForUI.rotation}
-          onDirectionSelect={handleRailDirectionSelect}
-          onStop={handleRailStop}
-          onTurnAround={handleRailTurnAround}
-          isMoving={isRailMoving}
-          enabled={controlMode === 'rail'}
-        />
+        <>
+          <RailControls
+            cache={magnetismCacheRef.current}
+            playerX={playerStateForUI.x}
+            playerZ={playerStateForUI.y}
+            animalRotation={playerStateForUI.rotation}
+            onDirectionSelect={handleRailDirectionSelect}
+            onStop={handleRailStop}
+            onTurnAround={handleRailTurnAround}
+            isMoving={isRailMoving}
+            enabled={controlMode === 'rail'}
+          />
+          {/* Camera orbit touch overlay for rail mode (right half of screen) */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: '50%',
+              right: 0,
+              bottom: 0,
+              zIndex: 9,
+              touchAction: 'none',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              background: 'transparent',
+            }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              (e.currentTarget as any).__orbitPointerId = e.pointerId;
+              (e.currentTarget as any).__orbitLastX = e.clientX;
+              cameraOrbitActiveRef.current = true;
+              try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+            }}
+            onPointerMove={(e) => {
+              if ((e.currentTarget as any).__orbitPointerId === e.pointerId) {
+                const delta = e.clientX - ((e.currentTarget as any).__orbitLastX ?? e.clientX);
+                (e.currentTarget as any).__orbitLastX = e.clientX;
+                cameraOrbitDeltaRef.current += delta * 0.006;
+              }
+            }}
+            onPointerUp={(e) => {
+              if ((e.currentTarget as any).__orbitPointerId === e.pointerId) {
+                (e.currentTarget as any).__orbitPointerId = null;
+                cameraOrbitActiveRef.current = false;
+              }
+              try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+            }}
+            onPointerCancel={(e) => {
+              if ((e.currentTarget as any).__orbitPointerId === e.pointerId) {
+                (e.currentTarget as any).__orbitPointerId = null;
+                cameraOrbitActiveRef.current = false;
+              }
+            }}
+          />
+        </>
       )}
       
       {/* Control Mode Toggle - only shows in debug mode */}
