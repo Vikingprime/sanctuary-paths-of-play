@@ -832,6 +832,7 @@ const MazeEditor: React.FC = () => {
   }, []);
 
 
+  const generateSchema = useCallback(() => {
     const gridStrings = grid.map(row => row.join('').replace(/D/g, ' '));
     
     const charactersSchema = characters.filter(c => c.position).length > 0 ? `
