@@ -18,6 +18,9 @@ export const MOBILE_CONTROL_CONFIG = {
   joystickBottomPercent: 0.22,
 };
 
+// Camera orbit sensitivity (radians per pixel of horizontal drag)
+const ORBIT_SENSITIVITY = 0.006;
+
 interface MobileControlsProps {
   playerStateRef: MutableRefObject<PlayerState>;
   // Dial output: X (-1 left to 1 right), Y (0 to 1 forward only - no backward)
@@ -25,6 +28,9 @@ interface MobileControlsProps {
   joystickYRef: MutableRefObject<number>;
   isMovingRef: MutableRefObject<boolean>;
   mobileTouchActiveRef: MutableRefObject<boolean>;
+  // Camera orbit refs (right side of screen)
+  cameraOrbitDeltaRef?: MutableRefObject<number>;
+  cameraOrbitActiveRef?: MutableRefObject<boolean>;
   debugMode?: boolean;
 }
 
@@ -34,12 +40,18 @@ export const MobileControls = ({
   joystickYRef,
   isMovingRef,
   mobileTouchActiveRef,
+  cameraOrbitDeltaRef,
+  cameraOrbitActiveRef,
   debugMode = false,
 }: MobileControlsProps) => {
   // Joystick refs
   const anchorRef = useRef<{ x: number; y: number } | null>(null);
   const fingerRef = useRef<{ x: number; y: number } | null>(null);
   const pointerIdRef = useRef<number | null>(null);
+  
+  // Camera orbit refs (second pointer, right side of screen)
+  const orbitPointerIdRef = useRef<number | null>(null);
+  const orbitLastXRef = useRef<number>(0);
   
   const animationFrameRef = useRef<number | null>(null);
   
@@ -82,8 +94,14 @@ export const MobileControls = ({
     mobileTouchActiveRef.current = false;
     setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0, magnitude: 0 });
     
+    // Reset orbit
+    orbitPointerIdRef.current = null;
+    orbitLastXRef.current = 0;
+    if (cameraOrbitActiveRef) cameraOrbitActiveRef.current = false;
+    if (cameraOrbitDeltaRef) cameraOrbitDeltaRef.current = 0;
+    
     screenDimensionsRef.current = { width: window.innerWidth, height: window.innerHeight };
-  }, [joystickXRef, joystickYRef, isMovingRef, mobileTouchActiveRef]);
+  }, [joystickXRef, joystickYRef, isMovingRef, mobileTouchActiveRef, cameraOrbitActiveRef, cameraOrbitDeltaRef]);
 
   // Track orientation
   const lastOrientationRef = useRef<'portrait' | 'landscape'>(
@@ -230,23 +248,33 @@ export const MobileControls = ({
     e.preventDefault();
     e.stopPropagation();
     
-    // Only accept if no joystick is active
-    if (pointerIdRef.current !== null) return;
+    const screenMidX = screenDimensionsRef.current.width * 0.5;
     
-    const { fixedAnchorX, fixedAnchorY } = getPixelValues();
-    
-    pointerIdRef.current = e.pointerId;
-    // Anchor is ALWAYS at fixed position, finger starts where touched
-    anchorRef.current = { x: fixedAnchorX, y: fixedAnchorY };
-    fingerRef.current = { x: e.clientX, y: e.clientY };
-    mobileTouchActiveRef.current = true;
+    if (e.clientX < screenMidX) {
+      // Left side → joystick
+      if (pointerIdRef.current !== null) return;
+      
+      const { fixedAnchorX, fixedAnchorY } = getPixelValues();
+      
+      pointerIdRef.current = e.pointerId;
+      anchorRef.current = { x: fixedAnchorX, y: fixedAnchorY };
+      fingerRef.current = { x: e.clientX, y: e.clientY };
+      mobileTouchActiveRef.current = true;
+    } else {
+      // Right side → camera orbit
+      if (orbitPointerIdRef.current !== null) return;
+      
+      orbitPointerIdRef.current = e.pointerId;
+      orbitLastXRef.current = e.clientX;
+      if (cameraOrbitActiveRef) cameraOrbitActiveRef.current = true;
+    }
     
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch (err) {
       // Ignore
     }
-  }, [mobileTouchActiveRef, getPixelValues]);
+  }, [mobileTouchActiveRef, getPixelValues, cameraOrbitActiveRef]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -255,7 +283,15 @@ export const MobileControls = ({
     if (pointerIdRef.current === e.pointerId && anchorRef.current) {
       fingerRef.current = { x: e.clientX, y: e.clientY };
     }
-  }, []);
+    
+    if (orbitPointerIdRef.current === e.pointerId) {
+      const deltaX = e.clientX - orbitLastXRef.current;
+      orbitLastXRef.current = e.clientX;
+      if (cameraOrbitDeltaRef) {
+        cameraOrbitDeltaRef.current += deltaX * ORBIT_SENSITIVITY;
+      }
+    }
+  }, [cameraOrbitDeltaRef]);
 
   const handlePointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -274,12 +310,17 @@ export const MobileControls = ({
       setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0, magnitude: 0 });
     }
     
+    if (orbitPointerIdRef.current === e.pointerId) {
+      orbitPointerIdRef.current = null;
+      if (cameraOrbitActiveRef) cameraOrbitActiveRef.current = false;
+    }
+    
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch (err) {
       // Ignore
     }
-  }, [joystickXRef, joystickYRef, isMovingRef, mobileTouchActiveRef]);
+  }, [joystickXRef, joystickYRef, isMovingRef, mobileTouchActiveRef, cameraOrbitActiveRef]);
 
   const handlePointerLeave = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (pointerIdRef.current === e.pointerId) {
@@ -292,7 +333,11 @@ export const MobileControls = ({
       mobileTouchActiveRef.current = false;
       setJoystickState({ visible: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0, magnitude: 0 });
     }
-  }, [joystickXRef, joystickYRef, isMovingRef, mobileTouchActiveRef]);
+    if (orbitPointerIdRef.current === e.pointerId) {
+      orbitPointerIdRef.current = null;
+      if (cameraOrbitActiveRef) cameraOrbitActiveRef.current = false;
+    }
+  }, [joystickXRef, joystickYRef, isMovingRef, mobileTouchActiveRef, cameraOrbitActiveRef]);
 
   const { baseRadius, knobRadius } = getPixelValues();
 
