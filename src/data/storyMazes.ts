@@ -474,7 +474,7 @@ const chapter4BerryFetch: StoryMaze = {
       emoji: '🫐',
       model: 'Bush_with_Berries.glb',
       animation: 'idle',
-      position: { x: 9, y: 2 },
+      position: { x: 8, y: 2 },
     },
     {
       id: 'sparrow_watcher',
@@ -482,23 +482,24 @@ const chapter4BerryFetch: StoryMaze = {
       emoji: '🐦',
       model: 'Sparrow.glb',
       animation: 'idle',
-      position: { x: 6, y: 4 },
+      position: { x: 3, y: 3 },
       alwaysFacePlayer: false,
       visionDialogueId: 'sparrow_caught',
-      // Looks north (across corridor) then east (away into nook wall)
+      // Looks north (across corridor toward berries) then south (away)
       directionalVision: {
         north: { cells: [
           { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
           { dx: -1, dy: -2 }, { dx: 0, dy: -2 }, { dx: 1, dy: -2 },
+          { dx: 0, dy: -3 },
         ]},
-        east: { cells: [
-          { dx: 1, dy: -1 }, { dx: 1, dy: 0 }, { dx: 1, dy: 1 },
-          { dx: 2, dy: -1 }, { dx: 2, dy: 0 }, { dx: 2, dy: 1 },
+        south: { cells: [
+          { dx: -1, dy: 1 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 },
+          { dx: -1, dy: 2 }, { dx: 0, dy: 2 }, { dx: 1, dy: 2 },
         ]},
       },
       turning: {
         pattern: 'ping-pong',
-        directions: ['north', 'east'],
+        directions: ['north', 'south'],
         intervalMs: 3000,
         initialDirection: 'north',
       },
@@ -521,7 +522,7 @@ const chapter4BerryFetch: StoryMaze = {
         id: 'return_berry',
         type: 'reach',
         description: 'Bring the berry back to the start',
-        targetPosition: { x: 1, y: 2 },
+        targetPosition: { x: 1, y: 1 },
         completed: false,
         hidden: true,
       },
@@ -551,7 +552,7 @@ const chapter4BerryFetch: StoryMaze = {
         },
       ],
       cells: [
-        { x: 8, y: 2 }, { x: 9, y: 2 }, { x: 9, y: 1 },
+        { x: 7, y: 2 }, { x: 8, y: 2 }, { x: 8, y: 1 },
       ],
       speakerCharacterId: 'berry_bush',
       questAction: { type: 'complete_objective', objectiveId: 'reach_bush' },
@@ -565,13 +566,13 @@ const chapter4BerryFetch: StoryMaze = {
   endConditions: {
     requiredDialogues: ['bush_found'],
   },
-  // Straight horizontal corridor — sparrow in a nook below mid-path
+  // Open room — sparrow in middle, berry bush top-right
   grid: createGrid([
     '###########',
-    '#SE      B#',
-    '#    #   B#',
-    '#    #    #',
-    '#   ###   #',
+    '#SE      ##',
+    '#       B #',
+    '#   O     #',
+    '#         #',
     '###########',
   ]),
 };
