@@ -1113,41 +1113,57 @@ const VisionConeOverlay = ({
     }
     
     // Build triangle vertices in local space (relative to character position)
-    // Tip at character center (0,0,0), widens to range * spreadPerCell at the far end
-    const farHalfWidth = spreadPerCell * range + 0.5; // +0.5 to cover full cells
+    // Tip starts 1 cell in front of the NPC (vision doesn't overlap the NPC itself)
+    // The cone widens from depth=1 to depth=range, matching generateConeVisionOffsets
+    const nearDist = 1; // Start 1 cell away (matches depth=1 in NPCRuntime)
     const farDist = range;
+    const nearHalfWidth = 0.5; // At depth 1, width is 1 cell (half = 0.5)
+    const farHalfWidth = spreadPerCell * (range - 1) + 0.5; // Match spread formula + 0.5 for cell coverage
     
-    // Define triangle points based on direction (in XZ plane)
-    // Tip is always at character center (0,0,0)
-    let tip: [number, number, number] = [0, 0, 0];
-    let left: [number, number, number];
-    let right: [number, number, number];
+    // Define trapezoid points based on direction (in XZ plane)
+    // Near edge is 1 cell in front, far edge is at range
+    let nearLeft: [number, number, number];
+    let nearRight: [number, number, number];
+    let farLeft: [number, number, number];
+    let farRight: [number, number, number];
     
     switch (direction) {
       case 'north':
-        left = [-farHalfWidth, 0, -farDist];
-        right = [farHalfWidth, 0, -farDist];
+        nearLeft = [-nearHalfWidth, 0, -nearDist];
+        nearRight = [nearHalfWidth, 0, -nearDist];
+        farLeft = [-farHalfWidth, 0, -farDist];
+        farRight = [farHalfWidth, 0, -farDist];
         break;
       case 'south':
-        left = [farHalfWidth, 0, farDist];
-        right = [-farHalfWidth, 0, farDist];
+        nearLeft = [nearHalfWidth, 0, nearDist];
+        nearRight = [-nearHalfWidth, 0, nearDist];
+        farLeft = [farHalfWidth, 0, farDist];
+        farRight = [-farHalfWidth, 0, farDist];
         break;
       case 'east':
-        left = [farDist, 0, -farHalfWidth];
-        right = [farDist, 0, farHalfWidth];
+        nearLeft = [nearDist, 0, -nearHalfWidth];
+        nearRight = [nearDist, 0, nearHalfWidth];
+        farLeft = [farDist, 0, -farHalfWidth];
+        farRight = [farDist, 0, farHalfWidth];
         break;
       case 'west':
       default:
-        left = [-farDist, 0, farHalfWidth];
-        right = [-farDist, 0, -farHalfWidth];
+        nearLeft = [-nearDist, 0, nearHalfWidth];
+        nearRight = [-nearDist, 0, -nearHalfWidth];
+        farLeft = [-farDist, 0, farHalfWidth];
+        farRight = [-farDist, 0, -farHalfWidth];
         break;
     }
     
     const geom = new BufferGeometry();
+    // Trapezoid: 2 triangles (nearLeft, farLeft, farRight) and (nearLeft, farRight, nearRight)
     const vertices = new Float32Array([
-      tip[0], tip[1], tip[2],
-      left[0], left[1], left[2],
-      right[0], right[1], right[2],
+      nearLeft[0], nearLeft[1], nearLeft[2],
+      farLeft[0], farLeft[1], farLeft[2],
+      farRight[0], farRight[1], farRight[2],
+      nearLeft[0], nearLeft[1], nearLeft[2],
+      farRight[0], farRight[1], farRight[2],
+      nearRight[0], nearRight[1], nearRight[2],
     ]);
     geom.setAttribute('position', new Float32BufferAttribute(vertices, 3));
     geom.computeVertexNormals();
