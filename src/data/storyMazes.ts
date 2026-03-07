@@ -462,10 +462,13 @@ const chapter4BerryFetch: StoryMaze = {
   timeLimit: 120,
   timerDisabled: true,
   previewTime: 10,
+  deletedSpineBranches: [
+    { start: { x: 80, y: 60 }, end: { x: 169, y: 70 } },
+  ],
   medalTimes: {
-    gold: 30,
-    silver: 50,
-    bronze: 80,
+    gold: 15,
+    silver: 25,
+    bronze: 40,
   },
   characters: [
     {
@@ -482,7 +485,7 @@ const chapter4BerryFetch: StoryMaze = {
       emoji: '🐦',
       model: 'Sparrow.glb',
       animation: 'idle',
-      position: { x: 3, y: 3 },
+      position: { x: 5, y: 3 },
       alwaysFacePlayer: false,
       visionDialogueId: 'sparrow_caught',
       // Looks north (across corridor toward berries) then south (away)
@@ -570,9 +573,9 @@ const chapter4BerryFetch: StoryMaze = {
   grid: createGrid([
     '###########',
     '#SE      ##',
-    '#       B #',
-    '#   O     #',
-    '#         #',
+    '#     #  ##',
+    '#     #  ##',
+    '#        ##',
     '###########',
   ]),
 };
