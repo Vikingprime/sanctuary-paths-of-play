@@ -1464,36 +1464,136 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                           </Button>
                         </div>
 
-                        {/* Vision Cells Section */}
+                        {/* Vision & Turning Section */}
                         <div className="mt-3 pt-3 border-t space-y-2">
                           <Label className="text-xs font-semibold flex items-center gap-1">
-                            👁 Vision ({char.visionCells?.length || 0} cells)
+                            👁 Vision
                           </Label>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant={paintingVisionCharacterId === char.id ? 'default' : 'outline'}
-                              className="flex-1 text-xs"
-                              onClick={() => {
-                                setPaintingVisionCharacterId(
-                                  paintingVisionCharacterId === char.id ? null : char.id
-                                );
-                                setPlacingCharacterId(null);
+                          
+                          {/* Vision mode toggle */}
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs">Mode:</Label>
+                            <Select
+                              value={char.directionalVision !== undefined ? 'directional' : 'legacy'}
+                              onValueChange={v => {
+                                if (v === 'directional') {
+                                  updateCharacter(char.id, { directionalVision: {}, visionCells: [] });
+                                } else {
+                                  updateCharacter(char.id, { directionalVision: undefined });
+                                }
                               }}
                             >
-                              {paintingVisionCharacterId === char.id ? '✓ Painting vision...' : 'Paint Vision Cells'}
-                            </Button>
-                            {(char.visionCells?.length || 0) > 0 && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-xs text-destructive"
-                                onClick={() => updateCharacter(char.id, { visionCells: [] })}
-                              >
-                                Clear
-                              </Button>
-                            )}
+                              <SelectTrigger className="text-xs h-7 flex-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="legacy">Absolute (legacy)</SelectItem>
+                                <SelectItem value="directional">Directional (per-facing)</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
+
+                          {/* Directional vision UI */}
+                          {char.directionalVision !== undefined ? (
+                            <div className="space-y-2">
+                              {/* Cone preset */}
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs">Preset:</Label>
+                                <Select
+                                  value="__apply__"
+                                  onValueChange={(v) => {
+                                    const preset = v as VisionConePreset;
+                                    if (preset === 'none') {
+                                      updateCharacter(char.id, { directionalVision: {} });
+                                      return;
+                                    }
+                                    const baseOffsets = generateConeOffsets(preset);
+                                    // Generate for all directions that are in the turning config (or all 4)
+                                    const dirs = char.turning?.directions || ALL_DIRECTIONS;
+                                    const newDV: DirectionalVision = {};
+                                    for (const dir of dirs) {
+                                      newDV[dir] = { cells: rotateOffsets(baseOffsets, dir) };
+                                    }
+                                    updateCharacter(char.id, { directionalVision: newDV });
+                                    toast.success(`Applied ${VISION_CONE_PRESETS[preset].label} preset to ${dirs.length} directions`);
+                                  }}
+                                >
+                                  <SelectTrigger className="text-xs h-7 flex-1">
+                                    <SelectValue placeholder="Apply preset..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {(Object.keys(VISION_CONE_PRESETS) as VisionConePreset[]).map(p => (
+                                      <SelectItem key={p} value={p}>{VISION_CONE_PRESETS[p].label} — {VISION_CONE_PRESETS[p].description}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              {/* Direction tabs for fine-tuning */}
+                              <div className="flex flex-wrap gap-1">
+                                {ALL_DIRECTIONS.map(dir => {
+                                  const zone = char.directionalVision?.[dir];
+                                  const cellCount = zone?.cells.length || 0;
+                                  const isActive = paintingVisionCharacterId === char.id && paintingVisionDirection === dir;
+                                  return (
+                                    <Button
+                                      key={dir}
+                                      size="sm"
+                                      variant={isActive ? 'default' : 'outline'}
+                                      className="text-xs px-2 h-7"
+                                      onClick={() => {
+                                        if (isActive) {
+                                          setPaintingVisionCharacterId(null);
+                                        } else {
+                                          setPaintingVisionCharacterId(char.id);
+                                          setPaintingVisionDirection(dir);
+                                          setPlacingCharacterId(null);
+                                        }
+                                      }}
+                                    >
+                                      {DIRECTION_LABELS[dir]} ({cellCount})
+                                    </Button>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {paintingVisionCharacterId === char.id 
+                                  ? `🎨 Painting ${paintingVisionDirection} vision — click cells on grid` 
+                                  : 'Select a direction above, then click cells to paint'}
+                              </p>
+                            </div>
+                          ) : (
+                            /* Legacy absolute vision */
+                            <div className="space-y-2">
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant={paintingVisionCharacterId === char.id ? 'default' : 'outline'}
+                                  className="flex-1 text-xs"
+                                  onClick={() => {
+                                    setPaintingVisionCharacterId(
+                                      paintingVisionCharacterId === char.id ? null : char.id
+                                    );
+                                    setPlacingCharacterId(null);
+                                  }}
+                                >
+                                  {paintingVisionCharacterId === char.id ? '✓ Painting...' : `Paint (${char.visionCells?.length || 0} cells)`}
+                                </Button>
+                                {(char.visionCells?.length || 0) > 0 && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-xs text-destructive"
+                                    onClick={() => updateCharacter(char.id, { visionCells: [] })}
+                                  >
+                                    Clear
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Vision triggers dialogue */}
                           <div>
                             <Label className="text-xs">Vision triggers dialogue</Label>
                             <Select
@@ -1510,6 +1610,73 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                 ))}
                               </SelectContent>
                             </Select>
+                          </div>
+
+                          {/* Turning config */}
+                          <div className="mt-2 pt-2 border-t space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs font-semibold">🔄 Turning</Label>
+                              <Switch
+                                checked={!!char.turning}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    updateCharacter(char.id, {
+                                      turning: {
+                                        pattern: 'ping-pong',
+                                        directions: ['north', 'south'],
+                                        intervalMs: 3000,
+                                      },
+                                      directionalVision: char.directionalVision ?? {},
+                                    });
+                                  } else {
+                                    updateCharacter(char.id, { turning: undefined });
+                                  }
+                                }}
+                              />
+                            </div>
+                            {char.turning && (
+                              <div className="space-y-2 pl-2">
+                                <div>
+                                  <Label className="text-xs">Directions (ping-pong)</Label>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {ALL_DIRECTIONS.map(dir => {
+                                      const isIn = char.turning!.directions.includes(dir);
+                                      return (
+                                        <Button
+                                          key={dir}
+                                          size="sm"
+                                          variant={isIn ? 'default' : 'outline'}
+                                          className="text-xs px-2 h-6"
+                                          onClick={() => {
+                                            const dirs = isIn
+                                              ? char.turning!.directions.filter(d => d !== dir)
+                                              : [...char.turning!.directions, dir];
+                                            if (dirs.length >= 2) {
+                                              updateCharacter(char.id, {
+                                                turning: { ...char.turning!, directions: dirs as CardinalDirection[] },
+                                              });
+                                            }
+                                          }}
+                                        >
+                                          {DIRECTION_LABELS[dir]}
+                                        </Button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-xs">Interval (ms)</Label>
+                                  <Input
+                                    type="number"
+                                    value={char.turning.intervalMs}
+                                    onChange={e => updateCharacter(char.id, {
+                                      turning: { ...char.turning!, intervalMs: parseInt(e.target.value) || 1000 },
+                                    })}
+                                    className="text-xs h-7 w-24"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
 
