@@ -635,9 +635,6 @@ const MazeEditor: React.FC = () => {
     if (placingCharacterId === id) {
       setPlacingCharacterId(null);
     }
-    if (paintingVisionCharacterId === id) {
-      setPaintingVisionCharacterId(null);
-    }
     setDialogues(prev => prev.map(d => 
       d.speakerCharacterId === id ? { ...d, speakerCharacterId: undefined } : d
     ));
