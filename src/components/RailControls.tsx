@@ -511,24 +511,32 @@ export function RailControls({
      return () => window.removeEventListener('resize', handleResize);
    }, []);
   
-  // Track camera yaw for live arrow updates during orbit
-  const [trackedCameraYaw, setTrackedCameraYaw] = useState<number | undefined>(cameraYawRef?.current);
+  // Smooth camera-relative rotation via CSS transform (no re-renders)
+  const containerRef = useRef<HTMLDivElement>(null);
   
-  // Poll cameraYawRef for live updates (refs don't trigger re-renders)
+  // Animate the container rotation to match camera offset
   useEffect(() => {
     if (!cameraYawRef || isMoving) return;
-    const interval = setInterval(() => {
-      const current = cameraYawRef.current;
-      setTrackedCameraYaw(prev => {
-        // Only update if changed meaningfully (avoid unnecessary re-renders)
-        if (prev === undefined || Math.abs((prev ?? 0) - current) > 0.05) return current;
-        return prev;
-      });
-    }, 100); // 10Hz polling
-    return () => clearInterval(interval);
-  }, [cameraYawRef, isMoving]);
+    let rafId: number;
+    const animate = () => {
+      if (containerRef.current && cameraYawRef) {
+        // Calculate the yaw difference between camera and animal
+        let diff = cameraYawRef.current - animalRotation;
+        // Normalize to [-PI, PI]
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        // Convert to degrees and rotate the container
+        // The arrows are positioned relative to animal facing, so we rotate by the camera offset
+        const degrees = (diff * 180) / Math.PI;
+        containerRef.current.style.transform = `rotate(${degrees}deg)`;
+      }
+      rafId = requestAnimationFrame(animate);
+    };
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
+  }, [cameraYawRef, animalRotation, isMoving]);
 
-  // Find current position and available directions
+  // Find current position and available directions (based on animal rotation, not camera)
   useEffect(() => {
     if (!enabled || !cache) {
       setDirections([]);
@@ -549,11 +557,10 @@ export function RailControls({
         cache,
         playerX,
         playerZ,
-        trackedCameraYaw,
       );
       setDirections(availableDirs);
     }
-  }, [enabled, cache, playerX, playerZ, animalRotation, trackedCameraYaw, isMoving]);
+  }, [enabled, cache, playerX, playerZ, animalRotation, isMoving]);
   
   const handleDirectionClick = useCallback((dir: DirectionOption) => {
     if (dir.isTurnAround) {
