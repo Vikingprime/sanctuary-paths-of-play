@@ -2117,17 +2117,21 @@ const OverShoulderCameraController = ({
         hasPlayerMoved.current = true;
       }
       
+      // Match EXACTLY what the running code computes (including LOOK_AHEAD)
+      // so no lerp drift occurs on the next frame
+      const initLookAhead = isFirstLoad.current ? 0 : LOOK_AHEAD;
       currentPosition.current.set(
         playerX - Math.sin(rot) * initDist,
         initHeight,
         playerZ + Math.cos(rot) * initDist
       );
       currentLookAt.current.set(
-        playerX,
+        playerX + Math.sin(rot) * initLookAhead,
         initLookHeight,
-        playerZ
+        playerZ - Math.cos(rot) * initLookAhead
       );
       initialized.current = true;
+      snapFrames.current = isFirstLoad.current ? 0 : 3; // Skip lerp for 3 frames on restart
       
       // Skip lerp this frame - snap camera directly
       camera.position.copy(currentPosition.current);
