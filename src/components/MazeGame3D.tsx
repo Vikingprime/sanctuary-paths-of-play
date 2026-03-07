@@ -1151,6 +1151,10 @@ export const MazeGame3D = ({
           
           playerStateRef.current.rotation = rotation;
           
+          // Sync camera yaw so camera starts aligned behind the snapped direction
+          // (prevents initial camera turn when magnetism changes facing from startRotation)
+          cameraYawRef.current = rotation;
+          
           // Ensure we start in stopped state so direction arrows are shown
           setIsRailMoving(false);
           railPathRef.current = [];
