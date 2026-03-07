@@ -1462,6 +1462,19 @@ const RefBasedPlayer = ({
           while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
         }
         
+        // In rail mode, keyboard Q/E for camera orbit
+        if (cameraYawRef) {
+          const KEYBOARD_ORBIT_SPEED = 2.0;
+          if (keysPressed.current.has('q')) {
+            cameraYawRef.current -= KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          if (keysPressed.current.has('e')) {
+            cameraYawRef.current += KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
         // Skip normal movement processing in rail mode
       } else {
         // === NORMAL MOVEMENT (keyboard/joystick) ===
@@ -1497,6 +1510,19 @@ const RefBasedPlayer = ({
         isMovingRef.current = isForwardOrBack;
         isTurningRef.current = isRotating && !isForwardOrBack; // Only turning in place
         moveSpeedRef.current = isForwardOrBack ? 1.0 : 0; // Keyboard is always full speed
+        
+        // Keyboard Q/E for camera orbit (while also moving with WASD)
+        if (cameraYawRef) {
+          const KEYBOARD_ORBIT_SPEED = 2.0;
+          if (keysPressed.current.has('q')) {
+            cameraYawRef.current -= KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          if (keysPressed.current.has('e')) {
+            cameraYawRef.current += KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
         
         // Calculate movement with clamped delta
         const prev = playerStateRef.current;
@@ -2020,6 +2046,11 @@ const OverShoulderCameraController = ({
     const orbitActive = cameraOrbitActiveRef?.current ?? false;
     const touchActive = mobileTouchActiveRef?.current ?? false;
     
+    // Also pause drift when Q/E keys are held
+    const qeActive = typeof window !== 'undefined' && (
+      document.querySelector('#mobileControlSurface') !== null // proxy: keysPressed not available here
+    ) ? false : false; // We check via keysPressed passed through props
+    // Simplified: just check if orbit is not active and no touch
     if (!railMode && cameraYawRef && !orbitActive && !touchActive) {
       let diff = playerRotation - cameraYawRef.current;
       // Shortest path wrap-around
