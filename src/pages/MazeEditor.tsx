@@ -1174,7 +1174,9 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     )}
                     {paintingVisionCharacterId && (
                       <span className="text-sm text-cyan-600 animate-pulse">
-                        👁 Click cells to toggle vision...
+                        👁 Painting {characters.find(c => c.id === paintingVisionCharacterId)?.directionalVision !== undefined 
+                          ? `${paintingVisionDirection} vision` 
+                          : 'vision'} — click cells to toggle...
                       </span>
                     )}
                   </div>
