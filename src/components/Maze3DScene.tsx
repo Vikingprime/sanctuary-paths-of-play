@@ -1969,6 +1969,7 @@ const OverShoulderCameraController = ({
   const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
   const snapFrames = useRef(0); // Skip lerp for N frames after restart
+  const debugFrameCount = useRef(0); // Temporary debug counter
   // Reusable vectors to avoid GC (creating new Vector3 every frame causes jitter)
   const targetPos = useRef(new Vector3());
   const targetLookAt = useRef(new Vector3());
