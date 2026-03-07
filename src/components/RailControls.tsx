@@ -516,15 +516,22 @@ export function RailControls({
   // Animate the container rotation to match camera offset
   useEffect(() => {
     if (!cameraYawRef || isMoving) return;
+    
+    // Apply initial rotation immediately to avoid visual jump on mount/restart
+    if (containerRef.current) {
+      let diff = animalRotation - cameraYawRef.current;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      const degrees = (diff * 180) / Math.PI;
+      containerRef.current.style.transform = `rotate(${degrees}deg)`;
+    }
+    
     let rafId: number;
     const animate = () => {
       if (containerRef.current && cameraYawRef) {
-        // Calculate the yaw difference: when camera orbits right, arrows should shift left
         let diff = animalRotation - cameraYawRef.current;
-        // Normalize to [-PI, PI]
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
-        // Convert to degrees and rotate the container
         const degrees = (diff * 180) / Math.PI;
         containerRef.current.style.transform = `rotate(${degrees}deg)`;
       }
