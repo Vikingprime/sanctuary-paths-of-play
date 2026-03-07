@@ -242,7 +242,6 @@ export function findAvailableDirections(
   cache: MagnetismCache | null,
   actualPlayerX?: number,
   actualPlayerZ?: number,
-  cameraYaw?: number,
 ): DirectionOption[] {
   if (!cache?.polylineGraph) return [];
   
@@ -253,9 +252,9 @@ export function findAvailableDirections(
   const { polylineGraph } = cache;
   const directions: DirectionOption[] = [];
   
-  // Use camera yaw for arrow positioning if available, otherwise animal rotation
-  const referenceRotation = cameraYaw ?? animalRotation;
-  const animalFacingAngle = -referenceRotation + Math.PI;
+  // Directions are computed relative to animal rotation
+  // Camera offset is applied via CSS rotation on the container
+  const animalFacingAngle = -animalRotation + Math.PI;
   
   // Helper to compute relative angle (for UI positioning)
   // The world uses atan2(x, z) where +angle is counter-clockwise when viewed from above
