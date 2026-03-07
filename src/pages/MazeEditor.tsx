@@ -19,6 +19,7 @@ import { canBeFedApples } from '@/types/appleDialogue';
 import { buildMazeEditorSpine, cellsTouchSpine, getMazeCellKey } from '@/lib/mazeEditorSpine';
 import { branchContainsFineCell, expandDeletedSpineBranches, getSpineBranchCells, getSpineBranchRangeForCell, getSpineFineCellKey, normalizeSpineFineBranches, normalizeSpineFineCells, SPINE_FINE_GRID_SCALE, type SpineFineBranchRange, type SpineFineCellCoordinate } from '@/lib/spineFineCells';
 import { getCharacterAnimations } from '@/game/CharacterConfig';
+import { generateConeVisionOffsets } from '@/game/NPCRuntime';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -681,7 +682,6 @@ const MazeEditor: React.FC = () => {
     // Check cone vision
     const coneMatch = characters.find(c => {
       if (!c.coneVision || !c.position) return false;
-      const { generateConeVisionOffsets } = require('@/game/NPCRuntime');
       // Show cone for all directions if turning, otherwise default south
       const dirs: CardinalDirection[] = c.turning?.directions || ['south'];
       return dirs.some(dir => {
