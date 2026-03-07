@@ -492,7 +492,7 @@ export function RailControls({
   playerX,
   playerZ,
   animalRotation,
-  cameraYaw,
+  cameraYawRef,
   onDirectionSelect,
   onStop,
   onTurnAround,
