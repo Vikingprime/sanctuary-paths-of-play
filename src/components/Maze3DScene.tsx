@@ -2049,6 +2049,8 @@ const OverShoulderCameraController = ({
       isFirstLoad.current = false;
       currentAutopushDist.current = null;
       fadedCellsRef.current.clear();
+      debugFrameCount.current = 0;
+      console.log('[CAM-DEBUG] === RESTART DETECTED ===');
     }
     
     // === CAMERA DRIFT-BACK ===
