@@ -2000,6 +2000,7 @@ const OverShoulderCameraController = ({
   mobileTouchActiveRef,
   keysPressed,
   railMode = false,
+  isMovingRef,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
@@ -2015,6 +2016,7 @@ const OverShoulderCameraController = ({
   mobileTouchActiveRef?: MutableRefObject<boolean>;
   keysPressed?: MutableRefObject<Set<string>>;
   railMode?: boolean;
+  isMovingRef?: MutableRefObject<boolean>;
 }) => {
   const { camera, scene } = useThree();
   
@@ -2113,7 +2115,8 @@ const OverShoulderCameraController = ({
       if (diff < -Math.PI) diff += Math.PI * 2;
       // Only drift if there's meaningful difference
       if (Math.abs(diff) > 0.01) {
-        const DRIFT_SPEED = 0.0092; // Gentle drift back (1.15x)
+        const isMoving = isMovingRef?.current ?? false;
+        const DRIFT_SPEED = isMoving ? 0.0096 : 0.008; // 1.2x faster while moving
         cameraYawRef.current += diff * DRIFT_SPEED;
         // Normalize
         while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
@@ -3050,6 +3053,7 @@ return (
             mobileTouchActiveRef={mobileTouchActiveRef}
             keysPressed={keysPressed}
             railMode={railMode}
+            isMovingRef={isMovingRef}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
         </>
