@@ -1206,11 +1206,6 @@ const VisionConeOverlay = ({
           />
         </mesh>
       )}
-      {/* Debug dot: yellow sphere at the triangle tip (character position) */}
-      <mesh position={[cx, 0.15, cz]}>
-        <sphereGeometry args={[0.12, 16, 16]} />
-        <meshBasicMaterial color="yellow" />
-      </mesh>
       {/* Fallback: cell-based rendering for non-cone vision */}
       {!coneGeometry && visionCells.map((cell, i) => (
         <mesh
