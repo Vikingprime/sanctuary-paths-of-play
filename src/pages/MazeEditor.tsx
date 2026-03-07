@@ -212,6 +212,7 @@ const MazeEditor: React.FC = () => {
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
   const [placingCharacterId, setPlacingCharacterId] = useState<string | null>(null);
   const [paintingVisionCharacterId, setPaintingVisionCharacterId] = useState<string | null>(null);
+  const [paintingVisionDirection, setPaintingVisionDirection] = useState<CardinalDirection>('north');
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
   const [showMazeList, setShowMazeList] = useState(true);
