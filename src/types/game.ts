@@ -143,6 +143,7 @@ export interface Maze {
   introDialogues?: IntroDialogue[]; // optional intro sequence before maze starts
   endConditions?: {
     requiredDialogues?: string[]; // Dialogues that must be completed before end cell triggers level complete
+    requireReturnToEnd?: boolean; // If true, player must walk back to end cell after completing required dialogues (no auto-complete)
   };
   goalCharacterId?: string; // ID of placed character that acts as the goal (reaching them completes the level)
   timerDisabled?: boolean; // If true, no countdown timer (free exploration)

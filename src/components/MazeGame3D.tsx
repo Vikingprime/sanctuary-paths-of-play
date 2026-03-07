@@ -856,8 +856,8 @@ export const MazeGame3D = ({
     handleRailStop();
     
     // For story mode: check if all required dialogues are now complete
-    // If so, end the chapter immediately (no need to reach end cell)
-    if (isStoryMode && maze.endConditions?.requiredDialogues) {
+    // If requireReturnToEnd is set, player must walk back to end cell (don't auto-complete)
+    if (isStoryMode && maze.endConditions?.requiredDialogues && !maze.endConditions?.requireReturnToEnd) {
       // Check if we just completed the last required dialogue
       const allDialoguesTriggered = maze.endConditions.requiredDialogues.every(
         id => triggeredDialogues.has(id) || id === currentDialogueId
