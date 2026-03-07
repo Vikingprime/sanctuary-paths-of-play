@@ -1266,6 +1266,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const cellDialogues = getCellDialogues(x, y);
                         const dialogue = cellDialogues[0];
                         const character = getCharacterAtCell(x, y);
+                        const obstacle = getObstacleAtCell(x, y);
                         const visionChar = getVisionCharacterAtCell(x, y);
                         const isDialogueCell = cellDialogues.length > 0;
                         const isMultiDialogue = cellDialogues.length > 1;
@@ -1283,22 +1284,27 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             className={`
                               w-4 h-4 md:w-5 md:h-5 cursor-crosshair transition-colors relative
                               ${character ? 'ring-2 ring-primary' : ''}
+                              ${obstacle ? 'ring-2 ring-amber-700' : ''}
                               ${isDialogueCell && !isMultiDialogue ? dialogueColor : ''}
-                              ${!isDialogueCell && !isVisionCell ? CELL_COLORS[cell] : ''}
+                              ${!isDialogueCell && !isVisionCell && !obstacle ? CELL_COLORS[cell] : ''}
                               ${!isDialogueCell && isVisionCell ? 'bg-cyan-400/70' : ''}
+                              ${!isDialogueCell && !isVisionCell && obstacle ? 'bg-amber-600' : ''}
                               ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
                               ${isPaintingVision ? 'cursor-pointer' : ''}
                             `}
                             style={stripedStyle}
                             onMouseDown={() => handleMouseDown(x, y)}
                             onMouseEnter={() => handleMouseEnter(x, y)}
-                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${isVisionCell ? ` - 👁 ${visionChar.name} vision` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
+                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${isVisionCell ? ` - 👁 ${visionChar.name} vision` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
                           >
                             {isOnSpine && (
                               <span className="pointer-events-none absolute inset-[3px] rounded-full border border-primary bg-primary/35" />
                             )}
-                            {isVisionCell && !character && (
+                            {isVisionCell && !character && !obstacle && (
                               <span className="absolute inset-0 flex items-center justify-center text-[8px] pointer-events-none">👁</span>
+                            )}
+                            {obstacle && !character && (
+                              <span className="absolute inset-0 z-10 flex items-center justify-center text-[8px]">🪵</span>
                             )}
                             {character && (
                               <span className="absolute inset-0 z-10 flex items-center justify-center text-[10px]">
