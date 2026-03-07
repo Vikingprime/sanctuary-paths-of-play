@@ -568,6 +568,7 @@ const chapter4BerryFetch: StoryMaze = {
   goalCharacterId: undefined,
   endConditions: {
     requiredDialogues: ['bush_found'],
+    requireReturnToEnd: true, // Must walk back to start after grabbing berries
   },
   // Open room — sparrow in middle, berry bush top-right
   grid: createGrid([
