@@ -1185,12 +1185,16 @@ const VisionConeOverlay = ({
   
   const pos = character.position;
   
+  // Characters render at (pos.x + 0.5, pos.y + 0.5) - center of grid cell
+  const cx = pos.x + 0.5;
+  const cz = pos.y + 0.5;
+  
   return (
     <group>
       {/* Smooth triangle cone */}
       {coneGeometry && (
         <mesh
-          position={[pos.x, 0.03, pos.y]}
+          position={[cx, 0.03, cz]}
           geometry={coneGeometry}
         >
           <meshBasicMaterial
@@ -1203,7 +1207,7 @@ const VisionConeOverlay = ({
         </mesh>
       )}
       {/* Debug dot: yellow sphere at the triangle tip (character position) */}
-      <mesh position={[pos.x, 0.15, pos.y]}>
+      <mesh position={[cx, 0.15, cz]}>
         <sphereGeometry args={[0.12, 16, 16]} />
         <meshBasicMaterial color="yellow" />
       </mesh>
