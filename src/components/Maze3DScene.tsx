@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend, useLoader } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html, useTexture } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping, CanvasTexture } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping, CanvasTexture, BufferGeometry, BufferAttribute, Float32BufferAttribute } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { resolveVisionCells, NPCRuntimeState } from '@/game/NPCRuntime';
@@ -1087,7 +1087,7 @@ const PlacedCharacter = ({
   );
 };
 
-// VisionConeOverlay - renders red semi-transparent planes on the ground for NPC vision zones
+// VisionConeOverlay - renders a smooth triangle cone on the ground for NPC vision zones
 const VisionConeOverlay = ({ 
   character, 
   rotationOverride,
@@ -1097,9 +1097,12 @@ const VisionConeOverlay = ({
   rotationOverride?: number;
   maze: Maze;
 }) => {
-  // Resolve which vision cells to show based on current direction
-  const visionCells = useMemo(() => {
-    // Determine current direction from rotation override
+  const coneGeometry = useMemo(() => {
+    if (!character.coneVision) return null;
+    
+    const { range, spreadPerCell } = character.coneVision;
+    
+    // Determine direction
     let direction: 'north' | 'south' | 'east' | 'west' = 'south';
     if (rotationOverride !== undefined) {
       const normalized = ((rotationOverride % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
@@ -1109,9 +1112,61 @@ const VisionConeOverlay = ({
       else direction = 'east';
     }
     
-    const isWallFn = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
+    // Build triangle vertices in local space (relative to character position)
+    // Tip at character, widens to range * spreadPerCell at the far end
+    const farHalfWidth = spreadPerCell * range + 0.5; // +0.5 to cover full cells
+    const farDist = range + 0.5;
     
-    // Use resolveVisionCells with wall blocking
+    // Define triangle points based on direction (in XZ plane)
+    let tip: [number, number, number];
+    let left: [number, number, number];
+    let right: [number, number, number];
+    
+    switch (direction) {
+      case 'north':
+        tip = [0, 0, -0.5];
+        left = [-farHalfWidth, 0, -farDist];
+        right = [farHalfWidth, 0, -farDist];
+        break;
+      case 'south':
+        tip = [0, 0, 0.5];
+        left = [farHalfWidth, 0, farDist];
+        right = [-farHalfWidth, 0, farDist];
+        break;
+      case 'east':
+        tip = [0.5, 0, 0];
+        left = [farDist, 0, -farHalfWidth];
+        right = [farDist, 0, farHalfWidth];
+        break;
+      case 'west':
+        tip = [-0.5, 0, 0];
+        left = [-farDist, 0, farHalfWidth];
+        right = [-farDist, 0, -farHalfWidth];
+        break;
+    }
+    
+    const geom = new BufferGeometry();
+    const vertices = new Float32Array([
+      tip[0], tip[1], tip[2],
+      left[0], left[1], left[2],
+      right[0], right[1], right[2],
+    ]);
+    geom.setAttribute('position', new Float32BufferAttribute(vertices, 3));
+    geom.computeVertexNormals();
+    return geom;
+  }, [character.coneVision, rotationOverride]);
+  
+  // Also keep cell-based detection for legacy/fallback
+  const visionCells = useMemo(() => {
+    let direction: 'north' | 'south' | 'east' | 'west' = 'south';
+    if (rotationOverride !== undefined) {
+      const normalized = ((rotationOverride % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      if (normalized < Math.PI * 0.25 || normalized > Math.PI * 1.75) direction = 'south';
+      else if (normalized < Math.PI * 0.75) direction = 'west';
+      else if (normalized < Math.PI * 1.25) direction = 'north';
+      else direction = 'east';
+    }
+    const isWallFn = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
     const fakeState: NPCRuntimeState = {
       characterId: character.id,
       currentDirection: direction,
@@ -1123,15 +1178,32 @@ const VisionConeOverlay = ({
       patrolPauseElapsed: 0,
       isPatrolPaused: false,
     };
-    
     return resolveVisionCells(character, fakeState, isWallFn);
   }, [character, rotationOverride, maze.grid]);
   
-  if (visionCells.length === 0) return null;
+  if (!coneGeometry && visionCells.length === 0) return null;
+  
+  const pos = character.position;
   
   return (
     <group>
-      {visionCells.map((cell, i) => (
+      {/* Smooth triangle cone */}
+      {coneGeometry && (
+        <mesh
+          position={[pos.x, 0.03, pos.y]}
+          geometry={coneGeometry}
+        >
+          <meshBasicMaterial
+            color="#cc2200"
+            transparent
+            opacity={0.25}
+            depthWrite={false}
+            side={DoubleSide}
+          />
+        </mesh>
+      )}
+      {/* Fallback: cell-based rendering for non-cone vision */}
+      {!coneGeometry && visionCells.map((cell, i) => (
         <mesh
           key={i}
           position={[cell.x, 0.02, cell.y]}
