@@ -1462,6 +1462,19 @@ const RefBasedPlayer = ({
           while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
         }
         
+        // In rail mode, keyboard Q/E for camera orbit
+        if (cameraYawRef) {
+          const KEYBOARD_ORBIT_SPEED = 2.0;
+          if (keysPressed.current.has('q')) {
+            cameraYawRef.current -= KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          if (keysPressed.current.has('e')) {
+            cameraYawRef.current += KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
         // Skip normal movement processing in rail mode
       } else {
         // === NORMAL MOVEMENT (keyboard/joystick) ===
@@ -1497,6 +1510,19 @@ const RefBasedPlayer = ({
         isMovingRef.current = isForwardOrBack;
         isTurningRef.current = isRotating && !isForwardOrBack; // Only turning in place
         moveSpeedRef.current = isForwardOrBack ? 1.0 : 0; // Keyboard is always full speed
+        
+        // Keyboard Q/E for camera orbit (while also moving with WASD)
+        if (cameraYawRef) {
+          const KEYBOARD_ORBIT_SPEED = 2.0;
+          if (keysPressed.current.has('q')) {
+            cameraYawRef.current -= KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          if (keysPressed.current.has('e')) {
+            cameraYawRef.current += KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
         
         // Calculate movement with clamped delta
         const prev = playerStateRef.current;
@@ -1917,6 +1943,7 @@ const OverShoulderCameraController = ({
   cameraYawRef,
   cameraOrbitActiveRef,
   mobileTouchActiveRef,
+  keysPressed,
   railMode = false,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1931,6 +1958,7 @@ const OverShoulderCameraController = ({
   cameraYawRef?: MutableRefObject<number>;
   cameraOrbitActiveRef?: MutableRefObject<boolean>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
+  keysPressed?: MutableRefObject<Set<string>>;
   railMode?: boolean;
 }) => {
   const { camera, scene } = useThree();
@@ -2020,7 +2048,10 @@ const OverShoulderCameraController = ({
     const orbitActive = cameraOrbitActiveRef?.current ?? false;
     const touchActive = mobileTouchActiveRef?.current ?? false;
     
-    if (!railMode && cameraYawRef && !orbitActive && !touchActive) {
+    // Also pause drift when Q/E keys are held
+    const qeActive = keysPressed?.current?.has('q') || keysPressed?.current?.has('e');
+    
+    if (!railMode && cameraYawRef && !orbitActive && !touchActive && !qeActive) {
       let diff = playerRotation - cameraYawRef.current;
       // Shortest path wrap-around
       if (diff > Math.PI) diff -= Math.PI * 2;
@@ -2955,6 +2986,7 @@ return (
             cameraYawRef={cameraYawRef}
             cameraOrbitActiveRef={cameraOrbitActiveRef}
             mobileTouchActiveRef={mobileTouchActiveRef}
+            keysPressed={keysPressed}
             railMode={railMode}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
