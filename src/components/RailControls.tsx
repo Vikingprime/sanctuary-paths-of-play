@@ -22,6 +22,8 @@ export interface RailControlsProps {
   playerZ: number;
   /** Current animal rotation (radians) - used to classify directions relative to animal's facing */
   animalRotation: number;
+  /** Camera yaw ref - when provided, arrows are positioned relative to camera view */
+  cameraYawRef?: React.MutableRefObject<number>;
   /** Callback when direction is selected - provides target position and direction */
   onDirectionSelect: (targetX: number, targetZ: number, pathPoints: Point2D[]) => void;
   /** Callback when stop is pressed */
@@ -240,6 +242,7 @@ export function findAvailableDirections(
   cache: MagnetismCache | null,
   actualPlayerX?: number,
   actualPlayerZ?: number,
+  cameraYaw?: number,
 ): DirectionOption[] {
   if (!cache?.polylineGraph) return [];
   
@@ -250,9 +253,9 @@ export function findAvailableDirections(
   const { polylineGraph } = cache;
   const directions: DirectionOption[] = [];
   
-  // Convert animal rotation to the visual direction it's facing
-  // The relationship is: visualRotation = -playerRotation + PI
-  const animalFacingAngle = -animalRotation + Math.PI;
+  // Use camera yaw for arrow positioning if available, otherwise animal rotation
+  const referenceRotation = cameraYaw ?? animalRotation;
+  const animalFacingAngle = -referenceRotation + Math.PI;
   
   // Helper to compute relative angle (for UI positioning)
   // The world uses atan2(x, z) where +angle is counter-clockwise when viewed from above
@@ -489,6 +492,7 @@ export function RailControls({
   playerX,
   playerZ,
   animalRotation,
+  cameraYawRef,
   onDirectionSelect,
   onStop,
   onTurnAround,
@@ -507,6 +511,23 @@ export function RailControls({
      return () => window.removeEventListener('resize', handleResize);
    }, []);
   
+  // Track camera yaw for live arrow updates during orbit
+  const [trackedCameraYaw, setTrackedCameraYaw] = useState<number | undefined>(cameraYawRef?.current);
+  
+  // Poll cameraYawRef for live updates (refs don't trigger re-renders)
+  useEffect(() => {
+    if (!cameraYawRef || isMoving) return;
+    const interval = setInterval(() => {
+      const current = cameraYawRef.current;
+      setTrackedCameraYaw(prev => {
+        // Only update if changed meaningfully (avoid unnecessary re-renders)
+        if (prev === undefined || Math.abs((prev ?? 0) - current) > 0.05) return current;
+        return prev;
+      });
+    }, 100); // 10Hz polling
+    return () => clearInterval(interval);
+  }, [cameraYawRef, isMoving]);
+
   // Find current position and available directions
   useEffect(() => {
     if (!enabled || !cache) {
@@ -526,12 +547,13 @@ export function RailControls({
         position,
         animalRotation,
         cache,
-        playerX,  // Pass actual player position
+        playerX,
         playerZ,
+        trackedCameraYaw,
       );
       setDirections(availableDirs);
     }
-  }, [enabled, cache, playerX, playerZ, animalRotation, isMoving]);
+  }, [enabled, cache, playerX, playerZ, animalRotation, trackedCameraYaw, isMoving]);
   
   const handleDirectionClick = useCallback((dir: DirectionOption) => {
     if (dir.isTurnAround) {

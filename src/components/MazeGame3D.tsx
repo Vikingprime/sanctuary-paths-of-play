@@ -1805,6 +1805,7 @@ export const MazeGame3D = ({
             playerX={playerStateForUI.x}
             playerZ={playerStateForUI.y}
             animalRotation={playerStateForUI.rotation}
+            cameraYawRef={cameraYawRef}
             onDirectionSelect={handleRailDirectionSelect}
             onStop={handleRailStop}
             onTurnAround={handleRailTurnAround}
