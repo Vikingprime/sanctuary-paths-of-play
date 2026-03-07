@@ -1728,7 +1728,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                 )}
                               </div>
                             </div>
-                          )}
+                          ) : null}
 
                           {/* Vision triggers dialogue */}
                           <div>
