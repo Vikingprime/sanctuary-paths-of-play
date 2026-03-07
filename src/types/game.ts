@@ -73,6 +73,12 @@ export interface PatrolConfig {
   pauseMs?: number; // Optional pause at each waypoint (ms)
 }
 
+// Triangle cone vision config: widens with distance
+export interface ConeVisionConfig {
+  range: number; // How many cells deep the cone extends
+  spreadPerCell: number; // How many cells wider per row (e.g., 1 = grows 1 cell each side per row)
+}
+
 export interface MazeCharacter {
   id: string;
   name: string;
@@ -88,6 +94,8 @@ export interface MazeCharacter {
   visionDialogueId?: string; // ID of dialogue triggered when player enters vision zone
   // Directional vision: different zones per facing direction (relative to NPC)
   directionalVision?: DirectionalVision;
+  // Cone vision: triangle-shaped vision that widens with distance
+  coneVision?: ConeVisionConfig;
   // Turning behavior
   turning?: TurningConfig;
   // Patrol behavior

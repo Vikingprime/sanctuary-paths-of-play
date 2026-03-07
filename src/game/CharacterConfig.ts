@@ -132,6 +132,22 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     debugPlaneColor: '#22aa44',
     animations: [],
   },
+  
+  // Obstacle models (logs) - used for LOS blocking
+  'Log.glb': {
+    scale: 0.4,
+    yOffset: 0.0,
+    height: 0.3, // Low obstacle - blocks small creatures like sparrows
+    debugPlaneColor: '#8B4513',
+    animations: [],
+  },
+  'Log_with_Fungus.glb': {
+    scale: 0.4,
+    yOffset: 0.0,
+    height: 0.35,
+    debugPlaneColor: '#6B8E23',
+    animations: [],
+  },
 } as const;
 
 /**
