@@ -239,6 +239,7 @@ const MazeEditor: React.FC = () => {
   const [obstacles, setObstacles] = useState<ObstacleConfig[]>([]);
   const [showObstaclePanel, setShowObstaclePanel] = useState(false);
   const [placingObstacleId, setPlacingObstacleId] = useState<string | null>(null);
+  const [dragOverCell, setDragOverCell] = useState<{ x: number; y: number } | null>(null);
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
   const [showMazeList, setShowMazeList] = useState(true);
