@@ -2911,6 +2911,15 @@ return (
         />
       ))}
       
+      {/* Vision Cone overlays for NPCs with directional vision */}
+      {maze.characters?.filter(c => c.directionalVision || (c.visionCells && c.visionCells.length > 0)).map((character) => (
+        <VisionConeOverlay
+          key={`vision-${character.id}`}
+          character={character}
+          rotationOverride={npcRotations[character.id]}
+        />
+      ))}
+      
       {/* Dialogue Characters - render characters for dialogues with characterModel and speakerPosition (legacy) */}
       {maze.dialogues?.filter(d => d.characterModel && d.speakerPosition && !d.speakerCharacterId).map((dialogue) => (
         <DialogueCharacter
