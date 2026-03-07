@@ -1978,7 +1978,6 @@ const OverShoulderCameraController = ({
   const currentDistance = useRef(0.4);
   const lastRestartKey = useRef(restartKey);
   const isFirstLoad = useRef(true);
-  const framesAfterRestart = useRef(999); // High initial value = autopush allowed
   
   // Autopush state - scalar-based distance easing
   const currentAutopushDist = useRef<number | null>(null);
@@ -2048,11 +2047,7 @@ const OverShoulderCameraController = ({
       isFirstLoad.current = false;
       currentAutopushDist.current = null;
       fadedCellsRef.current.clear();
-      framesAfterRestart.current = 0; // Skip autopush for a few frames
     }
-    
-    // Increment frames-after-restart counter
-    framesAfterRestart.current++;
     
     // === CAMERA DRIFT-BACK ===
     // When no orbit touch is active AND no joystick is being used, drift camera back behind player
@@ -2184,8 +2179,7 @@ const OverShoulderCameraController = ({
     // Check if autopush is enabled via debug toggle
     const autopushEnabled = getAutopushEnabled();
     
-    const AUTOPUSH_GRACE_FRAMES = 15; // Skip autopush for ~15 frames after restart to prevent camera drift
-    if (autopush.enabled && autopushEnabled && foliageGroupRef?.current && !DEBUG_OVERHEAD_VIEW && !groundLevelCamera && framesAfterRestart.current > AUTOPUSH_GRACE_FRAMES) {
+    if (autopush.enabled && autopushEnabled && foliageGroupRef?.current && !DEBUG_OVERHEAD_VIEW && !groundLevelCamera) {
       // Calculate direction from head to desired camera position
       rayDir.current.copy(targetPos.current).sub(headPosRef.current).normalize();
       const rayLength = headPosRef.current.distanceTo(targetPos.current);
