@@ -2007,6 +2007,26 @@ const OverShoulderCameraController = ({
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
+    // === CAMERA DRIFT-BACK ===
+    // When no orbit touch is active AND no joystick is being used, drift camera back behind player
+    const orbitActive = cameraOrbitActiveRef?.current ?? false;
+    const touchActive = mobileTouchActiveRef?.current ?? false;
+    
+    if (!railMode && cameraYawRef && !orbitActive && !touchActive) {
+      let diff = playerRotation - cameraYawRef.current;
+      // Shortest path wrap-around
+      if (diff > Math.PI) diff -= Math.PI * 2;
+      if (diff < -Math.PI) diff += Math.PI * 2;
+      // Only drift if there's meaningful difference
+      if (Math.abs(diff) > 0.01) {
+        const DRIFT_SPEED = 0.025; // Slow, smooth drift
+        cameraYawRef.current += diff * DRIFT_SPEED;
+        // Normalize
+        while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+        while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+      }
+    }
+    
     // In rail mode, camera follows animal's rotation directly for smooth path following
     // In orbit mode, use cameraYawRef, otherwise fall back to player rotation
     const targetCameraYaw = railMode 
