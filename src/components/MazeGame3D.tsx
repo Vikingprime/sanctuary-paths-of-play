@@ -269,7 +269,14 @@ export const MazeGame3D = ({
     initNPCRuntimeStates(maze.characters ?? [])
   );
   // NPC rotation overrides for the 3D scene (characterId -> Y rotation)
-  const [npcRotations, setNpcRotations] = useState<Record<string, number>>({});
+  // Initialize with correct starting rotations so vision cones match initial facing
+  const [npcRotations, setNpcRotations] = useState<Record<string, number>>(() => {
+    const initial: Record<string, number> = {};
+    for (const [id, state] of npcRuntimeStatesRef.current.entries()) {
+      initial[id] = directionToRotation(state.currentDirection);
+    }
+    return initial;
+  });
   
   // Helper to find the speaker position for a dialogue
   const findSpeakerPositionForDialogue = useCallback((dialogue: DialogueTrigger | null): { x: number; y: number } | null => {

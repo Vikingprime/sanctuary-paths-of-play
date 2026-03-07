@@ -1113,33 +1113,31 @@ const VisionConeOverlay = ({
     }
     
     // Build triangle vertices in local space (relative to character position)
-    // Tip at character, widens to range * spreadPerCell at the far end
+    // Tip at character center (0,0,0), widens to range * spreadPerCell at the far end
     const farHalfWidth = spreadPerCell * range + 0.5; // +0.5 to cover full cells
-    const farDist = range + 0.5;
+    const farDist = range;
     
     // Define triangle points based on direction (in XZ plane)
-    let tip: [number, number, number];
+    // Tip is always at character center (0,0,0)
+    let tip: [number, number, number] = [0, 0, 0];
     let left: [number, number, number];
     let right: [number, number, number];
     
     switch (direction) {
       case 'north':
-        tip = [0, 0, -0.5];
         left = [-farHalfWidth, 0, -farDist];
         right = [farHalfWidth, 0, -farDist];
         break;
       case 'south':
-        tip = [0, 0, 0.5];
         left = [farHalfWidth, 0, farDist];
         right = [-farHalfWidth, 0, farDist];
         break;
       case 'east':
-        tip = [0.5, 0, 0];
         left = [farDist, 0, -farHalfWidth];
         right = [farDist, 0, farHalfWidth];
         break;
       case 'west':
-        tip = [-0.5, 0, 0];
+      default:
         left = [-farDist, 0, farHalfWidth];
         right = [-farDist, 0, -farHalfWidth];
         break;
