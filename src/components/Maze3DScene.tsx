@@ -2008,7 +2008,7 @@ const OverShoulderCameraController = ({
       initialized.current = false;
       hasPlayerMoved.current = false;
       initialPlayerPos.current = null;
-      currentDistance.current = 0.4;
+      isFirstLoad.current = false; // Skip cinematic zoom on restart
       currentAutopushDist.current = null;
       // Clear faded cells to prevent stale fade states
       fadedCellsRef.current.clear();
