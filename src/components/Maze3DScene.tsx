@@ -2051,7 +2051,7 @@ const OverShoulderCameraController = ({
     // Also pause drift when Q/E keys are held
     const qeActive = keysPressed?.current?.has('q') || keysPressed?.current?.has('e');
     
-    if (!railMode && cameraYawRef && !orbitActive && !touchActive && !qeActive) {
+    if (cameraYawRef && !orbitActive && !touchActive && !qeActive) {
       let diff = playerRotation - cameraYawRef.current;
       // Shortest path wrap-around
       if (diff > Math.PI) diff -= Math.PI * 2;
@@ -2066,11 +2066,9 @@ const OverShoulderCameraController = ({
       }
     }
     
-    // In rail mode, camera follows animal's rotation directly for smooth path following
-    // In orbit mode, use cameraYawRef, otherwise fall back to player rotation
-    const targetCameraYaw = railMode 
-      ? playerRotation 
-      : (cameraYawRef?.current ?? playerRotation);
+    // In orbit mode (Q/E or touch), use cameraYawRef; otherwise follow player rotation
+    // In rail mode, still allow orbit override when cameraYawRef differs from playerRotation
+    const targetCameraYaw = cameraYawRef?.current ?? playerRotation;
     
     // Store initial position on first frame (after initialization)
     if (initialized.current && initialPlayerPos.current === null) {
