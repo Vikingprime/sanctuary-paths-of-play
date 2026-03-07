@@ -1145,13 +1145,13 @@ const VisionConeOverlay = ({
         break;
     }
     
-    const geom = new THREE.BufferGeometry();
+    const geom = new BufferGeometry();
     const vertices = new Float32Array([
       tip[0], tip[1], tip[2],
       left[0], left[1], left[2],
       right[0], right[1], right[2],
     ]);
-    geom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geom.setAttribute('position', new Float32BufferAttribute(vertices, 3));
     geom.computeVertexNormals();
     return geom;
   }, [character.coneVision, rotationOverride]);
