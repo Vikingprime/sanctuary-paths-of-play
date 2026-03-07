@@ -169,6 +169,7 @@ export interface Maze {
     end: { x: number; y: number };
   }>; // Branch ranges removed from generated traversal paths
   deletedSpineFineCells?: { x: number; y: number }[]; // Optional per-cell spine overrides removed from generated traversal paths
+  obstacles?: MazeObstacle[]; // Placed obstacles (logs, etc.) that can block LOS
 }
 
 export interface GameState {
