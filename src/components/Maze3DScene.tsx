@@ -2030,7 +2030,7 @@ const OverShoulderCameraController = ({
   // Track if player has moved and camera distance
   const initialPlayerPos = useRef<{ x: number; z: number } | null>(null);
   const hasPlayerMoved = useRef(false);
-  const currentDistance = useRef(2.0); // Will be set to CAMERA_DISTANCE_NORMAL on first frame
+  const currentDistance = useRef(0.4);
   const lastRestartKey = useRef(restartKey);
   
   // Autopush state - scalar-based distance easing
@@ -2062,7 +2062,7 @@ const OverShoulderCameraController = ({
       initialized.current = false;
       hasPlayerMoved.current = false;
       initialPlayerPos.current = null;
-      currentDistance.current = CAMERA_DISTANCE_NORMAL;
+      currentDistance.current = 0.4;
       currentAutopushDist.current = null;
       // Clear faded cells to prevent stale fade states
       fadedCellsRef.current.clear();
@@ -2152,18 +2152,17 @@ const OverShoulderCameraController = ({
     // Initialize on first frame BEFORE any calculations
     if (!initialized.current) {
       smoothRotation.current = targetCameraYaw;
-      hasPlayerMoved.current = true;
       initialPlayerPos.current = { x: playerX, z: playerZ };
       const rot = targetCameraYaw;
-      // Set camera position immediately at normal gameplay distance
+      // Set camera position immediately without interpolation (start close)
       currentPosition.current.set(
-        playerX - Math.sin(rot) * CAMERA_DISTANCE_NORMAL,
-        CAMERA_HEIGHT_NORMAL,
-        playerZ + Math.cos(rot) * CAMERA_DISTANCE_NORMAL
+        playerX - Math.sin(rot) * CAMERA_DISTANCE_START,
+        CAMERA_HEIGHT_START,
+        playerZ + Math.cos(rot) * CAMERA_DISTANCE_START
       );
       currentLookAt.current.set(
         playerX,
-        LOOK_HEIGHT_NORMAL,
+        LOOK_HEIGHT_START,
         playerZ
       );
       initialized.current = true;
