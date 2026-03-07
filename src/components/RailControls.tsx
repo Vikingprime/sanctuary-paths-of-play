@@ -511,6 +511,23 @@ export function RailControls({
      return () => window.removeEventListener('resize', handleResize);
    }, []);
   
+  // Track camera yaw for live arrow updates during orbit
+  const [trackedCameraYaw, setTrackedCameraYaw] = useState<number | undefined>(cameraYawRef?.current);
+  
+  // Poll cameraYawRef for live updates (refs don't trigger re-renders)
+  useEffect(() => {
+    if (!cameraYawRef || isMoving) return;
+    const interval = setInterval(() => {
+      const current = cameraYawRef.current;
+      setTrackedCameraYaw(prev => {
+        // Only update if changed meaningfully (avoid unnecessary re-renders)
+        if (prev === undefined || Math.abs((prev ?? 0) - current) > 0.05) return current;
+        return prev;
+      });
+    }, 100); // 10Hz polling
+    return () => clearInterval(interval);
+  }, [cameraYawRef, isMoving]);
+
   // Find current position and available directions
   useEffect(() => {
     if (!enabled || !cache) {
@@ -532,11 +549,11 @@ export function RailControls({
         cache,
         playerX,
         playerZ,
-        cameraYaw,
+        trackedCameraYaw,
       );
       setDirections(availableDirs);
     }
-  }, [enabled, cache, playerX, playerZ, animalRotation, cameraYaw, isMoving]);
+  }, [enabled, cache, playerX, playerZ, animalRotation, trackedCameraYaw, isMoving]);
   
   const handleDirectionClick = useCallback((dir: DirectionOption) => {
     if (dir.isTurnAround) {
