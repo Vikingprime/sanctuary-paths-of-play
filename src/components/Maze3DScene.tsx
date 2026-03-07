@@ -1943,6 +1943,7 @@ const OverShoulderCameraController = ({
   cameraYawRef,
   cameraOrbitActiveRef,
   mobileTouchActiveRef,
+  keysPressed,
   railMode = false,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1957,6 +1958,7 @@ const OverShoulderCameraController = ({
   cameraYawRef?: MutableRefObject<number>;
   cameraOrbitActiveRef?: MutableRefObject<boolean>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
+  keysPressed?: MutableRefObject<Set<string>>;
   railMode?: boolean;
 }) => {
   const { camera, scene } = useThree();
@@ -2047,11 +2049,9 @@ const OverShoulderCameraController = ({
     const touchActive = mobileTouchActiveRef?.current ?? false;
     
     // Also pause drift when Q/E keys are held
-    const qeActive = typeof window !== 'undefined' && (
-      document.querySelector('#mobileControlSurface') !== null // proxy: keysPressed not available here
-    ) ? false : false; // We check via keysPressed passed through props
-    // Simplified: just check if orbit is not active and no touch
-    if (!railMode && cameraYawRef && !orbitActive && !touchActive) {
+    const qeActive = keysPressed?.current?.has('q') || keysPressed?.current?.has('e');
+    
+    if (!railMode && cameraYawRef && !orbitActive && !touchActive && !qeActive) {
       let diff = playerRotation - cameraYawRef.current;
       // Shortest path wrap-around
       if (diff > Math.PI) diff -= Math.PI * 2;
@@ -2986,6 +2986,7 @@ return (
             cameraYawRef={cameraYawRef}
             cameraOrbitActiveRef={cameraOrbitActiveRef}
             mobileTouchActiveRef={mobileTouchActiveRef}
+            keysPressed={keysPressed}
             railMode={railMode}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
