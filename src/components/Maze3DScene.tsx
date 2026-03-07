@@ -1978,7 +1978,7 @@ const OverShoulderCameraController = ({
   const hasPlayerMoved = useRef(false);
   const currentDistance = useRef(0.4);
   const lastRestartKey = useRef(restartKey);
-  const isFirstLoad = useRef(true);
+  const isFirstLoad = useRef(!(restartKey && restartKey > 0)); // false on restart (remount)
   
   // Autopush state - scalar-based distance easing
   const currentAutopushDist = useRef<number | null>(null);
