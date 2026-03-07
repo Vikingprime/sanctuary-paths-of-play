@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple, Route } from 'lucide-react';
+import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple, Route, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import { FineSpineEditor } from '@/components/FineSpineEditor';
 import { useMazeStorage, createGrid } from '@/hooks/useMazeStorage';
@@ -20,6 +20,15 @@ import { buildMazeEditorSpine, cellsTouchSpine, getMazeCellKey } from '@/lib/maz
 import { branchContainsFineCell, expandDeletedSpineBranches, getSpineBranchCells, getSpineBranchRangeForCell, getSpineFineCellKey, normalizeSpineFineBranches, normalizeSpineFineCells, SPINE_FINE_GRID_SCALE, type SpineFineBranchRange, type SpineFineCellCoordinate } from '@/lib/spineFineCells';
 import { getCharacterAnimations } from '@/game/CharacterConfig';
 import { generateConeVisionOffsets } from '@/game/NPCRuntime';
+import { 
+  EditorPalette, 
+  DRAG_TYPE_CHARACTER, 
+  DRAG_TYPE_OBSTACLE, 
+  DRAG_TYPE_PLACED_CHARACTER, 
+  DRAG_TYPE_PLACED_OBSTACLE,
+  type DragCharacterData,
+  type DragObstacleData,
+} from '@/components/maze-editor/EditorPalette';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -230,6 +239,7 @@ const MazeEditor: React.FC = () => {
   const [obstacles, setObstacles] = useState<ObstacleConfig[]>([]);
   const [showObstaclePanel, setShowObstaclePanel] = useState(false);
   const [placingObstacleId, setPlacingObstacleId] = useState<string | null>(null);
+  const [dragOverCell, setDragOverCell] = useState<{ x: number; y: number } | null>(null);
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
   const [showMazeList, setShowMazeList] = useState(true);
@@ -727,6 +737,101 @@ const MazeEditor: React.FC = () => {
     if (placingObstacleId === id) setPlacingObstacleId(null);
   };
 
+  // --- Drag-and-Drop Handlers ---
+  const handleGridDragOver = useCallback((e: React.DragEvent, x: number, y: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDragOverCell({ x, y });
+  }, []);
+
+  const handleGridDragLeave = useCallback(() => {
+    setDragOverCell(null);
+  }, []);
+
+  const handleGridDrop = useCallback((e: React.DragEvent, x: number, y: number) => {
+    e.preventDefault();
+    setDragOverCell(null);
+
+    // Check for new character drop
+    const charData = e.dataTransfer.getData(DRAG_TYPE_CHARACTER);
+    if (charData) {
+      try {
+        const data: DragCharacterData = JSON.parse(charData);
+        const newId = `char_${Date.now()}`;
+        const newChar: CharacterConfig = {
+          id: newId,
+          name: data.name,
+          emoji: data.emoji,
+          model: data.model,
+          animation: data.defaultAnimation,
+          position: { x, y },
+        };
+        setCharacters(prev => [...prev, newChar]);
+        setSelectedCharacterId(newId);
+        setShowCharacterPanel(true);
+        toast.success(`${data.name} placed at (${x}, ${y})`);
+      } catch {}
+      return;
+    }
+
+    // Check for new obstacle drop
+    const obsData = e.dataTransfer.getData(DRAG_TYPE_OBSTACLE);
+    if (obsData) {
+      try {
+        const data: DragObstacleData = JSON.parse(obsData);
+        const newId = `obstacle_${Date.now()}`;
+        setObstacles(prev => [...prev, {
+          id: newId,
+          model: data.model,
+          position: { x, y },
+          rotation: 0,
+        }]);
+        setShowObstaclePanel(true);
+        toast.success(`Obstacle placed at (${x}, ${y})`);
+      } catch {}
+      return;
+    }
+
+    // Check for placed character repositioning
+    const placedCharData = e.dataTransfer.getData(DRAG_TYPE_PLACED_CHARACTER);
+    if (placedCharData) {
+      const charId = placedCharData;
+      updateCharacter(charId, { position: { x, y } });
+      toast.success(`Character moved to (${x}, ${y})`);
+      return;
+    }
+
+    // Check for placed obstacle repositioning
+    const placedObsData = e.dataTransfer.getData(DRAG_TYPE_PLACED_OBSTACLE);
+    if (placedObsData) {
+      const obsId = placedObsData;
+      setObstacles(prev => prev.map(o => o.id === obsId ? { ...o, position: { x, y } } : o));
+      toast.success(`Obstacle moved to (${x}, ${y})`);
+      return;
+    }
+  }, [updateCharacter]);
+
+  // Click on a placed character on the grid → select and open config
+  const handleGridCharacterClick = useCallback((charId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedCharacterId(charId);
+    setShowCharacterPanel(true);
+    const char = characters.find(c => c.id === charId);
+    if (char) {
+      const linked = dialogues.filter(d => d.speakerCharacterId === charId);
+      if (linked.length === 0) {
+        toast.info(`Click "+ New" in dialogues section to add dialogue for ${char.name}`);
+      }
+    }
+  }, [characters, dialogues]);
+
+  // Click on a placed obstacle → select and show panel
+  const handleGridObstacleClick = useCallback((obsId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowObstaclePanel(true);
+  }, []);
+
+
   const generateSchema = useCallback(() => {
     const gridStrings = grid.map(row => row.join('').replace(/D/g, ' '));
     
@@ -1010,6 +1115,9 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
               </CardContent>
             </Card>
           )}
+
+          {/* Palette Sidebar - Drag characters & obstacles onto grid */}
+          <EditorPalette className="w-44" />
 
           {/* Main Editor Area */}
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4">
@@ -1312,17 +1420,22 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             className={`
                               w-4 h-4 md:w-5 md:h-5 cursor-crosshair transition-colors relative
                               ${character ? 'ring-2 ring-primary' : ''}
-                              ${obstacle ? 'ring-2 ring-amber-700' : ''}
+                              ${obstacle && !character ? 'ring-2 ring-amber-700' : ''}
+                              ${dragOverCell?.x === x && dragOverCell?.y === y ? 'ring-2 ring-blue-500 bg-blue-200/50' : ''}
                               ${isDialogueCell && !isMultiDialogue ? dialogueColor : ''}
                               ${!isDialogueCell && !isVisionCell && !obstacle ? CELL_COLORS[cell] : ''}
                               ${!isDialogueCell && isVisionCell ? 'bg-cyan-400/70' : ''}
                               ${!isDialogueCell && !isVisionCell && obstacle ? 'bg-amber-600' : ''}
                               ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
                               ${isPaintingVision ? 'cursor-pointer' : ''}
+                              ${selectedCharacterId && character?.id === selectedCharacterId ? 'ring-2 ring-offset-1 ring-blue-500' : ''}
                             `}
                             style={stripedStyle}
                             onMouseDown={() => handleMouseDown(x, y)}
                             onMouseEnter={() => handleMouseEnter(x, y)}
+                            onDragOver={(e) => handleGridDragOver(e, x, y)}
+                            onDragLeave={handleGridDragLeave}
+                            onDrop={(e) => handleGridDrop(e, x, y)}
                             title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${isVisionCell ? ` - 👁 ${visionChar.name} vision` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
                           >
                             {isOnSpine && (
@@ -1332,10 +1445,28 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                               <span className="absolute inset-0 flex items-center justify-center text-[8px] pointer-events-none">👁</span>
                             )}
                             {obstacle && !character && (
-                              <span className="absolute inset-0 z-10 flex items-center justify-center text-[8px]">🪵</span>
+                              <span
+                                draggable
+                                onDragStart={(e) => {
+                                  e.stopPropagation();
+                                  e.dataTransfer.setData(DRAG_TYPE_PLACED_OBSTACLE, obstacle.id);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                }}
+                                onClick={(e) => handleGridObstacleClick(obstacle.id, e)}
+                                className="absolute inset-0 z-10 flex items-center justify-center text-[8px] cursor-grab active:cursor-grabbing"
+                              >🪵</span>
                             )}
                             {character && (
-                              <span className="absolute inset-0 z-10 flex items-center justify-center text-[10px]">
+                              <span
+                                draggable
+                                onDragStart={(e) => {
+                                  e.stopPropagation();
+                                  e.dataTransfer.setData(DRAG_TYPE_PLACED_CHARACTER, character.id);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                }}
+                                onClick={(e) => handleGridCharacterClick(character.id, e)}
+                                className="absolute inset-0 z-10 flex items-center justify-center text-[10px] cursor-grab active:cursor-grabbing"
+                              >
                                 {character.emoji}
                               </span>
                             )}
