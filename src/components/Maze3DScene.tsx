@@ -2037,6 +2037,18 @@ const OverShoulderCameraController = ({
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
+    // Check for restart key change synchronously in the render loop
+    // This prevents any frames of the old camera position before useEffect fires
+    if (restartKeyRef.current !== lastRestartKey.current) {
+      lastRestartKey.current = restartKeyRef.current;
+      initialized.current = false;
+      hasPlayerMoved.current = false;
+      initialPlayerPos.current = null;
+      isFirstLoad.current = false;
+      currentAutopushDist.current = null;
+      fadedCellsRef.current.clear();
+    }
+    
     // === CAMERA DRIFT-BACK ===
     // When no orbit touch is active AND no joystick is being used, drift camera back behind player
     const orbitActive = cameraOrbitActiveRef?.current ?? false;
