@@ -12,7 +12,7 @@ import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple
 import { toast } from 'sonner';
 import { FineSpineEditor } from '@/components/FineSpineEditor';
 import { useMazeStorage, createGrid } from '@/hooks/useMazeStorage';
-import { Maze, DialogueSequenceItem, CardinalDirection, DirectionalVision, TurningConfig, RelativeVisionZone } from '@/types/game';
+import { Maze, DialogueSequenceItem, CardinalDirection, DirectionalVision, TurningConfig, RelativeVisionZone, ConeVisionConfig, MazeObstacle } from '@/types/game';
 import { useBackButton } from '@/hooks/useBackButton';
 import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
 import { canBeFedApples } from '@/types/appleDialogue';
@@ -39,7 +39,15 @@ interface CharacterConfig {
   visionCells?: { x: number; y: number }[];
   visionDialogueId?: string;
   directionalVision?: DirectionalVision;
+  coneVision?: ConeVisionConfig;
   turning?: TurningConfig;
+}
+
+interface ObstacleConfig {
+  id: string;
+  model: string;
+  position: { x: number; y: number } | null;
+  rotation?: number;
 }
 
 type VisionConePreset = 'none' | 'narrow' | 'wide' | 'long';
@@ -174,6 +182,11 @@ const AVAILABLE_MODELS = [
   'Spiny_mouse.glb',
   'Sparrow.glb',
   'Bush_with_Berries.glb',
+];
+
+const OBSTACLE_MODELS = [
+  'Log.glb',
+  'Log_with_Fungus.glb',
 ];
 
 
