@@ -1561,12 +1561,25 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                           <div className="flex items-center gap-2">
                             <Label className="text-xs">Mode:</Label>
                             <Select
-                              value={char.directionalVision !== undefined ? 'directional' : 'legacy'}
+                              value={char.coneVision ? 'cone' : (char.directionalVision !== undefined ? 'directional' : 'legacy')}
                               onValueChange={v => {
-                                if (v === 'directional') {
-                                  updateCharacter(char.id, { directionalVision: {}, visionCells: [] });
+                                if (v === 'cone') {
+                                  updateCharacter(char.id, { 
+                                    coneVision: { range: 4, spreadPerCell: 1 }, 
+                                    directionalVision: undefined, 
+                                    visionCells: [] 
+                                  });
+                                } else if (v === 'directional') {
+                                  updateCharacter(char.id, { 
+                                    directionalVision: {}, 
+                                    coneVision: undefined, 
+                                    visionCells: [] 
+                                  });
                                 } else {
-                                  updateCharacter(char.id, { directionalVision: undefined });
+                                  updateCharacter(char.id, { 
+                                    directionalVision: undefined, 
+                                    coneVision: undefined 
+                                  });
                                 }
                               }}
                             >
@@ -1576,9 +1589,46 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                               <SelectContent>
                                 <SelectItem value="legacy">Absolute (legacy)</SelectItem>
                                 <SelectItem value="directional">Directional (per-facing)</SelectItem>
+                                <SelectItem value="cone">Cone (triangle)</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
+
+                          {/* Cone vision config */}
+                          {char.coneVision && (
+                            <div className="space-y-2 p-2 bg-muted rounded">
+                              <p className="text-xs font-medium">🔺 Triangle Cone</p>
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs">Range:</Label>
+                                <Input
+                                  type="number"
+                                  value={char.coneVision.range}
+                                  onChange={e => updateCharacter(char.id, { 
+                                    coneVision: { ...char.coneVision!, range: parseInt(e.target.value) || 1 } 
+                                  })}
+                                  className="text-xs h-7 w-16"
+                                  min={1}
+                                  max={10}
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs">Spread/cell:</Label>
+                                <Input
+                                  type="number"
+                                  value={char.coneVision.spreadPerCell}
+                                  onChange={e => updateCharacter(char.id, { 
+                                    coneVision: { ...char.coneVision!, spreadPerCell: parseInt(e.target.value) || 0 } 
+                                  })}
+                                  className="text-xs h-7 w-16"
+                                  min={0}
+                                  max={3}
+                                />
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Cells at depth N: 1 + 2×spread×(N-1). Follows current facing direction.
+                              </p>
+                            </div>
+                          )
 
                           {/* Directional vision UI */}
                           {char.directionalVision !== undefined ? (
