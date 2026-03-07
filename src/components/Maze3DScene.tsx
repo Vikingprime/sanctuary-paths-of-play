@@ -1969,7 +1969,6 @@ const OverShoulderCameraController = ({
   const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
   const snapFrames = useRef(0); // Skip lerp for N frames after restart
-  const debugFrameCount = useRef(0); // Temporary debug counter
   // Reusable vectors to avoid GC (creating new Vector3 every frame causes jitter)
   const targetPos = useRef(new Vector3());
   const targetLookAt = useRef(new Vector3());
@@ -2049,14 +2048,6 @@ const OverShoulderCameraController = ({
       isFirstLoad.current = false;
       currentAutopushDist.current = null;
       fadedCellsRef.current.clear();
-      debugFrameCount.current = 0;
-      // Reset camera yaw to player rotation HERE (synchronous in render loop)
-      // because resetting in handleRestart gets overwritten by movement useFrame
-      // before this detection fires
-      if (cameraYawRef) {
-        cameraYawRef.current = playerRotation;
-      }
-      console.log('[CAM-DEBUG] === RESTART DETECTED ===', { playerRot: playerRotation });
     }
     
     // === CAMERA DRIFT-BACK ===
@@ -2149,16 +2140,6 @@ const OverShoulderCameraController = ({
       if ('fov' in camera) {
         (camera as any).updateProjectionMatrix();
       }
-      console.log('[CAM-DEBUG] INIT frame', {
-        isFirstLoad: isFirstLoad.current,
-        snapFrames: snapFrames.current,
-        camPos: `${camera.position.x.toFixed(3)}, ${camera.position.y.toFixed(3)}, ${camera.position.z.toFixed(3)}`,
-        playerPos: `${playerX.toFixed(3)}, ${playerZ.toFixed(3)}`,
-        rot: targetCameraYaw.toFixed(3),
-        playerRot: playerRotation.toFixed(3),
-        initDist,
-        initHeight,
-      });
       return; // Don't run any lerp/smoothing on the init frame
     }
     
@@ -2492,21 +2473,6 @@ const OverShoulderCameraController = ({
     } else {
       camera.position.copy(currentPosition.current);
       camera.lookAt(currentLookAt.current);
-      
-      // Temporary debug: log first 8 frames after init
-      if (debugFrameCount.current < 8) {
-        debugFrameCount.current++;
-        console.log(`[CAM-DEBUG] Frame ${debugFrameCount.current}`, {
-          camPos: `${camera.position.x.toFixed(3)}, ${camera.position.y.toFixed(3)}, ${camera.position.z.toFixed(3)}`,
-          targetPos: `${finalTargetPosRef.current.x.toFixed(3)}, ${finalTargetPosRef.current.y.toFixed(3)}, ${finalTargetPosRef.current.z.toFixed(3)}`,
-          snapLeft: snapFrames.current,
-          rot: rot.toFixed(3),
-          playerRot: playerRotation.toFixed(3),
-          dist: currentDistance.current.toFixed(3),
-          autopushDist: currentAutopushDist.current?.toFixed(3) ?? 'null',
-          playerPos: `${playerX.toFixed(3)}, ${playerZ.toFixed(3)}`,
-        });
-      }
     }
   });
 
