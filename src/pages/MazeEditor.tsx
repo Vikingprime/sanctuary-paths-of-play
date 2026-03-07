@@ -737,7 +737,101 @@ const MazeEditor: React.FC = () => {
     if (placingObstacleId === id) setPlacingObstacleId(null);
   };
 
-  const generateSchema = useCallback(() => {
+  // --- Drag-and-Drop Handlers ---
+  const handleGridDragOver = useCallback((e: React.DragEvent, x: number, y: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDragOverCell({ x, y });
+  }, []);
+
+  const handleGridDragLeave = useCallback(() => {
+    setDragOverCell(null);
+  }, []);
+
+  const handleGridDrop = useCallback((e: React.DragEvent, x: number, y: number) => {
+    e.preventDefault();
+    setDragOverCell(null);
+
+    // Check for new character drop
+    const charData = e.dataTransfer.getData(DRAG_TYPE_CHARACTER);
+    if (charData) {
+      try {
+        const data: DragCharacterData = JSON.parse(charData);
+        const newId = `char_${Date.now()}`;
+        const newChar: CharacterConfig = {
+          id: newId,
+          name: data.name,
+          emoji: data.emoji,
+          model: data.model,
+          animation: data.defaultAnimation,
+          position: { x, y },
+        };
+        setCharacters(prev => [...prev, newChar]);
+        setSelectedCharacterId(newId);
+        setShowCharacterPanel(true);
+        toast.success(`${data.name} placed at (${x}, ${y})`);
+      } catch {}
+      return;
+    }
+
+    // Check for new obstacle drop
+    const obsData = e.dataTransfer.getData(DRAG_TYPE_OBSTACLE);
+    if (obsData) {
+      try {
+        const data: DragObstacleData = JSON.parse(obsData);
+        const newId = `obstacle_${Date.now()}`;
+        setObstacles(prev => [...prev, {
+          id: newId,
+          model: data.model,
+          position: { x, y },
+          rotation: 0,
+        }]);
+        setShowObstaclePanel(true);
+        toast.success(`Obstacle placed at (${x}, ${y})`);
+      } catch {}
+      return;
+    }
+
+    // Check for placed character repositioning
+    const placedCharData = e.dataTransfer.getData(DRAG_TYPE_PLACED_CHARACTER);
+    if (placedCharData) {
+      const charId = placedCharData;
+      updateCharacter(charId, { position: { x, y } });
+      toast.success(`Character moved to (${x}, ${y})`);
+      return;
+    }
+
+    // Check for placed obstacle repositioning
+    const placedObsData = e.dataTransfer.getData(DRAG_TYPE_PLACED_OBSTACLE);
+    if (placedObsData) {
+      const obsId = placedObsData;
+      setObstacles(prev => prev.map(o => o.id === obsId ? { ...o, position: { x, y } } : o));
+      toast.success(`Obstacle moved to (${x}, ${y})`);
+      return;
+    }
+  }, [updateCharacter]);
+
+  // Click on a placed character on the grid → select and open config
+  const handleGridCharacterClick = useCallback((charId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedCharacterId(charId);
+    setShowCharacterPanel(true);
+    const char = characters.find(c => c.id === charId);
+    if (char) {
+      const linked = dialogues.filter(d => d.speakerCharacterId === charId);
+      if (linked.length === 0) {
+        toast.info(`Click "+ New" in dialogues section to add dialogue for ${char.name}`);
+      }
+    }
+  }, [characters, dialogues]);
+
+  // Click on a placed obstacle → select and show panel
+  const handleGridObstacleClick = useCallback((obsId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowObstaclePanel(true);
+  }, []);
+
+
     const gridStrings = grid.map(row => row.join('').replace(/D/g, ' '));
     
     const charactersSchema = characters.filter(c => c.position).length > 0 ? `
