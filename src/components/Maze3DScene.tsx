@@ -2184,7 +2184,8 @@ const OverShoulderCameraController = ({
     // Check if autopush is enabled via debug toggle
     const autopushEnabled = getAutopushEnabled();
     
-    if (autopush.enabled && autopushEnabled && foliageGroupRef?.current && !DEBUG_OVERHEAD_VIEW && !groundLevelCamera) {
+    const AUTOPUSH_GRACE_FRAMES = 15; // Skip autopush for ~15 frames after restart to prevent camera drift
+    if (autopush.enabled && autopushEnabled && foliageGroupRef?.current && !DEBUG_OVERHEAD_VIEW && !groundLevelCamera && framesAfterRestart.current > AUTOPUSH_GRACE_FRAMES) {
       // Calculate direction from head to desired camera position
       rayDir.current.copy(targetPos.current).sub(headPosRef.current).normalize();
       const rayLength = headPosRef.current.distanceTo(targetPos.current);
