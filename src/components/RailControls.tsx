@@ -492,6 +492,7 @@ export function RailControls({
   playerX,
   playerZ,
   animalRotation,
+  cameraYaw,
   onDirectionSelect,
   onStop,
   onTurnAround,
@@ -529,8 +530,9 @@ export function RailControls({
         position,
         animalRotation,
         cache,
-        playerX,  // Pass actual player position
+        playerX,
         playerZ,
+        cameraYaw,
       );
       setDirections(availableDirs);
     }
