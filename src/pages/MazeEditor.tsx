@@ -1699,7 +1699,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                   : 'Select a direction above, then click cells to paint'}
                               </p>
                             </div>
-                          ) : (
+                          ) : !char.coneVision ? (
                             /* Legacy absolute vision */
                             <div className="space-y-2">
                               <div className="flex gap-2">
