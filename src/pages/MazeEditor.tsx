@@ -738,13 +738,16 @@ ${characters.filter(c => c.position).map(c => {
   const turningStr = c.turning
     ? `\n      turning: { pattern: '${c.turning.pattern}', directions: [${c.turning.directions.map(d => `'${d}'`).join(', ')}], intervalMs: ${c.turning.intervalMs}${c.turning.initialDirection ? `, initialDirection: '${c.turning.initialDirection}'` : ''} },`
     : '';
+  const coneVisionStr = c.coneVision
+    ? `\n      coneVision: { range: ${c.coneVision.range}, spreadPerCell: ${c.coneVision.spreadPerCell} },`
+    : '';
   return `    {
       id: '${c.id}',
       name: '${c.name}',
       emoji: '${c.emoji}',
       model: '${c.model}',
       animation: '${c.animation}',
-      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${visionStr}${dirVisionStr}${turningStr}${visionDlgStr}
+      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${visionStr}${dirVisionStr}${coneVisionStr}${turningStr}${visionDlgStr}
     }`;
 }).join(',\n')}
   ],` : '';
