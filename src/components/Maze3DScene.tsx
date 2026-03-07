@@ -2048,7 +2048,11 @@ const OverShoulderCameraController = ({
       isFirstLoad.current = false;
       currentAutopushDist.current = null;
       fadedCellsRef.current.clear();
+      framesAfterRestart.current = 0; // Skip autopush for a few frames
     }
+    
+    // Increment frames-after-restart counter
+    framesAfterRestart.current++;
     
     // === CAMERA DRIFT-BACK ===
     // When no orbit touch is active AND no joystick is being used, drift camera back behind player
