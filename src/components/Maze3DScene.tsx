@@ -1968,7 +1968,6 @@ const OverShoulderCameraController = ({
   const currentPosition = useRef(new Vector3());
   const currentLookAt = useRef(new Vector3());
   const initialized = useRef(false);
-  const snapFrames = useRef(0); // Skip lerp for N frames after restart
   // Reusable vectors to avoid GC (creating new Vector3 every frame causes jitter)
   const targetPos = useRef(new Vector3());
   const targetLookAt = useRef(new Vector3());
@@ -1978,7 +1977,7 @@ const OverShoulderCameraController = ({
   const hasPlayerMoved = useRef(false);
   const currentDistance = useRef(0.4);
   const lastRestartKey = useRef(restartKey);
-  const isFirstLoad = useRef(!(restartKey && restartKey > 0)); // false on restart (remount)
+  const isFirstLoad = useRef(true);
   
   // Autopush state - scalar-based distance easing
   const currentAutopushDist = useRef<number | null>(null);
@@ -2002,11 +2001,18 @@ const OverShoulderCameraController = ({
   const hitCellsRef = useRef(new Set<string>());
   const centerRayHitCellsRef = useRef(new Set<string>());
   
-  // Reset camera state when restartKey changes (both in effect AND tracked in useFrame)
-  const restartKeyRef = useRef(restartKey);
+  // Reset camera state when restartKey changes
   useEffect(() => {
-    // Mark for useFrame to pick up immediately
-    restartKeyRef.current = restartKey;
+    if (restartKey !== lastRestartKey.current) {
+      lastRestartKey.current = restartKey;
+      initialized.current = false;
+      hasPlayerMoved.current = false;
+      initialPlayerPos.current = null;
+      isFirstLoad.current = false; // Skip cinematic zoom on restart
+      currentAutopushDist.current = null;
+      // Clear faded cells to prevent stale fade states
+      fadedCellsRef.current.clear();
+    }
   }, [restartKey]);
   
   // Camera settings - over-the-shoulder view balanced for all animals
@@ -2037,18 +2043,6 @@ const OverShoulderCameraController = ({
   
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
-    
-    // Check for restart key change synchronously in the render loop
-    // This prevents any frames of the old camera position before useEffect fires
-    if (restartKeyRef.current !== lastRestartKey.current) {
-      lastRestartKey.current = restartKeyRef.current;
-      initialized.current = false;
-      hasPlayerMoved.current = false;
-      initialPlayerPos.current = null;
-      isFirstLoad.current = false;
-      currentAutopushDist.current = null;
-      fadedCellsRef.current.clear();
-    }
     
     // === CAMERA DRIFT-BACK ===
     // When no orbit touch is active AND no joystick is being used, drift camera back behind player
@@ -2118,29 +2112,17 @@ const OverShoulderCameraController = ({
         hasPlayerMoved.current = true;
       }
       
-      // Match EXACTLY what the running code computes (including LOOK_AHEAD)
-      // so no lerp drift occurs on the next frame
-      const initLookAhead = isFirstLoad.current ? 0 : LOOK_AHEAD;
       currentPosition.current.set(
         playerX - Math.sin(rot) * initDist,
         initHeight,
         playerZ + Math.cos(rot) * initDist
       );
       currentLookAt.current.set(
-        playerX + Math.sin(rot) * initLookAhead,
+        playerX,
         initLookHeight,
-        playerZ - Math.cos(rot) * initLookAhead
+        playerZ
       );
       initialized.current = true;
-      snapFrames.current = isFirstLoad.current ? 0 : 3; // Skip lerp for 3 frames on restart
-      
-      // Skip lerp this frame - snap camera directly
-      camera.position.copy(currentPosition.current);
-      camera.lookAt(currentLookAt.current);
-      if ('fov' in camera) {
-        (camera as any).updateProjectionMatrix();
-      }
-      return; // Don't run any lerp/smoothing on the init frame
     }
     
     // Smoothly interpolate camera rotation using shortest path
@@ -2445,16 +2427,9 @@ const OverShoulderCameraController = ({
       playerZ - Math.cos(rot) * LOOK_AHEAD
     );
     
-    // Snap (no lerp) for a few frames after restart to prevent any drift
-    if (snapFrames.current > 0) {
-      snapFrames.current--;
-      currentPosition.current.copy(finalTargetPosRef.current);
-      currentLookAt.current.copy(targetLookAt.current);
-    } else {
-      // Smooth position interpolation
-      currentPosition.current.lerp(finalTargetPosRef.current, POSITION_SMOOTHING);
-      currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
-    }
+    // Smooth position interpolation
+    currentPosition.current.lerp(finalTargetPosRef.current, POSITION_SMOOTHING);
+    currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
     
     // Apply to camera
     if (groundLevelCamera) {
