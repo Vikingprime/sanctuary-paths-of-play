@@ -2058,7 +2058,7 @@ const OverShoulderCameraController = ({
       if (diff < -Math.PI) diff += Math.PI * 2;
       // Only drift if there's meaningful difference
       if (Math.abs(diff) > 0.01) {
-        const DRIFT_SPEED = 0.025; // Slow, smooth drift
+        const DRIFT_SPEED = 0.008; // Very slow, gentle drift back
         cameraYawRef.current += diff * DRIFT_SPEED;
         // Normalize
         while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
