@@ -2001,18 +2001,11 @@ const OverShoulderCameraController = ({
   const hitCellsRef = useRef(new Set<string>());
   const centerRayHitCellsRef = useRef(new Set<string>());
   
-  // Reset camera state when restartKey changes
+  // Reset camera state when restartKey changes (both in effect AND tracked in useFrame)
+  const restartKeyRef = useRef(restartKey);
   useEffect(() => {
-    if (restartKey !== lastRestartKey.current) {
-      lastRestartKey.current = restartKey;
-      initialized.current = false;
-      hasPlayerMoved.current = false;
-      initialPlayerPos.current = null;
-      isFirstLoad.current = false; // Skip cinematic zoom on restart
-      currentAutopushDist.current = null;
-      // Clear faded cells to prevent stale fade states
-      fadedCellsRef.current.clear();
-    }
+    // Mark for useFrame to pick up immediately
+    restartKeyRef.current = restartKey;
   }, [restartKey]);
   
   // Camera settings - over-the-shoulder view balanced for all animals
