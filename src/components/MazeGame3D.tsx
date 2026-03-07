@@ -1799,17 +1799,61 @@ export const MazeGame3D = ({
       
       {/* Rail Controls - on-rail navigation mode */}
       {!isPreviewing && mobileControlsEnabled && controlMode === 'rail' && (
-        <RailControls
-          cache={magnetismCacheRef.current}
-          playerX={playerStateForUI.x}
-          playerZ={playerStateForUI.y}
-          animalRotation={playerStateForUI.rotation}
-          onDirectionSelect={handleRailDirectionSelect}
-          onStop={handleRailStop}
-          onTurnAround={handleRailTurnAround}
-          isMoving={isRailMoving}
-          enabled={controlMode === 'rail'}
-        />
+        <>
+          <RailControls
+            cache={magnetismCacheRef.current}
+            playerX={playerStateForUI.x}
+            playerZ={playerStateForUI.y}
+            animalRotation={playerStateForUI.rotation}
+            onDirectionSelect={handleRailDirectionSelect}
+            onStop={handleRailStop}
+            onTurnAround={handleRailTurnAround}
+            isMoving={isRailMoving}
+            enabled={controlMode === 'rail'}
+          />
+          {/* Camera orbit touch overlay for rail mode (right half of screen) */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: '50%',
+              right: 0,
+              bottom: 0,
+              zIndex: 9,
+              touchAction: 'none',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              background: 'transparent',
+            }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              (e.currentTarget as any).__orbitPointerId = e.pointerId;
+              (e.currentTarget as any).__orbitLastX = e.clientX;
+              cameraOrbitActiveRef.current = true;
+              try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+            }}
+            onPointerMove={(e) => {
+              if ((e.currentTarget as any).__orbitPointerId === e.pointerId) {
+                const delta = e.clientX - ((e.currentTarget as any).__orbitLastX ?? e.clientX);
+                (e.currentTarget as any).__orbitLastX = e.clientX;
+                cameraOrbitDeltaRef.current += delta * 0.006;
+              }
+            }}
+            onPointerUp={(e) => {
+              if ((e.currentTarget as any).__orbitPointerId === e.pointerId) {
+                (e.currentTarget as any).__orbitPointerId = null;
+                cameraOrbitActiveRef.current = false;
+              }
+              try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+            }}
+            onPointerCancel={(e) => {
+              if ((e.currentTarget as any).__orbitPointerId === e.pointerId) {
+                (e.currentTarget as any).__orbitPointerId = null;
+                cameraOrbitActiveRef.current = false;
+              }
+            }}
+          />
+        </>
       )}
       
       {/* Control Mode Toggle - only shows in debug mode */}
