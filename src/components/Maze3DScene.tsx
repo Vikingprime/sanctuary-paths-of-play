@@ -2887,7 +2887,7 @@ return (
       ) : (
         <>
            <OverShoulderCameraController 
-2882:             playerStateRef={playerStateRef}
+            playerStateRef={playerStateRef}
             restartKey={restartKey}
             topDownCamera={topDownCamera}
             groundLevelCamera={groundLevelCamera}
