@@ -1981,6 +1981,78 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
           </Card>
         )}
 
+        {/* Obstacle Panel */}
+        {showObstaclePanel && (
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center justify-between">
+                <span>🪵 Obstacles</span>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={addObstacle}>
+                    <Plus className="w-4 h-4 mr-1" /> Add Obstacle
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setShowObstaclePanel(false)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-3">
+                Place logs and other obstacles that block line-of-sight for small creatures. Taller creatures can see over them.
+              </p>
+              {obstacles.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No obstacles yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {obstacles.map(obstacle => (
+                    <Card key={obstacle.id} className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-lg">🪵</span>
+                        <Button size="icon" variant="ghost" onClick={() => removeObstacle(obstacle.id)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        <Select
+                          value={obstacle.model}
+                          onValueChange={v => setObstacles(prev => prev.map(o => o.id === obstacle.id ? { ...o, model: v } : o))}
+                        >
+                          <SelectTrigger className="text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {OBSTACLE_MODELS.map(m => (
+                              <SelectItem key={m} value={m}>{m}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs">Rotation°</Label>
+                          <Input
+                            type="number"
+                            value={obstacle.rotation || 0}
+                            onChange={e => setObstacles(prev => prev.map(o => o.id === obstacle.id ? { ...o, rotation: parseInt(e.target.value) || 0 } : o))}
+                            className="text-xs h-7 w-20"
+                          />
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant={placingObstacleId === obstacle.id ? 'default' : 'outline'}
+                          className="w-full"
+                          onClick={() => setPlacingObstacleId(placingObstacleId === obstacle.id ? null : obstacle.id)}
+                        >
+                          {obstacle.position ? `(${obstacle.position.x}, ${obstacle.position.y})` : 'Place on grid'}
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Dialogue Panel */}
         {showDialoguePanel && (
           <Card className="mt-4">
