@@ -136,6 +136,14 @@ export interface IntroDialogue {
   characterModel?: string; // Manual model if no characterId
 }
 
+// Obstacle placed in the maze (e.g., logs that block LOS for small creatures)
+export interface MazeObstacle {
+  id: string;
+  model: string; // GLB file name (e.g., 'Log.glb')
+  position: { x: number; y: number }; // Grid position
+  rotation?: number; // Y-axis rotation in degrees (default: 0)
+}
+
 export interface Maze {
   id: number;
   name: string;
