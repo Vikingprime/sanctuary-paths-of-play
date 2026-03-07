@@ -2100,15 +2100,26 @@ const OverShoulderCameraController = ({
       smoothRotation.current = targetCameraYaw;
       initialPlayerPos.current = { x: playerX, z: playerZ };
       const rot = targetCameraYaw;
-      // Set camera position immediately without interpolation (start close)
+      
+      // On first load: start close for cinematic zoom. On restart: snap to normal distance.
+      const initDist = isFirstLoad.current ? CAMERA_DISTANCE_START : CAMERA_DISTANCE_NORMAL;
+      const initHeight = isFirstLoad.current ? CAMERA_HEIGHT_START : CAMERA_HEIGHT_NORMAL;
+      const initLookHeight = isFirstLoad.current ? LOOK_HEIGHT_START : LOOK_HEIGHT_NORMAL;
+      currentDistance.current = initDist;
+      
+      if (!isFirstLoad.current) {
+        // On restart, mark as already moved so no zoom animation plays
+        hasPlayerMoved.current = true;
+      }
+      
       currentPosition.current.set(
-        playerX - Math.sin(rot) * CAMERA_DISTANCE_START,
-        CAMERA_HEIGHT_START,
-        playerZ + Math.cos(rot) * CAMERA_DISTANCE_START
+        playerX - Math.sin(rot) * initDist,
+        initHeight,
+        playerZ + Math.cos(rot) * initDist
       );
       currentLookAt.current.set(
         playerX,
-        LOOK_HEIGHT_START,
+        initLookHeight,
         playerZ
       );
       initialized.current = true;
