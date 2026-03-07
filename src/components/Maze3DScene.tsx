@@ -2445,9 +2445,16 @@ const OverShoulderCameraController = ({
       playerZ - Math.cos(rot) * LOOK_AHEAD
     );
     
-    // Smooth position interpolation
-    currentPosition.current.lerp(finalTargetPosRef.current, POSITION_SMOOTHING);
-    currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
+    // Snap (no lerp) for a few frames after restart to prevent any drift
+    if (snapFrames.current > 0) {
+      snapFrames.current--;
+      currentPosition.current.copy(finalTargetPosRef.current);
+      currentLookAt.current.copy(targetLookAt.current);
+    } else {
+      // Smooth position interpolation
+      currentPosition.current.lerp(finalTargetPosRef.current, POSITION_SMOOTHING);
+      currentLookAt.current.lerp(targetLookAt.current, POSITION_SMOOTHING);
+    }
     
     // Apply to camera
     if (groundLevelCamera) {
