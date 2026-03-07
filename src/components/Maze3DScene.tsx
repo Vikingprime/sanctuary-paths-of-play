@@ -1506,6 +1506,15 @@ const RefBasedPlayer = ({
           while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
         }
         
+        // Apply camera orbit delta from touch (right side of screen)
+        if (cameraYawRef && cameraOrbitDeltaRef) {
+          cameraYawRef.current += cameraOrbitDeltaRef.current;
+          cameraOrbitDeltaRef.current = 0; // Consume delta
+          // Normalize
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
         // Movement is ALWAYS forward (toward or away from camera based on joystick Y)
         // joystickY > 0 = push away from camera, joystickY < 0 = pull toward camera
         const hasMovement = Math.abs(joyY) > 0.1;
