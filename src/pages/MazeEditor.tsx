@@ -1263,6 +1263,11 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         Click to place character...
                       </span>
                     )}
+                    {placingObstacleId && (
+                      <span className="text-sm text-amber-700 animate-pulse">
+                        🪵 Click to place obstacle...
+                      </span>
+                    )}
                     {paintingVisionCharacterId && (
                       <span className="text-sm text-cyan-600 animate-pulse">
                         👁 Painting {characters.find(c => c.id === paintingVisionCharacterId)?.directionalVision !== undefined 
