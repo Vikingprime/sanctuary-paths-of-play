@@ -1086,6 +1086,61 @@ const PlacedCharacter = ({
   );
 };
 
+// VisionConeOverlay - renders red semi-transparent planes on the ground for NPC vision zones
+const VisionConeOverlay = ({ 
+  character, 
+  rotationOverride,
+}: { 
+  character: MazeCharacter;
+  rotationOverride?: number;
+}) => {
+  // Resolve which vision cells to show based on current direction
+  const visionCells = useMemo(() => {
+    if (character.directionalVision) {
+      // Determine current direction from rotation override
+      let direction: 'north' | 'south' | 'east' | 'west' = 'south';
+      if (rotationOverride !== undefined) {
+        const normalized = ((rotationOverride % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        if (normalized < Math.PI * 0.25 || normalized > Math.PI * 1.75) direction = 'south';
+        else if (normalized < Math.PI * 0.75) direction = 'west';
+        else if (normalized < Math.PI * 1.25) direction = 'north';
+        else direction = 'east';
+      }
+      
+      const zone = character.directionalVision[direction];
+      if (!zone) return [];
+      return zone.cells.map(c => ({
+        x: character.position.x + c.dx,
+        y: character.position.y + c.dy,
+      }));
+    }
+    return character.visionCells ?? [];
+  }, [character, rotationOverride]);
+  
+  if (visionCells.length === 0) return null;
+  
+  return (
+    <group>
+      {visionCells.map((cell, i) => (
+        <mesh
+          key={i}
+          position={[cell.x, 0.02, cell.y]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <planeGeometry args={[1, 1]} />
+          <meshBasicMaterial
+            color="#cc2200"
+            transparent
+            opacity={0.25}
+            depthWrite={false}
+            side={DoubleSide}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+};
+
 // DialogueCharacter - wraps CharacterRenderer for legacy dialogues with characterModel/speakerPosition
 const DialogueCharacter = ({ 
   dialogue, 
