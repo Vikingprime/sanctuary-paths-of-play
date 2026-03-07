@@ -1116,6 +1116,9 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
             </Card>
           )}
 
+          {/* Palette Sidebar - Drag characters & obstacles onto grid */}
+          <EditorPalette className="w-44" />
+
           {/* Main Editor Area */}
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4">
             {/* Tools Panel */}
