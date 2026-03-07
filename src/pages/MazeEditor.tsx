@@ -12,13 +12,14 @@ import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple
 import { toast } from 'sonner';
 import { FineSpineEditor } from '@/components/FineSpineEditor';
 import { useMazeStorage, createGrid } from '@/hooks/useMazeStorage';
-import { Maze, DialogueSequenceItem, CardinalDirection, DirectionalVision, TurningConfig, RelativeVisionZone } from '@/types/game';
+import { Maze, DialogueSequenceItem, CardinalDirection, DirectionalVision, TurningConfig, RelativeVisionZone, ConeVisionConfig, MazeObstacle } from '@/types/game';
 import { useBackButton } from '@/hooks/useBackButton';
 import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
 import { canBeFedApples } from '@/types/appleDialogue';
 import { buildMazeEditorSpine, cellsTouchSpine, getMazeCellKey } from '@/lib/mazeEditorSpine';
 import { branchContainsFineCell, expandDeletedSpineBranches, getSpineBranchCells, getSpineBranchRangeForCell, getSpineFineCellKey, normalizeSpineFineBranches, normalizeSpineFineCells, SPINE_FINE_GRID_SCALE, type SpineFineBranchRange, type SpineFineCellCoordinate } from '@/lib/spineFineCells';
 import { getCharacterAnimations } from '@/game/CharacterConfig';
+import { generateConeVisionOffsets } from '@/game/NPCRuntime';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -39,7 +40,15 @@ interface CharacterConfig {
   visionCells?: { x: number; y: number }[];
   visionDialogueId?: string;
   directionalVision?: DirectionalVision;
+  coneVision?: ConeVisionConfig;
   turning?: TurningConfig;
+}
+
+interface ObstacleConfig {
+  id: string;
+  model: string;
+  position: { x: number; y: number } | null;
+  rotation?: number;
 }
 
 type VisionConePreset = 'none' | 'narrow' | 'wide' | 'long';
@@ -176,6 +185,11 @@ const AVAILABLE_MODELS = [
   'Bush_with_Berries.glb',
 ];
 
+const OBSTACLE_MODELS = [
+  'Log.glb',
+  'Log_with_Fungus.glb',
+];
+
 
 
 type SpineEditMode = 'cell' | 'branch';
@@ -213,6 +227,9 @@ const MazeEditor: React.FC = () => {
   const [placingCharacterId, setPlacingCharacterId] = useState<string | null>(null);
   const [paintingVisionCharacterId, setPaintingVisionCharacterId] = useState<string | null>(null);
   const [paintingVisionDirection, setPaintingVisionDirection] = useState<CardinalDirection>('north');
+  const [obstacles, setObstacles] = useState<ObstacleConfig[]>([]);
+  const [showObstaclePanel, setShowObstaclePanel] = useState(false);
+  const [placingObstacleId, setPlacingObstacleId] = useState<string | null>(null);
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
   const [showMazeList, setShowMazeList] = useState(true);
@@ -335,10 +352,23 @@ const MazeEditor: React.FC = () => {
         visionCells: c.visionCells || [],
         visionDialogueId: c.visionDialogueId || undefined,
         directionalVision: c.directionalVision || undefined,
+        coneVision: c.coneVision || undefined,
         turning: c.turning || undefined,
       })));
     } else {
       setCharacters([]);
+    }
+    
+    // Load obstacles
+    if (maze.obstacles) {
+      setObstacles(maze.obstacles.map(o => ({
+        id: o.id,
+        model: o.model,
+        position: o.position,
+        rotation: o.rotation,
+      })));
+    } else {
+      setObstacles([]);
     }
     
     setLoadedMazeId(mazeId);
@@ -486,6 +516,14 @@ const MazeEditor: React.FC = () => {
         toast.success(`${char.name} placed at (${x}, ${y})`);
         setPlacingCharacterId(null);
       }
+      return;
+    }
+    if (placingObstacleId) {
+      setObstacles(prev => prev.map(o => 
+        o.id === placingObstacleId ? { ...o, position: { x, y } } : o
+      ));
+      toast.success(`Obstacle placed at (${x}, ${y})`);
+      setPlacingObstacleId(null);
       return;
     }
     
@@ -641,6 +679,17 @@ const MazeEditor: React.FC = () => {
   };
 
   const getVisionCharacterAtCell = (x: number, y: number): CharacterConfig | undefined => {
+    // Check cone vision
+    const coneMatch = characters.find(c => {
+      if (!c.coneVision || !c.position) return false;
+      // Show cone for all directions if turning, otherwise default south
+      const dirs: CardinalDirection[] = c.turning?.directions || ['south'];
+      return dirs.some(dir => {
+        const offsets = generateConeVisionOffsets(c.coneVision!, dir);
+        return offsets.some(o => c.position!.x + o.dx === x && c.position!.y + o.dy === y);
+      });
+    });
+    if (coneMatch) return coneMatch;
     // Check legacy absolute vision cells
     const legacyMatch = characters.find(c => c.visionCells?.some(vc => vc.x === x && vc.y === y));
     if (legacyMatch) return legacyMatch;
@@ -653,6 +702,29 @@ const MazeEditor: React.FC = () => {
         )
       );
     });
+  };
+
+  const getObstacleAtCell = (x: number, y: number): ObstacleConfig | undefined => {
+    return obstacles.find(o => o.position?.x === x && o.position?.y === y);
+  };
+
+  const addObstacle = () => {
+    const newId = `obstacle_${Date.now()}`;
+    const newObstacle: ObstacleConfig = {
+      id: newId,
+      model: 'Log.glb',
+      position: null,
+      rotation: 0,
+    };
+    setObstacles(prev => [...prev, newObstacle]);
+    setPlacingObstacleId(newId);
+    setShowObstaclePanel(true);
+    toast.success('Obstacle created! Click on the grid to place it.');
+  };
+
+  const removeObstacle = (id: string) => {
+    setObstacles(prev => prev.filter(o => o.id !== id));
+    if (placingObstacleId === id) setPlacingObstacleId(null);
   };
 
   const generateSchema = useCallback(() => {
@@ -678,13 +750,16 @@ ${characters.filter(c => c.position).map(c => {
   const turningStr = c.turning
     ? `\n      turning: { pattern: '${c.turning.pattern}', directions: [${c.turning.directions.map(d => `'${d}'`).join(', ')}], intervalMs: ${c.turning.intervalMs}${c.turning.initialDirection ? `, initialDirection: '${c.turning.initialDirection}'` : ''} },`
     : '';
+  const coneVisionStr = c.coneVision
+    ? `\n      coneVision: { range: ${c.coneVision.range}, spreadPerCell: ${c.coneVision.spreadPerCell} },`
+    : '';
   return `    {
       id: '${c.id}',
       name: '${c.name}',
       emoji: '${c.emoji}',
       model: '${c.model}',
       animation: '${c.animation}',
-      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${visionStr}${dirVisionStr}${turningStr}${visionDlgStr}
+      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${visionStr}${dirVisionStr}${coneVisionStr}${turningStr}${visionDlgStr}
     }`;
 }).join(',\n')}
   ],` : '';
@@ -740,20 +815,25 @@ ${normalizedDeletedSpineFineCells.map((cell) => `    { x: ${cell.x}, y: ${cell.y
   ],`
       : '';
 
+    const obstaclesSchema = obstacles.filter(o => o.position).length > 0 ? `
+  obstacles: [
+${obstacles.filter(o => o.position).map(o => `    { id: '${o.id}', model: '${o.model}', position: { x: ${o.position!.x}, y: ${o.position!.y} }${o.rotation ? `, rotation: ${o.rotation}` : ''} },`).join('\n')}
+  ],` : '';
+
     const schema = `{
   id: ${loadedMazeId || Date.now()},
   name: '${config.name}',
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
   previewTime: ${config.previewTime},${timerDisabledSchema}${deletedSpineBranchesSchema}${deletedSpineFineCellsSchema}
-  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
+  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${obstaclesSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
   ]),
 },`;
     
     return schema;
-  }, [grid, config, dialogues, characters, loadedMazeId, normalizedDeletedSpineBranches, normalizedDeletedSpineFineCells]);
+  }, [grid, config, dialogues, characters, obstacles, loadedMazeId, normalizedDeletedSpineBranches, normalizedDeletedSpineFineCells]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateSchema());
@@ -1105,6 +1185,17 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                   </Button>
                 </div>
 
+                {/* Obstacles Toggle */}
+                <div className="pt-2">
+                  <Button 
+                    onClick={() => setShowObstaclePanel(!showObstaclePanel)} 
+                    variant={placingObstacleId ? 'default' : 'outline'}
+                    className="w-full"
+                  >
+                    🪵 Obstacles ({obstacles.length})
+                  </Button>
+                </div>
+
                 {/* Apple Dialogues Toggle */}
                 <div className="pt-2">
                   <Button 
@@ -1172,6 +1263,11 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         Click to place character...
                       </span>
                     )}
+                    {placingObstacleId && (
+                      <span className="text-sm text-amber-700 animate-pulse">
+                        🪵 Click to place obstacle...
+                      </span>
+                    )}
                     {paintingVisionCharacterId && (
                       <span className="text-sm text-cyan-600 animate-pulse">
                         👁 Painting {characters.find(c => c.id === paintingVisionCharacterId)?.directionalVision !== undefined 
@@ -1198,6 +1294,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const cellDialogues = getCellDialogues(x, y);
                         const dialogue = cellDialogues[0];
                         const character = getCharacterAtCell(x, y);
+                        const obstacle = getObstacleAtCell(x, y);
                         const visionChar = getVisionCharacterAtCell(x, y);
                         const isDialogueCell = cellDialogues.length > 0;
                         const isMultiDialogue = cellDialogues.length > 1;
@@ -1215,22 +1312,27 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             className={`
                               w-4 h-4 md:w-5 md:h-5 cursor-crosshair transition-colors relative
                               ${character ? 'ring-2 ring-primary' : ''}
+                              ${obstacle ? 'ring-2 ring-amber-700' : ''}
                               ${isDialogueCell && !isMultiDialogue ? dialogueColor : ''}
-                              ${!isDialogueCell && !isVisionCell ? CELL_COLORS[cell] : ''}
+                              ${!isDialogueCell && !isVisionCell && !obstacle ? CELL_COLORS[cell] : ''}
                               ${!isDialogueCell && isVisionCell ? 'bg-cyan-400/70' : ''}
+                              ${!isDialogueCell && !isVisionCell && obstacle ? 'bg-amber-600' : ''}
                               ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
                               ${isPaintingVision ? 'cursor-pointer' : ''}
                             `}
                             style={stripedStyle}
                             onMouseDown={() => handleMouseDown(x, y)}
                             onMouseEnter={() => handleMouseEnter(x, y)}
-                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${isVisionCell ? ` - 👁 ${visionChar.name} vision` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
+                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${isVisionCell ? ` - 👁 ${visionChar.name} vision` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
                           >
                             {isOnSpine && (
                               <span className="pointer-events-none absolute inset-[3px] rounded-full border border-primary bg-primary/35" />
                             )}
-                            {isVisionCell && !character && (
+                            {isVisionCell && !character && !obstacle && (
                               <span className="absolute inset-0 flex items-center justify-center text-[8px] pointer-events-none">👁</span>
+                            )}
+                            {obstacle && !character && (
+                              <span className="absolute inset-0 z-10 flex items-center justify-center text-[8px]">🪵</span>
                             )}
                             {character && (
                               <span className="absolute inset-0 z-10 flex items-center justify-center text-[10px]">
@@ -1476,12 +1578,25 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                           <div className="flex items-center gap-2">
                             <Label className="text-xs">Mode:</Label>
                             <Select
-                              value={char.directionalVision !== undefined ? 'directional' : 'legacy'}
+                              value={char.coneVision ? 'cone' : (char.directionalVision !== undefined ? 'directional' : 'legacy')}
                               onValueChange={v => {
-                                if (v === 'directional') {
-                                  updateCharacter(char.id, { directionalVision: {}, visionCells: [] });
+                                if (v === 'cone') {
+                                  updateCharacter(char.id, { 
+                                    coneVision: { range: 4, spreadPerCell: 1 }, 
+                                    directionalVision: undefined, 
+                                    visionCells: [] 
+                                  });
+                                } else if (v === 'directional') {
+                                  updateCharacter(char.id, { 
+                                    directionalVision: {}, 
+                                    coneVision: undefined, 
+                                    visionCells: [] 
+                                  });
                                 } else {
-                                  updateCharacter(char.id, { directionalVision: undefined });
+                                  updateCharacter(char.id, { 
+                                    directionalVision: undefined, 
+                                    coneVision: undefined 
+                                  });
                                 }
                               }}
                             >
@@ -1491,12 +1606,49 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                               <SelectContent>
                                 <SelectItem value="legacy">Absolute (legacy)</SelectItem>
                                 <SelectItem value="directional">Directional (per-facing)</SelectItem>
+                                <SelectItem value="cone">Cone (triangle)</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
 
+                          {/* Cone vision config */}
+                          {char.coneVision && (
+                            <div className="space-y-2 p-2 bg-muted rounded">
+                              <p className="text-xs font-medium">🔺 Triangle Cone</p>
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs">Range:</Label>
+                                <Input
+                                  type="number"
+                                  value={char.coneVision.range}
+                                  onChange={e => updateCharacter(char.id, { 
+                                    coneVision: { ...char.coneVision!, range: parseInt(e.target.value) || 1 } 
+                                  })}
+                                  className="text-xs h-7 w-16"
+                                  min={1}
+                                  max={10}
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs">Spread/cell:</Label>
+                                <Input
+                                  type="number"
+                                  value={char.coneVision.spreadPerCell}
+                                  onChange={e => updateCharacter(char.id, { 
+                                    coneVision: { ...char.coneVision!, spreadPerCell: parseInt(e.target.value) || 0 } 
+                                  })}
+                                  className="text-xs h-7 w-16"
+                                  min={0}
+                                  max={3}
+                                />
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Cells at depth N: 1 + 2×spread×(N-1). Follows current facing direction.
+                              </p>
+                            </div>
+                          )}
+
                           {/* Directional vision UI */}
-                          {char.directionalVision !== undefined ? (
+                          {!char.coneVision && char.directionalVision !== undefined ? (
                             <div className="space-y-2">
                               {/* Cone preset */}
                               <div className="flex items-center gap-2">
@@ -1564,7 +1716,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                   : 'Select a direction above, then click cells to paint'}
                               </p>
                             </div>
-                          ) : (
+                          ) : !char.coneVision ? (
                             /* Legacy absolute vision */
                             <div className="space-y-2">
                               <div className="flex gap-2">
@@ -1593,7 +1745,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                 )}
                               </div>
                             </div>
-                          )}
+                          ) : null}
 
                           {/* Vision triggers dialogue */}
                           <div>
@@ -1837,6 +1989,78 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             </div>
                           </div>
                         )}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Obstacle Panel */}
+        {showObstaclePanel && (
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center justify-between">
+                <span>🪵 Obstacles</span>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={addObstacle}>
+                    <Plus className="w-4 h-4 mr-1" /> Add Obstacle
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setShowObstaclePanel(false)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-3">
+                Place logs and other obstacles that block line-of-sight for small creatures. Taller creatures can see over them.
+              </p>
+              {obstacles.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No obstacles yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {obstacles.map(obstacle => (
+                    <Card key={obstacle.id} className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-lg">🪵</span>
+                        <Button size="icon" variant="ghost" onClick={() => removeObstacle(obstacle.id)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        <Select
+                          value={obstacle.model}
+                          onValueChange={v => setObstacles(prev => prev.map(o => o.id === obstacle.id ? { ...o, model: v } : o))}
+                        >
+                          <SelectTrigger className="text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {OBSTACLE_MODELS.map(m => (
+                              <SelectItem key={m} value={m}>{m}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs">Rotation°</Label>
+                          <Input
+                            type="number"
+                            value={obstacle.rotation || 0}
+                            onChange={e => setObstacles(prev => prev.map(o => o.id === obstacle.id ? { ...o, rotation: parseInt(e.target.value) || 0 } : o))}
+                            className="text-xs h-7 w-20"
+                          />
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant={placingObstacleId === obstacle.id ? 'default' : 'outline'}
+                          className="w-full"
+                          onClick={() => setPlacingObstacleId(placingObstacleId === obstacle.id ? null : obstacle.id)}
+                        >
+                          {obstacle.position ? `(${obstacle.position.x}, ${obstacle.position.y})` : 'Place on grid'}
+                        </Button>
                       </div>
                     </Card>
                   ))}

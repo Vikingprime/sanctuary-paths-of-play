@@ -73,6 +73,12 @@ export interface PatrolConfig {
   pauseMs?: number; // Optional pause at each waypoint (ms)
 }
 
+// Triangle cone vision config: widens with distance
+export interface ConeVisionConfig {
+  range: number; // How many cells deep the cone extends
+  spreadPerCell: number; // How many cells wider per row (e.g., 1 = grows 1 cell each side per row)
+}
+
 export interface MazeCharacter {
   id: string;
   name: string;
@@ -88,6 +94,8 @@ export interface MazeCharacter {
   visionDialogueId?: string; // ID of dialogue triggered when player enters vision zone
   // Directional vision: different zones per facing direction (relative to NPC)
   directionalVision?: DirectionalVision;
+  // Cone vision: triangle-shaped vision that widens with distance
+  coneVision?: ConeVisionConfig;
   // Turning behavior
   turning?: TurningConfig;
   // Patrol behavior
@@ -128,6 +136,14 @@ export interface IntroDialogue {
   characterModel?: string; // Manual model if no characterId
 }
 
+// Obstacle placed in the maze (e.g., logs that block LOS for small creatures)
+export interface MazeObstacle {
+  id: string;
+  model: string; // GLB file name (e.g., 'Log.glb')
+  position: { x: number; y: number }; // Grid position
+  rotation?: number; // Y-axis rotation in degrees (default: 0)
+}
+
 export interface Maze {
   id: number;
   name: string;
@@ -153,6 +169,7 @@ export interface Maze {
     end: { x: number; y: number };
   }>; // Branch ranges removed from generated traversal paths
   deletedSpineFineCells?: { x: number; y: number }[]; // Optional per-cell spine overrides removed from generated traversal paths
+  obstacles?: MazeObstacle[]; // Placed obstacles (logs, etc.) that can block LOS
 }
 
 export interface GameState {
