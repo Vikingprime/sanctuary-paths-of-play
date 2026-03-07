@@ -265,6 +265,7 @@ const Index = () => {
         friendshipProgress={undefined}
         berryCount={berryCount}
         onBerryCollect={(count) => setBerryCount(prev => prev + count)}
+        onBerryReset={() => setBerryCount(0)}
       />
     );
   }
