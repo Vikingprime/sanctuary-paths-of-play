@@ -1342,7 +1342,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const dialogue = cellDialogues[0];
                         const character = getCharacterAtCell(x, y);
                         const obstacle = getObstacleAtCell(x, y);
-                        const visionChar = getVisionCharacterAtCell(x, y);
+                        
                         const isDialogueCell = cellDialogues.length > 0;
                         const isMultiDialogue = cellDialogues.length > 1;
                         const dialogueColor = dialogue ? getDialogueColor(dialogue.id) : '';
@@ -1350,7 +1350,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const isOnSpine = showSpineOverlay && (spineAnalysis?.traversedCellKeys.has(getMazeCellKey(x, y)) ?? false);
                         const stripedStyle = isMultiDialogue ? getStripedBackground(cellDialogues) : {};
                         const dialogueNames = cellDialogues.map(d => d.speaker).join(', ');
-                         const isVisionCell = !!visionChar;
+                         
                         
                         return (
                           <div
@@ -1361,9 +1361,8 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                               ${obstacle && !character ? 'ring-2 ring-amber-700' : ''}
                               ${dragOverCell?.x === x && dragOverCell?.y === y ? 'ring-2 ring-blue-500 bg-blue-200/50' : ''}
                               ${isDialogueCell && !isMultiDialogue ? dialogueColor : ''}
-                              ${!isDialogueCell && !isVisionCell && !obstacle ? CELL_COLORS[cell] : ''}
-                              ${!isDialogueCell && isVisionCell ? 'bg-cyan-400/70' : ''}
-                              ${!isDialogueCell && !isVisionCell && obstacle ? 'bg-amber-600' : ''}
+                              ${!isDialogueCell && !obstacle ? CELL_COLORS[cell] : ''}
+                              ${!isDialogueCell && obstacle ? 'bg-amber-600' : ''}
                               ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
                               
                               ${selectedCharacterId && character?.id === selectedCharacterId ? 'ring-2 ring-offset-1 ring-blue-500' : ''}
@@ -1374,13 +1373,10 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             onDragOver={(e) => handleGridDragOver(e, x, y)}
                             onDragLeave={handleGridDragLeave}
                             onDrop={(e) => handleGridDrop(e, x, y)}
-                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${isVisionCell ? ` - 👁 ${visionChar.name} vision` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
+                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
                           >
                             {isOnSpine && (
                               <span className="pointer-events-none absolute inset-[3px] rounded-full border border-primary bg-primary/35" />
-                            )}
-                            {isVisionCell && !character && !obstacle && (
-                              <span className="absolute inset-0 flex items-center justify-center text-[8px] pointer-events-none">👁</span>
                             )}
                             {obstacle && !character && (
                               <span
