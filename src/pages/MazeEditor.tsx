@@ -642,26 +642,8 @@ const MazeEditor: React.FC = () => {
     return characters.find(c => c.position?.x === x && c.position?.y === y);
   };
 
-  const getVisionCharacterAtCell = (x: number, y: number): CharacterConfig | undefined => {
-    // Only cone vision - check all facing directions, filtered by walls
-    return characters.find(c => {
-      if (!c.coneVision || !c.position) return false;
-      const dirs: CardinalDirection[] = c.turning?.directions || ['south'];
-      return dirs.some(dir => {
-        const offsets = generateConeVisionOffsets(c.coneVision!, dir);
-        return offsets.some(o => {
-          const cx = c.position!.x + o.dx;
-          const cy = c.position!.y + o.dy;
-          if (cx === x && cy === y) {
-            // Check wall blocking: is there a wall between NPC and this cell?
-            if (cy >= 0 && cy < grid.length && cx >= 0 && cx < grid[0].length && grid[cy][cx] === '#') return false;
-            return true;
-          }
-          return false;
-        });
-      });
-    });
-  };
+
+
 
   const getObstacleAtCell = (x: number, y: number): ObstacleConfig | undefined => {
     return obstacles.find(o => o.position?.x === x && o.position?.y === y);
