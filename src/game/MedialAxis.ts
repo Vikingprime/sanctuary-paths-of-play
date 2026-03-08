@@ -142,6 +142,14 @@ export function computeMedialAxis(
   //                            B B B B B B
   // =========================================================================
   
+  // Build a set of obstacle positions for quick lookup
+  const obstaclePositions = new Set<string>();
+  if (maze.obstacles) {
+    for (const obs of maze.obstacles) {
+      obstaclePositions.add(`${obs.position.x},${obs.position.y}`);
+    }
+  }
+  
   const fineGrid: FineCell[][] = [];
   
   for (let fy = 0; fy < fineHeight; fy++) {
@@ -151,10 +159,11 @@ export function computeMedialAxis(
       const origX = Math.floor(fx / scale);
       const origY = Math.floor(fy / scale);
       
-      // Check if original cell is walkable (not a wall)
+      // Check if original cell is walkable (not a wall and not an obstacle)
       const origRow = maze.grid[origY];
       const origCell = origRow?.[origX];
-      const walkable = origCell ? !origCell.isWall : false;
+      const isObstacle = obstaclePositions.has(`${origX},${origY}`);
+      const walkable = origCell ? (!origCell.isWall && !isObstacle) : false;
       
       row.push({
         walkable,
