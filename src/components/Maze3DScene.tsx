@@ -4,7 +4,7 @@ import { PerspectiveCamera, ContactShadows, useGLTF, Html, useTexture } from '@r
 import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping, CanvasTexture, BufferGeometry, BufferAttribute, Float32BufferAttribute } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
-import { resolveVisionCells, NPCRuntimeState } from '@/game/NPCRuntime';
+import { NPCRuntimeState } from '@/game/NPCRuntime';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision, checkCollision } from '@/game/GameLogic';
@@ -1154,32 +1154,7 @@ const VisionConeOverlay = ({
     return geom;
   }, [character.coneVision, rotationOverride]);
   
-  // Also keep cell-based detection for legacy/fallback
-  const visionCells = useMemo(() => {
-    let direction: 'north' | 'south' | 'east' | 'west' = 'south';
-    if (rotationOverride !== undefined) {
-      const normalized = ((rotationOverride % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-      if (normalized < Math.PI * 0.25 || normalized > Math.PI * 1.75) direction = 'south';
-      else if (normalized < Math.PI * 0.75) direction = 'west';
-      else if (normalized < Math.PI * 1.25) direction = 'north';
-      else direction = 'east';
-    }
-    const isWallFn = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
-    const fakeState: NPCRuntimeState = {
-      characterId: character.id,
-      currentDirection: direction,
-      pingPongIndex: 0,
-      pingPongForward: true,
-      elapsedMs: 0,
-      patrolWaypointIndex: 0,
-      patrolPosition: { x: character.position.x, y: character.position.y },
-      patrolPauseElapsed: 0,
-      isPatrolPaused: false,
-    };
-    return resolveVisionCells(character, fakeState, isWallFn);
-  }, [character, rotationOverride, maze.grid]);
-  
-  if (!coneGeometry && visionCells.length === 0) return null;
+  if (!coneGeometry) return null;
   
   
   
@@ -1206,23 +1181,6 @@ const VisionConeOverlay = ({
           />
         </mesh>
       )}
-      {/* Fallback: cell-based rendering for non-cone vision */}
-      {!coneGeometry && visionCells.map((cell, i) => (
-        <mesh
-          key={i}
-          position={[cell.x, 0.02, cell.y]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <planeGeometry args={[1, 1]} />
-          <meshBasicMaterial
-            color="#cc2200"
-            transparent
-            opacity={0.25}
-            depthWrite={false}
-            side={DoubleSide}
-          />
-        </mesh>
-      ))}
     </group>
   );
 };
@@ -3056,7 +3014,7 @@ return (
       ))}
       
       {/* Vision Cone overlays for NPCs with vision */}
-      {maze.characters?.filter(c => c.coneVision || c.directionalVision || (c.visionCells && c.visionCells.length > 0)).map((character) => (
+      {maze.characters?.filter(c => c.coneVision || c.directionalVision).map((character) => (
         <VisionConeOverlay
           key={`vision-${character.id}`}
           character={character}

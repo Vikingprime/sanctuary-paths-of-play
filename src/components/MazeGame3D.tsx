@@ -620,11 +620,11 @@ export const MazeGame3D = ({
   }, [triggeredDialogues]);
 
   // Check if a dialogue can be triggered at the given cell (proximity-based only)
-  // Also checks NPC vision zones (visionCells on characters)
+  // Also checks NPC vision zones (cone vision on characters)
   const checkDialogueAtCell = useCallback((gridX: number, gridY: number, currentTriggered: Set<string>): DialogueTrigger | null => {
     if (!maze.dialogues) return null;
     
-    // First check vision zones on characters (supports both legacy visionCells and directionalVision)
+    // Check vision zones on characters
     if (maze.characters) {
       for (const char of maze.characters) {
         if (!char.visionDialogueId) continue;

@@ -133,7 +133,7 @@ export function generateConeVisionOffsets(
 
 /**
  * Resolve active vision cells for an NPC given its current state.
- * Handles legacy absolute visionCells, directionalVision, and coneVision.
+ * Handles coneVision and directionalVision.
  * Returns absolute grid coordinates.
  */
 export function resolveVisionCells(
@@ -171,12 +171,8 @@ export function resolveVisionCells(
     return [];
   }
   
-  // Legacy: return absolute vision cells (also filter walls)
-  const legacy = character.visionCells ?? [];
-  if (isWallFn && legacy.length > 0) {
-    return filterVisionByWalls(pos, legacy, isWallFn);
-  }
-  return legacy;
+  // No vision configuration found
+  return [];
 }
 
 /**
