@@ -3014,7 +3014,7 @@ return (
       ))}
       
       {/* Vision Cone overlays for NPCs with vision */}
-      {maze.characters?.filter(c => c.coneVision || c.directionalVision || (c.visionCells && c.visionCells.length > 0)).map((character) => (
+      {maze.characters?.filter(c => c.coneVision || c.directionalVision).map((character) => (
         <VisionConeOverlay
           key={`vision-${character.id}`}
           character={character}

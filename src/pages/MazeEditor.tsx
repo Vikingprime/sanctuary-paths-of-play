@@ -810,7 +810,7 @@ ${characters.filter(c => c.position).map(c => {
       emoji: '${c.emoji}',
       model: '${c.model}',
       animation: '${c.animation}',
-      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${visionStr}${dirVisionStr}${coneVisionStr}${turningStr}${visionDlgStr}
+      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${dirVisionStr}${coneVisionStr}${turningStr}${visionDlgStr}
     }`;
 }).join(',\n')}
   ],` : '';
