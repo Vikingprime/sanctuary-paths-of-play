@@ -642,26 +642,8 @@ const MazeEditor: React.FC = () => {
     return characters.find(c => c.position?.x === x && c.position?.y === y);
   };
 
-  const getVisionCharacterAtCell = (x: number, y: number): CharacterConfig | undefined => {
-    // Only cone vision - check all facing directions, filtered by walls
-    return characters.find(c => {
-      if (!c.coneVision || !c.position) return false;
-      const dirs: CardinalDirection[] = c.turning?.directions || ['south'];
-      return dirs.some(dir => {
-        const offsets = generateConeVisionOffsets(c.coneVision!, dir);
-        return offsets.some(o => {
-          const cx = c.position!.x + o.dx;
-          const cy = c.position!.y + o.dy;
-          if (cx === x && cy === y) {
-            // Check wall blocking: is there a wall between NPC and this cell?
-            if (cy >= 0 && cy < grid.length && cx >= 0 && cx < grid[0].length && grid[cy][cx] === '#') return false;
-            return true;
-          }
-          return false;
-        });
-      });
-    });
-  };
+
+
 
   const getObstacleAtCell = (x: number, y: number): ObstacleConfig | undefined => {
     return obstacles.find(o => o.position?.x === x && o.position?.y === y);
@@ -1342,7 +1324,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const dialogue = cellDialogues[0];
                         const character = getCharacterAtCell(x, y);
                         const obstacle = getObstacleAtCell(x, y);
-                        const visionChar = getVisionCharacterAtCell(x, y);
+                        
                         const isDialogueCell = cellDialogues.length > 0;
                         const isMultiDialogue = cellDialogues.length > 1;
                         const dialogueColor = dialogue ? getDialogueColor(dialogue.id) : '';
@@ -1350,7 +1332,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const isOnSpine = showSpineOverlay && (spineAnalysis?.traversedCellKeys.has(getMazeCellKey(x, y)) ?? false);
                         const stripedStyle = isMultiDialogue ? getStripedBackground(cellDialogues) : {};
                         const dialogueNames = cellDialogues.map(d => d.speaker).join(', ');
-                         const isVisionCell = !!visionChar;
+                         
                         
                         return (
                           <div
@@ -1361,9 +1343,8 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                               ${obstacle && !character ? 'ring-2 ring-amber-700' : ''}
                               ${dragOverCell?.x === x && dragOverCell?.y === y ? 'ring-2 ring-blue-500 bg-blue-200/50' : ''}
                               ${isDialogueCell && !isMultiDialogue ? dialogueColor : ''}
-                              ${!isDialogueCell && !isVisionCell && !obstacle ? CELL_COLORS[cell] : ''}
-                              ${!isDialogueCell && isVisionCell ? 'bg-cyan-400/70' : ''}
-                              ${!isDialogueCell && !isVisionCell && obstacle ? 'bg-amber-600' : ''}
+                              ${!isDialogueCell && !obstacle ? CELL_COLORS[cell] : ''}
+                              ${!isDialogueCell && obstacle ? 'bg-amber-600' : ''}
                               ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
                               
                               ${selectedCharacterId && character?.id === selectedCharacterId ? 'ring-2 ring-offset-1 ring-blue-500' : ''}
@@ -1374,13 +1355,10 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             onDragOver={(e) => handleGridDragOver(e, x, y)}
                             onDragLeave={handleGridDragLeave}
                             onDrop={(e) => handleGridDrop(e, x, y)}
-                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${isVisionCell ? ` - 👁 ${visionChar.name} vision` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
+                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
                           >
                             {isOnSpine && (
                               <span className="pointer-events-none absolute inset-[3px] rounded-full border border-primary bg-primary/35" />
-                            )}
-                            {isVisionCell && !character && !obstacle && (
-                              <span className="absolute inset-0 flex items-center justify-center text-[8px] pointer-events-none">👁</span>
                             )}
                             {obstacle && !character && (
                               <span
