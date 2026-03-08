@@ -89,8 +89,6 @@ export interface MazeCharacter {
   alwaysFacePlayer?: boolean; // If true, character always rotates to face player (default: false, only faces during dialogue)
   // Per-animal dialogue sequence - defines the order of apple and normal dialogues
   dialogueSequence?: DialogueSequenceItem[];
-  // Legacy: absolute vision cells (for static NPCs without turning)
-  visionCells?: { x: number; y: number }[];
   visionDialogueId?: string; // ID of dialogue triggered when player enters vision zone
   // Directional vision: different zones per facing direction (relative to NPC)
   directionalVision?: DirectionalVision;

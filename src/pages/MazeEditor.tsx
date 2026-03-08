@@ -46,7 +46,6 @@ interface CharacterConfig {
   animation: string;
   position: { x: number; y: number } | null;
   dialogueSequence?: DialogueSequenceItem[];
-  visionCells?: { x: number; y: number }[];
   visionDialogueId?: string;
   directionalVision?: DirectionalVision;
   coneVision?: ConeVisionConfig;
@@ -358,7 +357,6 @@ const MazeEditor: React.FC = () => {
         model: c.model,
         animation: c.animation,
         position: c.position,
-        visionCells: c.visionCells || [],
         visionDialogueId: c.visionDialogueId || undefined,
         directionalVision: c.directionalVision || undefined,
         coneVision: c.coneVision || undefined,
@@ -791,9 +789,6 @@ const MazeEditor: React.FC = () => {
 ${characters.filter(c => c.position).map(c => {
   const dialogueSeqStr = c.dialogueSequence && c.dialogueSequence.length > 0
     ? `\n      dialogueSequence: [${c.dialogueSequence.map(item => `{ type: '${item.type}', id: '${item.id}' }`).join(', ')}],`
-    : '';
-  const visionStr = c.visionCells && c.visionCells.length > 0
-    ? `\n      visionCells: [${c.visionCells.map(vc => `{ x: ${vc.x}, y: ${vc.y} }`).join(', ')}],`
     : '';
   const visionDlgStr = c.visionDialogueId
     ? `\n      visionDialogueId: '${c.visionDialogueId}',`
@@ -1655,7 +1650,6 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                   updateCharacter(char.id, { 
                                     coneVision: { range: 4, spreadPerCell: 1 },
                                     directionalVision: undefined,
-                                    visionCells: [],
                                   });
                                 } else {
                                   updateCharacter(char.id, { 
