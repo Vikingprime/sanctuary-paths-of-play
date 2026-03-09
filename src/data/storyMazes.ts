@@ -838,6 +838,17 @@ export const storyMazes: StoryMaze[] = [
   chapter2Maze,
   chapter3Maze,
   chapter4BerryFetch,
+  chapter5BerryGauntlet,
+  chapter6PumpkinHunt,
+  chapter7LlamaBlockade,
+  chapter8RootbeerCellar,
+  chapter9RatCity,
+  chapter10Feast,
+  chapter11FindChicken,
+  chapter12HerdChicks,
+  chapter13RatGamble,
+  chapter14PorcupineBarn,
+  chapter15LightsOut,
 ];
 
 // Story chapters
@@ -925,12 +936,15 @@ export const storyMazeToMaze = (storyMaze: StoryMaze): Maze => {
     timeLimit: storyMaze.timeLimit,
     previewTime: storyMaze.previewTime,
     medalTimes: storyMaze.medalTimes,
+    timerDisabled: storyMaze.timerDisabled,
     characters: allCharacters,
     dialogues: storyMaze.dialogues,
     endConditions: storyMaze.endConditions,
-    freeMapAccess: storyMaze.freeMapAccess ?? true, // Default to true for story mazes
+    goalCharacterId: storyMaze.goalCharacterId,
+    freeMapAccess: storyMaze.freeMapAccess ?? true,
     deletedSpineBranches: storyMaze.deletedSpineBranches,
     deletedSpineFineCells: storyMaze.deletedSpineFineCells,
+    obstacles: storyMaze.obstacles,
   };
 };
 
