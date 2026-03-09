@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,13 +8,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple } from 'lucide-react';
+import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple, Route, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
-import { useMazeStorage, createGrid, gridToLayout } from '@/hooks/useMazeStorage';
-import { Maze, DialogueSequenceItem } from '@/types/game';
+import { FineSpineEditor } from '@/components/FineSpineEditor';
+import { useMazeStorage, createGrid } from '@/hooks/useMazeStorage';
+import { Maze, DialogueSequenceItem, CardinalDirection, DirectionalVision, TurningConfig, RelativeVisionZone, ConeVisionConfig, MazeObstacle } from '@/types/game';
 import { useBackButton } from '@/hooks/useBackButton';
 import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
 import { canBeFedApples } from '@/types/appleDialogue';
+import { buildMazeEditorSpine, cellsTouchSpine, getMazeCellKey } from '@/lib/mazeEditorSpine';
+import { branchContainsFineCell, expandDeletedSpineBranches, getSpineBranchCells, getSpineBranchRangeForCell, getSpineFineCellKey, normalizeSpineFineBranches, normalizeSpineFineCells, SPINE_FINE_GRID_SCALE, type SpineFineBranchRange, type SpineFineCellCoordinate } from '@/lib/spineFineCells';
+import { getCharacterAnimations } from '@/game/CharacterConfig';
+import { generateConeVisionOffsets } from '@/game/NPCRuntime';
+import { 
+  EditorPalette, 
+  DRAG_TYPE_CHARACTER, 
+  DRAG_TYPE_OBSTACLE, 
+  DRAG_TYPE_PLACED_CHARACTER, 
+  DRAG_TYPE_PLACED_OBSTACLE,
+  type DragCharacterData,
+  type DragObstacleData,
+} from '@/components/maze-editor/EditorPalette';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
 
@@ -31,8 +45,68 @@ interface CharacterConfig {
   model: string;
   animation: string;
   position: { x: number; y: number } | null;
-  dialogueSequence?: DialogueSequenceItem[]; // Per-animal dialogue sequence
+  dialogueSequence?: DialogueSequenceItem[];
+  visionDialogueId?: string;
+  directionalVision?: DirectionalVision;
+  coneVision?: ConeVisionConfig;
+  turning?: TurningConfig;
 }
+
+interface ObstacleConfig {
+  id: string;
+  model: string;
+  position: { x: number; y: number } | null;
+  rotation?: number;
+}
+
+type VisionConePreset = 'none' | 'narrow' | 'wide' | 'long';
+
+const VISION_CONE_PRESETS: Record<VisionConePreset, { label: string; description: string }> = {
+  none: { label: 'None', description: 'No vision' },
+  narrow: { label: 'Narrow', description: '1-wide, 3 deep' },
+  wide: { label: 'Wide', description: '3-wide, 2 deep' },
+  long: { label: 'Long', description: '1-wide, 5 deep' },
+};
+
+// Generate relative vision cells for a cone preset facing north (dy negative = north)
+// Other directions are derived by rotating these offsets
+function generateConeOffsets(preset: VisionConePreset): { dx: number; dy: number }[] {
+  switch (preset) {
+    case 'narrow':
+      return [
+        { dx: 0, dy: -1 }, { dx: 0, dy: -2 }, { dx: 0, dy: -3 },
+      ];
+    case 'wide':
+      return [
+        { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
+        { dx: -1, dy: -2 }, { dx: 0, dy: -2 }, { dx: 1, dy: -2 },
+      ];
+    case 'long':
+      return [
+        { dx: 0, dy: -1 }, { dx: 0, dy: -2 }, { dx: 0, dy: -3 },
+        { dx: 0, dy: -4 }, { dx: 0, dy: -5 },
+      ];
+    default:
+      return [];
+  }
+}
+
+// Rotate "north-facing" offsets to another direction
+function rotateOffsets(cells: { dx: number; dy: number }[], dir: CardinalDirection): { dx: number; dy: number }[] {
+  return cells.map(({ dx, dy }) => {
+    switch (dir) {
+      case 'north': return { dx, dy };
+      case 'south': return { dx: -dx, dy: -dy };
+      case 'east': return { dx: -dy, dy: dx };
+      case 'west': return { dx: dy, dy: -dx };
+    }
+  });
+}
+
+const ALL_DIRECTIONS: CardinalDirection[] = ['north', 'south', 'east', 'west'];
+const DIRECTION_LABELS: Record<CardinalDirection, string> = {
+  north: '⬆ North', south: '⬇ South', east: '➡ East', west: '⬅ West',
+};
 
 interface DialogueConfig {
   id: string;
@@ -89,6 +163,18 @@ const DIALOGUE_COLORS = [
   'bg-amber-500',
 ];
 
+// Raw hex colors matching DIALOGUE_COLORS for use in CSS gradients
+const DIALOGUE_HEX_COLORS = [
+  '#ec4899',
+  '#06b6d4',
+  '#f97316',
+  '#84cc16',
+  '#8b5cf6',
+  '#f43f5e',
+  '#14b8a6',
+  '#f59e0b',
+];
+
 const AVAILABLE_MODELS = [
   'Farmer.glb',
   'Animated_Woman.glb',
@@ -98,16 +184,26 @@ const AVAILABLE_MODELS = [
   'Hen_idle.glb',
   'Hen_walk.glb',
   'Rat.glb',
+  'Hamster.glb',
+  'Kangaroo_rat.glb',
+  'Squirrel.glb',
+  'Rat-2.glb',
+  'Spiny_mouse.glb',
+  'Sparrow.glb',
+  'Bush_with_Berries.glb',
 ];
 
-const AVAILABLE_ANIMATIONS = [
-  'idle',
-  'walk',
-  'talk',
-  'wave',
-  'point',
-  'celebrate',
+const OBSTACLE_MODELS = [
+  'Log.glb',
+  'Log_with_Fungus.glb',
 ];
+
+
+
+type SpineEditMode = 'cell' | 'branch';
+
+const getSpineBranchKey = (branch: SpineFineBranchRange) =>
+  `${getSpineFineCellKey(branch.start.x, branch.start.y)}:${getSpineFineCellKey(branch.end.x, branch.end.y)}`;
 
 const MazeEditor: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -137,12 +233,54 @@ const MazeEditor: React.FC = () => {
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
   const [placingCharacterId, setPlacingCharacterId] = useState<string | null>(null);
+  // Legacy vision painting removed - vision is now always cone-based
+  const [obstacles, setObstacles] = useState<ObstacleConfig[]>([]);
+  const [showObstaclePanel, setShowObstaclePanel] = useState(false);
+  const [placingObstacleId, setPlacingObstacleId] = useState<string | null>(null);
+  const [dragOverCell, setDragOverCell] = useState<{ x: number; y: number } | null>(null);
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
   const [showMazeList, setShowMazeList] = useState(true);
   const [showAppleDialoguePanel, setShowAppleDialoguePanel] = useState(false);
+  const [showSpineOverlay, setShowSpineOverlay] = useState(true);
+  const [enableFineSpineEditing, setEnableFineSpineEditing] = useState(false);
+  const [spineEditMode, setSpineEditMode] = useState<SpineEditMode>('branch');
+  const [deletedSpineFineCells, setDeletedSpineFineCells] = useState<SpineFineCellCoordinate[]>([]);
+  const [deletedSpineBranches, setDeletedSpineBranches] = useState<SpineFineBranchRange[]>([]);
   const [editableAppleDialogues, setEditableAppleDialogues] = useState<AnimalAppleDialogues[]>(() => 
     JSON.parse(JSON.stringify(animalAppleDialogues))
+  );
+  const normalizedDeletedSpineFineCells = useMemo(
+    () => normalizeSpineFineCells(deletedSpineFineCells),
+    [deletedSpineFineCells]
+  );
+  const normalizedDeletedSpineBranches = useMemo(
+    () => normalizeSpineFineBranches(deletedSpineBranches),
+    [deletedSpineBranches]
+  );
+  const deletedSpineFineCellKeys = useMemo(
+    () => new Set(normalizedDeletedSpineFineCells.map((cell) => getSpineFineCellKey(cell.x, cell.y))),
+    [normalizedDeletedSpineFineCells]
+  );
+  const baseSpineAnalysis = useMemo(() => buildMazeEditorSpine(grid), [grid]);
+  const deletedSpineBranchCellKeys = useMemo(() => {
+    if (!baseSpineAnalysis) return new Set<string>();
+
+    return new Set(
+      expandDeletedSpineBranches(normalizedDeletedSpineBranches, baseSpineAnalysis.fineSpineCellKeys).map((cell) =>
+        getSpineFineCellKey(cell.x, cell.y)
+      )
+    );
+  }, [baseSpineAnalysis, normalizedDeletedSpineBranches]);
+  const deletedSpineCellKeys = useMemo(
+    () => new Set([...deletedSpineFineCellKeys, ...deletedSpineBranchCellKeys]),
+    [deletedSpineBranchCellKeys, deletedSpineFineCellKeys]
+  );
+  const spineAnalysis = useMemo(
+    () => normalizedDeletedSpineFineCells.length === 0 && normalizedDeletedSpineBranches.length === 0
+      ? baseSpineAnalysis
+      : buildMazeEditorSpine(grid, normalizedDeletedSpineFineCells, normalizedDeletedSpineBranches),
+    [baseSpineAnalysis, grid, normalizedDeletedSpineFineCells, normalizedDeletedSpineBranches]
   );
 
   // Hardware back button - navigate back to home
@@ -190,6 +328,8 @@ const MazeEditor: React.FC = () => {
       timerDisabled: maze.timerDisabled || false,
       goalCharacterId: maze.goalCharacterId,
     });
+    setDeletedSpineBranches(normalizeSpineFineBranches(maze.deletedSpineBranches || []));
+    setDeletedSpineFineCells(normalizeSpineFineCells(maze.deletedSpineFineCells || []));
     
     // Load dialogues
     if (maze.dialogues) {
@@ -217,9 +357,25 @@ const MazeEditor: React.FC = () => {
         model: c.model,
         animation: c.animation,
         position: c.position,
+        visionDialogueId: c.visionDialogueId || undefined,
+        directionalVision: c.directionalVision || undefined,
+        coneVision: c.coneVision || undefined,
+        turning: c.turning || undefined,
       })));
     } else {
       setCharacters([]);
+    }
+    
+    // Load obstacles
+    if (maze.obstacles) {
+      setObstacles(maze.obstacles.map(o => ({
+        id: o.id,
+        model: o.model,
+        position: o.position,
+        rotation: o.rotation,
+      })));
+    } else {
+      setObstacles([]);
     }
     
     setLoadedMazeId(mazeId);
@@ -248,6 +404,8 @@ const MazeEditor: React.FC = () => {
     if (width !== evenWidth) setWidth(evenWidth);
     if (height !== evenHeight) setHeight(evenHeight);
     setDialogues([]);
+    setDeletedSpineBranches([]);
+    setDeletedSpineFineCells([]);
   }, [width, height]);
 
   const paintCell = useCallback((x: number, y: number) => {
@@ -305,8 +463,17 @@ const MazeEditor: React.FC = () => {
         newGrid[y][x] = selectedTool;
         return newGrid;
       });
+      // When placing a wall, remove this cell from all dialogue trigger zones
+      if (selectedTool === '#') {
+        setDialogues(prev => prev.map(d => ({
+          ...d,
+          cells: d.cells.filter(c => !(c.x === x && c.y === y)),
+        })));
+      }
     }
   }, [selectedTool, selectedDialogueId, singleTileMode]);
+
+  // Vision painting removed - vision is now cone-based only
 
   const handleMouseDown = (x: number, y: number) => {
     if (placingCharacterId) {
@@ -316,6 +483,14 @@ const MazeEditor: React.FC = () => {
         toast.success(`${char.name} placed at (${x}, ${y})`);
         setPlacingCharacterId(null);
       }
+      return;
+    }
+    if (placingObstacleId) {
+      setObstacles(prev => prev.map(o => 
+        o.id === placingObstacleId ? { ...o, position: { x, y } } : o
+      ));
+      toast.success(`Obstacle placed at (${x}, ${y})`);
+      setPlacingObstacleId(null);
       return;
     }
     
@@ -333,19 +508,83 @@ const MazeEditor: React.FC = () => {
     setIsDragging(false);
   };
 
-  const addDialogue = () => {
+  const toggleDeletedSpineFineCell = useCallback((cell: SpineFineCellCoordinate) => {
+    if (!enableFineSpineEditing) return;
+
+    setDeletedSpineFineCells((prev) => {
+      const nextKeys = new Set(normalizeSpineFineCells(prev).map((fineCell) => getSpineFineCellKey(fineCell.x, fineCell.y)));
+      const fineKey = getSpineFineCellKey(cell.x, cell.y);
+
+      if (!baseSpineAnalysis?.fineSpineCellKeys.has(fineKey) && !nextKeys.has(fineKey)) {
+        return prev;
+      }
+
+      if (nextKeys.has(fineKey)) {
+        nextKeys.delete(fineKey);
+      } else {
+        nextKeys.add(fineKey);
+      }
+
+      return normalizeSpineFineCells(
+        Array.from(nextKeys).map((key) => {
+          const [x, y] = key.split(',').map(Number);
+          return { x, y };
+        })
+      );
+    });
+  }, [baseSpineAnalysis, enableFineSpineEditing]);
+
+  const toggleDeletedSpineBranch = useCallback((cell: SpineFineCellCoordinate) => {
+    if (!enableFineSpineEditing || !baseSpineAnalysis) return;
+
+    const sourceSet = baseSpineAnalysis.fineSpineCellKeys;
+    const existingBranch = normalizedDeletedSpineBranches.find((branch) => branchContainsFineCell(branch, cell, sourceSet));
+
+    if (existingBranch) {
+      const existingKey = getSpineBranchKey(existingBranch);
+      setDeletedSpineBranches((prev) =>
+        normalizeSpineFineBranches(prev).filter((branch) => getSpineBranchKey(branch) !== existingKey)
+      );
+      toast.success('Branch restored.');
+      return;
+    }
+
+    const branch = getSpineBranchRangeForCell(cell, sourceSet);
+    if (!branch) {
+      toast.error('Click a non-junction fine spine cell below to delete a full branch.');
+      return;
+    }
+
+    const branchCellCount = getSpineBranchCells(branch, sourceSet).length;
+    setDeletedSpineBranches((prev) => normalizeSpineFineBranches([...prev, branch]));
+    toast.success(`Deleted branch (${branchCellCount} fine cells).`);
+  }, [baseSpineAnalysis, enableFineSpineEditing, normalizedDeletedSpineBranches]);
+
+  const handleFineSpineToggle = useCallback((cell: SpineFineCellCoordinate) => {
+    if (spineEditMode === 'branch') {
+      toggleDeletedSpineBranch(cell);
+      return;
+    }
+
+    toggleDeletedSpineFineCell(cell);
+  }, [spineEditMode, toggleDeletedSpineBranch, toggleDeletedSpineFineCell]);
+
+  const addDialogue = (preLinkedCharacterId?: string) => {
     const newId = `dialogue_${Date.now()}`;
+    const linkedChar = preLinkedCharacterId ? characters.find(c => c.id === preLinkedCharacterId) : undefined;
     const newDialogue: DialogueConfig = {
       id: newId,
-      speaker: 'Farmer',
-      speakerEmoji: '👨‍🌾',
+      speaker: linkedChar?.name || 'Farmer',
+      speakerEmoji: linkedChar?.emoji || '👨‍🌾',
       message: 'Hello there!',
       cells: [],
-      characterModel: 'Farmer.glb',
+      characterModel: linkedChar ? undefined : 'Farmer.glb',
       characterAnimation: 'idle',
+      speakerCharacterId: preLinkedCharacterId,
     };
     setDialogues(prev => [...prev, newDialogue]);
     setSelectedDialogueId(newId);
+    setSelectedTool('D');
     setShowDialoguePanel(true);
     toast.success('Dialogue created! Now click cells on the grid to add trigger zones.');
   };
@@ -403,6 +642,127 @@ const MazeEditor: React.FC = () => {
     return characters.find(c => c.position?.x === x && c.position?.y === y);
   };
 
+
+
+
+  const getObstacleAtCell = (x: number, y: number): ObstacleConfig | undefined => {
+    return obstacles.find(o => o.position?.x === x && o.position?.y === y);
+  };
+
+  const addObstacle = () => {
+    const newId = `obstacle_${Date.now()}`;
+    const newObstacle: ObstacleConfig = {
+      id: newId,
+      model: 'Log.glb',
+      position: null,
+      rotation: 0,
+    };
+    setObstacles(prev => [...prev, newObstacle]);
+    setPlacingObstacleId(newId);
+    setShowObstaclePanel(true);
+    toast.success('Obstacle created! Click on the grid to place it.');
+  };
+
+  const removeObstacle = (id: string) => {
+    setObstacles(prev => prev.filter(o => o.id !== id));
+    if (placingObstacleId === id) setPlacingObstacleId(null);
+  };
+
+  // --- Drag-and-Drop Handlers ---
+  const handleGridDragOver = useCallback((e: React.DragEvent, x: number, y: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDragOverCell({ x, y });
+  }, []);
+
+  const handleGridDragLeave = useCallback(() => {
+    setDragOverCell(null);
+  }, []);
+
+  const handleGridDrop = useCallback((e: React.DragEvent, x: number, y: number) => {
+    e.preventDefault();
+    setDragOverCell(null);
+
+    // Check for new character drop
+    const charData = e.dataTransfer.getData(DRAG_TYPE_CHARACTER);
+    if (charData) {
+      try {
+        const data: DragCharacterData = JSON.parse(charData);
+        const newId = `char_${Date.now()}`;
+        const newChar: CharacterConfig = {
+          id: newId,
+          name: data.name,
+          emoji: data.emoji,
+          model: data.model,
+          animation: data.defaultAnimation,
+          position: { x, y },
+        };
+        setCharacters(prev => [...prev, newChar]);
+        setSelectedCharacterId(newId);
+        setShowCharacterPanel(true);
+        toast.success(`${data.name} placed at (${x}, ${y})`);
+      } catch {}
+      return;
+    }
+
+    // Check for new obstacle drop
+    const obsData = e.dataTransfer.getData(DRAG_TYPE_OBSTACLE);
+    if (obsData) {
+      try {
+        const data: DragObstacleData = JSON.parse(obsData);
+        const newId = `obstacle_${Date.now()}`;
+        setObstacles(prev => [...prev, {
+          id: newId,
+          model: data.model,
+          position: { x, y },
+          rotation: 0,
+        }]);
+        setShowObstaclePanel(true);
+        toast.success(`Obstacle placed at (${x}, ${y})`);
+      } catch {}
+      return;
+    }
+
+    // Check for placed character repositioning
+    const placedCharData = e.dataTransfer.getData(DRAG_TYPE_PLACED_CHARACTER);
+    if (placedCharData) {
+      const charId = placedCharData;
+      updateCharacter(charId, { position: { x, y } });
+      toast.success(`Character moved to (${x}, ${y})`);
+      return;
+    }
+
+    // Check for placed obstacle repositioning
+    const placedObsData = e.dataTransfer.getData(DRAG_TYPE_PLACED_OBSTACLE);
+    if (placedObsData) {
+      const obsId = placedObsData;
+      setObstacles(prev => prev.map(o => o.id === obsId ? { ...o, position: { x, y } } : o));
+      toast.success(`Obstacle moved to (${x}, ${y})`);
+      return;
+    }
+  }, [updateCharacter]);
+
+  // Click on a placed character on the grid → select and open config
+  const handleGridCharacterClick = useCallback((charId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedCharacterId(charId);
+    setShowCharacterPanel(true);
+    const char = characters.find(c => c.id === charId);
+    if (char) {
+      const linked = dialogues.filter(d => d.speakerCharacterId === charId);
+      if (linked.length === 0) {
+        toast.info(`Click "+ New" in dialogues section to add dialogue for ${char.name}`);
+      }
+    }
+  }, [characters, dialogues]);
+
+  // Click on a placed obstacle → select and show panel
+  const handleGridObstacleClick = useCallback((obsId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowObstaclePanel(true);
+  }, []);
+
+
   const generateSchema = useCallback(() => {
     const gridStrings = grid.map(row => row.join('').replace(/D/g, ' '));
     
@@ -412,13 +772,27 @@ ${characters.filter(c => c.position).map(c => {
   const dialogueSeqStr = c.dialogueSequence && c.dialogueSequence.length > 0
     ? `\n      dialogueSequence: [${c.dialogueSequence.map(item => `{ type: '${item.type}', id: '${item.id}' }`).join(', ')}],`
     : '';
+  const visionDlgStr = c.visionDialogueId
+    ? `\n      visionDialogueId: '${c.visionDialogueId}',`
+    : '';
+  const dirVisionStr = c.directionalVision && Object.keys(c.directionalVision).length > 0
+    ? `\n      directionalVision: {\n${Object.entries(c.directionalVision).map(([dir, zone]) => 
+        `        ${dir}: { cells: [${(zone as RelativeVisionZone).cells.map(cell => `{ dx: ${cell.dx}, dy: ${cell.dy} }`).join(', ')}] },`
+      ).join('\n')}\n      },`
+    : '';
+  const turningStr = c.turning
+    ? `\n      turning: { pattern: '${c.turning.pattern}', directions: [${c.turning.directions.map(d => `'${d}'`).join(', ')}], intervalMs: ${c.turning.intervalMs}${c.turning.initialDirection ? `, initialDirection: '${c.turning.initialDirection}'` : ''} },`
+    : '';
+  const coneVisionStr = c.coneVision
+    ? `\n      coneVision: { range: ${c.coneVision.range}, spreadPerCell: ${c.coneVision.spreadPerCell} },`
+    : '';
   return `    {
       id: '${c.id}',
       name: '${c.name}',
       emoji: '${c.emoji}',
       model: '${c.model}',
       animation: '${c.animation}',
-      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}
+      position: { x: ${c.position!.x}, y: ${c.position!.y} },${dialogueSeqStr}${dirVisionStr}${coneVisionStr}${turningStr}${visionDlgStr}
     }`;
 }).join(',\n')}
   ],` : '';
@@ -460,20 +834,39 @@ ${dialogues.map(d => {
   timerDisabled: true,`
       : '';
 
+    const deletedSpineBranchesSchema = normalizedDeletedSpineBranches.length > 0
+      ? `
+  deletedSpineBranches: [
+${normalizedDeletedSpineBranches.map((branch) => `    { start: { x: ${branch.start.x}, y: ${branch.start.y} }, end: { x: ${branch.end.x}, y: ${branch.end.y} } },`).join('\n')}
+  ],`
+      : '';
+
+    const deletedSpineFineCellsSchema = normalizedDeletedSpineFineCells.length > 0
+      ? `
+  deletedSpineFineCells: [
+${normalizedDeletedSpineFineCells.map((cell) => `    { x: ${cell.x}, y: ${cell.y} },`).join('\n')}
+  ],`
+      : '';
+
+    const obstaclesSchema = obstacles.filter(o => o.position).length > 0 ? `
+  obstacles: [
+${obstacles.filter(o => o.position).map(o => `    { id: '${o.id}', model: '${o.model}', position: { x: ${o.position!.x}, y: ${o.position!.y} }${o.rotation ? `, rotation: ${o.rotation}` : ''} },`).join('\n')}
+  ],` : '';
+
     const schema = `{
   id: ${loadedMazeId || Date.now()},
   name: '${config.name}',
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
-  previewTime: ${config.previewTime},${timerDisabledSchema}
-  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
+  previewTime: ${config.previewTime},${timerDisabledSchema}${deletedSpineBranchesSchema}${deletedSpineFineCellsSchema}
+  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${obstaclesSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
   ]),
 },`;
     
     return schema;
-  }, [grid, config, dialogues, characters, loadedMazeId]);
+  }, [grid, config, dialogues, characters, obstacles, loadedMazeId, normalizedDeletedSpineBranches, normalizedDeletedSpineFineCells]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateSchema());
@@ -495,11 +888,17 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     setGrid(createEmptyGrid(width, height));
     setDialogues([]);
     setSelectedDialogueId(null);
+    setDeletedSpineBranches([]);
+    setDeletedSpineFineCells([]);
     toast.info('Grid cleared');
   };
 
   const getCellDialogue = (x: number, y: number): DialogueConfig | undefined => {
     return dialogues.find(d => d.cells.some(c => c.x === x && c.y === y));
+  };
+
+  const getCellDialogues = (x: number, y: number): DialogueConfig[] => {
+    return dialogues.filter(d => d.cells.some(c => c.x === x && c.y === y));
   };
 
   const getDialogueIndex = (id: string): number => {
@@ -509,6 +908,27 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
   const getDialogueColor = (id: string): string => {
     const index = getDialogueIndex(id);
     return DIALOGUE_COLORS[index % DIALOGUE_COLORS.length];
+  };
+
+  const getDialogueHexColor = (id: string): string => {
+    const index = getDialogueIndex(id);
+    return DIALOGUE_HEX_COLORS[index % DIALOGUE_HEX_COLORS.length];
+  };
+
+  const getStripedBackground = (dialogueConfigs: DialogueConfig[]): React.CSSProperties => {
+    if (dialogueConfigs.length <= 1) return {};
+    const colors = dialogueConfigs.map(d => getDialogueHexColor(d.id));
+    const stripeW = 4; // px per stripe band
+    const totalW = colors.length * stripeW;
+    const stops: string[] = [];
+    colors.forEach((color, i) => {
+      stops.push(`${color} ${i * stripeW}px`);
+      stops.push(`${color} ${(i + 1) * stripeW}px`);
+    });
+    return {
+      background: `repeating-linear-gradient(135deg, ${stops.join(', ')})`,
+      backgroundSize: `${totalW * 1.414}px ${totalW * 1.414}px`,
+    };
   };
 
   const getValidationWarnings = useCallback((): string[] => {
@@ -525,6 +945,10 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
     
     if (endCells.length === 0) {
       warnings.push('⚠️ No end (goal) tiles set');
+    }
+
+    if (!spineAnalysis || spineAnalysis.traversedCellKeys.size === 0) {
+      warnings.push('⚠️ Traversal spine could not be generated for the current maze layout');
     }
     
     characters.forEach(char => {
@@ -549,11 +973,15 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
         if (!hasNearbyTrigger) {
           warnings.push(`⚠️ Character "${char.name}" dialogue triggers are far from character position`);
         }
+
+        if (spineAnalysis && !cellsTouchSpine(charDialogue.cells, spineAnalysis.traversedCellKeys)) {
+          warnings.push(`⚠️ Character "${char.name}" dialogue trigger cells do not touch the traversal spine`);
+        }
       }
     });
     
     return warnings;
-  }, [grid, dialogues, characters]);
+  }, [grid, dialogues, characters, spineAnalysis]);
 
   const allMazes = isLoaded ? getAllMazes() : [];
 
@@ -615,6 +1043,9 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
               </CardContent>
             </Card>
           )}
+
+          {/* Palette Sidebar - Drag characters & obstacles onto grid */}
+          <EditorPalette className="w-44" />
 
           {/* Main Editor Area */}
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4">
@@ -790,6 +1221,17 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                   </Button>
                 </div>
 
+                {/* Obstacles Toggle */}
+                <div className="pt-2">
+                  <Button 
+                    onClick={() => setShowObstaclePanel(!showObstaclePanel)} 
+                    variant={placingObstacleId ? 'default' : 'outline'}
+                    className="w-full"
+                  >
+                    🪵 Obstacles ({obstacles.length})
+                  </Button>
+                </div>
+
                 {/* Apple Dialogues Toggle */}
                 <div className="pt-2">
                   <Button 
@@ -828,18 +1270,46 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
             {/* Grid Editor */}
             <Card className="lg:col-span-2">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center justify-between gap-3">
                   <span>Grid ({grid[0]?.length || 0} x {grid.length})</span>
-                  {placingCharacterId && (
-                    <span className="text-sm text-primary animate-pulse">
-                      Click to place character...
-                    </span>
-                  )}
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    <div className="flex items-center gap-2 text-sm font-normal">
+                      <Route className="h-4 w-4 text-primary" />
+                      <Label htmlFor="show-spine-overlay" className="cursor-pointer text-sm font-normal">
+                        Show spine
+                      </Label>
+                      <Switch
+                        id="show-spine-overlay"
+                        checked={showSpineOverlay}
+                        onCheckedChange={setShowSpineOverlay}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 text-sm font-normal">
+                      <Label htmlFor="edit-fine-spine" className="cursor-pointer text-sm font-normal">
+                        Edit fine spine
+                      </Label>
+                      <Switch
+                        id="edit-fine-spine"
+                        checked={enableFineSpineEditing}
+                        onCheckedChange={setEnableFineSpineEditing}
+                      />
+                    </div>
+                    {placingCharacterId && (
+                      <span className="text-sm text-primary animate-pulse">
+                        Click to place character...
+                      </span>
+                    )}
+                    {placingObstacleId && (
+                      <span className="text-sm text-amber-700 animate-pulse">
+                        🪵 Click to place obstacle...
+                      </span>
+                    )}
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div 
-                  className="overflow-auto max-h-[60vh] border rounded-lg p-2 bg-white"
+                  className="overflow-auto max-h-[60vh] border rounded-lg p-2 bg-background"
                   style={{ touchAction: 'none' }}
                 >
                   <div 
@@ -850,27 +1320,69 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                   >
                     {grid.map((row, y) =>
                       row.map((cell, x) => {
-                        const dialogue = getCellDialogue(x, y);
+                        const cellDialogues = getCellDialogues(x, y);
+                        const dialogue = cellDialogues[0];
                         const character = getCharacterAtCell(x, y);
-                        const isDialogueCell = !!dialogue;
+                        const obstacle = getObstacleAtCell(x, y);
+                        
+                        const isDialogueCell = cellDialogues.length > 0;
+                        const isMultiDialogue = cellDialogues.length > 1;
                         const dialogueColor = dialogue ? getDialogueColor(dialogue.id) : '';
-                        const isSelectedDialogue = dialogue?.id === selectedDialogueId;
+                        const isSelectedDialogue = cellDialogues.some(d => d.id === selectedDialogueId);
+                        const isOnSpine = showSpineOverlay && (spineAnalysis?.traversedCellKeys.has(getMazeCellKey(x, y)) ?? false);
+                        const stripedStyle = isMultiDialogue ? getStripedBackground(cellDialogues) : {};
+                        const dialogueNames = cellDialogues.map(d => d.speaker).join(', ');
+                         
                         
                         return (
                           <div
                             key={`${x}-${y}`}
                             className={`
                               w-4 h-4 md:w-5 md:h-5 cursor-crosshair transition-colors relative
-                              ${character ? 'ring-2 ring-purple-600' : ''}
-                              ${isDialogueCell ? dialogueColor : CELL_COLORS[cell]}
-                              ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-black' : ''}
+                              ${character ? 'ring-2 ring-primary' : ''}
+                              ${obstacle && !character ? 'ring-2 ring-amber-700' : ''}
+                              ${dragOverCell?.x === x && dragOverCell?.y === y ? 'ring-2 ring-blue-500 bg-blue-200/50' : ''}
+                              ${isDialogueCell && !isMultiDialogue ? dialogueColor : ''}
+                              ${!isDialogueCell && !obstacle ? CELL_COLORS[cell] : ''}
+                              ${!isDialogueCell && obstacle ? 'bg-amber-600' : ''}
+                              ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
+                              
+                              ${selectedCharacterId && character?.id === selectedCharacterId ? 'ring-2 ring-offset-1 ring-blue-500' : ''}
                             `}
+                            style={stripedStyle}
                             onMouseDown={() => handleMouseDown(x, y)}
                             onMouseEnter={() => handleMouseEnter(x, y)}
-                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${dialogue ? ` - ${dialogue.speaker}` : ''}${character ? ` - ${character.name}` : ''}`}
+                            onDragOver={(e) => handleGridDragOver(e, x, y)}
+                            onDragLeave={handleGridDragLeave}
+                            onDrop={(e) => handleGridDrop(e, x, y)}
+                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
                           >
+                            {isOnSpine && (
+                              <span className="pointer-events-none absolute inset-[3px] rounded-full border border-primary bg-primary/35" />
+                            )}
+                            {obstacle && !character && (
+                              <span
+                                draggable
+                                onDragStart={(e) => {
+                                  e.stopPropagation();
+                                  e.dataTransfer.setData(DRAG_TYPE_PLACED_OBSTACLE, obstacle.id);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                }}
+                                onClick={(e) => handleGridObstacleClick(obstacle.id, e)}
+                                className="absolute inset-0 z-10 flex items-center justify-center text-[8px] cursor-grab active:cursor-grabbing"
+                              >🪵</span>
+                            )}
                             {character && (
-                              <span className="absolute inset-0 flex items-center justify-center text-[10px]">
+                              <span
+                                draggable
+                                onDragStart={(e) => {
+                                  e.stopPropagation();
+                                  e.dataTransfer.setData(DRAG_TYPE_PLACED_CHARACTER, character.id);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                }}
+                                onClick={(e) => handleGridCharacterClick(character.id, e)}
+                                className="absolute inset-0 z-10 flex items-center justify-center text-[10px] cursor-grab active:cursor-grabbing"
+                              >
                                 {character.emoji}
                               </span>
                             )}
@@ -880,6 +1392,105 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                     )}
                   </div>
                 </div>
+                {showSpineOverlay && (
+                  <div className="mt-4 space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                      Cell markers show the traversed maze cells; the fine editor below shows the true {SPINE_FINE_GRID_SCALE}×{SPINE_FINE_GRID_SCALE} subsquare spine resolution used for rail generation.
+                    </p>
+
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium">Fine spine editor</p>
+                          <p className="text-xs text-muted-foreground">
+                            Use branch mode for compact start/end deletions, or cell mode for manual cleanup before exporting the maze config.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant={spineEditMode === 'branch' ? 'default' : 'outline'}
+                            onClick={() => {
+                              setSpineEditMode('branch');
+                              setEnableFineSpineEditing(true);
+                              toast.info('Branch mode active. Click a non-junction fine spine cell below.');
+                            }}
+                          >
+                            Delete branch
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={spineEditMode === 'cell' ? 'default' : 'outline'}
+                            onClick={() => {
+                              setSpineEditMode('cell');
+                              setEnableFineSpineEditing(true);
+                              toast.info('Cell mode active. Click a fine spine cell below.');
+                            }}
+                          >
+                            Delete cell
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setDeletedSpineBranches([]);
+                              setDeletedSpineFineCells([]);
+                            }}
+                            disabled={normalizedDeletedSpineBranches.length === 0 && normalizedDeletedSpineFineCells.length === 0}
+                          >
+                            Reset deletions
+                          </Button>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        {spineEditMode === 'branch'
+                          ? 'Delete branch is a two-step action: click the button, then click a non-junction fine spine cell in the grid below.'
+                          : 'Delete cell is a two-step action: click the button, then click an individual fine spine cell below.'}
+                      </p>
+
+                      <FineSpineEditor
+                        mazeWidth={grid[0]?.length || 0}
+                        mazeHeight={grid.length}
+                        fineScale={baseSpineAnalysis?.fineScale ?? SPINE_FINE_GRID_SCALE}
+                        fineSpineCells={baseSpineAnalysis?.fineSpineCells ?? []}
+                        deletedFineCellKeys={deletedSpineCellKeys}
+                        editable={enableFineSpineEditing}
+                        editMode={spineEditMode}
+                        onToggleFineCell={handleFineSpineToggle}
+                      />
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>
+                          {(baseSpineAnalysis?.fineSpineCells.length ?? 0).toLocaleString()} fine spine cells • {normalizedDeletedSpineBranches.length.toLocaleString()} branches • {normalizedDeletedSpineFineCells.length.toLocaleString()} cells • {deletedSpineCellKeys.size.toLocaleString()} hidden
+                        </span>
+                        <span>
+                          {enableFineSpineEditing
+                            ? spineEditMode === 'branch'
+                              ? 'Click a non-junction fine spine cell to toggle its whole branch.'
+                              : 'Click a fine cell to toggle a single deletion.'
+                            : 'Enable “Edit fine spine” to toggle deletions.'}
+                        </span>
+                      </div>
+
+                      <Textarea
+                        readOnly
+                        value={normalizedDeletedSpineBranches.length > 0 || normalizedDeletedSpineFineCells.length > 0
+                          ? [
+                              normalizedDeletedSpineBranches.length > 0
+                                ? `deletedSpineBranches: [\n${normalizedDeletedSpineBranches.map((branch) => `  { start: { x: ${branch.start.x}, y: ${branch.start.y} }, end: { x: ${branch.end.x}, y: ${branch.end.y} } },`).join('\n')}\n]`
+                                : '',
+                              normalizedDeletedSpineFineCells.length > 0
+                                ? `deletedSpineFineCells: [\n${normalizedDeletedSpineFineCells.map((cell) => `  { x: ${cell.x}, y: ${cell.y} },`).join('\n')}\n]`
+                                : '',
+                            ].filter(Boolean).join('\n\n')
+                          : '// No deletedSpineBranches or deletedSpineFineCells'
+                        }
+                        className="h-24 resize-none font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -971,19 +1582,28 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             ))}
                           </SelectContent>
                         </Select>
-                        <Select
-                          value={char.animation}
-                          onValueChange={v => updateCharacter(char.id, { animation: v })}
-                        >
-                          <SelectTrigger className="text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AVAILABLE_ANIMATIONS.map(a => (
-                              <SelectItem key={a} value={a}>{a}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {(() => {
+                          const modelAnimations = getCharacterAnimations(char.model);
+                          const hasCurrentAnim = modelAnimations.includes(char.animation);
+                          return (
+                            <Select
+                              value={hasCurrentAnim ? char.animation : '__none__'}
+                              onValueChange={v => updateCharacter(char.id, { animation: v === '__none__' ? 'idle' : v })}
+                            >
+                              <SelectTrigger className="text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {modelAnimations.length === 0 && (
+                                  <SelectItem value="__none__" disabled>No animations</SelectItem>
+                                )}
+                                {modelAnimations.map(a => (
+                                  <SelectItem key={a} value={a}>{a}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          );
+                        })()}
                         <div className="flex gap-2">
                           <Button 
                             size="sm" 
@@ -994,8 +1614,246 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             {char.position ? `(${char.position.x}, ${char.position.y})` : 'Place'}
                           </Button>
                         </div>
-                        
-                        {/* Dialogue Sequence Editor - only for feedable animals */}
+
+                        {/* Vision Section - Cone only */}
+                        <div className="mt-3 pt-3 border-t space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-semibold flex items-center gap-1">
+                              👁 Vision Cone
+                            </Label>
+                            <Switch
+                              checked={!!char.coneVision}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  updateCharacter(char.id, { 
+                                    coneVision: { range: 4, spreadPerCell: 1 },
+                                    directionalVision: undefined,
+                                  });
+                                } else {
+                                  updateCharacter(char.id, { 
+                                    coneVision: undefined,
+                                    visionDialogueId: undefined,
+                                  });
+                                }
+                              }}
+                            />
+                          </div>
+
+                          {char.coneVision && (
+                            <div className="space-y-2 p-2 bg-muted rounded">
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs">Range:</Label>
+                                <Input
+                                  type="number"
+                                  value={char.coneVision.range}
+                                  onChange={e => updateCharacter(char.id, { 
+                                    coneVision: { ...char.coneVision!, range: parseInt(e.target.value) || 1 } 
+                                  })}
+                                  className="text-xs h-7 w-16"
+                                  min={1}
+                                  max={10}
+                                />
+                                <Label className="text-xs">Spread:</Label>
+                                <Input
+                                  type="number"
+                                  value={char.coneVision.spreadPerCell}
+                                  onChange={e => updateCharacter(char.id, { 
+                                    coneVision: { ...char.coneVision!, spreadPerCell: parseInt(e.target.value) || 0 } 
+                                  })}
+                                  className="text-xs h-7 w-16"
+                                  min={0}
+                                  max={3}
+                                />
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Triangle vision blocked by walls. Follows facing direction.
+                              </p>
+
+                              {/* Vision dialogue */}
+                              <div>
+                                <Label className="text-xs">On vision → trigger dialogue</Label>
+                                <div className="flex gap-1 mt-1">
+                                  <Select
+                                    value={char.visionDialogueId || '__none__'}
+                                    onValueChange={v => updateCharacter(char.id, { visionDialogueId: v === '__none__' ? undefined : v })}
+                                  >
+                                    <SelectTrigger className="text-xs h-7 flex-1">
+                                      <SelectValue placeholder="None" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__none__">None</SelectItem>
+                                      {dialogues.map(d => (
+                                        <SelectItem key={d.id} value={d.id}>{d.speaker}: {d.message.slice(0, 30)}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {!char.visionDialogueId && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-xs h-7 px-2"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const dlg = addDialogue(char.id);
+                                        // Link the new dialogue to this character's vision
+                                        const newDlgId = dialogues[dialogues.length]?.id; // Will be set after state update
+                                      }}
+                                    >
+                                      <Plus className="w-3 h-3 mr-1" /> New
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Turning config */}
+                          <div className="mt-2 pt-2 border-t space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs font-semibold">🔄 Turning</Label>
+                              <Switch
+                                checked={!!char.turning}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    updateCharacter(char.id, {
+                                      turning: {
+                                        pattern: 'ping-pong',
+                                        directions: ['north', 'south'],
+                                        intervalMs: 3000,
+                                      },
+                                      directionalVision: char.directionalVision ?? {},
+                                    });
+                                  } else {
+                                    updateCharacter(char.id, { turning: undefined });
+                                  }
+                                }}
+                              />
+                            </div>
+                            {char.turning && (
+                              <div className="space-y-2 pl-2">
+                                <div>
+                                  <Label className="text-xs">Directions (ping-pong)</Label>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {ALL_DIRECTIONS.map(dir => {
+                                      const isIn = char.turning!.directions.includes(dir);
+                                      return (
+                                        <Button
+                                          key={dir}
+                                          size="sm"
+                                          variant={isIn ? 'default' : 'outline'}
+                                          className="text-xs px-2 h-6"
+                                          onClick={() => {
+                                            const dirs = isIn
+                                              ? char.turning!.directions.filter(d => d !== dir)
+                                              : [...char.turning!.directions, dir];
+                                            if (dirs.length >= 2) {
+                                              updateCharacter(char.id, {
+                                                turning: { ...char.turning!, directions: dirs as CardinalDirection[] },
+                                              });
+                                            }
+                                          }}
+                                        >
+                                          {DIRECTION_LABELS[dir]}
+                                        </Button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-xs">Interval (ms)</Label>
+                                  <Input
+                                    type="number"
+                                    value={char.turning.intervalMs}
+                                    onChange={e => updateCharacter(char.id, {
+                                      turning: { ...char.turning!, intervalMs: parseInt(e.target.value) || 1000 },
+                                    })}
+                                    className="text-xs h-7 w-24"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+
+                        {(() => {
+                          const charDialogues = dialogues.filter(d => d.speakerCharacterId === char.id);
+                          // Check overlap: do all dialogues for this character share at least some cells?
+                          const cellSets = charDialogues.map(d => new Set(d.cells.map(c => `${c.x},${c.y}`)));
+                          const hasOverlapIssue = charDialogues.length >= 2 && (() => {
+                            // Check that each pair shares at least one cell
+                            for (let i = 0; i < cellSets.length; i++) {
+                              for (let j = i + 1; j < cellSets.length; j++) {
+                                const shared = [...cellSets[i]].filter(k => cellSets[j].has(k));
+                                if (shared.length === 0) return true;
+                              }
+                            }
+                            return false;
+                          })();
+                          const allOverlap = charDialogues.length >= 2 && !hasOverlapIssue;
+
+                          return (
+                            <div className="mt-3 pt-3 border-t space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs font-semibold flex items-center gap-1">
+                                  <MessageSquare className="w-3 h-3" />
+                                  Dialogues ({charDialogues.length})
+                                </Label>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-xs px-2"
+                                  onClick={(e) => { e.stopPropagation(); addDialogue(char.id); }}
+                                >
+                                  <Plus className="w-3 h-3 mr-1" /> New
+                                </Button>
+                              </div>
+                              
+                              {charDialogues.length >= 2 && (
+                                <div className={`text-xs px-2 py-1 rounded ${allOverlap ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                  {allOverlap 
+                                    ? '✅ All dialogues share trigger cells' 
+                                    : '⚠️ Some dialogues have NO overlapping cells'}
+                                </div>
+                              )}
+
+                              {charDialogues.length === 0 ? (
+                                <p className="text-xs text-muted-foreground italic">No dialogues linked</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {charDialogues.map((d) => {
+                                    const dIndex = dialogues.findIndex(dd => dd.id === d.id);
+                                    const color = DIALOGUE_COLORS[dIndex % DIALOGUE_COLORS.length];
+                                    const isSelected = selectedDialogueId === d.id;
+                                    return (
+                                      <div
+                                        key={d.id}
+                                        className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors text-xs ${
+                                          isSelected 
+                                            ? 'ring-2 ring-primary bg-primary/10' 
+                                            : 'hover:bg-muted'
+                                        } ${color.replace('bg-', 'border-l-4 border-')}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedDialogueId(d.id);
+                                          setSelectedTool('D');
+                                        }}
+                                      >
+                                        <div className="flex-1 truncate">
+                                          <span className="font-medium">{d.speaker}</span>
+                                          <span className="text-muted-foreground ml-1">({d.cells.length} cells)</span>
+                                          {d.requires && d.requires.length > 0 && (
+                                            <span className="text-muted-foreground ml-1">• req: {d.requires.join(', ')}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {canBeFedApples(char.id) && (
                           <div className="mt-3 pt-3 border-t-2 border-primary/40 bg-primary/5 rounded-md p-2">
                             <div className="flex items-center gap-1 mb-1">
@@ -1081,6 +1939,78 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
           </Card>
         )}
 
+        {/* Obstacle Panel */}
+        {showObstaclePanel && (
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center justify-between">
+                <span>🪵 Obstacles</span>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={addObstacle}>
+                    <Plus className="w-4 h-4 mr-1" /> Add Obstacle
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setShowObstaclePanel(false)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-3">
+                Place logs and other obstacles that block line-of-sight for small creatures. Taller creatures can see over them.
+              </p>
+              {obstacles.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No obstacles yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {obstacles.map(obstacle => (
+                    <Card key={obstacle.id} className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-lg">🪵</span>
+                        <Button size="icon" variant="ghost" onClick={() => removeObstacle(obstacle.id)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        <Select
+                          value={obstacle.model}
+                          onValueChange={v => setObstacles(prev => prev.map(o => o.id === obstacle.id ? { ...o, model: v } : o))}
+                        >
+                          <SelectTrigger className="text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {OBSTACLE_MODELS.map(m => (
+                              <SelectItem key={m} value={m}>{m}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs">Rotation°</Label>
+                          <Input
+                            type="number"
+                            value={obstacle.rotation || 0}
+                            onChange={e => setObstacles(prev => prev.map(o => o.id === obstacle.id ? { ...o, rotation: parseInt(e.target.value) || 0 } : o))}
+                            className="text-xs h-7 w-20"
+                          />
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant={placingObstacleId === obstacle.id ? 'default' : 'outline'}
+                          className="w-full"
+                          onClick={() => setPlacingObstacleId(placingObstacleId === obstacle.id ? null : obstacle.id)}
+                        >
+                          {obstacle.position ? `(${obstacle.position.x}, ${obstacle.position.y})` : 'Place on grid'}
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Dialogue Panel */}
         {showDialoguePanel && (
           <Card className="mt-4">
@@ -1088,7 +2018,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
               <CardTitle className="text-lg flex items-center justify-between">
                 <span>Dialogues</span>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={addDialogue}>
+                  <Button size="sm" onClick={() => addDialogue()}>
                     <Plus className="w-4 h-4 mr-1" /> Add Dialogue
                   </Button>
                   <Button size="icon" variant="ghost" onClick={() => setShowDialoguePanel(false)}>

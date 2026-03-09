@@ -214,6 +214,7 @@ interface GameHUDProps {
   animalType: AnimalType;
   timeLeft: number;
   mazeName: string;
+  showTimer?: boolean;
   abilityUsed: boolean;
   onUseAbility: () => void;
   onQuit: () => void;
@@ -305,6 +306,7 @@ interface GameHUDProps {
   // Apple/Item system props
   appleCount?: number;
   onAppleDrop?: () => void;
+  berryCount?: number;
   friendshipProgress?: {
     currentTier: { id: string; name: string; pointsRequired: number };
     nextTier: { id: string; name: string; pointsRequired: number } | null;
@@ -316,6 +318,7 @@ export const GameHUD = ({
   animalType,
   timeLeft,
   mazeName,
+  showTimer = true,
   abilityUsed,
   onUseAbility,
   onQuit,
@@ -390,6 +393,7 @@ export const GameHUD = ({
   // Apple/Item system
   appleCount = 0,
   onAppleDrop,
+  berryCount = 0,
   friendshipProgress,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
@@ -416,21 +420,23 @@ export const GameHUD = ({
         </div>
 
         {/* Center: Timer */}
-        <div
-          className={cn(
-            'bg-card/90 backdrop-blur-sm rounded-full px-4 py-2 sm:px-6 sm:py-3 shadow-lg',
-            timeLeft <= 10 && 'bg-destructive/90 animate-pulse'
-          )}
-        >
-          <span
+        {showTimer && (
+          <div
             className={cn(
-              'font-display font-bold text-lg sm:text-2xl',
-              timeLeft <= 10 ? 'text-destructive-foreground' : 'text-foreground'
+              'bg-card/90 backdrop-blur-sm rounded-full px-4 py-2 sm:px-6 sm:py-3 shadow-lg',
+              timeLeft <= 10 && 'bg-destructive/90 animate-pulse'
             )}
           >
-            ⏱️ {Math.ceil(timeLeft)}s
-          </span>
-        </div>
+            <span
+              className={cn(
+                'font-display font-bold text-lg sm:text-2xl',
+                timeLeft <= 10 ? 'text-destructive-foreground' : 'text-foreground'
+              )}
+            >
+              ⏱️ {Math.ceil(timeLeft)}s
+            </span>
+          </div>
+        )}
 
         {/* Right: Controls */}
         <div className="flex flex-col gap-1 sm:gap-2 pointer-events-auto">
@@ -477,6 +483,22 @@ export const GameHUD = ({
               appleCount={appleCount}
               onAppleDrop={onAppleDrop}
             />
+          )}
+          
+          {/* Berry count display */}
+          {berryCount > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-2xl">🫐</span>
+              <span 
+                className="font-display font-bold text-2xl"
+                style={{ 
+                  color: '#ffffff',
+                  textShadow: '2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)'
+                }}
+              >
+                ×{berryCount}
+              </span>
+            </div>
           )}
           
           {/* Debug toggle indicator - shows expand button when collapsed */}

@@ -22,6 +22,8 @@ export interface RailControlsProps {
   playerZ: number;
   /** Current animal rotation (radians) - used to classify directions relative to animal's facing */
   animalRotation: number;
+  /** Camera yaw ref - when provided, arrows are positioned relative to camera view */
+  cameraYawRef?: React.MutableRefObject<number>;
   /** Callback when direction is selected - provides target position and direction */
   onDirectionSelect: (targetX: number, targetZ: number, pathPoints: Point2D[]) => void;
   /** Callback when stop is pressed */
@@ -250,8 +252,8 @@ export function findAvailableDirections(
   const { polylineGraph } = cache;
   const directions: DirectionOption[] = [];
   
-  // Convert animal rotation to the visual direction it's facing
-  // The relationship is: visualRotation = -playerRotation + PI
+  // Directions are computed relative to animal rotation
+  // Camera offset is applied via CSS rotation on the container
   const animalFacingAngle = -animalRotation + Math.PI;
   
   // Helper to compute relative angle (for UI positioning)
@@ -489,6 +491,7 @@ export function RailControls({
   playerX,
   playerZ,
   animalRotation,
+  cameraYawRef,
   onDirectionSelect,
   onStop,
   onTurnAround,
@@ -507,7 +510,38 @@ export function RailControls({
      return () => window.removeEventListener('resize', handleResize);
    }, []);
   
-  // Find current position and available directions
+  // Smooth camera-relative rotation via CSS transform (no re-renders)
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Animate the container rotation to match camera offset
+  useEffect(() => {
+    if (!cameraYawRef || isMoving) return;
+    
+    // Apply initial rotation immediately to avoid visual jump on mount/restart
+    if (containerRef.current) {
+      let diff = animalRotation - cameraYawRef.current;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      const degrees = (diff * 180) / Math.PI;
+      containerRef.current.style.transform = `rotate(${degrees}deg)`;
+    }
+    
+    let rafId: number;
+    const animate = () => {
+      if (containerRef.current && cameraYawRef) {
+        let diff = animalRotation - cameraYawRef.current;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        const degrees = (diff * 180) / Math.PI;
+        containerRef.current.style.transform = `rotate(${degrees}deg)`;
+      }
+      rafId = requestAnimationFrame(animate);
+    };
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
+  }, [cameraYawRef, animalRotation, isMoving]);
+
+  // Find current position and available directions (based on animal rotation, not camera)
   useEffect(() => {
     if (!enabled || !cache) {
       setDirections([]);
@@ -526,7 +560,7 @@ export function RailControls({
         position,
         animalRotation,
         cache,
-        playerX,  // Pass actual player position
+        playerX,
         playerZ,
       );
       setDirections(availableDirs);
@@ -585,7 +619,7 @@ export function RailControls({
   
   return (
      <div className={`fixed left-1/2 -translate-x-1/2 z-20 ${isLandscape ? 'bottom-2' : 'bottom-20'}`}>
-      <div className="relative w-40 h-40">
+      <div ref={containerRef} className="relative w-40 h-40" style={{ transition: 'none' }}>
         {/* Direction buttons - positioned at actual path angles, disabled briefly after stop */}
         {directions.map((dir, idx) => (
           <RadialDirectionButton

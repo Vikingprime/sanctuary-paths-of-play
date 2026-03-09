@@ -39,6 +39,7 @@ const Index = () => {
     pendingAppleDialogue,
     completePendingDialogue,
   } = useAppleSystem();
+  const [berryCount, setBerryCount] = useState(0);
   const [screen, setScreen] = useState<GameScreen>('mode_select');
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | null>(null);
   const [selectedMaze, setSelectedMaze] = useState<Maze | null>(null);
@@ -262,6 +263,9 @@ const Index = () => {
         pendingAppleDialogue={pendingAppleDialogue}
         onAppleDialogueComplete={completePendingDialogue}
         friendshipProgress={undefined}
+        berryCount={berryCount}
+        onBerryCollect={(count) => setBerryCount(prev => prev + count)}
+        onBerryReset={() => setBerryCount(0)}
       />
     );
   }

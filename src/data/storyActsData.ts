@@ -40,6 +40,8 @@ const act1: StoryAct = {
       description: 'Fetch a berry from the bushes and bring it back — but watch out for the possessive birds!',
       emoji: '🫐',
       timed: false,
+      mazeId: 104,
+      implemented: true,
       requiresAll: ['cousin_riddle'],
       branchLabel: 'Feast Items',
       unlocks: ['berry_gauntlet'],

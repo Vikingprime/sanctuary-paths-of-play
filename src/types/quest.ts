@@ -50,10 +50,12 @@ export interface StoryProgress {
 
 // Dialogue extensions for quest system
 export interface QuestDialogueAction {
-  type: 'complete_objective' | 'start_quest' | 'unlock_chapter';
+  type: 'complete_objective' | 'start_quest' | 'unlock_chapter' | 'grant_item';
   objectiveId?: string;
   questId?: string;
   chapterId?: string;
+  itemType?: 'apple' | 'berry'; // For grant_item actions
+  itemCount?: number; // How many to grant (default 1)
 }
 
 export type GameMode = 'story' | 'time_trial' | 'board_game';

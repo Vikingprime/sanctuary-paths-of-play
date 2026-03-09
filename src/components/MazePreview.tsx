@@ -34,6 +34,7 @@ export const MazePreview = ({
 
   // Pulsing animation state (for scale effect)
   const [pulseScale, setPulseScale] = useState(1);
+  const [loadingDotCount, setLoadingDotCount] = useState(0);
 
   // Check if maze has any stations (moved up before useEffect that uses it)
   const hasStations = useMemo(() => {
@@ -85,8 +86,32 @@ export const MazePreview = ({
     return () => cancelAnimationFrame(animFrame);
   }, [tutorialPhase]);
 
+  useEffect(() => {
+    if (!isStoryMode) {
+      setLoadingDotCount(0);
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setLoadingDotCount(prev => (prev + 1) % 4);
+    }, 350);
+
+    return () => window.clearInterval(interval);
+  }, [isStoryMode]);
+
   // Get animal emoji
   const animalEmoji = selectedAnimal?.emoji || '🐷';
+  const loadingDots = Array.from({ length: 3 }, (_, index) => (
+    <span
+      key={index}
+      className={cn(
+        'inline-block w-[0.5em] text-center transition-opacity duration-200',
+        index < loadingDotCount ? 'opacity-100' : 'opacity-25'
+      )}
+    >
+      .
+    </span>
+  ));
 
   // Calculate cell size based on available space
   const gridWidth = maze.grid[0].length;
@@ -496,7 +521,14 @@ export const MazePreview = ({
           <CompassRose size={70} rotation={-90} />
           
           {/* Story mode header below compass */}
-          {isStoryMode && (
+          {isStoryMode ? (
+            <div className="text-center">
+              <div className="bg-primary text-primary-foreground px-3 py-1 rounded-full font-display font-bold text-sm mt-1 inline-flex items-center justify-center">
+                <span>Loading</span>
+                <span className="ml-1 inline-flex">{loadingDots}</span>
+              </div>
+            </div>
+          ) : (
             <div className="text-center">
               <h2 className="font-display text-sm font-bold text-foreground">
                 Memorize the Path! 🧠
@@ -541,19 +573,35 @@ export const MazePreview = ({
 
       {/* Header */}
       <div className="text-center mb-2 sm:mb-6 animate-fade-in">
-        <h2 className="font-display text-xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
-          Memorize the Path! 🧠
+        <h2 className="font-display text-xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2 inline-flex items-center justify-center">
+          {isStoryMode ? (
+            <>
+              <span>Loading</span>
+              <span className="ml-1 inline-flex">{loadingDots}</span>
+            </>
+          ) : (
+            'Memorize the Path! 🧠'
+          )}
         </h2>
-        <p className="text-xs sm:text-base text-muted-foreground">
-          Study the maze carefully - you'll need to navigate it in 3D!
-        </p>
+        {!isStoryMode && (
+          <p className="text-xs sm:text-base text-muted-foreground">
+            Study the maze carefully - you'll need to navigate it in 3D!
+          </p>
+        )}
       </div>
 
       {/* Timer */}
       <div className="mb-2 sm:mb-4">
-        <div className="bg-primary text-primary-foreground px-4 py-1.5 sm:px-6 sm:py-2 rounded-full font-display font-bold text-base sm:text-xl animate-pulse">
-          Starting in {timeLeft}s
-        </div>
+        {isStoryMode ? (
+          <div className="bg-primary text-primary-foreground px-4 py-1.5 sm:px-6 sm:py-2 rounded-full font-display font-bold text-base sm:text-xl inline-flex items-center justify-center">
+            <span>Loading</span>
+            <span className="ml-1 inline-flex">{loadingDots}</span>
+          </div>
+        ) : (
+          <div className="bg-primary text-primary-foreground px-4 py-1.5 sm:px-6 sm:py-2 rounded-full font-display font-bold text-base sm:text-xl animate-pulse">
+            Starting in {timeLeft}s
+          </div>
+        )}
       </div>
 
       {/* Maze Preview with Compass */}

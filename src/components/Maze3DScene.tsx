@@ -1,13 +1,14 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend, useLoader } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html, useTexture } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping, CanvasTexture } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping, CanvasTexture, BufferGeometry, BufferAttribute, Float32BufferAttribute } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
+import { NPCRuntimeState } from '@/game/NPCRuntime';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision, checkCollision } from '@/game/GameLogic';
-import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor } from '@/game/CharacterConfig';
+import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor, getCharacterTintColor } from '@/game/CharacterConfig';
 import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics, checkGcSpike } from '@/lib/debug';
@@ -61,6 +62,7 @@ export interface PerformanceInfo {
 interface DialogueTarget {
   speakerX: number;
   speakerZ: number;
+  speakerHeight: number;
 }
 
 interface Maze3DSceneProps {
@@ -76,6 +78,8 @@ interface Maze3DSceneProps {
   mobileIsMovingRef?: MutableRefObject<boolean>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
   cameraYawRef?: MutableRefObject<number>; // Camera orbit yaw angle
+  cameraOrbitDeltaRef?: MutableRefObject<number>; // Per-frame orbit delta from touch
+  cameraOrbitActiveRef?: MutableRefObject<boolean>; // Whether orbit touch is active
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   onCharacterClick?: (characterId: string) => void; // For click-triggered dialogues
@@ -126,6 +130,8 @@ interface Maze3DSceneProps {
   railTurnSpeed?: number;
   onRailMoveComplete?: () => void;
   onMagnetismCacheReady?: (cache: MagnetismCache) => void;
+  // NPC rotation overrides (characterId -> Y rotation in radians)
+  npcRotations?: Record<string, number>;
 }
 
 // Ground shader using multiple photo textures with random patches
@@ -834,6 +840,7 @@ interface CharacterRendererProps {
   alwaysFacePlayer?: boolean; // If true, character always faces player even outside dialogue
   maze: Maze; // Required for raycasting initial facing direction
   showCollisionDebug?: boolean; // Show debug ground plane under character
+  rotationOverride?: number; // If set, overrides default facing rotation (for NPC turning)
 }
 
 const CharacterRenderer = ({
@@ -846,6 +853,7 @@ const CharacterRenderer = ({
   alwaysFacePlayer = false,
   maze,
   showCollisionDebug = false,
+  rotationOverride,
 }: CharacterRendererProps) => {
   const groupRef = useRef<Group>(null);
   const mixerRef = useRef<AnimationMixer | null>(null);
@@ -858,6 +866,7 @@ const CharacterRenderer = ({
   const characterScale = getCharacterScale(modelFile);
   const characterYOffset = getCharacterYOffset(modelFile);
   const debugPlaneColor = getCharacterDebugPlaneColor(modelFile);
+  const tintColor = getCharacterTintColor(modelFile);
   
   // Calculate initial facing direction using same approach as dialogue code
   // findBestDirectionAngle returns angle from +X axis (0 = +X, π/2 = +Z)
@@ -871,27 +880,44 @@ const CharacterRenderer = ({
   }, [maze, position.x, position.y]);
   
   // Clone the scene using SkeletonUtils for skinned meshes
-  // Make materials transparent for opacity fading
+  // Force visibility on clones and disable frustum culling for tiny models
+  // Some GLTFs arrive with hidden children or unreliable bounds after cloning
   const { model, materials } = useMemo(() => {
     const clone = SkeletonUtils.clone(scene);
     const mats: Material[] = [];
+
+    clone.visible = true;
     clone.traverse((child: any) => {
+      child.visible = true;
+
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        // Enable transparency for fading
+        child.frustumCulled = false;
+
+        // Clone materials per instance and enable transparency for fading
         if (child.material) {
           const childMats = Array.isArray(child.material) ? child.material : [child.material];
-          childMats.forEach((mat: Material) => {
-            (mat as any).transparent = true;
-            (mat as any).opacity = 1;
-            mats.push(mat);
+          const clonedChildMats = childMats.map((mat: Material) => {
+            const clonedMat = mat.clone();
+            (clonedMat as any).transparent = true;
+            (clonedMat as any).opacity = 1;
+
+            if (tintColor && clonedMat instanceof MeshStandardMaterial) {
+              clonedMat.color.lerp(new Color(tintColor), 0.55);
+            }
+
+            mats.push(clonedMat);
+            return clonedMat;
           });
+
+          child.material = Array.isArray(child.material) ? clonedChildMats : clonedChildMats[0];
         }
       }
     });
+
     return { model: clone, materials: mats };
-  }, [scene]);
+  }, [scene, tintColor]);
   
   // Set up animation mixer
   useEffect(() => {
@@ -939,6 +965,9 @@ const CharacterRenderer = ({
         const dz = playerZ - charZ;
         const angle = Math.atan2(dx, dz);
         groupRef.current.rotation.y = angle;
+      } else if (rotationOverride !== undefined) {
+        // Apply NPC turning rotation override
+        groupRef.current.rotation.y = rotationOverride;
       }
       
       // Apply opacity fade based on distance from player
@@ -1021,6 +1050,7 @@ const PlacedCharacter = ({
   maze,
   showCollisionDebug,
   onClick,
+  rotationOverride,
 }: { 
   character: MazeCharacter;
   playerStateRef?: MutableRefObject<PlayerState>;
@@ -1028,6 +1058,7 @@ const PlacedCharacter = ({
   maze: Maze;
   showCollisionDebug?: boolean;
   onClick?: (characterId: string) => void;
+  rotationOverride?: number; // Y rotation in radians, overrides default facing
 }) => {
   // Check if this character has any click-triggered dialogues
   const hasClickDialogue = maze.dialogues?.some(
@@ -1050,7 +1081,106 @@ const PlacedCharacter = ({
         alwaysFacePlayer={character.alwaysFacePlayer}
         maze={maze}
         showCollisionDebug={showCollisionDebug}
+        rotationOverride={rotationOverride}
       />
+    </group>
+  );
+};
+
+// VisionConeOverlay - renders a smooth triangle cone on the ground for NPC vision zones
+const VisionConeOverlay = ({ 
+  character, 
+  rotationOverride,
+  maze,
+}: { 
+  character: MazeCharacter;
+  rotationOverride?: number;
+  maze: Maze;
+}) => {
+  const coneGeometry = useMemo(() => {
+    if (!character.coneVision) return null;
+    
+    const { range, spreadPerCell } = character.coneVision;
+    
+    // Determine direction
+    let direction: 'north' | 'south' | 'east' | 'west' = 'south';
+    if (rotationOverride !== undefined) {
+      const normalized = ((rotationOverride % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      if (normalized < Math.PI * 0.25 || normalized > Math.PI * 1.75) direction = 'south';
+      else if (normalized < Math.PI * 0.75) direction = 'west';
+      else if (normalized < Math.PI * 1.25) direction = 'north';
+      else direction = 'east';
+    }
+    
+    // Build triangle vertices in local space (relative to character position)
+    // Tip at character center (0,0,0), widens to match cone spread at far end
+    const farHalfWidth = spreadPerCell * (range - 1) + 0.5; // Match generateConeVisionOffsets formula
+    const farDist = range;
+    
+    // Define triangle points based on direction (in XZ plane)
+    // Tip is always at character center (0,0,0)
+    const tip: [number, number, number] = [0, 0, 0];
+    let left: [number, number, number];
+    let right: [number, number, number];
+    
+    switch (direction) {
+      case 'north':
+        left = [-farHalfWidth, 0, -farDist];
+        right = [farHalfWidth, 0, -farDist];
+        break;
+      case 'south':
+        left = [farHalfWidth, 0, farDist];
+        right = [-farHalfWidth, 0, farDist];
+        break;
+      case 'east':
+        left = [farDist, 0, -farHalfWidth];
+        right = [farDist, 0, farHalfWidth];
+        break;
+      case 'west':
+      default:
+        left = [-farDist, 0, farHalfWidth];
+        right = [-farDist, 0, -farHalfWidth];
+        break;
+    }
+    
+    const geom = new BufferGeometry();
+    const vertices = new Float32Array([
+      tip[0], tip[1], tip[2],
+      left[0], left[1], left[2],
+      right[0], right[1], right[2],
+    ]);
+    geom.setAttribute('position', new Float32BufferAttribute(vertices, 3));
+    geom.computeVertexNormals();
+    return geom;
+  }, [character.coneVision, rotationOverride]);
+  
+  if (!coneGeometry) return null;
+  
+  
+  
+  const pos = character.position;
+  
+  // Characters render at (pos.x + 0.5, pos.y + 0.5) - center of grid cell
+  const cx = pos.x + 0.5;
+  const cz = pos.y + 0.5;
+  
+  return (
+    <group>
+      {/* Smooth triangle cone */}
+      {coneGeometry && (
+        <mesh
+          position={[cx, 0.03, cz]}
+          geometry={coneGeometry}
+        >
+          <meshBasicMaterial
+            color="#cc2200"
+            transparent
+            opacity={0.25}
+            depthWrite={false}
+            side={DoubleSide}
+          />
+        </mesh>
+      )}
     </group>
   );
 };
@@ -1104,6 +1234,8 @@ const RefBasedPlayer = ({
   mobileIsMovingRef,
   mobileTouchActiveRef,
   cameraYawRef,
+  cameraOrbitDeltaRef,
+  cameraOrbitActiveRef,
   speedBoostActive,
   onCellInteraction,
   isPaused,
@@ -1139,6 +1271,8 @@ const RefBasedPlayer = ({
   mobileIsMovingRef?: MutableRefObject<boolean>;
   mobileTouchActiveRef?: MutableRefObject<boolean>;
   cameraYawRef?: MutableRefObject<number>;
+  cameraOrbitDeltaRef?: MutableRefObject<number>;
+  cameraOrbitActiveRef?: MutableRefObject<boolean>;
   speedBoostActive: boolean;
   onCellInteraction: (x: number, y: number) => void;
   isPaused: boolean;
@@ -1419,6 +1553,27 @@ const RefBasedPlayer = ({
           }
         }
         
+        // In rail mode, still apply camera orbit delta from touch
+        if (cameraYawRef && cameraOrbitDeltaRef && cameraOrbitDeltaRef.current !== 0) {
+          cameraYawRef.current += cameraOrbitDeltaRef.current;
+          cameraOrbitDeltaRef.current = 0;
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
+        // In rail mode, keyboard Q/E for camera orbit
+        if (cameraYawRef) {
+          const KEYBOARD_ORBIT_SPEED = 2.0;
+          if (keysPressed.current.has('q')) {
+            cameraYawRef.current -= KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          if (keysPressed.current.has('e')) {
+            cameraYawRef.current += KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
         // Skip normal movement processing in rail mode
       } else {
         // === NORMAL MOVEMENT (keyboard/joystick) ===
@@ -1455,6 +1610,19 @@ const RefBasedPlayer = ({
         isTurningRef.current = isRotating && !isForwardOrBack; // Only turning in place
         moveSpeedRef.current = isForwardOrBack ? 1.0 : 0; // Keyboard is always full speed
         
+        // Keyboard Q/E for camera orbit (while also moving with WASD)
+        if (cameraYawRef) {
+          const KEYBOARD_ORBIT_SPEED = 2.0;
+          if (keysPressed.current.has('q')) {
+            cameraYawRef.current -= KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          if (keysPressed.current.has('e')) {
+            cameraYawRef.current += KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
         // Calculate movement with clamped delta
         const prev = playerStateRef.current;
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
@@ -1467,6 +1635,15 @@ const RefBasedPlayer = ({
         if (cameraYawRef) {
           cameraYawRef.current += joyX * ORBIT_SPEED * clampedDelta;
           // Normalize to 0-2PI
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
+        // Apply camera orbit delta from touch (right side of screen)
+        if (cameraYawRef && cameraOrbitDeltaRef) {
+          cameraYawRef.current += cameraOrbitDeltaRef.current;
+          cameraOrbitDeltaRef.current = 0; // Consume delta
+          // Normalize
           while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
           while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
         }
@@ -1617,11 +1794,31 @@ const RefBasedPlayer = ({
           collisionIntensityRef.current = 0; // Reset collision state when idle
         }
       } else {
-        // No input - no movement
+        // No joystick/keyboard input - but still apply camera orbit delta from touch
+        if (cameraYawRef && cameraOrbitDeltaRef && cameraOrbitDeltaRef.current !== 0) {
+          cameraYawRef.current += cameraOrbitDeltaRef.current;
+          cameraOrbitDeltaRef.current = 0;
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
+        // Keyboard Q/E for camera orbit
+        if (cameraYawRef) {
+          const KEYBOARD_ORBIT_SPEED = 2.0;
+          if (keysPressed.current.has('q')) {
+            cameraYawRef.current -= KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          if (keysPressed.current.has('e')) {
+            cameraYawRef.current += KEYBOARD_ORBIT_SPEED * clampedDelta;
+          }
+          while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+          while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+        }
+        
         isMovingRef.current = false;
         isTurningRef.current = false;
         moveSpeedRef.current = 0;
-        collisionIntensityRef.current = 0; // Reset collision state when idle
+        collisionIntensityRef.current = 0;
       }
       } // End of else block for normal movement (non-rail mode)
       
@@ -1821,7 +2018,7 @@ const DEFAULT_AUTOPUSH: AutopushConfig = {
   relaxLerp: 0.04,      // Very slow relax-out (prevents pumping)
   headHeight: 1.2,      // Raised ray origin to cow head height (avoids ground/body hits)
   rayCount: 3,          // Use 3 rays for stability
-  raySpread: 0.12,      // ~7 degrees spread for side rays
+  raySpread: 0.25,      // ~14 degrees spread for side rays (wider to catch adjacent corn)
   holdTimeMs: 250,      // Keep pushed-in for 250ms after ray clears
   minPushDelta: 0.25,   // Ignore grazing hits (was 0.6, too strict; 0.05 too loose)
 };
@@ -1843,7 +2040,11 @@ const OverShoulderCameraController = ({
   maze,
   opacityFadeEnabled = true,
   cameraYawRef,
+  cameraOrbitActiveRef,
+  mobileTouchActiveRef,
+  keysPressed,
   railMode = false,
+  isMovingRef,
 }: { 
   playerStateRef: MutableRefObject<PlayerState>;
   restartKey?: number;
@@ -1855,7 +2056,11 @@ const OverShoulderCameraController = ({
   maze?: Maze;
   opacityFadeEnabled?: boolean;
   cameraYawRef?: MutableRefObject<number>;
+  cameraOrbitActiveRef?: MutableRefObject<boolean>;
+  mobileTouchActiveRef?: MutableRefObject<boolean>;
+  keysPressed?: MutableRefObject<Set<string>>;
   railMode?: boolean;
+  isMovingRef?: MutableRefObject<boolean>;
 }) => {
   const { camera, scene } = useThree();
   
@@ -1939,11 +2144,33 @@ const OverShoulderCameraController = ({
   useFrame(() => {
     const { x: playerX, y: playerZ, rotation: playerRotation } = playerStateRef.current;
     
-    // In rail mode, camera follows animal's rotation directly for smooth path following
-    // In orbit mode, use cameraYawRef, otherwise fall back to player rotation
-    const targetCameraYaw = railMode 
-      ? playerRotation 
-      : (cameraYawRef?.current ?? playerRotation);
+    // === CAMERA DRIFT-BACK ===
+    // When no orbit touch is active AND no joystick is being used, drift camera back behind player
+    const orbitActive = cameraOrbitActiveRef?.current ?? false;
+    const touchActive = mobileTouchActiveRef?.current ?? false;
+    
+    // Also pause drift when Q/E keys are held
+    const qeActive = keysPressed?.current?.has('q') || keysPressed?.current?.has('e');
+    
+    if (cameraYawRef && !orbitActive && !touchActive && !qeActive) {
+      let diff = playerRotation - cameraYawRef.current;
+      // Shortest path wrap-around
+      if (diff > Math.PI) diff -= Math.PI * 2;
+      if (diff < -Math.PI) diff += Math.PI * 2;
+      // Only drift if there's meaningful difference
+      if (Math.abs(diff) > 0.01) {
+        const isMoving = isMovingRef?.current ?? false;
+        const DRIFT_SPEED = isMoving ? 0.0104 : 0.008; // 1.3x faster while moving
+        cameraYawRef.current += diff * DRIFT_SPEED;
+        // Normalize
+        while (cameraYawRef.current > Math.PI * 2) cameraYawRef.current -= Math.PI * 2;
+        while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
+      }
+    }
+    
+    // In orbit mode (Q/E or touch), use cameraYawRef; otherwise follow player rotation
+    // In rail mode, still allow orbit override when cameraYawRef differs from playerRotation
+    const targetCameraYaw = cameraYawRef?.current ?? playerRotation;
     
     // Store initial position on first frame (after initialization)
     if (initialized.current && initialPlayerPos.current === null) {
@@ -2016,9 +2243,11 @@ const OverShoulderCameraController = ({
       playerZ
     );
     
-    // Calculate target head position (for raycasting origin) - use character-scaled height
+    // Calculate target head position (for raycasting origin) - use autopush headHeight
+    // to ensure rays have enough horizontal component to hit wall colliders
     // Reuse ref to avoid GC
-    headPosRef.current.set(playerX, targetHeight, playerZ);
+    const rayOriginHeight = Math.max(targetHeight, autopush.headHeight);
+    headPosRef.current.set(playerX, rayOriginHeight, playerZ);
     
     // === AUTOPUSH LOGIC ===
     // Reuse ref instead of cloning
@@ -2052,7 +2281,7 @@ const OverShoulderCameraController = ({
       hitCellsRef.current.clear();
       centerRayHitCellsRef.current.clear();
       
-      const performRaycast = (direction: Vector3) => {
+      const performRaycast = (direction: Vector3, collectFadeCells = false) => {
         rayOrigin.current.copy(headPosRef.current);
         raycaster.current.set(rayOrigin.current, direction);
         raycaster.current.far = rayLength;
@@ -2066,28 +2295,14 @@ const OverShoulderCameraController = ({
             hitObjectName = intersects[0].object.name || 'unnamed';
           }
           
-          // Collect hit cells for corn fading using userData (not hit.point)
-          for (const hit of intersects) {
-            const cellX = hit.object.userData.cellX;
-            const cellZ = hit.object.userData.cellZ;
-            if (cellX !== undefined && cellZ !== undefined) {
-              hitCellsRef.current.add(`${cellX},${cellZ}`);
-              
-              // Also fade adjacent cells to catch visual corn leaves extending from neighbors
-              if (maze) {
-                const adjacents = [
-                  [cellX - 1, cellZ], [cellX + 1, cellZ],
-                  [cellX, cellZ - 1], [cellX, cellZ + 1]
-                ];
-                for (const [ax, az] of adjacents) {
-                  // Only add if it's a valid wall cell in the maze
-                  if (ax >= 0 && az >= 0 && 
-                      az < maze.grid.length && 
-                      ax < maze.grid[0].length && 
-                      maze.grid[az][ax].isWall) {
-                    hitCellsRef.current.add(`${ax},${az}`);
-                  }
-                }
+          // Only the center ray contributes cells for translucency.
+          // Side rays are used for autopush only so corn at the edges doesn't fade while moving.
+          if (collectFadeCells) {
+            for (const hit of intersects) {
+              const cellX = hit.object.userData.cellX;
+              const cellZ = hit.object.userData.cellZ;
+              if (cellX !== undefined && cellZ !== undefined) {
+                centerRayHitCellsRef.current.add(`${cellX},${cellZ}`);
               }
             }
           }
@@ -2095,19 +2310,14 @@ const OverShoulderCameraController = ({
       };
       
       // Center ray - collect hits for both autopush AND fading
-      performRaycast(rayDir.current);
+      performRaycast(rayDir.current, true);
       frameMetrics.raycastCount++; // Track raycasts for debug
-      hitCellsRef.current.forEach(cell => centerRayHitCellsRef.current.add(cell));
       
-      // Side rays (if enabled) - only for autopush, NOT for fading
+      // Side rays (if enabled) - autopush only
       if (autopush.rayCount === 3) {
         // Calculate perpendicular direction in XZ plane
         const perpX = -rayDir.current.z;
         const perpZ = rayDir.current.x;
-        
-        // Save center ray hits, clear for side rays (they don't contribute to fading)
-        // No allocation needed - we already have centerRayHitCellsRef
-        hitCellsRef.current.clear();
         
         // Left ray
         tempVec.current.set(
@@ -2126,9 +2336,6 @@ const OverShoulderCameraController = ({
         ).normalize();
         performRaycast(tempVec.current);
         frameMetrics.raycastCount++;
-        // Restore only center ray hits for fading
-        hitCellsRef.current.clear();
-        centerRayHitCellsRef.current.forEach(cell => hitCellsRef.current.add(cell));
       }
       
       // Get current time for hysteresis
@@ -2148,8 +2355,8 @@ const OverShoulderCameraController = ({
       let targetDist = rayLength; // Default: no blocking, use full distance
       const desiredDistForAutopush = rayLength;
       
-      // Use the ref-based hitCells for all subsequent logic
-      const hitCells = hitCellsRef.current;
+      // Only the center ray may drive translucency.
+      const fadeCells = centerRayHitCellsRef.current;
       
       if (closestHitDist < rayLength) {
         // We have a hit - camera should be IN FRONT of the wall, not behind it
@@ -2170,33 +2377,6 @@ const OverShoulderCameraController = ({
           // Significant hit - push camera in front of wall
           targetDist = potentialBlockedDist;
           lastHitTime.current = now; // Record hit time for hysteresis
-          
-          // === APPLY CORN FADING ONLY AFTER AUTOPUSH LERP HAS SETTLED ===
-          // Only do corn fading if opacityFadeEnabled is true
-          if (opacityFadeEnabled) {
-            // Check if camera has finished lerping (current distance is close to target)
-            const lerpSettled = currentAutopushDist.current !== null && 
-              Math.abs(currentAutopushDist.current - potentialBlockedDist) < 0.15;
-            
-            if (lerpSettled) {
-              // Mark hit cells as needing fade only after camera settles
-              // Check if we already have faded cells (autopush already active)
-              const hasExistingFadedCells = fadedCellsRef.current.size > 0;
-              frameMetrics.activeFadedCells = fadedCellsRef.current.size; // Track for debug
-              
-              for (const cellKey of hitCells) {
-                const existing = fadedCellsRef.current.get(cellKey);
-                if (existing) {
-                  existing.lastHitTime = now;
-                } else {
-                  // If autopush is already active with faded cells, start new cells at target opacity
-                  // This prevents blinking when turning and hitting new cells
-                  const startOpacity = hasExistingFadedCells ? FADE_TARGET : 1.0;
-                  fadedCellsRef.current.set(cellKey, { opacity: startOpacity, lastHitTime: now });
-                }
-              }
-            }
-          }
         } else {
           // Grazing hit - ignore, but check hysteresis
           const timeSinceHit = now - lastHitTime.current;
@@ -2206,15 +2386,24 @@ const OverShoulderCameraController = ({
           }
         }
         
-        // Update all faded cells (always update opacity animation)
-        // But only fade OUT if camera lerp has settled
-        // Only run if opacityFadeEnabled is true
-        if (opacityFadeEnabled) {
-          const lerpSettledForFade = currentAutopushDist.current !== null && 
-            Math.abs(currentAutopushDist.current - targetDist) < 0.15;
+        // Only fade for direct, significant center-ray occlusion.
+        if (opacityFadeEnabled && isSignificantHit && fadeCells.size > 0) {
+          frameMetrics.activeFadedCells = fadedCellsRef.current.size;
           
+          for (const cellKey of fadeCells) {
+            const existing = fadedCellsRef.current.get(cellKey);
+            if (existing) {
+              existing.lastHitTime = now;
+            } else {
+              fadedCellsRef.current.set(cellKey, { opacity: 1.0, lastHitTime: now });
+            }
+          }
+        }
+        
+        // Update all faded cells
+        if (opacityFadeEnabled) {
           for (const [cellKey, state] of fadedCellsRef.current) {
-            const isCurrentlyHit = hitCells.has(cellKey) && isSignificantHit && lerpSettledForFade;
+            const isCurrentlyHit = fadeCells.has(cellKey) && isSignificantHit;
             const timeSinceHit = now - state.lastHitTime;
             
             if (isCurrentlyHit) {
@@ -2249,7 +2438,6 @@ const OverShoulderCameraController = ({
         }
         
         // No autopush active - fade all cells back to opaque
-        // Only run if opacityFadeEnabled is true
         if (opacityFadeEnabled) {
           for (const [cellKey, state] of fadedCellsRef.current) {
             const timeSinceHitCell = now - state.lastHitTime;
@@ -2271,6 +2459,8 @@ const OverShoulderCameraController = ({
           }
         }
       }
+      
+      frameMetrics.activeFadedCells = fadedCellsRef.current.size;
       
       // Initialize autopush distance on first frame
       if (currentAutopushDist.current === null) {
@@ -2368,13 +2558,14 @@ const CutsceneCameraController = ({
 }) => {
   const { camera } = useThree();
   
-  const CAMERA_HEIGHT = 1.5;  // Raised 0.5 units for better character visibility
-  const LOOK_HEIGHT = 0.9;   // Look at farmer's chest/face level
-  const ZOOM_DISTANCE = 1.8; // Closer to center the farmer
-  
   useFrame(() => {
     const playerX = playerStateRef.current.x;
     const playerZ = playerStateRef.current.y;
+    const speakerHeight = Math.max(0.25, dialogueTarget.speakerHeight || 1.0);
+    const smallNpcBias = Math.min(1, Math.max(0, (0.6 - speakerHeight) / 0.35));
+    const cameraHeight = Math.min(2.4, Math.max(1.22, 1.1 + speakerHeight * 0.85 + smallNpcBias * 0.18));
+    const lookHeight = Math.min(1.35, Math.max(0.22, speakerHeight * 0.72 + smallNpcBias * 0.12));
+    const baseZoomDistance = Math.min(3.0, Math.max(1.05, 1.05 + speakerHeight * 1.15 - smallNpcBias * 0.45));
     
     // Speaker is at dialogueTarget position + 0.5 (center of cell)
     const speakerX = dialogueTarget.speakerX + 0.5;
@@ -2396,14 +2587,22 @@ const CutsceneCameraController = ({
       dirX = dx / dist;
       dirZ = dz / dist;
     }
+
+    // For tiny characters, move the camera closer than the player's silhouette and add a slight side offset.
+    const maxZoomBeforePlayer = dist > 0.5
+      ? Math.max(0.72, dist - (0.5 + smallNpcBias * 0.45))
+      : baseZoomDistance;
+    const zoomDistance = smallNpcBias > 0 ? Math.min(baseZoomDistance, maxZoomBeforePlayer) : baseZoomDistance;
+    const sideOffset = smallNpcBias * 0.55;
+    const perpX = -dirZ;
+    const perpZ = dirX;
     
-    // Position camera ZOOM_DISTANCE away from speaker, toward player
-    const camX = speakerX + dirX * ZOOM_DISTANCE;
-    const camZ = speakerZ + dirZ * ZOOM_DISTANCE;
+    const camX = speakerX + dirX * zoomDistance + perpX * sideOffset;
+    const camZ = speakerZ + dirZ * zoomDistance + perpZ * sideOffset;
     
-    camera.position.set(camX, CAMERA_HEIGHT, camZ);
+    camera.position.set(camX, cameraHeight, camZ);
     camera.up.set(0, 1, 0);
-    camera.lookAt(speakerX, LOOK_HEIGHT, speakerZ);
+    camera.lookAt(speakerX, lookHeight, speakerZ);
   });
   
   return null;
@@ -2606,7 +2805,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, speedBoostActive, onCellInteraction, onCharacterClick, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, debugMode = false, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, cameraOrbitDeltaRef, cameraOrbitActiveRef, speedBoostActive, onCellInteraction, onCharacterClick, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, debugMode = false, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady, npcRotations = {} }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2810,6 +3009,17 @@ return (
           maze={maze}
           showCollisionDebug={showCollisionDebug}
           onClick={onCharacterClick}
+          rotationOverride={npcRotations[character.id]}
+        />
+      ))}
+      
+      {/* Vision Cone overlays for NPCs with vision */}
+      {maze.characters?.filter(c => c.coneVision || c.directionalVision).map((character) => (
+        <VisionConeOverlay
+          key={`vision-${character.id}`}
+          character={character}
+          rotationOverride={npcRotations[character.id]}
+          maze={maze}
         />
       ))}
       
@@ -2839,6 +3049,8 @@ return (
         mobileIsMovingRef={mobileIsMovingRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
         cameraYawRef={cameraYawRef}
+        cameraOrbitDeltaRef={cameraOrbitDeltaRef}
+        cameraOrbitActiveRef={cameraOrbitActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={onCellInteraction}
         isPaused={isPaused}
@@ -2872,7 +3084,7 @@ return (
         </>
       ) : (
         <>
-          <OverShoulderCameraController 
+           <OverShoulderCameraController 
             playerStateRef={playerStateRef}
             restartKey={restartKey}
             topDownCamera={topDownCamera}
@@ -2882,7 +3094,11 @@ return (
             maze={maze}
             opacityFadeEnabled={opacityFadeEnabled}
             cameraYawRef={cameraYawRef}
+            cameraOrbitActiveRef={cameraOrbitActiveRef}
+            mobileTouchActiveRef={mobileTouchActiveRef}
+            keysPressed={keysPressed}
             railMode={railMode}
+            isMovingRef={isMovingRef}
           />
           {/* Corn fading is now integrated into the CameraController's autopush logic */}
         </>

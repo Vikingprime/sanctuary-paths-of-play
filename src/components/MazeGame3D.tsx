@@ -23,6 +23,15 @@ import { setAutopushEnabled as setDebugAutopush, setLOSFaderEnabled as setDebugL
 import { useBackButton } from '@/hooks/useBackButton';
 import { Point2D } from '@/game/SkeletonPolyline';
 import { MagnetismCache } from '@/game/CorridorMagnetism';
+import { getCharacterHeight } from '@/game/CharacterConfig';
+import { 
+  initNPCRuntimeStates, 
+  updateNPCTurning, 
+  resolveVisionCells, 
+  directionToRotation,
+  updateNPCPatrol,
+  NPCRuntimeState,
+} from '@/game/NPCRuntime';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -83,6 +92,10 @@ interface MazeGame3DProps {
     nextTier: { id: string; name: string; pointsRequired: number } | null;
     progress: number;
   };
+  // Berry system
+  onBerryCollect?: (count: number) => void;
+  onBerryReset?: () => void;
+  berryCount?: number;
 }
 
 export const MazeGame3D = ({
@@ -109,6 +122,9 @@ export const MazeGame3D = ({
   pendingAppleDialogue,
   onAppleDialogueComplete,
   friendshipProgress,
+  onBerryCollect,
+  onBerryReset,
+  berryCount = 0,
 }: MazeGame3DProps) => {
   // Initialize from pure game logic
   const startPos = findStartPosition(maze);
@@ -210,6 +226,9 @@ export const MazeGame3D = ({
   const mobileTouchActiveRef = useRef(false); // Whether touch is currently active
   // Camera orbit yaw - controlled by joystick X, used for orbit camera
   const cameraYawRef = useRef(startRotation); // Camera yaw angle (orbits around player)
+  // Camera orbit touch refs (right side of screen)
+  const cameraOrbitDeltaRef = useRef(0); // Per-frame delta from orbit touch
+  const cameraOrbitActiveRef = useRef(false); // Whether orbit touch is currently held
   
   // Control mode: 'joystick' or 'rail' (on-rail navigation)
   // Rail mode is the default for all modes
@@ -245,6 +264,20 @@ export const MazeGame3D = ({
   // Quest objective tracking for story mode
   const [completedObjectives, setCompletedObjectives] = useState<Set<string>>(new Set());
   
+  // NPC runtime state (turning, patrol, directional vision)
+  const npcRuntimeStatesRef = useRef<Map<string, NPCRuntimeState>>(
+    initNPCRuntimeStates(maze.characters ?? [])
+  );
+  // NPC rotation overrides for the 3D scene (characterId -> Y rotation)
+  // Initialize with correct starting rotations so vision cones match initial facing
+  const [npcRotations, setNpcRotations] = useState<Record<string, number>>(() => {
+    const initial: Record<string, number> = {};
+    for (const [id, state] of npcRuntimeStatesRef.current.entries()) {
+      initial[id] = directionToRotation(state.currentDirection);
+    }
+    return initial;
+  });
+  
   // Helper to find the speaker position for a dialogue
   const findSpeakerPositionForDialogue = useCallback((dialogue: DialogueTrigger | null): { x: number; y: number } | null => {
     if (!dialogue || !maze.dialogues) return null;
@@ -278,7 +311,31 @@ export const MazeGame3D = ({
     }
     
     return null;
-  }, [maze.dialogues, maze.grid, maze.characters]);
+  }, [maze.dialogues, maze.characters]);
+
+  const findSpeakerHeightForDialogue = useCallback((dialogue: DialogueTrigger | null): number => {
+    if (!dialogue || !maze.dialogues) return 1.0;
+
+    if (dialogue.speakerCharacterId) {
+      const character = maze.characters?.find(c => c.id === dialogue.speakerCharacterId);
+      if (character) {
+        return getCharacterHeight(character.model);
+      }
+    }
+
+    if (dialogue.characterModel) {
+      return getCharacterHeight(dialogue.characterModel);
+    }
+
+    if (dialogue.requires && dialogue.requires.length > 0) {
+      const parentDialogue = maze.dialogues.find(d => d.id === dialogue.requires?.[0]);
+      if (parentDialogue) {
+        return findSpeakerHeightForDialogue(parentDialogue);
+      }
+    }
+
+    return 1.0;
+  }, [maze.dialogues, maze.characters]);
 
   // Find all station positions in the maze
   const stationPositions = useRef<Array<{ x: number; y: number }>>([]);
@@ -435,8 +492,8 @@ export const MazeGame3D = ({
       gameStartTimeRef.current = Date.now();
     }
 
-    // In debug mode or when timer is disabled, don't count down time
-    if (debugMode || maze.timerDisabled) return;
+    // In debug mode, story mode, or when timer is disabled, don't count down time
+    if (debugMode || isStoryMode || maze.timerDisabled) return;
     
     gameTimerRef.current = setInterval(() => {
       const now = Date.now();
@@ -461,7 +518,7 @@ export const MazeGame3D = ({
         gameTimerRef.current = null;
       }
     };
-  }, [isPreviewing, gameOver, activeDialogue, activeAppleDialogue, postDialoguePause, maze.timeLimit, debugMode]);
+  }, [isPreviewing, gameOver, activeDialogue, activeAppleDialogue, postDialoguePause, maze.timeLimit, debugMode, isStoryMode, maze.timerDisabled]);
 
   // Show compass when game starts (preview ends)
   useEffect(() => {
@@ -512,15 +569,91 @@ export const MazeGame3D = ({
     };
   }, [isPreviewing, gameOver]);
 
-  // Check if all required dialogues for a given dialogue are completed
+  // NPC turning timer - updates facing directions for NPCs with turning config
+  useEffect(() => {
+    if (isPreviewing || gameOver) return;
+    
+    const characters = maze.characters ?? [];
+    const hasAnyTurning = characters.some(c => c.turning || c.patrol);
+    if (!hasAnyTurning) return;
+    
+    const TICK_MS = 100; // Update every 100ms for smooth turning
+    const interval = setInterval(() => {
+      // Pause NPC turning/patrol during dialogue
+      if (activeDialogue || activeAppleDialogue || postDialoguePause) return;
+      
+      const states = npcRuntimeStatesRef.current;
+      const newRotations: Record<string, number> = {};
+      let changed = false;
+      
+      for (const char of characters) {
+        const state = states.get(char.id);
+        if (!state) continue;
+        
+        // Update turning
+        if (char.turning) {
+          const didTurn = updateNPCTurning(state, char, TICK_MS);
+          if (didTurn) changed = true;
+        }
+        
+        // Update patrol
+        if (char.patrol) {
+          const isWall = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
+          const didMove = updateNPCPatrol(state, char, TICK_MS / 1000, isWall);
+          if (didMove) changed = true;
+        }
+        
+        newRotations[char.id] = directionToRotation(state.currentDirection);
+      }
+      
+      if (changed) {
+        setNpcRotations({ ...newRotations });
+      }
+    }, TICK_MS);
+    
+    return () => clearInterval(interval);
+  }, [isPreviewing, gameOver, maze.characters, maze.grid, activeDialogue, activeAppleDialogue, postDialoguePause]);
+
   const areRequirementsMet = useCallback((dialogue: DialogueTrigger): boolean => {
     if (!dialogue.requires || dialogue.requires.length === 0) return true;
     return dialogue.requires.every(reqId => triggeredDialogues.has(reqId));
   }, [triggeredDialogues]);
 
   // Check if a dialogue can be triggered at the given cell (proximity-based only)
+  // Also checks NPC vision zones (cone vision on characters)
   const checkDialogueAtCell = useCallback((gridX: number, gridY: number, currentTriggered: Set<string>): DialogueTrigger | null => {
     if (!maze.dialogues) return null;
+    
+    // Check vision zones on characters
+    if (maze.characters) {
+      for (const char of maze.characters) {
+        if (!char.visionDialogueId) continue;
+        if (currentTriggered.has(char.visionDialogueId)) continue;
+        
+        // Resolve active vision cells with wall blocking
+        const npcState = npcRuntimeStatesRef.current.get(char.id);
+        const isWallFn = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
+        const activeCells = resolveVisionCells(char, npcState, isWallFn);
+        if (activeCells.length === 0) continue;
+        
+        const inVision = activeCells.some(cell => cell.x === gridX && cell.y === gridY);
+        if (inVision) {
+          const visionDialogue = maze.dialogues.find(d => d.id === char.visionDialogueId);
+          if (visionDialogue && !currentTriggered.has(visionDialogue.id)) {
+            // Check requirements
+            if (visionDialogue.requires && visionDialogue.requires.length > 0) {
+              const requirementsMet = visionDialogue.requires.every(reqId => currentTriggered.has(reqId));
+              if (!requirementsMet) continue;
+            }
+            if (visionDialogue.requiresNot && visionDialogue.requiresNot.length > 0) {
+              const anyBlocked = visionDialogue.requiresNot.some(reqId => currentTriggered.has(reqId));
+              if (anyBlocked) continue;
+            }
+            return visionDialogue;
+          }
+        }
+      }
+    }
     
     for (const dialogue of maze.dialogues) {
       if (currentTriggered.has(dialogue.id)) continue;
@@ -532,6 +665,11 @@ export const MazeGame3D = ({
         const requirementsMet = dialogue.requires.every(reqId => currentTriggered.has(reqId));
         if (!requirementsMet) continue;
       }
+      // Check negative requirements (dialogue must NOT have been triggered)
+      if (dialogue.requiresNot && dialogue.requiresNot.length > 0) {
+        const anyBlocked = dialogue.requiresNot.some(reqId => currentTriggered.has(reqId));
+        if (anyBlocked) continue;
+      }
       
       // Check if this cell is in the dialogue's trigger cells
       const isInCells = dialogue.cells.some(cell => cell.x === gridX && cell.y === gridY);
@@ -540,7 +678,7 @@ export const MazeGame3D = ({
       }
     }
     return null;
-  }, [maze.dialogues]);
+  }, [maze.dialogues, maze.characters]);
 
   // Handle click-triggered dialogue for a specific character
   const handleCharacterClick = useCallback((characterId: string) => {
@@ -556,6 +694,10 @@ export const MazeGame3D = ({
       if (dialogue.requires && dialogue.requires.length > 0) {
         const requirementsMet = dialogue.requires.every(reqId => triggeredDialogues.has(reqId));
         if (!requirementsMet) continue;
+      }
+      if (dialogue.requiresNot && dialogue.requiresNot.length > 0) {
+        const anyBlocked = dialogue.requiresNot.some(reqId => triggeredDialogues.has(reqId));
+        if (anyBlocked) continue;
       }
       
       console.log('[Dialogue] Click-triggered:', dialogue.id, 'speaker:', dialogue.speaker);
@@ -680,16 +822,26 @@ export const MazeGame3D = ({
       return;
     }
     
-    // Process quest action if this is a story dialogue
+    // Process quest actions if this is a story dialogue
     if (isStoryMode && storyMaze) {
       const storyDialogue = storyMaze.dialogues.find(d => d.id === activeDialogue.id) as StoryDialogue | undefined;
-      if (storyDialogue?.questAction) {
-        const action = storyDialogue.questAction;
+      
+      // Collect all actions: from questActions array, or single questAction
+      const actions = storyDialogue?.questActions ?? 
+        (storyDialogue?.questAction ? [storyDialogue.questAction] : []);
+      
+      for (const action of actions) {
         if (action.type === 'complete_objective' && action.objectiveId) {
-          // Mark objective as complete locally
           setCompletedObjectives(prev => new Set([...prev, action.objectiveId!]));
-          // Notify parent
           onObjectiveComplete?.(action.objectiveId);
+        } else if (action.type === 'grant_item') {
+          const count = action.itemCount ?? 1;
+          if (action.itemType === 'berry') {
+            onBerryCollect?.(count);
+            toast.success(`🫐 Got ${count} berr${count > 1 ? 'ies' : 'y'}!`);
+          } else if (action.itemType === 'apple') {
+            onAppleCollect?.(count);
+          }
         }
       }
     }
@@ -705,14 +857,23 @@ export const MazeGame3D = ({
       return;
     }
     
-    // No more chained dialogues - close dialogue and enter post-dialogue pause
+    // No more chained dialogues - close dialogue and check for effects
+    const completedDialogue = activeDialogue;
     setActiveDialogue(null);
     setDialogueMessageIndex(0);
-    setPostDialoguePause(true);
+    
+    // Check for game-over effect (e.g., watcher NPC caught the player)
+    if (completedDialogue.effect === 'game_over') {
+      setHasWon(false);
+      setGameOver(true);
+      return;
+    }
+    
+    handleRailStop();
     
     // For story mode: check if all required dialogues are now complete
-    // If so, end the chapter immediately (no need to reach end cell)
-    if (isStoryMode && maze.endConditions?.requiredDialogues) {
+    // If requireReturnToEnd is set, player must walk back to end cell (don't auto-complete)
+    if (isStoryMode && maze.endConditions?.requiredDialogues && !maze.endConditions?.requireReturnToEnd) {
       // Check if we just completed the last required dialogue
       const allDialoguesTriggered = maze.endConditions.requiredDialogues.every(
         id => triggeredDialogues.has(id) || id === currentDialogueId
@@ -1001,6 +1162,10 @@ export const MazeGame3D = ({
           
           playerStateRef.current.rotation = rotation;
           
+          // Sync camera yaw so camera starts aligned behind the snapped direction
+          // (prevents initial camera turn when magnetism changes facing from startRotation)
+          cameraYawRef.current = rotation;
+          
           // Ensure we start in stopped state so direction arrows are shown
           setIsRailMoving(false);
           railPathRef.current = [];
@@ -1243,6 +1408,9 @@ export const MazeGame3D = ({
     };
     setPlayerStateForUI(playerStateRef.current);
     
+    // Reset camera yaw to match player facing direction
+    cameraYawRef.current = startRotation;
+    
     // Reset rail movement state so player starts stopped with direction arrows
     setIsRailMoving(false);
     railPathRef.current = [];
@@ -1271,10 +1439,20 @@ export const MazeGame3D = ({
     setPostDialoguePause(false);
     pendingEndGameRef.current = false;
     
+    // Reset NPC runtime states (turning, patrol)
+    npcRuntimeStatesRef.current = initNPCRuntimeStates(maze.characters ?? []);
+    setNpcRotations({});
+    
     // Reset timing refs
     gameStartTimeRef.current = null;
     pausedTimeRef.current = 0;
     dialoguePauseStartRef.current = null;
+    
+    // Reset intro sequence for story mode
+    setIsShowingIntro(!debugMode && (maze.introDialogues?.length ?? 0) > 0);
+    
+    // Reset berry count (temporary items)
+    onBerryReset?.();
     
     // Record the restart attempt in persistent storage
     onRestartProp?.();
@@ -1285,10 +1463,18 @@ export const MazeGame3D = ({
     
     // Clear keys
     keysPressed.current.clear();
-  }, [startPos, startRotation, debugMode, maze.timeLimit, maze.previewTime, onRestartProp]);
+  }, [startPos, startRotation, debugMode, maze.timeLimit, maze.previewTime, maze.introDialogues, onRestartProp, onBerryReset]);
 
   // Handle map station button click
   const handleMapStationClick = () => {
+    if (isStoryMode) {
+      setShowMiniMap(true);
+      setMapViewTimeLeft(null);
+      setShowMapOptions(false);
+      setMapCountdown(null);
+      return;
+    }
+
     setShowMapOptions(true);
   };
 
@@ -1432,6 +1618,8 @@ export const MazeGame3D = ({
         mobileIsMovingRef={mobileIsMovingRef}
         mobileTouchActiveRef={mobileTouchActiveRef}
         cameraYawRef={cameraYawRef}
+        cameraOrbitDeltaRef={cameraOrbitDeltaRef}
+        cameraOrbitActiveRef={cameraOrbitActiveRef}
         speedBoostActive={speedBoostActive}
         onCellInteraction={handleCellInteraction}
         onCharacterClick={handleCharacterClick}
@@ -1444,8 +1632,9 @@ export const MazeGame3D = ({
         dialogueTarget={activeDialogue ? (() => {
           const pos = findSpeakerPositionForDialogue(activeDialogue);
           return {
-            speakerX: pos?.x ?? playerStateRef.current.x, 
-            speakerZ: pos?.y ?? playerStateRef.current.y 
+            speakerX: pos?.x ?? playerStateRef.current.x,
+            speakerZ: pos?.y ?? playerStateRef.current.y,
+            speakerHeight: findSpeakerHeightForDialogue(activeDialogue),
           };
         })() : null}
         topDownCamera={topDownCamera}
@@ -1492,6 +1681,7 @@ export const MazeGame3D = ({
         railTargetAngleRef={railTargetAngleRef}
         railTurnSpeed={railTurnSpeed}
         onRailMoveComplete={handleRailStop}
+        npcRotations={npcRotations}
       />}
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -1516,6 +1706,7 @@ export const MazeGame3D = ({
           animalType={animalType}
           timeLeft={timeLeft}
           mazeName={maze.name}
+          showTimer={!isStoryMode && !maze.timerDisabled}
           abilityUsed={abilityUsed}
           onUseAbility={useAbility}
           onQuit={onQuit}
@@ -1593,6 +1784,7 @@ export const MazeGame3D = ({
           // Apple/Item system
           appleCount={appleCount}
           onAppleDrop={handleAppleDrop}
+          berryCount={berryCount}
           friendshipProgress={friendshipProgress}
         />
       )}
@@ -1625,23 +1817,70 @@ export const MazeGame3D = ({
           joystickYRef={joystickYRef}
           isMovingRef={mobileIsMovingRef}
           mobileTouchActiveRef={mobileTouchActiveRef}
+          cameraOrbitDeltaRef={cameraOrbitDeltaRef}
+          cameraOrbitActiveRef={cameraOrbitActiveRef}
           debugMode={debugMode}
         />
       )}
       
       {/* Rail Controls - on-rail navigation mode */}
       {!isPreviewing && mobileControlsEnabled && controlMode === 'rail' && (
-        <RailControls
-          cache={magnetismCacheRef.current}
-          playerX={playerStateForUI.x}
-          playerZ={playerStateForUI.y}
-          animalRotation={playerStateForUI.rotation}
-          onDirectionSelect={handleRailDirectionSelect}
-          onStop={handleRailStop}
-          onTurnAround={handleRailTurnAround}
-          isMoving={isRailMoving}
-          enabled={controlMode === 'rail'}
-        />
+        <>
+          <RailControls
+            cache={magnetismCacheRef.current}
+            playerX={playerStateForUI.x}
+            playerZ={playerStateForUI.y}
+            animalRotation={playerStateForUI.rotation}
+            cameraYawRef={cameraYawRef}
+            onDirectionSelect={handleRailDirectionSelect}
+            onStop={handleRailStop}
+            onTurnAround={handleRailTurnAround}
+            isMoving={isRailMoving}
+            enabled={controlMode === 'rail'}
+          />
+          {/* Camera orbit touch overlay for rail mode (right half of screen) */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: '50%',
+              right: 0,
+              bottom: 0,
+              zIndex: 9,
+              touchAction: 'none',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              background: 'transparent',
+            }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              (e.currentTarget as any).__orbitPointerId = e.pointerId;
+              (e.currentTarget as any).__orbitLastX = e.clientX;
+              cameraOrbitActiveRef.current = true;
+              try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+            }}
+            onPointerMove={(e) => {
+              if ((e.currentTarget as any).__orbitPointerId === e.pointerId) {
+                const delta = e.clientX - ((e.currentTarget as any).__orbitLastX ?? e.clientX);
+                (e.currentTarget as any).__orbitLastX = e.clientX;
+                cameraOrbitDeltaRef.current += delta * 0.006;
+              }
+            }}
+            onPointerUp={(e) => {
+              if ((e.currentTarget as any).__orbitPointerId === e.pointerId) {
+                (e.currentTarget as any).__orbitPointerId = null;
+                cameraOrbitActiveRef.current = false;
+              }
+              try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+            }}
+            onPointerCancel={(e) => {
+              if ((e.currentTarget as any).__orbitPointerId === e.pointerId) {
+                (e.currentTarget as any).__orbitPointerId = null;
+                cameraOrbitActiveRef.current = false;
+              }
+            }}
+          />
+        </>
       )}
       
       {/* Control Mode Toggle - only shows in debug mode */}
@@ -1679,7 +1918,7 @@ export const MazeGame3D = ({
       )}
 
       {/* Map Options Modal */}
-      {showMapOptions && (
+      {!isStoryMode && showMapOptions && (
         <div className="fixed inset-0 z-50 bg-foreground/80 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-card rounded-2xl p-6 shadow-warm-lg max-w-sm w-full">
             <div className="text-center mb-6">
@@ -1717,7 +1956,7 @@ export const MazeGame3D = ({
       )}
 
       {/* Map Countdown Overlay */}
-      {mapCountdown !== null && (
+      {!isStoryMode && mapCountdown !== null && (
         <div className="fixed inset-0 z-50 bg-foreground/80 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-card rounded-2xl p-8 shadow-warm-lg text-center">
             <p className="text-muted-foreground mb-2">Map unlocking in...</p>
@@ -1798,7 +2037,7 @@ export const MazeGame3D = ({
                   } else {
                     // All messages shown, complete the dialogue and enter post-dialogue pause
                     setActiveAppleDialogue(null);
-                    setPostDialoguePause(true);
+                    handleRailStop();
                     onAppleDialogueComplete?.();
                   }
                 }}
@@ -1811,23 +2050,6 @@ export const MazeGame3D = ({
         );
       })()}
 
-      {/* Post-Dialogue Resume Overlay */}
-      {postDialoguePause && !gameOver && (
-        <div className="fixed inset-0 z-30 flex items-end justify-center p-2 sm:p-4 pointer-events-none animate-fade-in">
-          <div className="mb-4 sm:mb-8 pointer-events-auto">
-            <Button
-              onClick={() => setPostDialoguePause(false)}
-              size="lg"
-              className="px-8 py-4 text-lg gap-2 shadow-warm-lg"
-            >
-              Continue
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
-              </svg>
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Mini Map Overlay */}
       <MiniMap

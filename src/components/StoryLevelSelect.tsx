@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { StoryProgress } from '@/types/quest';
 import { StoryAct, StoryNode } from '@/types/storyActs';
 import { storyActs, isNodeUnlocked, isActComplete, getStoryAct } from '@/data/storyActsData';
-import { StoryMaze, getChapterMaze } from '@/data/storyMazes';
+import { StoryMaze, storyMazes, getChapterMaze } from '@/data/storyMazes';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Lock, Check, ChevronRight, Clock, Play, Edit, X } from 'lucide-react';
 
@@ -231,10 +231,12 @@ export const StoryLevelSelect = ({
   };
 
   const getMazeForNode = (node: StoryNode): StoryMaze | undefined => {
-    return getChapterMaze(
-      node.id === 'find_clues' ? 'chapter_1' :
-      node.id === 'cousin_riddle' ? 'chapter_2' : 'chapter_1'
-    );
+    if (node.mazeId != null) {
+      return storyMazes.find(m => m.id === node.mazeId);
+    }
+    // Fallback for nodes without mazeId
+    return getChapterMaze(node.id === 'find_clues' ? 'chapter_1' :
+      node.id === 'cousin_riddle' ? 'chapter_2' : 'chapter_1');
   };
 
   const handleNodeClick = (node: StoryNode) => {
@@ -250,7 +252,7 @@ export const StoryLevelSelect = ({
     if (!node) return null;
     const isDone = completedNodes.includes(node.id);
     const isUnlocked = isNodeUnlocked(node, completedNodes);
-    const canPlay = isUnlocked;
+    const canPlay = isUnlocked || debugMode;
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setSelectedNodeId(null)}>
@@ -281,7 +283,7 @@ export const StoryLevelSelect = ({
                     <Check className="w-3 h-3" /> Completed
                   </span>
                 )}
-                {!isUnlocked && (
+                {!canPlay && (
                   <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
                     <Lock className="w-3 h-3" /> Locked
                   </span>
@@ -349,7 +351,7 @@ export const StoryLevelSelect = ({
               const { node, x, y } = ln;
               const isDone = completedNodes.includes(node.id);
               const isUnlocked = isNodeUnlocked(node, completedNodes);
-              const canPlay = isUnlocked;
+              const canPlay = isUnlocked || debugMode;
               const nx = x - NODE_W / 2;
               const ny = y - NODE_H / 2;
 
@@ -363,25 +365,25 @@ export const StoryLevelSelect = ({
                 >
                   <rect
                     x={nx} y={ny} width={NODE_W} height={NODE_H} rx={12}
-                    fill={isDone ? 'hsl(142 71% 45% / 0.12)' : isUnlocked ? 'hsl(var(--card))' : 'hsl(var(--muted) / 0.3)'}
-                    stroke={selectedNodeId === node.id ? 'hsl(30 100% 50%)' : isDone ? 'hsl(142 71% 45% / 0.5)' : isUnlocked && canPlay ? 'hsl(var(--primary) / 0.5)' : 'hsl(var(--border) / 0.4)'}
+                    fill={isDone ? 'hsl(142 71% 45% / 0.12)' : canPlay ? 'hsl(var(--card))' : 'hsl(var(--muted) / 0.3)'}
+                    stroke={selectedNodeId === node.id ? 'hsl(30 100% 50%)' : isDone ? 'hsl(142 71% 45% / 0.5)' : canPlay ? 'hsl(var(--primary) / 0.5)' : 'hsl(var(--border) / 0.4)'}
                     strokeWidth={selectedNodeId === node.id ? 2.5 : isDone ? 2 : 1.5}
                   />
-                  <circle cx={nx + 24} cy={y} r={14} fill={isDone ? 'hsl(142 71% 45%)' : isUnlocked ? 'hsl(var(--primary) / 0.15)' : 'hsl(var(--muted))'} />
+                  <circle cx={nx + 24} cy={y} r={14} fill={isDone ? 'hsl(142 71% 45%)' : canPlay ? 'hsl(var(--primary) / 0.15)' : 'hsl(var(--muted))'} />
                   {isDone ? (
                     <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fill="white" fontSize="12">✓</text>
-                  ) : !isUnlocked ? (
+                  ) : !canPlay ? (
                     <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fill="hsl(var(--muted-foreground))" fontSize="10">🔒</text>
                   ) : (
                     <text x={nx + 24} y={y} textAnchor="middle" dominantBaseline="central" fontSize="14">{node.emoji}</text>
                   )}
-                  <text x={nx + 44} y={ny + 22} fill={isUnlocked ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))'} fontSize="12" fontWeight="600" fontFamily="var(--font-display), system-ui" className="select-none">
+                  <text x={nx + 44} y={ny + 22} fill={canPlay ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))'} fontSize="12" fontWeight="600" fontFamily="var(--font-display), system-ui" className="select-none">
                     {node.title.length > 16 ? node.title.slice(0, 15) + '…' : node.title}
                   </text>
                   <text x={nx + 44} y={ny + 38} fill="hsl(var(--muted-foreground))" fontSize="10" className="select-none">
-                    {isDone ? 'Completed' : !isUnlocked ? 'Locked' : node.timed ? '⏱ Timed' : 'Ready'}
+                    {isDone ? 'Completed' : !canPlay ? 'Locked' : node.timed ? '⏱ Timed' : 'Ready'}
                   </text>
-                  {node.timed && isUnlocked && !isDone && (
+                  {node.timed && canPlay && !isDone && (
                     <circle cx={nx + NODE_W - 14} cy={ny + 14} r={8} fill="hsl(var(--primary) / 0.15)" />
                   )}
                   {canPlay && !isDone && (
