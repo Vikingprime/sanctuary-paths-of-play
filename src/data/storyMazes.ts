@@ -1162,7 +1162,7 @@ const act2_11_FireflyBoss: StoryMaze = {
 // === ACT 2 LEVEL 12: Firefly - Dodge the Birds (timed, stealth) ===
 const act2_12_FireflyBoss2: StoryMaze = {
   id: 212, name: "Firefly: Dodge the Birds", chapterId: 'firefly_boss_2', difficulty: 'hard',
-  timeLimit: 70, timerDisabled: false, previewTime: 10, medalTimes: { gold: 35, silver: 50, bonus: 65, bronze: 65 },
+  timeLimit: 70, timerDisabled: false, previewTime: 10, medalTimes: { gold: 35, silver: 50, bronze: 65 },
   characters: [
     { id: 'raccoon_final', name: 'Raccoon', emoji: '🦝', model: 'Squirrel.glb', animation: 'idle', position: { x: 18, y: 12 },
       dialogueSequence: [{ type: 'normal', id: 'raccoon_truth' }] },
