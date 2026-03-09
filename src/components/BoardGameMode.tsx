@@ -535,6 +535,7 @@ interface BoardGameModeProps {
   onBack: () => void;
   onStarsEarned: (stars: number) => void;
   onFeedSent: () => void;
+  onAppleCollect?: (count?: number) => void;
 }
 
 export const BoardGameMode = ({
@@ -544,6 +545,7 @@ export const BoardGameMode = ({
   onBack,
   onStarsEarned,
   onFeedSent,
+  onAppleCollect,
 }: BoardGameModeProps) => {
   const [board] = useState(() => generateBoard());
   const [state, setState] = useState<BoardGameState>(() => ({
