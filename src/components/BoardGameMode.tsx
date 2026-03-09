@@ -373,6 +373,7 @@ function getSquareColor(type: BoardSquare['type']): string {
     case 'stars': return '#FF9800';      // warm orange bowl
     case 'extra_roll': return '#9C27B0'; // deep purple
     case 'unlock_animal': return '#E040FB'; // magenta/fuchsia
+    case 'apple': return '#FF1744';      // bright red for apples
     case 'empty': return '#F06292';      // medium pink
   }
 }
@@ -534,6 +535,7 @@ interface BoardGameModeProps {
   onBack: () => void;
   onStarsEarned: (stars: number) => void;
   onFeedSent: () => void;
+  onAppleCollect?: (count?: number) => void;
 }
 
 export const BoardGameMode = ({
@@ -543,6 +545,7 @@ export const BoardGameMode = ({
   onBack,
   onStarsEarned,
   onFeedSent,
+  onAppleCollect,
 }: BoardGameModeProps) => {
   const [board] = useState(() => generateBoard());
   const [state, setState] = useState<BoardGameState>(() => ({
@@ -595,6 +598,11 @@ export const BoardGameMode = ({
         case 'unlock_animal': {
           next.rewardMessage = `🐾 New animal friend unlocked!`;
           next.animalsUnlocked = [...s.animalsUnlocked, 'new_animal'];
+          break;
+        }
+        case 'apple': {
+          next.rewardMessage = `🍎 You found a rare apple! +${square.value}`;
+          onAppleCollect?.(square.value);
           break;
         }
         case 'empty': {

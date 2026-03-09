@@ -1941,8 +1941,8 @@ export const MazeGame3D = ({
                 onClick={handleStartCountdown}
                 className="w-full bg-secondary text-secondary-foreground py-3 px-4 rounded-xl font-display font-semibold hover:bg-secondary/90 transition-colors flex items-center justify-center gap-2"
               >
-                <span>📺</span>
-                <span>Watch 10s Ad</span>
+                <span>⭐</span>
+                <span>Spend 2 Stars (Instant)</span>
               </button>
               <button
                 onClick={() => setShowMapOptions(false)}

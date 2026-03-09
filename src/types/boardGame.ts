@@ -1,6 +1,6 @@
 // Board Game / Dice Roll Mode types
 
-export type BoardSquareType = 'feed' | 'stars' | 'extra_roll' | 'unlock_animal' | 'empty';
+export type BoardSquareType = 'feed' | 'stars' | 'extra_roll' | 'unlock_animal' | 'apple' | 'empty';
 
 export interface BoardSquare {
   id: number;
@@ -53,7 +53,18 @@ function assignSquareType(index: number): BoardSquare {
   const starPositions = [2,7,12,17,22,27,32,37,42];
   const extraRollPositions = [5,15,25,35];
   const unlockPositions = [10,30];
+  const applePositions = [20,40]; // Extra rare - only 2 on entire board
   
+  if (applePositions.includes(index)) {
+    return {
+      id: index,
+      type: 'apple',
+      value: 1,
+      label: '+1 🍎',
+      emoji: '🍎',
+    };
+  }
+
   if (feedPositions.includes(index)) {
     const feedAmount = 1 + Math.floor(Math.random() * 4); // 1-4%
     return {

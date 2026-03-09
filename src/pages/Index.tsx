@@ -212,6 +212,7 @@ const Index = () => {
         animalEmoji={animal?.emoji || '🐷'}
         goldMedals={goldMedalCount}
         onBack={handleBackToHome}
+        onAppleCollect={(count) => collectApple(count)}
         onStarsEarned={async (stars) => {
           const s = await import('@/services/SaveManager').then(m => m.SaveManager);
           await s.addCurrency(stars);
