@@ -832,6 +832,366 @@ const chapter15LightsOut: StoryMaze = {
   ]),
 };
 
+// ================================================================
+// ACT 2: Investigation
+// ================================================================
+
+// === ACT 2 LEVEL 1: Porcupine's Ally (riddles to find sympathetic bodyguard) ===
+const act2_1_FindAlly: StoryMaze = {
+  id: 201, name: "Porcupine's Ally", chapterId: 'find_ally', difficulty: 'medium',
+  timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 50, silver: 80, bronze: 120 },
+  characters: [
+    { id: 'guard_1', name: 'Guard Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 6, y: 3 },
+      dialogueSequence: [{ type: 'normal', id: 'guard1_riddle' }] },
+    { id: 'guard_2', name: 'Guard Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 12, y: 6 },
+      dialogueSequence: [{ type: 'normal', id: 'guard2_riddle' }] },
+    { id: 'guard_ally', name: 'Sympathetic Guard', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 14, y: 10 },
+      dialogueSequence: [{ type: 'normal', id: 'ally_found' }] },
+    { id: 'remy_act2', name: 'Remy', emoji: '🐀', model: 'Rat.glb', animation: 'idle', position: { x: 2, y: 2 },
+      dialogueSequence: [{ type: 'normal', id: 'remy_act2_start' }] },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_find_ally', title: "Porcupine's Ally", description: "Solve riddles to identify the sympathetic guard, then report back to Remy.", objectives: [
+    { id: 'talk_remy_start', type: 'talk_to', description: 'Talk to Remy', targetCharacterId: 'remy_act2', completed: false },
+    { id: 'find_ally', type: 'talk_to', description: 'Find the sympathetic guard', targetCharacterId: 'guard_ally', completed: false },
+  ], rewards: { stars: 15, medal: true } },
+  dialogues: [
+    { id: 'remy_act2_start', speaker: 'Remy', speakerEmoji: '🐀', message: "One of Porcupine's guards is sympathetic. Find them using riddles I remember!", cells: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 1 }], speakerCharacterId: 'remy_act2', questAction: { type: 'complete_objective', objectiveId: 'talk_remy_start' } },
+    { id: 'guard1_riddle', speaker: 'Guard Fox', speakerEmoji: '🦊', message: "I guard the boss with pride. Move along!", cells: [{ x: 5, y: 3 }, { x: 6, y: 3 }, { x: 6, y: 2 }], speakerCharacterId: 'guard_1', requires: ['remy_act2_start'] },
+    { id: 'guard2_riddle', speaker: 'Guard Fox', speakerEmoji: '🦊', message: "No visitors! Boss's orders!", cells: [{ x: 11, y: 6 }, { x: 12, y: 6 }, { x: 12, y: 5 }], speakerCharacterId: 'guard_2', requires: ['remy_act2_start'] },
+    { id: 'ally_found', speaker: 'Sympathetic Guard', speakerEmoji: '🦊', message: "Remy sent you? The boss is great, but I can't excuse thievery.", messages: [
+      { speaker: 'Sympathetic Guard', speakerEmoji: '🦊', message: "If the boss stole it, it's in his safe. I'll show you where." },
+    ], cells: [{ x: 13, y: 10 }, { x: 14, y: 10 }, { x: 14, y: 9 }], speakerCharacterId: 'guard_ally', requires: ['guard1_riddle', 'guard2_riddle'], questAction: { type: 'complete_objective', objectiveId: 'find_ally' } },
+  ],
+  endConditions: { requiredDialogues: ['ally_found'] },
+  grid: createGrid([
+    '##################', '##SS        ######', '##    ####  ######', '####  ####      ##',
+    '####            ##', '##    ##    ######', '##    ##        ##', '####        ##  ##',
+    '####  ####  ##  ##', '##    ####      ##', '##          EE  ##', '##################',
+  ]),
+};
+
+// === ACT 2 LEVEL 2: Fox's Safe (play as fox, click safes) ===
+const act2_2_FoxSafe: StoryMaze = {
+  id: 202, name: "The Fox's Safe", chapterId: 'fox_safe', difficulty: 'medium',
+  timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 40, silver: 70, bronze: 100 },
+  characters: [
+    { id: 'safe_1', name: 'Safe #1', emoji: '🔐', model: 'Log.glb', animation: 'idle', position: { x: 4, y: 3 },
+      dialogueSequence: [{ type: 'normal', id: 'safe1_click' }] },
+    { id: 'safe_2', name: 'Safe #2', emoji: '🔐', model: 'Log.glb', animation: 'idle', position: { x: 10, y: 5 },
+      dialogueSequence: [{ type: 'normal', id: 'safe2_click' }] },
+    { id: 'safe_3', name: 'Hidden Safe', emoji: '🔓', model: 'Log.glb', animation: 'idle', position: { x: 14, y: 9 },
+      dialogueSequence: [{ type: 'normal', id: 'safe3_click' }] },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_fox_safe', title: "The Fox's Safe", description: "Click safes in order to find the hidden one. Reveals a note to 'the night bandit'.", objectives: [
+    { id: 'open_safe1', type: 'talk_to', description: 'Open Safe #1', targetCharacterId: 'safe_1', completed: false },
+    { id: 'open_safe2', type: 'talk_to', description: 'Open Safe #2', targetCharacterId: 'safe_2', completed: false },
+    { id: 'open_hidden', type: 'talk_to', description: 'Open the hidden safe', targetCharacterId: 'safe_3', completed: false },
+  ], rewards: { stars: 15, medal: true } },
+  dialogues: [
+    { id: 'safe1_click', speaker: 'You', speakerEmoji: '🦊', message: "*click* First safe open — just old papers.", cells: [{ x: 3, y: 3 }, { x: 4, y: 3 }, { x: 4, y: 2 }], speakerCharacterId: 'safe_1', questAction: { type: 'complete_objective', objectiveId: 'open_safe1' } },
+    { id: 'safe2_click', speaker: 'You', speakerEmoji: '🦊', message: "*click* Second safe — a map to the hidden safe!", cells: [{ x: 9, y: 5 }, { x: 10, y: 5 }, { x: 10, y: 4 }], speakerCharacterId: 'safe_2', requires: ['safe1_click'], questAction: { type: 'complete_objective', objectiveId: 'open_safe2' } },
+    { id: 'safe3_click', speaker: 'You', speakerEmoji: '🦊', message: "The hidden safe! Inside: a note to 'the night bandit' — offering berries for 'the shiny thing'.", cells: [{ x: 13, y: 9 }, { x: 14, y: 9 }, { x: 14, y: 8 }], speakerCharacterId: 'safe_3', requires: ['safe2_click'], questAction: { type: 'complete_objective', objectiveId: 'open_hidden' } },
+  ],
+  endConditions: { requiredDialogues: ['safe3_click'] },
+  grid: createGrid([
+    '##################', '##SS        ######', '##    ##    ######', '####  ##        ##',
+    '####          ####', '##    ####    ####', '##    ####      ##', '####        ##  ##',
+    '####  ##    ##  ##', '##    ##        ##', '##          EE  ##', '##################',
+  ]),
+};
+
+// === ACT 2 LEVEL 3: Odd Sheep Out ===
+const act2_3_OddSheep: StoryMaze = {
+  id: 203, name: "Odd Sheep Out", chapterId: 'odd_sheep', difficulty: 'easy',
+  timeLimit: 200, timerDisabled: true, previewTime: 10, medalTimes: { gold: 30, silver: 50, bronze: 80 },
+  characters: [
+    { id: 'sheep_1', name: 'Sheep', emoji: '🐑', model: 'Cow.glb', animation: 'idle', position: { x: 4, y: 3 }, dialogueSequence: [{ type: 'normal', id: 'sheep1_check' }] },
+    { id: 'sheep_2', name: 'Sheep', emoji: '🐑', model: 'Cow.glb', animation: 'idle', position: { x: 8, y: 6 }, dialogueSequence: [{ type: 'normal', id: 'sheep2_check' }] },
+    { id: 'sheep_3', name: 'Sheep', emoji: '🐑', model: 'Cow.glb', animation: 'idle', position: { x: 12, y: 4 }, dialogueSequence: [{ type: 'normal', id: 'sheep3_check' }] },
+    { id: 'sheep_odd', name: 'Odd Sheep', emoji: '🐏', model: 'Cow.glb', animation: 'idle', position: { x: 10, y: 9 }, dialogueSequence: [{ type: 'normal', id: 'sheep_odd_found' }] },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_odd_sheep', title: 'Odd Sheep Out', description: "Find the sheep that doesn't belong!", objectives: [
+    { id: 'find_odd', type: 'talk_to', description: 'Find the odd sheep', targetCharacterId: 'sheep_odd', completed: false },
+  ], rewards: { stars: 10, medal: true } },
+  dialogues: [
+    { id: 'sheep1_check', speaker: 'Sheep', speakerEmoji: '🐑', message: "Baaaa! I'm perfectly normal!", cells: [{ x: 3, y: 3 }, { x: 4, y: 3 }, { x: 4, y: 2 }], speakerCharacterId: 'sheep_1' },
+    { id: 'sheep2_check', speaker: 'Sheep', speakerEmoji: '🐑', message: "Baaaa! Nothing odd here!", cells: [{ x: 7, y: 6 }, { x: 8, y: 6 }, { x: 8, y: 5 }], speakerCharacterId: 'sheep_2' },
+    { id: 'sheep3_check', speaker: 'Sheep', speakerEmoji: '🐑', message: "Baaaa! I belong here!", cells: [{ x: 11, y: 4 }, { x: 12, y: 4 }, { x: 12, y: 3 }], speakerCharacterId: 'sheep_3' },
+    { id: 'sheep_odd_found', speaker: 'Odd Sheep', speakerEmoji: '🐏', message: "Ok ok, I don't belong. I'll help if you bring my friends back to the herd!", cells: [{ x: 9, y: 9 }, { x: 10, y: 9 }, { x: 10, y: 8 }], speakerCharacterId: 'sheep_odd', questAction: { type: 'complete_objective', objectiveId: 'find_odd' } },
+  ],
+  endConditions: { requiredDialogues: ['sheep_odd_found'] },
+  grid: createGrid([
+    '################', '##SS      ######', '##    ##  ######', '####  ##      ##',
+    '####      ##  ##', '##    ##  ##  ##', '##    ##      ##', '####      ######',
+    '####  ##  ######', '##    ##    EE##', '################',
+  ]),
+};
+
+// === ACT 2 LEVEL 4: Lead the Flock ===
+const act2_4_SheepHerd: StoryMaze = {
+  id: 204, name: "Lead the Flock", chapterId: 'sheep_herd', difficulty: 'medium',
+  timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 60, silver: 90, bronze: 130 },
+  characters: [
+    { id: 'lost_sheep_1', name: 'Lost Sheep', emoji: '🐑', model: 'Cow.glb', animation: 'idle', position: { x: 12, y: 3 }, dialogueSequence: [{ type: 'normal', id: 'lost1_found' }] },
+    { id: 'lost_sheep_2', name: 'Lost Sheep', emoji: '🐑', model: 'Cow.glb', animation: 'idle', position: { x: 6, y: 8 }, dialogueSequence: [{ type: 'normal', id: 'lost2_found' }] },
+    { id: 'lost_sheep_3', name: 'Lost Sheep', emoji: '🐑', model: 'Cow.glb', animation: 'idle', position: { x: 14, y: 10 }, dialogueSequence: [{ type: 'normal', id: 'lost3_found' }] },
+    { id: 'odd_sheep_reward', name: 'Odd Sheep', emoji: '🐏', model: 'Cow.glb', animation: 'idle', position: { x: 2, y: 2 }, dialogueSequence: [{ type: 'normal', id: 'odd_reward' }] },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_sheep_herd', title: 'Lead the Flock', description: "Find all 3 lost sheep and bring them back!", objectives: [
+    { id: 'find_lost1', type: 'talk_to', description: 'Find lost sheep #1', targetCharacterId: 'lost_sheep_1', completed: false },
+    { id: 'find_lost2', type: 'talk_to', description: 'Find lost sheep #2', targetCharacterId: 'lost_sheep_2', completed: false },
+    { id: 'find_lost3', type: 'talk_to', description: 'Find lost sheep #3', targetCharacterId: 'lost_sheep_3', completed: false },
+  ], rewards: { stars: 15, medal: true } },
+  dialogues: [
+    { id: 'lost1_found', speaker: 'Lost Sheep', speakerEmoji: '🐑', message: "Baaaa! Thank you, I was so lost!", cells: [{ x: 11, y: 3 }, { x: 12, y: 3 }, { x: 12, y: 2 }], speakerCharacterId: 'lost_sheep_1', questAction: { type: 'complete_objective', objectiveId: 'find_lost1' } },
+    { id: 'lost2_found', speaker: 'Lost Sheep', speakerEmoji: '🐑', message: "Baaaa! I missed my friends!", cells: [{ x: 5, y: 8 }, { x: 6, y: 8 }, { x: 6, y: 7 }], speakerCharacterId: 'lost_sheep_2', questAction: { type: 'complete_objective', objectiveId: 'find_lost2' } },
+    { id: 'lost3_found', speaker: 'Lost Sheep', speakerEmoji: '🐑', message: "Baaaa! Finally found!", cells: [{ x: 13, y: 10 }, { x: 14, y: 10 }, { x: 14, y: 9 }], speakerCharacterId: 'lost_sheep_3', questAction: { type: 'complete_objective', objectiveId: 'find_lost3' } },
+    { id: 'odd_reward', speaker: 'Odd Sheep', speakerEmoji: '🐏', message: "You brought them all back! Here — I found this shiny coin near the barn.", cells: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 1 }], speakerCharacterId: 'odd_sheep_reward', requires: ['lost1_found', 'lost2_found', 'lost3_found'] },
+  ],
+  endConditions: { requiredDialogues: ['lost1_found', 'lost2_found', 'lost3_found'] },
+  grid: createGrid([
+    '##################', '##SS        ######', '##    ####  ######', '####  ####      ##',
+    '####            ##', '##    ##    ######', '##    ##        ##', '####        ##  ##',
+    '####  ##    ##  ##', '##    ##        ##', '##          EE  ##', '##################',
+  ]),
+};
+
+// === ACT 2 LEVEL 5: Scavenger Hunt - The Note ===
+const act2_5_Scavenger1: StoryMaze = {
+  id: 205, name: "Scavenger Hunt: The Note", chapterId: 'scavenger_1', difficulty: 'medium',
+  timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 50, silver: 80, bronze: 120 },
+  characters: [
+    { id: 'clue_1', name: 'Clue Post', emoji: '📜', model: 'Log.glb', animation: 'idle', position: { x: 4, y: 3 }, dialogueSequence: [{ type: 'normal', id: 'clue1_read' }] },
+    { id: 'clue_2', name: 'Clue Post', emoji: '📜', model: 'Log.glb', animation: 'idle', position: { x: 10, y: 7 }, dialogueSequence: [{ type: 'normal', id: 'clue2_read' }] },
+    { id: 'note_stash', name: 'Hidden Note', emoji: '📝', model: 'Log.glb', animation: 'idle', position: { x: 14, y: 10 }, dialogueSequence: [{ type: 'normal', id: 'note_found' }] },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_scavenger_1', title: 'Scavenger Hunt: The Note', description: "Follow clues: '3 rights + the # of directions at a junction'. Find the hidden note.", objectives: [
+    { id: 'read_clue1', type: 'talk_to', description: 'Read the first clue', targetCharacterId: 'clue_1', completed: false },
+    { id: 'read_clue2', type: 'talk_to', description: 'Follow to second clue', targetCharacterId: 'clue_2', completed: false },
+    { id: 'find_note', type: 'talk_to', description: 'Find the hidden note', targetCharacterId: 'note_stash', completed: false },
+  ], rewards: { stars: 15, medal: true } },
+  dialogues: [
+    { id: 'clue1_read', speaker: 'Clue', speakerEmoji: '📜', message: "'Turn right 3 times, then count the paths at the junction...'", cells: [{ x: 3, y: 3 }, { x: 4, y: 3 }, { x: 4, y: 2 }], speakerCharacterId: 'clue_1', questAction: { type: 'complete_objective', objectiveId: 'read_clue1' } },
+    { id: 'clue2_read', speaker: 'Clue', speakerEmoji: '📜', message: "'The note hides where the corn grows tallest, southeast corner...'", cells: [{ x: 9, y: 7 }, { x: 10, y: 7 }, { x: 10, y: 6 }], speakerCharacterId: 'clue_2', requires: ['clue1_read'], questAction: { type: 'complete_objective', objectiveId: 'read_clue2' } },
+    { id: 'note_found', speaker: 'You', speakerEmoji: '🐷', message: "Found the note! It mentions a location for the next stash!", cells: [{ x: 13, y: 10 }, { x: 14, y: 10 }, { x: 14, y: 9 }], speakerCharacterId: 'note_stash', requires: ['clue2_read'], questAction: { type: 'complete_objective', objectiveId: 'find_note' } },
+  ],
+  endConditions: { requiredDialogues: ['note_found'] },
+  grid: createGrid([
+    '##################', '##SS        ######', '##    ##    ######', '####  ##        ##',
+    '####          ####', '##    ####    ####', '##    ####      ##', '####        ##  ##',
+    '####  ##    ##  ##', '##    ##        ##', '##          EE  ##', '##################',
+  ]),
+};
+
+// === ACT 2 LEVEL 6: Scavenger Hunt - Trail Markers ===
+const act2_6_Scavenger2: StoryMaze = {
+  id: 206, name: "Scavenger Hunt: Trail Markers", chapterId: 'scavenger_2', difficulty: 'medium',
+  timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 45, silver: 75, bronze: 110 },
+  characters: [
+    { id: 'marker_1', name: 'Trail Marker', emoji: '👣', model: 'Log.glb', animation: 'idle', position: { x: 6, y: 4 }, dialogueSequence: [{ type: 'normal', id: 'marker1_check' }] },
+    { id: 'marker_2', name: 'Trail Marker', emoji: '👣', model: 'Log.glb', animation: 'idle', position: { x: 10, y: 8 }, dialogueSequence: [{ type: 'normal', id: 'marker2_check' }] },
+    { id: 'stash_marker', name: 'Stash', emoji: '📦', model: 'Log.glb', animation: 'idle', position: { x: 14, y: 10 }, dialogueSequence: [{ type: 'normal', id: 'stash_found' }] },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_scavenger_2', title: 'Scavenger Hunt: Trail Markers', description: "Use items on the ground as clues to navigate to the next stash.", objectives: [
+    { id: 'find_marker1', type: 'talk_to', description: 'Find first trail marker', targetCharacterId: 'marker_1', completed: false },
+    { id: 'find_marker2', type: 'talk_to', description: 'Find second trail marker', targetCharacterId: 'marker_2', completed: false },
+    { id: 'find_stash', type: 'talk_to', description: 'Discover the stash', targetCharacterId: 'stash_marker', completed: false },
+  ], rewards: { stars: 15, medal: true } },
+  dialogues: [
+    { id: 'marker1_check', speaker: 'You', speakerEmoji: '🐷', message: "Footprints lead east... and there's a feather pointing south!", cells: [{ x: 5, y: 4 }, { x: 6, y: 4 }, { x: 6, y: 3 }], speakerCharacterId: 'marker_1', questAction: { type: 'complete_objective', objectiveId: 'find_marker1' } },
+    { id: 'marker2_check', speaker: 'You', speakerEmoji: '🐷', message: "More tracks! The stash must be close...", cells: [{ x: 9, y: 8 }, { x: 10, y: 8 }, { x: 10, y: 7 }], speakerCharacterId: 'marker_2', requires: ['marker1_check'], questAction: { type: 'complete_objective', objectiveId: 'find_marker2' } },
+    { id: 'stash_found', speaker: 'You', speakerEmoji: '🐷', message: "Found the stash! More clues inside about the shiny thing...", cells: [{ x: 13, y: 10 }, { x: 14, y: 10 }, { x: 14, y: 9 }], speakerCharacterId: 'stash_marker', requires: ['marker2_check'], questAction: { type: 'complete_objective', objectiveId: 'find_stash' } },
+  ],
+  endConditions: { requiredDialogues: ['stash_found'] },
+  grid: createGrid([
+    '##################', '##SS    ##    ####', '##      ##    ####', '####          ####',
+    '####    ####    ##', '##      ####    ##', '##  ##        ####', '####  ##      ####',
+    '####  ##  ##    ##', '##        ##    ##', '##            EE##', '##################',
+  ]),
+};
+
+// === ACT 2 LEVEL 7: Scavenger Hunt - Bird Guards (stealth) ===
+const act2_7_Scavenger3: StoryMaze = {
+  id: 207, name: "Scavenger Hunt: Bird Guards", chapterId: 'scavenger_3', difficulty: 'hard',
+  timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 60, silver: 90, bronze: 130 },
+  characters: [
+    { id: 'bird_guard_1', name: 'Guard Bird', emoji: '🦅', model: 'Sparrow.glb', animation: 'idle', position: { x: 6, y: 4 },
+      visionDialogueId: 'bird_guard_caught', coneVision: { range: 5, spreadPerCell: 1 },
+      turning: { pattern: 'ping-pong', directions: ['east', 'west'], intervalMs: 2500 } },
+    { id: 'bird_guard_2', name: 'Guard Bird', emoji: '🦅', model: 'Sparrow.glb', animation: 'idle', position: { x: 12, y: 7 },
+      visionDialogueId: 'bird_guard_caught', coneVision: { range: 4, spreadPerCell: 1 },
+      turning: { pattern: 'ping-pong', directions: ['north', 'south'], intervalMs: 3000 } },
+    { id: 'shiny_stash', name: 'Shiny Stash', emoji: '✨', model: 'Log.glb', animation: 'idle', position: { x: 16, y: 10 },
+      dialogueSequence: [{ type: 'normal', id: 'shiny_claimed' }] },
+  ],
+  obstacles: [
+    { id: 'log_cover_1', model: 'Log.glb', position: { x: 8, y: 5 } },
+    { id: 'log_cover_2', model: 'Log.glb', position: { x: 10, y: 8 } },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_scavenger_3', title: 'Bird Guards', description: "Sneak past bird guards to claim the shiny stash!", objectives: [
+    { id: 'claim_shiny', type: 'talk_to', description: 'Claim the shiny stash', targetCharacterId: 'shiny_stash', completed: false },
+  ], rewards: { stars: 20, medal: true } },
+  dialogues: [
+    { id: 'bird_guard_caught', speaker: 'Guard Bird', speakerEmoji: '🦅', message: "SQUAWK! Trespasser!", cells: [], speakerCharacterId: 'bird_guard_1', effect: 'game_over' },
+    { id: 'shiny_claimed', speaker: 'You', speakerEmoji: '🐷', message: "The shiny stash! It's full of trinkets, but no ring. The ferrets might know more...", cells: [{ x: 15, y: 10 }, { x: 16, y: 10 }, { x: 16, y: 9 }], speakerCharacterId: 'shiny_stash', questAction: { type: 'complete_objective', objectiveId: 'claim_shiny' } },
+  ],
+  endConditions: { requiredDialogues: ['shiny_claimed'] },
+  grid: createGrid([
+    '####################', '##SS          ######', '##    ####    ######', '####  ####        ##',
+    '####              ##', '##    ##    ####  ##', '##    ##    ####  ##', '####          ######',
+    '####  ##      ######', '##    ##  ####    ##', '##        ####    ##', '####################',
+  ]),
+};
+
+// === ACT 2 LEVEL 8: Find the Skunk (timed, smell trails) ===
+const act2_8_SkunkTrail1: StoryMaze = {
+  id: 208, name: "Find the Skunk", chapterId: 'skunk_trail_1', difficulty: 'medium',
+  timeLimit: 90, timerDisabled: false, previewTime: 10, medalTimes: { gold: 40, silver: 60, bronze: 80 },
+  characters: [
+    { id: 'wrong_skunk', name: 'Skunk', emoji: '🦨', model: 'Pig.glb', animation: 'idle', position: { x: 14, y: 8 },
+      dialogueSequence: [{ type: 'normal', id: 'wrong_skunk_talk' }] },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_skunk_trail_1', title: 'Find the Skunk', description: "Find the skunk before sunrise! Follow the smell trails.", objectives: [
+    { id: 'find_skunk', type: 'talk_to', description: 'Find the skunk', targetCharacterId: 'wrong_skunk', completed: false },
+  ], rewards: { stars: 12, medal: true } },
+  dialogues: [
+    { id: 'wrong_skunk_talk', speaker: 'Skunk', speakerEmoji: '🦨', message: "Me? I'm not the skunk you're looking for! The one you want smells... different. Redder.", cells: [{ x: 13, y: 8 }, { x: 14, y: 8 }, { x: 14, y: 7 }], speakerCharacterId: 'wrong_skunk', questAction: { type: 'complete_objective', objectiveId: 'find_skunk' } },
+  ],
+  endConditions: { requiredDialogues: ['wrong_skunk_talk'] },
+  grid: createGrid([
+    '##################', '##SS        ######', '##    ##    ######', '####  ##        ##',
+    '####          ####', '##    ####    ####', '##    ####      ##', '####        ##  ##',
+    '####  ##    ##  ##', '##    ##        ##', '##################',
+  ]),
+};
+
+// === ACT 2 LEVEL 9: The Red Trail (timed, mixing hazes) ===
+const act2_9_SkunkTrail2: StoryMaze = {
+  id: 209, name: "The Red Trail", chapterId: 'skunk_trail_2', difficulty: 'hard',
+  timeLimit: 75, timerDisabled: false, previewTime: 10, medalTimes: { gold: 35, silver: 55, bronze: 70 },
+  characters: [
+    { id: 'red_skunk', name: 'Red Skunk', emoji: '🦨', model: 'Pig.glb', animation: 'idle', position: { x: 16, y: 10 },
+      dialogueSequence: [{ type: 'normal', id: 'red_skunk_found' }] },
+    { id: 'decoy_skunk_1', name: 'Skunk', emoji: '🦨', model: 'Pig.glb', animation: 'idle', position: { x: 4, y: 6 },
+      dialogueSequence: [{ type: 'normal', id: 'decoy1_talk' }] },
+    { id: 'decoy_skunk_2', name: 'Skunk', emoji: '🦨', model: 'Pig.glb', animation: 'idle', position: { x: 10, y: 4 },
+      dialogueSequence: [{ type: 'normal', id: 'decoy2_talk' }] },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_skunk_trail_2', title: 'The Red Trail', description: "Find the skunk with the red haze. The hazes mix — be careful!", objectives: [
+    { id: 'find_red_skunk', type: 'talk_to', description: 'Find the red-haze skunk', targetCharacterId: 'red_skunk', completed: false },
+  ], rewards: { stars: 15, medal: true } },
+  dialogues: [
+    { id: 'decoy1_talk', speaker: 'Skunk', speakerEmoji: '🦨', message: "Wrong skunk! I smell green, not red!", cells: [{ x: 3, y: 6 }, { x: 4, y: 6 }, { x: 4, y: 5 }], speakerCharacterId: 'decoy_skunk_1' },
+    { id: 'decoy2_talk', speaker: 'Skunk', speakerEmoji: '🦨', message: "Nope! My haze is blue!", cells: [{ x: 9, y: 4 }, { x: 10, y: 4 }, { x: 10, y: 3 }], speakerCharacterId: 'decoy_skunk_2' },
+    { id: 'red_skunk_found', speaker: 'Red Skunk', speakerEmoji: '🦨', message: "You found me! Yes, I saw something shiny that night. The ferrets were carrying it!", cells: [{ x: 15, y: 10 }, { x: 16, y: 10 }, { x: 16, y: 9 }], speakerCharacterId: 'red_skunk', questAction: { type: 'complete_objective', objectiveId: 'find_red_skunk' } },
+  ],
+  endConditions: { requiredDialogues: ['red_skunk_found'] },
+  grid: createGrid([
+    '####################', '##SS          ######', '##    ####    ######', '####  ####        ##',
+    '####              ##', '##    ##    ####  ##', '##    ##    ####  ##', '####          ######',
+    '####  ##      ######', '##    ##  ####    ##', '##        ####    ##', '####################',
+  ]),
+};
+
+// === ACT 2 LEVEL 10: Ferret Market ===
+const act2_10_FerretMarket: StoryMaze = {
+  id: 210, name: "Ferret Market", chapterId: 'ferret_market', difficulty: 'easy',
+  timeLimit: 200, timerDisabled: true, previewTime: 10, medalTimes: { gold: 40, silver: 65, bronze: 90 },
+  characters: [
+    { id: 'ferret_1', name: 'Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 4, y: 3 }, dialogueSequence: [{ type: 'normal', id: 'ferret1_check' }] },
+    { id: 'ferret_2', name: 'Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 10, y: 5 }, dialogueSequence: [{ type: 'normal', id: 'ferret2_check' }] },
+    { id: 'ferret_3', name: 'Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 8, y: 9 }, dialogueSequence: [{ type: 'normal', id: 'ferret3_check' }] },
+    { id: 'ferret_info', name: 'Elder Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 14, y: 8 }, dialogueSequence: [{ type: 'normal', id: 'ferret_elder' }] },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_ferret_market', title: 'Ferret Market', description: "Check all ferrets with shiny things. None have the ring, but they know of a secret stash.", objectives: [
+    { id: 'check_ferret1', type: 'talk_to', description: 'Check ferret #1', targetCharacterId: 'ferret_1', completed: false },
+    { id: 'check_ferret2', type: 'talk_to', description: 'Check ferret #2', targetCharacterId: 'ferret_2', completed: false },
+    { id: 'check_ferret3', type: 'talk_to', description: 'Check ferret #3', targetCharacterId: 'ferret_3', completed: false },
+    { id: 'talk_elder', type: 'talk_to', description: 'Talk to Elder Ferret', targetCharacterId: 'ferret_info', completed: false },
+  ], rewards: { stars: 12, medal: true } },
+  dialogues: [
+    { id: 'ferret1_check', speaker: 'Ferret', speakerEmoji: '🦦', message: "A ring? No, this is a bottlecap. Very shiny though!", cells: [{ x: 3, y: 3 }, { x: 4, y: 3 }, { x: 4, y: 2 }], speakerCharacterId: 'ferret_1', questAction: { type: 'complete_objective', objectiveId: 'check_ferret1' } },
+    { id: 'ferret2_check', speaker: 'Ferret', speakerEmoji: '🦦', message: "I've got a marble, not a ring!", cells: [{ x: 9, y: 5 }, { x: 10, y: 5 }, { x: 10, y: 4 }], speakerCharacterId: 'ferret_2', questAction: { type: 'complete_objective', objectiveId: 'check_ferret2' } },
+    { id: 'ferret3_check', speaker: 'Ferret', speakerEmoji: '🦦', message: "This? It's tinfoil. Sparkly but worthless!", cells: [{ x: 7, y: 9 }, { x: 8, y: 9 }, { x: 8, y: 8 }], speakerCharacterId: 'ferret_3', questAction: { type: 'complete_objective', objectiveId: 'check_ferret3' } },
+    { id: 'ferret_elder', speaker: 'Elder Ferret', speakerEmoji: '🦦', message: "The ring isn't here, but there's a secret stash where all the real jewelry ends up. You should check it out.", cells: [{ x: 13, y: 8 }, { x: 14, y: 8 }, { x: 14, y: 7 }], speakerCharacterId: 'ferret_info', requires: ['ferret1_check', 'ferret2_check', 'ferret3_check'], questAction: { type: 'complete_objective', objectiveId: 'talk_elder' } },
+  ],
+  endConditions: { requiredDialogues: ['ferret_elder'] },
+  grid: createGrid([
+    '################', '##SS      ######', '##    ##  ######', '####  ##      ##',
+    '####      ##  ##', '##    ##  ##  ##', '##    ##      ##', '####      ######',
+    '####  ##  ######', '##    ##    EE##', '################',
+  ]),
+};
+
+// === ACT 2 LEVEL 11: Firefly Night Search (timed, limited light) ===
+const act2_11_FireflyBoss: StoryMaze = {
+  id: 211, name: "Firefly Night Search", chapterId: 'firefly_boss', difficulty: 'hard',
+  timeLimit: 80, timerDisabled: false, previewTime: 10, medalTimes: { gold: 40, silver: 55, bronze: 75 },
+  characters: [
+    { id: 'stash_owner', name: 'Stash Owner', emoji: '🦝', model: 'Squirrel.glb', animation: 'idle', position: { x: 16, y: 12 },
+      dialogueSequence: [{ type: 'normal', id: 'stash_owner_found' }] },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_firefly_boss', title: 'Firefly Night Search', description: "Play as a firefly at night. Find the stash owner before your light drains!", objectives: [
+    { id: 'find_owner', type: 'talk_to', description: 'Find the stash owner', targetCharacterId: 'stash_owner', completed: false },
+  ], rewards: { stars: 20, medal: true } },
+  dialogues: [
+    { id: 'stash_owner_found', speaker: 'Raccoon', speakerEmoji: '🦝', message: "You found my stash? Well, well... I may know about a ring.", messages: [
+      { speaker: 'Raccoon', speakerEmoji: '🦝', message: "But there are birds out tonight. Dodge them if you want the truth!" },
+    ], cells: [{ x: 15, y: 12 }, { x: 16, y: 12 }, { x: 16, y: 11 }], speakerCharacterId: 'stash_owner', questAction: { type: 'complete_objective', objectiveId: 'find_owner' } },
+  ],
+  endConditions: { requiredDialogues: ['stash_owner_found'] },
+  grid: createGrid([
+    '####################', '##SS          ######', '##    ####    ######', '####  ####        ##',
+    '####              ##', '##    ##    ####  ##', '##    ##    ####  ##', '####          ######',
+    '####  ##      ######', '##    ##  ####    ##', '##        ####    ##', '####          ##  ##',
+    '####          ##  ##', '####################',
+  ]),
+};
+
+// === ACT 2 LEVEL 12: Firefly - Dodge the Birds (timed, stealth) ===
+const act2_12_FireflyBoss2: StoryMaze = {
+  id: 212, name: "Firefly: Dodge the Birds", chapterId: 'firefly_boss_2', difficulty: 'hard',
+  timeLimit: 70, timerDisabled: false, previewTime: 10, medalTimes: { gold: 35, silver: 50, bonus: 65, bronze: 65 },
+  characters: [
+    { id: 'raccoon_final', name: 'Raccoon', emoji: '🦝', model: 'Squirrel.glb', animation: 'idle', position: { x: 18, y: 12 },
+      dialogueSequence: [{ type: 'normal', id: 'raccoon_truth' }] },
+    { id: 'night_bird_1', name: 'Night Bird', emoji: '🦉', model: 'Sparrow.glb', animation: 'idle', position: { x: 6, y: 4 },
+      visionDialogueId: 'night_bird_caught', coneVision: { range: 4, spreadPerCell: 1 },
+      patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 3 }, { x: 6, y: 8 }], speedCellsPerSec: 1.2 } },
+    { id: 'night_bird_2', name: 'Night Bird', emoji: '🦉', model: 'Sparrow.glb', animation: 'idle', position: { x: 14, y: 7 },
+      visionDialogueId: 'night_bird_caught', coneVision: { range: 4, spreadPerCell: 1 },
+      turning: { pattern: 'ping-pong', directions: ['west', 'south'], intervalMs: 2000 } },
+  ],
+  storyCharacters: [],
+  quest: { id: 'quest_firefly_boss_2', title: 'Dodge the Birds', description: "Continue as firefly — dodge swooping birds while your light fades!", objectives: [
+    { id: 'reach_raccoon', type: 'talk_to', description: 'Reach Raccoon', targetCharacterId: 'raccoon_final', completed: false },
+  ], rewards: { stars: 25, medal: true } },
+  dialogues: [
+    { id: 'night_bird_caught', speaker: 'Night Bird', speakerEmoji: '🦉', message: "HOOT! A firefly — how delightful!", cells: [], speakerCharacterId: 'night_bird_1', effect: 'game_over' },
+    { id: 'raccoon_truth', speaker: 'Raccoon', speakerEmoji: '🦝', message: "Alright, alright. I took the ring. But I don't have it anymore.", messages: [
+      { speaker: 'Raccoon', speakerEmoji: '🦝', message: "I traded it. You'll need to track it down in Act 3..." },
+    ], cells: [{ x: 17, y: 12 }, { x: 18, y: 12 }, { x: 18, y: 11 }], speakerCharacterId: 'raccoon_final', questAction: { type: 'complete_objective', objectiveId: 'reach_raccoon' } },
+  ],
+  endConditions: { requiredDialogues: ['raccoon_truth'] },
+  grid: createGrid([
+    '######################', '##SS            ######', '##    ####      ######', '####  ####          ##',
+    '####                ##', '##    ##      ####  ##', '##    ##      ####  ##', '####            ######',
+    '####  ####      ######', '##    ####    ####  ##', '##            ####  ##', '####            ##  ##',
+    '####            ##  ##', '######################',
+  ]),
+};
+
 // All story mazes
 export const storyMazes: StoryMaze[] = [
   chapter1Maze,
@@ -849,6 +1209,19 @@ export const storyMazes: StoryMaze[] = [
   chapter13RatGamble,
   chapter14PorcupineBarn,
   chapter15LightsOut,
+  // Act 2
+  act2_1_FindAlly,
+  act2_2_FoxSafe,
+  act2_3_OddSheep,
+  act2_4_SheepHerd,
+  act2_5_Scavenger1,
+  act2_6_Scavenger2,
+  act2_7_Scavenger3,
+  act2_8_SkunkTrail1,
+  act2_9_SkunkTrail2,
+  act2_10_FerretMarket,
+  act2_11_FireflyBoss,
+  act2_12_FireflyBoss2,
 ];
 
 // Story chapters
