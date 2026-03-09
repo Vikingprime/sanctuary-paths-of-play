@@ -602,6 +602,7 @@ export const BoardGameMode = ({
         }
         case 'apple': {
           next.rewardMessage = `🍎 You found a rare apple! +${square.value}`;
+          onAppleCollect?.(square.value);
           break;
         }
         case 'empty': {
