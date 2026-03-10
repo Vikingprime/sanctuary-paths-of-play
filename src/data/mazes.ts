@@ -211,7 +211,7 @@ export const mazes: Maze[] = [
         emoji: '🧑‍🌾',
         model: 'Farmer.glb',
         animation: 'wave',
-        position: { x: 12, y: 12 },
+        position: { x: 8, y: 12 },
       }
     ],
     dialogues: [
