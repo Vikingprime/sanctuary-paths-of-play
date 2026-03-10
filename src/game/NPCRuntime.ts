@@ -29,7 +29,7 @@ export function initNPCRuntimeStates(characters: MazeCharacter[]): Map<string, N
   const states = new Map<string, NPCRuntimeState>();
   
   for (const char of characters) {
-    if (!char.turning && !char.patrol) continue;
+    if (!char.turning && !char.patrol && !char.luredByBait) continue;
     
     const initialDir: CardinalDirection = char.turning?.initialDirection 
       ?? char.turning?.directions[0] 
