@@ -138,8 +138,8 @@ export const InstancedBarrelWalls = ({ wallPositions }: InstancedBarrelWallsProp
 };
 
 interface BarrelInstancesProps {
-  geometry: THREE.BufferGeometry;
-  material: THREE.Material | THREE.Material[];
+  geometry: BufferGeometry;
+  material: Material | Material[];
   transforms: BarrelTransform[];
 }
 
