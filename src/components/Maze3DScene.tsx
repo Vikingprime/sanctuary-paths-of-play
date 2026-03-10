@@ -3053,6 +3053,7 @@ return (
           key={`vision-${character.id}`}
           character={character}
           rotationOverride={npcRotations[character.id]}
+          positionOverride={npcPositions[character.id]}
           maze={maze}
         />
       ))}
