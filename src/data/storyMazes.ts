@@ -1186,12 +1186,12 @@ const act2_12_FireflyBoss2: StoryMaze = {
   id: 212, name: "Firefly: Dodge the Birds", chapterId: 'firefly_boss_2', difficulty: 'hard',
   timeLimit: 70, timerDisabled: false, previewTime: 10, medalTimes: { gold: 35, silver: 50, bronze: 65 },
   characters: [
-    { id: 'raccoon_final', name: 'Raccoon', emoji: '🦝', model: 'Squirrel.glb', animation: 'idle', position: { x: 18, y: 12 },
+    { id: 'raccoon_final', name: 'Raccoon', emoji: '🦝', model: 'Squirrel.glb', animation: 'idle', position: { x: 18, y: 9 },
       dialogueSequence: [{ type: 'normal', id: 'raccoon_truth' }] },
-    { id: 'night_bird_1', name: 'Night Bird', emoji: '🦉', model: 'Sparrow.glb', animation: 'idle', position: { x: 6, y: 4 },
+    { id: 'night_bird_1', name: 'Night Bird', emoji: '🦉', model: 'Sparrow.glb', animation: 'idle', position: { x: 8, y: 1 },
       visionDialogueId: 'night_bird_caught', coneVision: { range: 4, spreadPerCell: 1 },
-      patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 4 }, { x: 14, y: 4 }], speedCellsPerSec: 1.2 } },
-    { id: 'night_bird_2', name: 'Night Bird', emoji: '🦉', model: 'Sparrow.glb', animation: 'idle', position: { x: 14, y: 7 },
+      patrol: { pattern: 'loop', waypoints: [{ x: 4, y: 1 }, { x: 14, y: 1 }], speedCellsPerSec: 1.2 } },
+    { id: 'night_bird_2', name: 'Night Bird', emoji: '🦉', model: 'Sparrow.glb', animation: 'idle', position: { x: 10, y: 5 },
       visionDialogueId: 'night_bird_caught', coneVision: { range: 4, spreadPerCell: 1 },
       turning: { pattern: 'ping-pong', directions: ['west', 'south'], intervalMs: 2000 } },
   ],
@@ -1203,14 +1203,14 @@ const act2_12_FireflyBoss2: StoryMaze = {
     { id: 'night_bird_caught', speaker: 'Night Bird', speakerEmoji: '🦉', message: "HOOT! A firefly — how delightful!", cells: [], speakerCharacterId: 'night_bird_1', effect: 'game_over' },
     { id: 'raccoon_truth', speaker: 'Raccoon', speakerEmoji: '🦝', message: "Alright, alright. I took the ring. But I don't have it anymore.", messages: [
       { speaker: 'Raccoon', speakerEmoji: '🦝', message: "I traded it. You'll need to track it down in Act 3..." },
-    ], cells: [{ x: 17, y: 12 }, { x: 18, y: 12 }, { x: 18, y: 11 }], speakerCharacterId: 'raccoon_final', questAction: { type: 'complete_objective', objectiveId: 'reach_raccoon' } },
+    ], cells: [{ x: 17, y: 9 }, { x: 18, y: 9 }, { x: 18, y: 10 }], speakerCharacterId: 'raccoon_final', questAction: { type: 'complete_objective', objectiveId: 'reach_raccoon' } },
   ],
   endConditions: { requiredDialogues: ['raccoon_truth'] },
   grid: createGrid([
-    '######################', '##SS            ######', '##    ####      ######', '####  ####          ##',
-    '####                ##', '##    ##      ####  ##', '##    ##      ####  ##', '####            ######',
-    '####  ####      ######', '##    ####    ####  ##', '##            ####  ##', '####            ##  ##',
-    '####            ##  ##', '######################',
+    '######################', '##SS            ######', '##              ######', '##  ##  ##############',
+    '##  ##  ##############', '##  ##          ######', '##  ##          ######', '##  ##########  ######',
+    '##  ##########  ######', '##      ######      ##', '##      ######    EE##', '######################',
+    '######################', '######################',
   ]),
 };
 
