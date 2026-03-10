@@ -854,7 +854,7 @@ const act2_1_FindAlly: StoryMaze = {
   id: 201, name: "Porcupine's Ally", chapterId: 'find_ally', difficulty: 'medium',
   timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 50, silver: 80, bronze: 120 },
   characters: [
-    { id: 'guard_1', name: 'Guard Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 6, y: 3 },
+    { id: 'guard_1', name: 'Guard Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 4, y: 3 },
       dialogueSequence: [{ type: 'normal', id: 'guard1_riddle' }] },
     { id: 'guard_2', name: 'Guard Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 12, y: 6 },
       dialogueSequence: [{ type: 'normal', id: 'guard2_riddle' }] },
