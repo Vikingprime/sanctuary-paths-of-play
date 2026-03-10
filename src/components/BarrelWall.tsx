@@ -84,7 +84,7 @@ export const InstancedBarrelWalls = ({ wallPositions }: InstancedBarrelWallsProp
         
         result.push({
           x: pos.x + 0.5 + offset.dx + jitterX,
-          y: 0,
+          y: -0.15,
           z: pos.z + 0.5 + offset.dz + jitterZ,
           rotation: seededRandom(seed + 2) * Math.PI * 2,
           scale: baseScale * scaleVariation,
