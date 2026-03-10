@@ -1943,6 +1943,9 @@ export const MazeGame3D = ({
           onAppleDrop={handleAppleDrop}
           berryCount={berryCount}
           friendshipProgress={friendshipProgress}
+          // Bait system
+          hasBait={hasBaitableNPCs}
+          onBaitThrow={handleBaitThrow}
         />
       )}
 
