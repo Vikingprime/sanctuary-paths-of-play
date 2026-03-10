@@ -280,6 +280,33 @@ export const MiniMap = ({ maze, playerPos, isVisible, onClose, timeLeft, selecte
                   </div>
                 );
               })}
+
+              {/* Vision NPC icons (sparrows, foxes, etc.) */}
+              {visionNPCs.map((npc) => {
+                const transformed = transformCoord(npc.x, npc.y);
+                const iconSize = cellSize * 1.6;
+                return (
+                  <div
+                    key={`npc-${npc.id}`}
+                    className="absolute flex items-center justify-center pointer-events-none z-10"
+                    style={{
+                      left: (transformed.tx + 0.5) * cellSize - iconSize / 2,
+                      top: (transformed.ty + 0.5) * cellSize - iconSize / 2,
+                      width: iconSize,
+                      height: iconSize,
+                    }}
+                  >
+                    <div 
+                      className="absolute rounded-full bg-destructive/25 border border-destructive/50"
+                      style={{
+                        width: cellSize * 2,
+                        height: cellSize * 2,
+                      }}
+                    />
+                    <span style={{ fontSize: cellSize * 1.2 }}>{npc.emoji}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
