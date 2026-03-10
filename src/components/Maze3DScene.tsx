@@ -1098,17 +1098,19 @@ const PlacedCharacter = ({
 const VisionConeOverlay = ({ 
   character, 
   rotationOverride,
+  positionOverride,
   maze,
 }: { 
   character: MazeCharacter;
   rotationOverride?: number;
+  positionOverride?: { x: number; y: number };
   maze: Maze;
 }) => {
   const coneGeometry = useMemo(() => {
     if (!character.coneVision) return null;
     
     const { range, spreadPerCell } = character.coneVision;
-    const pos = character.position;
+    const pos = positionOverride ?? character.position;
     
     // Calculate cone half-angle from spread parameters
     const farHalfWidth = spreadPerCell * (range - 1) + 0.5;
