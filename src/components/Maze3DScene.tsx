@@ -840,11 +840,12 @@ interface CharacterRendererProps {
   animation?: string;
   playerStateRef?: MutableRefObject<PlayerState>;
   isDialogueActive: boolean;
-  isGoalMarker?: boolean; // If true, renders invisible collision trigger
-  alwaysFacePlayer?: boolean; // If true, character always faces player even outside dialogue
-  maze: Maze; // Required for raycasting initial facing direction
-  showCollisionDebug?: boolean; // Show debug ground plane under character
-  rotationOverride?: number; // If set, overrides default facing rotation (for NPC turning)
+  isGoalMarker?: boolean;
+  alwaysFacePlayer?: boolean;
+  maze: Maze;
+  showCollisionDebug?: boolean;
+  rotationOverride?: number;
+  isPatrolling?: boolean; // enables smooth position interpolation in useFrame
 }
 
 const CharacterRenderer = ({
@@ -858,8 +859,10 @@ const CharacterRenderer = ({
   maze,
   showCollisionDebug = false,
   rotationOverride,
+  isPatrolling = false,
 }: CharacterRendererProps) => {
   const groupRef = useRef<Group>(null);
+  const rootGroupRef = useRef<Group>(null);
   const mixerRef = useRef<AnimationMixer | null>(null);
   const initialRotationSet = useRef(false);
   
