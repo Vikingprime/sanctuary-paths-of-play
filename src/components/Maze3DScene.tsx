@@ -2880,16 +2880,54 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
-  // All wall positions for barrel rendering (cellar theme)
-  const allWallPositions = useMemo(() => {
-    if (!isCellar) return [];
-    const walls: { x: number; z: number }[] = [];
+  // Cellar wall positions (edge/depth/boundary) mirroring MazeWalls logic
+  const cellarWallData = useMemo(() => {
+    if (!isCellar) return { edgePositions: [], depthOnlyWalls: [], boundaryWalls: [], allWallPositions: [] };
+    const maxX = maze.grid[0].length - 1;
+    const maxZ = maze.grid.length - 1;
+    const isPath = (cx: number, cy: number) => {
+      if (cx < 0 || cx > maxX || cy < 0 || cy > maxZ) return false;
+      return !maze.grid[cy][cx].isWall;
+    };
+    const wallEdges = new Map<string, ('left' | 'right' | 'top' | 'bottom')[]>();
+    const allWalls: { x: number; z: number }[] = [];
+    const edges: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[] = [];
+    const depthOnly: { x: number; z: number; avoidEdges?: ('left' | 'right' | 'top' | 'bottom')[] }[] = [];
+    const boundary: { x: number; z: number; offsetX: number; offsetZ: number }[] = [];
+
     maze.grid.forEach((row, y) => {
       row.forEach((cell, x) => {
-        if (cell.isWall) walls.push({ x, z: y });
+        if (cell.isWall) {
+          allWalls.push({ x, z: y });
+          const ed: ('left' | 'right' | 'top' | 'bottom')[] = [];
+          if (isPath(x - 1, y)) ed.push('left');
+          if (isPath(x + 1, y)) ed.push('right');
+          if (isPath(x, y - 1)) ed.push('top');
+          if (isPath(x, y + 1)) ed.push('bottom');
+          if (ed.length > 0) wallEdges.set(`${x},${y}`, ed);
+          const isBoundary = x === 0 || x === maxX || y === 0 || y === maxZ;
+          if (isBoundary) {
+            let oX = 0, oZ = 0;
+            if (x === 0) oX = -1.5;
+            if (x === maxX) oX = 1.5;
+            if (y === 0) oZ = -1.5;
+            if (y === maxZ) oZ = 1.5;
+            boundary.push({ x, z: y, offsetX: oX, offsetZ: oZ });
+            const cellEdges = wallEdges.get(`${x},${y}`);
+            if (cellEdges) edges.push({ x, z: y, edges: cellEdges });
+          } else {
+            const cellEdges = wallEdges.get(`${x},${y}`);
+            if (cellEdges) {
+              edges.push({ x, z: y, edges: cellEdges });
+              depthOnly.push({ x, z: y, avoidEdges: cellEdges });
+            } else {
+              depthOnly.push({ x, z: y });
+            }
+          }
+        }
       });
     });
-    return walls;
+    return { edgePositions: edges, depthOnlyWalls: depthOnly, boundaryWalls: boundary, allWallPositions: allWalls };
   }, [maze, isCellar]);
 
   // Generate character positions for collision (all placed characters + map stations)
