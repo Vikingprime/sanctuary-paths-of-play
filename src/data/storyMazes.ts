@@ -1123,7 +1123,7 @@ const act2_10_FerretMarket: StoryMaze = {
     { id: 'ferret_1', name: 'Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 4, y: 3 }, dialogueSequence: [{ type: 'normal', id: 'ferret1_check' }] },
     { id: 'ferret_2', name: 'Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 10, y: 5 }, dialogueSequence: [{ type: 'normal', id: 'ferret2_check' }] },
     { id: 'ferret_3', name: 'Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 8, y: 9 }, dialogueSequence: [{ type: 'normal', id: 'ferret3_check' }] },
-    { id: 'ferret_info', name: 'Elder Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 14, y: 8 }, dialogueSequence: [{ type: 'normal', id: 'ferret_elder' }] },
+    { id: 'ferret_info', name: 'Elder Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 12, y: 6 }, dialogueSequence: [{ type: 'normal', id: 'ferret_elder' }] },
   ],
   storyCharacters: [],
   quest: { id: 'quest_ferret_market', title: 'Ferret Market', description: "Check all ferrets with shiny things. None have the ring, but they know of a secret stash.", objectives: [
