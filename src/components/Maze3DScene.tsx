@@ -2977,8 +2977,9 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 return (
     <>
       
-      {/* Lighting - 8am morning sunlight */}
-      <ambientLight intensity={0.9} color="#FFE4CC" />
+      {/* Lighting - theme-dependent */}
+      {!isCellar && <ambientLight intensity={0.9} color="#FFE4CC" />}
+      {isCellar && <ambientLight intensity={0.15} color="#332818" />}
       
       {/* Near shadows - resolution controlled by lowShadowRes toggle */}
       {/* Key forces remount when resolution changes - Three.js caches shadow maps */}
