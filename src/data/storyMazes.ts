@@ -828,8 +828,8 @@ const chapter15LightsOut: StoryMaze = {
   timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 70, silver: 100, bronze: 140 },
   characters: [
     { id: 'porcupine_final', name: 'Porcupine Boss', emoji: '🦔', model: 'Squirrel.glb', animation: 'idle', position: { x: 16, y: 12 } },
-    { id: 'fox_dark_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 8, y: 5 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 8, y: 3 }, { x: 8, y: 8 }], speedCellsPerSec: 0.8 } },
-    { id: 'fox_dark_2', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 14, y: 8 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['north', 'west'], intervalMs: 2500 } },
+    { id: 'fox_dark_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 8, y: 5 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 8, y: 4 }, { x: 8, y: 8 }], speedCellsPerSec: 0.8 } },
+    { id: 'fox_dark_2', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 12, y: 8 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['north', 'west'], intervalMs: 2500 } },
   ],
   storyCharacters: [], quest: { id: 'quest_porcupine_dark', title: 'Lights Out', description: "Navigate through darkness past foxes to reach Porcupine Boss.", objectives: [{ id: 'reach_porcupine_dark', type: 'talk_to', description: 'Reach Porcupine Boss', targetCharacterId: 'porcupine_final', completed: false }], rewards: { stars: 25, medal: true } },
   dialogues: [
