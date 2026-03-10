@@ -30,6 +30,7 @@ import {
   resolveVisionCells, 
   directionToRotation,
   updateNPCPatrol,
+  isPointInVisionCone,
   NPCRuntimeState,
 } from '@/game/NPCRuntime';
 
