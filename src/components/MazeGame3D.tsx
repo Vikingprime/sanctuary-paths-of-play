@@ -289,6 +289,14 @@ export const MazeGame3D = ({
     }
     return initial;
   });
+  // NPC position overrides for patrolling characters
+  const [npcPositions, setNpcPositions] = useState<Record<string, { x: number; y: number }>>(() => {
+    const initial: Record<string, { x: number; y: number }> = {};
+    for (const [id, state] of npcRuntimeStatesRef.current.entries()) {
+      initial[id] = { ...state.patrolPosition };
+    }
+    return initial;
+  });
   
   // Helper to find the speaker position for a dialogue
   const findSpeakerPositionForDialogue = useCallback((dialogue: DialogueTrigger | null): { x: number; y: number } | null => {
