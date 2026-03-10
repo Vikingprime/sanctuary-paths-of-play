@@ -654,8 +654,47 @@ export const MazeGame3D = ({
           if (didTurn) changed = true;
         }
         
+        // Bait lure: if character is luredByBait, find nearest bait and walk toward it
+        if (char.luredByBait && baitPositions.length > 0) {
+          // Find nearest bait
+          let nearestBait: { x: number; y: number } | null = null;
+          let nearestDist = Infinity;
+          for (const bait of baitPositions) {
+            const bdx = bait.x - (state.patrolPosition.x + 0.5);
+            const bdy = bait.y - (state.patrolPosition.y + 0.5);
+            const bd = Math.sqrt(bdx * bdx + bdy * bdy);
+            if (bd < nearestDist) {
+              nearestDist = bd;
+              nearestBait = bait;
+            }
+          }
+          
+          if (nearestBait && nearestDist > 0.3) {
+            // Move toward bait at a moderate speed
+            const BAIT_SPEED = 1.2; // cells per second
+            const bdx = nearestBait.x - (state.patrolPosition.x + 0.5);
+            const bdy = nearestBait.y - (state.patrolPosition.y + 0.5);
+            const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
+            const moveAmount = BAIT_SPEED * (TICK_MS / 1000);
+            const ratio = Math.min(moveAmount / bdist, 1.0);
+            state.patrolPosition.x += bdx * ratio;
+            state.patrolPosition.y += bdy * ratio;
+            
+            // Update facing
+            if (Math.abs(bdx) > Math.abs(bdy)) {
+              state.currentDirection = bdx > 0 ? 'east' : 'west';
+            } else {
+              state.currentDirection = bdy > 0 ? 'south' : 'north';
+            }
+            changed = true;
+            newBlockedStates[char.id] = false;
+          } else {
+            // At bait - idle
+            newBlockedStates[char.id] = false;
+          }
+        }
         // Update patrol (pass player position for collision stopping)
-        if (char.patrol) {
+        else if (char.patrol) {
           const isWall = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
           const playerWorld = { x: playerStateRef.current.x, y: playerStateRef.current.y };
           const didMove = updateNPCPatrol(state, char, TICK_MS / 1000, isWall, playerWorld);
