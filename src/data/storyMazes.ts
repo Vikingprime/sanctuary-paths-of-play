@@ -806,7 +806,7 @@ const chapter14PorcupineBarn: StoryMaze = {
   timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 60, silver: 90, bronze: 120 },
   characters: [
     { id: 'porcupine_boss', name: 'Porcupine Boss', emoji: '🦔', model: 'Squirrel.glb', animation: 'idle', position: { x: 16, y: 10 } },
-    { id: 'fox_guard_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 6, y: 4 }, visionDialogueId: 'fox_caught', coneVision: { range: 5, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 4 }, { x: 6, y: 8 }], speedCellsPerSec: 1.0, pauseMs: 1000 } },
+    { id: 'fox_guard_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 4, y: 4 }, visionDialogueId: 'fox_caught', coneVision: { range: 5, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 4, y: 4 }, { x: 4, y: 7 }], speedCellsPerSec: 1.0, pauseMs: 1000 } },
     { id: 'fox_guard_2', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 12, y: 6 }, visionDialogueId: 'fox_caught', coneVision: { range: 4, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['west', 'east'], intervalMs: 3000 } },
   ],
   storyCharacters: [], quest: { id: 'quest_porcupine_barn', title: 'The Barn', description: "Dodge fox patrols to reach Porcupine Boss!", objectives: [{ id: 'reach_porcupine', type: 'talk_to', description: 'Reach Porcupine Boss', targetCharacterId: 'porcupine_boss', completed: false }], rewards: { stars: 20, medal: true } },
