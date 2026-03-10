@@ -1742,8 +1742,8 @@ export const MazeGame3D = ({
         </div>
       )}
 
-      {/* HUD - only show after preview ends */}
-      {!isPreviewing && (
+      {/* HUD - only show after preview ends and hide during dialogue */}
+      {!isPreviewing && !activeDialogue && !activeAppleDialogue && (
         <GameHUD
           animalType={animalType}
           timeLeft={timeLeft}
