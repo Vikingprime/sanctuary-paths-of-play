@@ -954,6 +954,15 @@ const CharacterRenderer = ({
   }, [animations, model, animation]);
   
   useFrame((state, delta) => {
+    // Smooth position interpolation for patrolling NPCs
+    if (isPatrolling && rootGroupRef.current) {
+      const targetX = position.x + 0.5;
+      const targetZ = position.y + 0.5;
+      const lerpSpeed = 8; // higher = snappier
+      rootGroupRef.current.position.x += (targetX - rootGroupRef.current.position.x) * Math.min(lerpSpeed * delta, 1);
+      rootGroupRef.current.position.z += (targetZ - rootGroupRef.current.position.z) * Math.min(lerpSpeed * delta, 1);
+    }
+
     if (groupRef.current) {
       // Set initial rotation on first frame (raycast-based)
       if (!initialRotationSet.current) {
@@ -963,8 +972,8 @@ const CharacterRenderer = ({
       
       // Face player during dialogue OR if alwaysFacePlayer is set
       if (playerStateRef && (isDialogueActive || alwaysFacePlayer)) {
-        const charX = position.x + 0.5;
-        const charZ = position.y + 0.5;
+        const charX = isPatrolling && rootGroupRef.current ? rootGroupRef.current.position.x : position.x + 0.5;
+        const charZ = isPatrolling && rootGroupRef.current ? rootGroupRef.current.position.z : position.y + 0.5;
         const playerX = playerStateRef.current.x;
         const playerZ = playerStateRef.current.y;
         
@@ -980,8 +989,8 @@ const CharacterRenderer = ({
       
       // Apply opacity fade based on distance from player
       if (playerStateRef) {
-        const charX = position.x + 0.5;
-        const charZ = position.y + 0.5;
+        const charX = isPatrolling && rootGroupRef.current ? rootGroupRef.current.position.x : position.x + 0.5;
+        const charZ = isPatrolling && rootGroupRef.current ? rootGroupRef.current.position.z : position.y + 0.5;
         const playerX = playerStateRef.current.x;
         const playerZ = playerStateRef.current.y;
         
@@ -1006,7 +1015,7 @@ const CharacterRenderer = ({
   });
 
   return (
-    <group position={[position.x + 0.5, characterYOffset, position.y + 0.5]}>
+    <group ref={rootGroupRef} position={[position.x + 0.5, characterYOffset, position.y + 0.5]}>
       <group ref={groupRef}>
         <primitive object={model} scale={characterScale} castShadow receiveShadow />
       </group>
