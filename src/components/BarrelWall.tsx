@@ -103,8 +103,8 @@ export const InstancedBarrelWalls = ({ wallPositions }: InstancedBarrelWallsProp
   // Extract mesh data from each model
   const meshDataPerType = useMemo(() => {
     return models.map((model) => {
-      let geometry: THREE.BufferGeometry | null = null;
-      let material: THREE.Material | THREE.Material[] | null = null;
+      let geometry: BufferGeometry | null = null;
+      let material: Material | Material[] | null = null;
       
       model.scene.traverse((child: any) => {
         if (child.isMesh && !geometry) {
