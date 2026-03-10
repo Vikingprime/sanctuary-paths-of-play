@@ -239,6 +239,8 @@ interface GameHUDProps {
   onToggleVerboseLogging?: () => void;
   losFaderEnabled?: boolean;
   onToggleLOSFader?: () => void;
+  visionEnabled?: boolean;
+  onToggleVision?: () => void;
   // Feature toggles for performance testing
   shadowsEnabled?: boolean;
   onToggleShadows?: () => void;
