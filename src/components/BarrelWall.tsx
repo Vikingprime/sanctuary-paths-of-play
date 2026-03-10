@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Object3D, Matrix4, InstancedMesh as ThreeInstancedMesh, Color, MeshStandardMaterial } from 'three';
+import { Object3D, Matrix4, InstancedMesh as ThreeInstancedMesh, Color, MeshStandardMaterial, BufferGeometry, Material } from 'three';
 import { useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 
