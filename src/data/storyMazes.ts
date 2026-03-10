@@ -544,7 +544,7 @@ const chapter4BerryFetch: StoryMaze = {
         },
       ],
       cells: [
-        { x: 11, y: 4 }, { x: 12, y: 4 }, { x: 12, y: 3 },
+        { x: 13, y: 4 }, { x: 12, y: 4 }, { x: 12, y: 3 },
       ],
       speakerCharacterId: 'berry_bush',
       questAction: { type: 'complete_objective', objectiveId: 'reach_bush' },
@@ -585,11 +585,11 @@ const chapter5BerryGauntlet: StoryMaze = {
   medalTimes: { gold: 60, silver: 90, bronze: 120 },
   characters: [
     { id: 'bush_1', name: 'Berry Bush', emoji: '🫐', model: 'Bush_with_Berries.glb', animation: 'idle', position: { x: 3, y: 2 } },
-    { id: 'bush_2', name: 'Berry Bush', emoji: '🫐', model: 'Bush_with_Berries.glb', animation: 'idle', position: { x: 12, y: 4 } },
-    { id: 'bush_3', name: 'Berry Bush', emoji: '🫐', model: 'Bush_with_Berries.glb', animation: 'idle', position: { x: 8, y: 10 } },
-    { id: 'sparrow_g1', name: 'Sparrow', emoji: '🐦', model: 'Sparrow.glb', animation: 'idle', position: { x: 6, y: 3 }, visionDialogueId: 'sparrow_caught_g', coneVision: { range: 4, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['east', 'west'], intervalMs: 2500 } },
+    { id: 'bush_2', name: 'Berry Bush', emoji: '🫐', model: 'Bush_with_Berries.glb', animation: 'idle', position: { x: 10, y: 2 } },
+    { id: 'bush_3', name: 'Berry Bush', emoji: '🫐', model: 'Bush_with_Berries.glb', animation: 'idle', position: { x: 6, y: 10 } },
+    { id: 'sparrow_g1', name: 'Sparrow', emoji: '🐦', model: 'Sparrow.glb', animation: 'idle', position: { x: 4, y: 3 }, visionDialogueId: 'sparrow_caught_g', coneVision: { range: 4, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['east', 'west'], intervalMs: 2500 } },
     { id: 'sparrow_g2', name: 'Sparrow', emoji: '🐦', model: 'Sparrow.glb', animation: 'idle', position: { x: 10, y: 7 }, visionDialogueId: 'sparrow_caught_g', coneVision: { range: 5, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['north', 'south'], intervalMs: 3000 } },
-    { id: 'sparrow_g3', name: 'Sparrow', emoji: '🐦', model: 'Sparrow.glb', animation: 'idle', position: { x: 4, y: 8 }, visionDialogueId: 'sparrow_caught_g', coneVision: { range: 4, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['south', 'east'], intervalMs: 2800 } },
+    { id: 'sparrow_g3', name: 'Sparrow', emoji: '🐦', model: 'Sparrow.glb', animation: 'idle', position: { x: 8, y: 8 }, visionDialogueId: 'sparrow_caught_g', coneVision: { range: 4, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['south', 'east'], intervalMs: 2800 } },
   ],
   storyCharacters: [],
   quest: { id: 'quest_berry_gauntlet', title: 'Berry Gauntlet', description: 'Collect ALL berries — more sparrows patrol this larger maze!', objectives: [
@@ -599,15 +599,25 @@ const chapter5BerryGauntlet: StoryMaze = {
   ], rewards: { stars: 15, medal: true } },
   dialogues: [
     { id: 'sparrow_caught_g', speaker: 'Sparrow', speakerEmoji: '🐦', message: "CHEEP! Those are MY berries!", cells: [], speakerCharacterId: 'sparrow_g1', effect: 'game_over' },
-    { id: 'bush1_found', speaker: 'You', speakerEmoji: '🐀', message: "Got berries from this bush!", cells: [{ x: 3, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 1 }], speakerCharacterId: 'bush_1', questActions: [{ type: 'complete_objective', objectiveId: 'get_berry_1' }, { type: 'grant_item', itemType: 'berry', itemCount: 1 }] },
-    { id: 'bush2_found', speaker: 'You', speakerEmoji: '🐀', message: "Another bush — grabbed the berries!", cells: [{ x: 12, y: 4 }, { x: 11, y: 4 }, { x: 12, y: 3 }], speakerCharacterId: 'bush_2', questActions: [{ type: 'complete_objective', objectiveId: 'get_berry_2' }, { type: 'grant_item', itemType: 'berry', itemCount: 1 }] },
-    { id: 'bush3_found', speaker: 'You', speakerEmoji: '🐀', message: "Last bush — got all the berries!", cells: [{ x: 8, y: 10 }, { x: 7, y: 10 }, { x: 8, y: 9 }], speakerCharacterId: 'bush_3', questActions: [{ type: 'complete_objective', objectiveId: 'get_berry_3' }, { type: 'grant_item', itemType: 'berry', itemCount: 1 }] },
+    { id: 'bush1_found', speaker: 'You', speakerEmoji: '🐀', message: "Got berries from this bush!", cells: [{ x: 2, y: 2 }, { x: 3, y: 2 }, { x: 4, y: 2 }], speakerCharacterId: 'bush_1', questActions: [{ type: 'complete_objective', objectiveId: 'get_berry_1' }, { type: 'grant_item', itemType: 'berry', itemCount: 1 }] },
+    { id: 'bush2_found', speaker: 'You', speakerEmoji: '🐀', message: "Another bush — grabbed the berries!", cells: [{ x: 9, y: 2 }, { x: 10, y: 2 }, { x: 11, y: 2 }], speakerCharacterId: 'bush_2', questActions: [{ type: 'complete_objective', objectiveId: 'get_berry_2' }, { type: 'grant_item', itemType: 'berry', itemCount: 1 }] },
+    { id: 'bush3_found', speaker: 'You', speakerEmoji: '🐀', message: "Last bush — got all the berries!", cells: [{ x: 5, y: 10 }, { x: 6, y: 10 }, { x: 7, y: 10 }], speakerCharacterId: 'bush_3', questActions: [{ type: 'complete_objective', objectiveId: 'get_berry_3' }, { type: 'grant_item', itemType: 'berry', itemCount: 1 }] },
   ],
   endConditions: { requiredDialogues: ['bush1_found', 'bush2_found', 'bush3_found'] },
   grid: createGrid([
-    '################', '##SS        ####', '##    ##      ####', '##    ##    ######',
-    '##            ##', '####  ##      ##', '##    ##      ##', '##        ##  ##',
-    '######    ##  ##', '######        ##', '##        ######', '##    EE  ######', '################',
+    '################',
+    '##SS      ######',
+    '##    ##      ##',
+    '##    ##      ##',
+    '##        ######',
+    '####    ########',
+    '##    ##      ##',
+    '##    ##      ##',
+    '##  ####    ####',
+    '##          ####',
+    '##      ##    ##',
+    '##  EE  ##    ##',
+    '################',
   ]),
 };
 
@@ -617,8 +627,8 @@ const chapter6PumpkinHunt: StoryMaze = {
   timeLimit: 90, timerDisabled: false, previewTime: 10, medalTimes: { gold: 40, silver: 60, bronze: 80 },
   characters: [
     { id: 'pumpkin', name: 'Pumpkin', emoji: '🎃', model: 'Bush_with_Berries.glb', animation: 'idle', position: { x: 14, y: 8 } },
-    { id: 'horse_1', name: 'Horse', emoji: '🐴', model: 'Cow.glb', animation: 'idle', position: { x: 6, y: 4 }, patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 4 }, { x: 6, y: 8 }, { x: 10, y: 8 }, { x: 10, y: 4 }], speedCellsPerSec: 1.5 } },
-    { id: 'horse_2', name: 'Horse', emoji: '🐴', model: 'Cow.glb', animation: 'idle', position: { x: 12, y: 6 }, patrol: { pattern: 'loop', waypoints: [{ x: 12, y: 3 }, { x: 12, y: 9 }], speedCellsPerSec: 1.2 } },
+    { id: 'horse_1', name: 'Horse', emoji: '🐴', model: 'Cow.glb', animation: 'idle', position: { x: 6, y: 4 }, patrol: { pattern: 'loop', waypoints: [{ x: 4, y: 4 }, { x: 10, y: 4 }], speedCellsPerSec: 1.5 } },
+    { id: 'horse_2', name: 'Horse', emoji: '🐴', model: 'Cow.glb', animation: 'idle', position: { x: 12, y: 6 }, patrol: { pattern: 'loop', waypoints: [{ x: 12, y: 3 }, { x: 12, y: 6 }], speedCellsPerSec: 1.2 } },
   ],
   storyCharacters: [], quest: { id: 'quest_pumpkin_hunt', title: 'The Pumpkin Race', description: 'Find the pumpkin before time runs out!', objectives: [{ id: 'find_pumpkin', type: 'talk_to', description: 'Reach the pumpkin', targetCharacterId: 'pumpkin', completed: false }], rewards: { stars: 12, medal: true } },
   dialogues: [{ id: 'pumpkin_found', speaker: 'You', speakerEmoji: '🐷', message: "Found the pumpkin! 🎃 Perfect for the feast!", cells: [{ x: 13, y: 8 }, { x: 14, y: 8 }, { x: 14, y: 7 }], speakerCharacterId: 'pumpkin', questAction: { type: 'complete_objective', objectiveId: 'find_pumpkin' } }],
@@ -744,7 +754,7 @@ const chapter12HerdChicks: StoryMaze = {
   characters: [
     { id: 'henrietta_home', name: 'Henrietta', emoji: '🐔', model: 'Hen.glb', animation: 'idle', position: { x: 2, y: 2 } },
     { id: 'chick_1', name: 'Chick', emoji: '🐥', model: 'Hen.glb', animation: 'idle', position: { x: 8, y: 3 } },
-    { id: 'chick_2', name: 'Chick', emoji: '🐥', model: 'Hen.glb', animation: 'idle', position: { x: 12, y: 7 } },
+    { id: 'chick_2', name: 'Chick', emoji: '🐥', model: 'Hen.glb', animation: 'idle', position: { x: 8, y: 6 } },
     { id: 'chick_3', name: 'Chick', emoji: '🐥', model: 'Hen.glb', animation: 'idle', position: { x: 5, y: 9 } },
   ],
   storyCharacters: [], quest: { id: 'quest_herd_chicks', title: 'Herd the Chicks', description: "Find all 3 escaped chicks!", objectives: [
@@ -755,7 +765,7 @@ const chapter12HerdChicks: StoryMaze = {
   dialogues: [
     { id: 'henrietta_help', speaker: 'Henrietta', speakerEmoji: '🐔', message: "My babies! Please find all three!", cells: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 1 }], speakerCharacterId: 'henrietta_home' },
     { id: 'chick1_found', speaker: 'Chick', speakerEmoji: '🐥', message: "Peep peep! *follows you*", cells: [{ x: 7, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 2 }], speakerCharacterId: 'chick_1', questAction: { type: 'complete_objective', objectiveId: 'find_chick_1' } },
-    { id: 'chick2_found', speaker: 'Chick', speakerEmoji: '🐥', message: "Peep! *happy to see you*", cells: [{ x: 11, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 6 }], speakerCharacterId: 'chick_2', questAction: { type: 'complete_objective', objectiveId: 'find_chick_2' } },
+    { id: 'chick2_found', speaker: 'Chick', speakerEmoji: '🐥', message: "Peep! *happy to see you*", cells: [{ x: 7, y: 6 }, { x: 8, y: 6 }, { x: 9, y: 6 }], speakerCharacterId: 'chick_2', questAction: { type: 'complete_objective', objectiveId: 'find_chick_2' } },
     { id: 'chick3_found', speaker: 'Chick', speakerEmoji: '🐥', message: "PEEP! *runs in circles*", cells: [{ x: 4, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 8 }], speakerCharacterId: 'chick_3', questAction: { type: 'complete_objective', objectiveId: 'find_chick_3' } },
   ],
   endConditions: { requiredDialogues: ['chick1_found', 'chick2_found', 'chick3_found'] },
@@ -796,7 +806,7 @@ const chapter14PorcupineBarn: StoryMaze = {
   timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 60, silver: 90, bronze: 120 },
   characters: [
     { id: 'porcupine_boss', name: 'Porcupine Boss', emoji: '🦔', model: 'Squirrel.glb', animation: 'idle', position: { x: 16, y: 10 } },
-    { id: 'fox_guard_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 6, y: 4 }, visionDialogueId: 'fox_caught', coneVision: { range: 5, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 4 }, { x: 6, y: 8 }], speedCellsPerSec: 1.0, pauseMs: 1000 } },
+    { id: 'fox_guard_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 4, y: 4 }, visionDialogueId: 'fox_caught', coneVision: { range: 5, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 4, y: 4 }, { x: 4, y: 7 }], speedCellsPerSec: 1.0, pauseMs: 1000 } },
     { id: 'fox_guard_2', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 12, y: 6 }, visionDialogueId: 'fox_caught', coneVision: { range: 4, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['west', 'east'], intervalMs: 3000 } },
   ],
   storyCharacters: [], quest: { id: 'quest_porcupine_barn', title: 'The Barn', description: "Dodge fox patrols to reach Porcupine Boss!", objectives: [{ id: 'reach_porcupine', type: 'talk_to', description: 'Reach Porcupine Boss', targetCharacterId: 'porcupine_boss', completed: false }], rewards: { stars: 20, medal: true } },
@@ -818,8 +828,8 @@ const chapter15LightsOut: StoryMaze = {
   timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 70, silver: 100, bronze: 140 },
   characters: [
     { id: 'porcupine_final', name: 'Porcupine Boss', emoji: '🦔', model: 'Squirrel.glb', animation: 'idle', position: { x: 16, y: 12 } },
-    { id: 'fox_dark_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 8, y: 5 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 8, y: 3 }, { x: 8, y: 8 }], speedCellsPerSec: 0.8 } },
-    { id: 'fox_dark_2', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 14, y: 8 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['north', 'west'], intervalMs: 2500 } },
+    { id: 'fox_dark_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 8, y: 5 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 8, y: 4 }, { x: 8, y: 8 }], speedCellsPerSec: 0.8 } },
+    { id: 'fox_dark_2', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 12, y: 8 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['north', 'west'], intervalMs: 2500 } },
   ],
   storyCharacters: [], quest: { id: 'quest_porcupine_dark', title: 'Lights Out', description: "Navigate through darkness past foxes to reach Porcupine Boss.", objectives: [{ id: 'reach_porcupine_dark', type: 'talk_to', description: 'Reach Porcupine Boss', targetCharacterId: 'porcupine_final', completed: false }], rewards: { stars: 25, medal: true } },
   dialogues: [
@@ -844,7 +854,7 @@ const act2_1_FindAlly: StoryMaze = {
   id: 201, name: "Porcupine's Ally", chapterId: 'find_ally', difficulty: 'medium',
   timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 50, silver: 80, bronze: 120 },
   characters: [
-    { id: 'guard_1', name: 'Guard Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 6, y: 3 },
+    { id: 'guard_1', name: 'Guard Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 4, y: 3 },
       dialogueSequence: [{ type: 'normal', id: 'guard1_riddle' }] },
     { id: 'guard_2', name: 'Guard Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 12, y: 6 },
       dialogueSequence: [{ type: 'normal', id: 'guard2_riddle' }] },
@@ -860,7 +870,7 @@ const act2_1_FindAlly: StoryMaze = {
   ], rewards: { stars: 15, medal: true } },
   dialogues: [
     { id: 'remy_act2_start', speaker: 'Remy', speakerEmoji: '🐀', message: "One of Porcupine's guards is sympathetic. Find them using riddles I remember!", cells: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 1 }], speakerCharacterId: 'remy_act2', questAction: { type: 'complete_objective', objectiveId: 'talk_remy_start' } },
-    { id: 'guard1_riddle', speaker: 'Guard Fox', speakerEmoji: '🦊', message: "I guard the boss with pride. Move along!", cells: [{ x: 5, y: 3 }, { x: 6, y: 3 }, { x: 6, y: 2 }], speakerCharacterId: 'guard_1', requires: ['remy_act2_start'] },
+    { id: 'guard1_riddle', speaker: 'Guard Fox', speakerEmoji: '🦊', message: "I guard the boss with pride. Move along!", cells: [{ x: 4, y: 3 }, { x: 5, y: 3 }, { x: 4, y: 4 }], speakerCharacterId: 'guard_1', requires: ['remy_act2_start'] },
     { id: 'guard2_riddle', speaker: 'Guard Fox', speakerEmoji: '🦊', message: "No visitors! Boss's orders!", cells: [{ x: 11, y: 6 }, { x: 12, y: 6 }, { x: 12, y: 5 }], speakerCharacterId: 'guard_2', requires: ['remy_act2_start'] },
     { id: 'ally_found', speaker: 'Sympathetic Guard', speakerEmoji: '🦊', message: "Remy sent you? The boss is great, but I can't excuse thievery.", messages: [
       { speaker: 'Sympathetic Guard', speakerEmoji: '🦊', message: "If the boss stole it, it's in his safe. I'll show you where." },
@@ -997,7 +1007,7 @@ const act2_6_Scavenger2: StoryMaze = {
   timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 45, silver: 75, bronze: 110 },
   characters: [
     { id: 'marker_1', name: 'Trail Marker', emoji: '👣', model: 'Log.glb', animation: 'idle', position: { x: 6, y: 4 }, dialogueSequence: [{ type: 'normal', id: 'marker1_check' }] },
-    { id: 'marker_2', name: 'Trail Marker', emoji: '👣', model: 'Log.glb', animation: 'idle', position: { x: 10, y: 8 }, dialogueSequence: [{ type: 'normal', id: 'marker2_check' }] },
+    { id: 'marker_2', name: 'Trail Marker', emoji: '👣', model: 'Log.glb', animation: 'idle', position: { x: 8, y: 8 }, dialogueSequence: [{ type: 'normal', id: 'marker2_check' }] },
     { id: 'stash_marker', name: 'Stash', emoji: '📦', model: 'Log.glb', animation: 'idle', position: { x: 14, y: 10 }, dialogueSequence: [{ type: 'normal', id: 'stash_found' }] },
   ],
   storyCharacters: [],
@@ -1008,7 +1018,7 @@ const act2_6_Scavenger2: StoryMaze = {
   ], rewards: { stars: 15, medal: true } },
   dialogues: [
     { id: 'marker1_check', speaker: 'You', speakerEmoji: '🐷', message: "Footprints lead east... and there's a feather pointing south!", cells: [{ x: 5, y: 4 }, { x: 6, y: 4 }, { x: 6, y: 3 }], speakerCharacterId: 'marker_1', questAction: { type: 'complete_objective', objectiveId: 'find_marker1' } },
-    { id: 'marker2_check', speaker: 'You', speakerEmoji: '🐷', message: "More tracks! The stash must be close...", cells: [{ x: 9, y: 8 }, { x: 10, y: 8 }, { x: 10, y: 7 }], speakerCharacterId: 'marker_2', requires: ['marker1_check'], questAction: { type: 'complete_objective', objectiveId: 'find_marker2' } },
+    { id: 'marker2_check', speaker: 'You', speakerEmoji: '🐷', message: "More tracks! The stash must be close...", cells: [{ x: 8, y: 8 }, { x: 9, y: 8 }, { x: 8, y: 7 }], speakerCharacterId: 'marker_2', requires: ['marker1_check'], questAction: { type: 'complete_objective', objectiveId: 'find_marker2' } },
     { id: 'stash_found', speaker: 'You', speakerEmoji: '🐷', message: "Found the stash! More clues inside about the shiny thing...", cells: [{ x: 13, y: 10 }, { x: 14, y: 10 }, { x: 14, y: 9 }], speakerCharacterId: 'stash_marker', requires: ['marker2_check'], questAction: { type: 'complete_objective', objectiveId: 'find_stash' } },
   ],
   endConditions: { requiredDialogues: ['stash_found'] },
@@ -1113,7 +1123,7 @@ const act2_10_FerretMarket: StoryMaze = {
     { id: 'ferret_1', name: 'Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 4, y: 3 }, dialogueSequence: [{ type: 'normal', id: 'ferret1_check' }] },
     { id: 'ferret_2', name: 'Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 10, y: 5 }, dialogueSequence: [{ type: 'normal', id: 'ferret2_check' }] },
     { id: 'ferret_3', name: 'Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 8, y: 9 }, dialogueSequence: [{ type: 'normal', id: 'ferret3_check' }] },
-    { id: 'ferret_info', name: 'Elder Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 14, y: 8 }, dialogueSequence: [{ type: 'normal', id: 'ferret_elder' }] },
+    { id: 'ferret_info', name: 'Elder Ferret', emoji: '🦦', model: 'Squirrel.glb', animation: 'idle', position: { x: 12, y: 6 }, dialogueSequence: [{ type: 'normal', id: 'ferret_elder' }] },
   ],
   storyCharacters: [],
   quest: { id: 'quest_ferret_market', title: 'Ferret Market', description: "Check all ferrets with shiny things. None have the ring, but they know of a secret stash.", objectives: [
@@ -1126,7 +1136,7 @@ const act2_10_FerretMarket: StoryMaze = {
     { id: 'ferret1_check', speaker: 'Ferret', speakerEmoji: '🦦', message: "A ring? No, this is a bottlecap. Very shiny though!", cells: [{ x: 3, y: 3 }, { x: 4, y: 3 }, { x: 4, y: 2 }], speakerCharacterId: 'ferret_1', questAction: { type: 'complete_objective', objectiveId: 'check_ferret1' } },
     { id: 'ferret2_check', speaker: 'Ferret', speakerEmoji: '🦦', message: "I've got a marble, not a ring!", cells: [{ x: 9, y: 5 }, { x: 10, y: 5 }, { x: 10, y: 4 }], speakerCharacterId: 'ferret_2', questAction: { type: 'complete_objective', objectiveId: 'check_ferret2' } },
     { id: 'ferret3_check', speaker: 'Ferret', speakerEmoji: '🦦', message: "This? It's tinfoil. Sparkly but worthless!", cells: [{ x: 7, y: 9 }, { x: 8, y: 9 }, { x: 8, y: 8 }], speakerCharacterId: 'ferret_3', questAction: { type: 'complete_objective', objectiveId: 'check_ferret3' } },
-    { id: 'ferret_elder', speaker: 'Elder Ferret', speakerEmoji: '🦦', message: "The ring isn't here, but there's a secret stash where all the real jewelry ends up. You should check it out.", cells: [{ x: 13, y: 8 }, { x: 14, y: 8 }, { x: 14, y: 7 }], speakerCharacterId: 'ferret_info', requires: ['ferret1_check', 'ferret2_check', 'ferret3_check'], questAction: { type: 'complete_objective', objectiveId: 'talk_elder' } },
+    { id: 'ferret_elder', speaker: 'Elder Ferret', speakerEmoji: '🦦', message: "The ring isn't here, but there's a secret stash where all the real jewelry ends up. You should check it out.", cells: [{ x: 11, y: 6 }, { x: 12, y: 6 }, { x: 13, y: 6 }], speakerCharacterId: 'ferret_info', requires: ['ferret1_check', 'ferret2_check', 'ferret3_check'], questAction: { type: 'complete_objective', objectiveId: 'talk_elder' } },
   ],
   endConditions: { requiredDialogues: ['ferret_elder'] },
   grid: createGrid([
@@ -1171,7 +1181,7 @@ const act2_12_FireflyBoss2: StoryMaze = {
       dialogueSequence: [{ type: 'normal', id: 'raccoon_truth' }] },
     { id: 'night_bird_1', name: 'Night Bird', emoji: '🦉', model: 'Sparrow.glb', animation: 'idle', position: { x: 6, y: 4 },
       visionDialogueId: 'night_bird_caught', coneVision: { range: 4, spreadPerCell: 1 },
-      patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 3 }, { x: 6, y: 8 }], speedCellsPerSec: 1.2 } },
+      patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 4 }, { x: 14, y: 4 }], speedCellsPerSec: 1.2 } },
     { id: 'night_bird_2', name: 'Night Bird', emoji: '🦉', model: 'Sparrow.glb', animation: 'idle', position: { x: 14, y: 7 },
       visionDialogueId: 'night_bird_caught', coneVision: { range: 4, spreadPerCell: 1 },
       turning: { pattern: 'ping-pong', directions: ['west', 'south'], intervalMs: 2000 } },
