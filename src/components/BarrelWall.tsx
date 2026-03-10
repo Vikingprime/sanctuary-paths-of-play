@@ -84,7 +84,7 @@ export const InstancedBarrelWalls = ({ wallPositions }: InstancedBarrelWallsProp
         
         result.push({
           x: pos.x + 0.5 + offset.dx + jitterX,
-          y: 0,
+          y: -0.15,
           z: pos.z + 0.5 + offset.dz + jitterZ,
           rotation: seededRandom(seed + 2) * Math.PI * 2,
           scale: baseScale * scaleVariation,
@@ -104,7 +104,7 @@ export const InstancedBarrelWalls = ({ wallPositions }: InstancedBarrelWallsProp
         const offsetX = (seededRandom(seed + 4) - 0.5) * 0.2;
         const offsetZ = (seededRandom(seed + 5) - 0.5) * 0.2;
         // Stack height varies: roughly on top of ground barrels
-        const stackY = 0.55 + seededRandom(seed + 6) * 0.15;
+        const stackY = 0.35 + seededRandom(seed + 6) * 0.1;
         
         result.push({
           x: pos.x + 0.5 + offsetX,
