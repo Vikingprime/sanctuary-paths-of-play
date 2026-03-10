@@ -597,7 +597,7 @@ export const MazeGame3D = ({
     const hasAnyTurning = characters.some(c => c.turning || c.patrol);
     if (!hasAnyTurning) return;
     
-    const TICK_MS = 100; // Update every 100ms for smooth turning
+    const TICK_MS = 16; // ~60fps for smooth patrol movement
     const interval = setInterval(() => {
       // Pause NPC turning/patrol during dialogue
       if (activeDialogue || activeAppleDialogue || postDialoguePause) return;
