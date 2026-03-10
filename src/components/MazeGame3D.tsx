@@ -615,6 +615,8 @@ export const MazeGame3D = ({
       }
       
       // After updating NPC states, check if player is now in any vision cone
+      // Skip detection if vision is disabled (debug toggle) or dialogue is active
+      if (!visionEnabled) return;
       // Use continuous cone detection (matches visual overlay exactly)
       const playerWorldX = playerStateRef.current.x + 0.5; // Convert to world center
       const playerWorldY = playerStateRef.current.y + 0.5;
