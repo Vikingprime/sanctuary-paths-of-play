@@ -2887,7 +2887,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     });
     
     return positions;
-  }, [maze]);
+  }, [maze, npcPositions]);
 
   const items = useMemo(() => {
     const powerUps: { pos: [number, number, number]; key: string }[] = [];
