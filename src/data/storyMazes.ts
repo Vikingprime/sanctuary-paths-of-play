@@ -754,7 +754,7 @@ const chapter12HerdChicks: StoryMaze = {
   characters: [
     { id: 'henrietta_home', name: 'Henrietta', emoji: '🐔', model: 'Hen.glb', animation: 'idle', position: { x: 2, y: 2 } },
     { id: 'chick_1', name: 'Chick', emoji: '🐥', model: 'Hen.glb', animation: 'idle', position: { x: 8, y: 3 } },
-    { id: 'chick_2', name: 'Chick', emoji: '🐥', model: 'Hen.glb', animation: 'idle', position: { x: 12, y: 7 } },
+    { id: 'chick_2', name: 'Chick', emoji: '🐥', model: 'Hen.glb', animation: 'idle', position: { x: 8, y: 6 } },
     { id: 'chick_3', name: 'Chick', emoji: '🐥', model: 'Hen.glb', animation: 'idle', position: { x: 5, y: 9 } },
   ],
   storyCharacters: [], quest: { id: 'quest_herd_chicks', title: 'Herd the Chicks', description: "Find all 3 escaped chicks!", objectives: [
