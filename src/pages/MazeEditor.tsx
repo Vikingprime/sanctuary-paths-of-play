@@ -50,6 +50,7 @@ interface CharacterConfig {
   directionalVision?: DirectionalVision;
   coneVision?: ConeVisionConfig;
   turning?: TurningConfig;
+  luredByBait?: boolean;
 }
 
 interface ObstacleConfig {
@@ -976,6 +977,14 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
 
         if (spineAnalysis && !cellsTouchSpine(charDialogue.cells, spineAnalysis.traversedCellKeys)) {
           warnings.push(`⚠️ Character "${char.name}" dialogue trigger cells do not touch the traversal spine`);
+        }
+      }
+
+      // Validate luredByBait characters are on the spine
+      if (char.luredByBait && spineAnalysis) {
+        const charCell = { x: char.position.x, y: char.position.y };
+        if (!cellsTouchSpine([charCell], spineAnalysis.traversedCellKeys)) {
+          warnings.push(`🚨 Bait-lured character "${char.name}" at (${charCell.x}, ${charCell.y}) is NOT on the traversal spine — llamas must block the path`);
         }
       }
     });
