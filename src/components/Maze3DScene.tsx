@@ -2873,8 +2873,23 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     }
   });
 
+  // Detect cellar theme
+  const isCellar = maze.theme === 'cellar';
+  
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
+
+  // All wall positions for barrel rendering (cellar theme)
+  const allWallPositions = useMemo(() => {
+    if (!isCellar) return [];
+    const walls: { x: number; z: number }[] = [];
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell.isWall) walls.push({ x, z: y });
+      });
+    });
+    return walls;
+  }, [maze, isCellar]);
 
   // Generate character positions for collision (all placed characters + map stations)
   const CHARACTER_COLLISION_RADIUS = 0.1;
