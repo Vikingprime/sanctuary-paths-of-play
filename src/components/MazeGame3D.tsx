@@ -33,6 +33,7 @@ import {
   isPointInVisionCone,
   NPCRuntimeState,
 } from '@/game/NPCRuntime';
+import { validateMazeVisionSafety } from '@/game/VisionSafetyValidator';
 
 // Import pure game logic (Unity-portable)
 import {
@@ -272,6 +273,13 @@ export const MazeGame3D = ({
   const npcRuntimeStatesRef = useRef<Map<string, NPCRuntimeState>>(
     initNPCRuntimeStates(maze.characters ?? [])
   );
+  
+  // Run vision safety validation on mount (dev mode)
+  useEffect(() => {
+    if (maze.characters?.some(c => c.turning && c.coneVision)) {
+      validateMazeVisionSafety(maze.id, maze.name, maze.characters, maze.grid);
+    }
+  }, [maze.id]);
   // NPC rotation overrides for the 3D scene (characterId -> Y rotation)
   // Initialize with correct starting rotations so vision cones match initial facing
   const [npcRotations, setNpcRotations] = useState<Record<string, number>>(() => {
@@ -1742,8 +1750,8 @@ export const MazeGame3D = ({
         </div>
       )}
 
-      {/* HUD - only show after preview ends */}
-      {!isPreviewing && (
+      {/* HUD - only show after preview ends and hide during dialogue */}
+      {!isPreviewing && !activeDialogue && !activeAppleDialogue && (
         <GameHUD
           animalType={animalType}
           timeLeft={timeLeft}
@@ -1853,8 +1861,8 @@ export const MazeGame3D = ({
         />
       )}
 
-      {/* Mobile/Rail Controls - only render after preview ends AND if enabled */}
-      {!isPreviewing && mobileControlsEnabled && controlMode === 'joystick' && (
+      {/* Mobile/Rail Controls - only render after preview ends AND if enabled, hidden during dialogue */}
+      {!isPreviewing && mobileControlsEnabled && !activeDialogue && !activeAppleDialogue && controlMode === 'joystick' && (
         <MobileControls
           playerStateRef={playerStateRef}
           joystickXRef={joystickXRef}
@@ -1867,8 +1875,8 @@ export const MazeGame3D = ({
         />
       )}
       
-      {/* Rail Controls - on-rail navigation mode */}
-      {!isPreviewing && mobileControlsEnabled && controlMode === 'rail' && (
+      {/* Rail Controls - on-rail navigation mode, hidden during dialogue */}
+      {!isPreviewing && mobileControlsEnabled && !activeDialogue && !activeAppleDialogue && controlMode === 'rail' && (
         <>
           <RailControls
             cache={magnetismCacheRef.current}
