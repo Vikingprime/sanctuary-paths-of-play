@@ -1,5 +1,5 @@
-import { useMemo, useRef } from 'react';
-import { Object3D, Color, DoubleSide } from 'three';
+import { useMemo } from 'react';
+import { DoubleSide } from 'three';
 import { useGLTF } from '@react-three/drei';
 import { Maze } from '@/types/game';
 
@@ -16,10 +16,9 @@ export const CellarEnvironment = ({ maze }: CellarEnvironmentProps) => {
   const gridHeight = maze.grid.length;
   const gridWidth = maze.grid[0]?.length ?? 0;
   
-  // Add padding around the maze
   const PAD = 1;
   const WALL_HEIGHT = 4;
-  const ROOF_HEIGHT = 3.5;
+  const ROOF_HEIGHT = 2.8; // Lower ceiling so it's visible from player POV
   
   const minX = -PAD;
   const minZ = -PAD;
@@ -30,9 +29,8 @@ export const CellarEnvironment = ({ maze }: CellarEnvironmentProps) => {
   const centerX = (minX + maxX) / 2;
   const centerZ = (minZ + maxZ) / 2;
 
-  // Dark wall color
-  const wallColor = '#1a1410';
-  const floorColor = '#2a2018';
+  const wallColor = '#2a2018';
+  const floorColor = '#3a2e22';
 
   return (
     <group>
@@ -66,24 +64,17 @@ export const CellarEnvironment = ({ maze }: CellarEnvironmentProps) => {
         <meshStandardMaterial color={wallColor} side={DoubleSide} roughness={0.95} />
       </mesh>
       
-      {/* Ceiling - dark slab */}
-      <mesh position={[centerX, ROOF_HEIGHT, centerZ]} rotation-x={Math.PI / 2} receiveShadow>
+      {/* Ceiling slab */}
+      <mesh position={[centerX, ROOF_HEIGHT, centerZ]} rotation-x={Math.PI / 2}>
         <planeGeometry args={[sizeX, sizeZ]} />
         <meshStandardMaterial color={wallColor} side={DoubleSide} roughness={0.9} />
       </mesh>
       
-      {/* Roof tiles (decorative, on top of ceiling) */}
-      <RoofTiles
-        gridWidth={gridWidth}
-        gridHeight={gridHeight}
-        roofHeight={ROOF_HEIGHT}
-      />
+      {/* Roof tiles (decorative) */}
+      <RoofTiles gridWidth={gridWidth} gridHeight={gridHeight} roofHeight={ROOF_HEIGHT} />
       
-      {/* Ceiling lights - placed every ~3 cells in the corridor space */}
-      <CellarLights
-        maze={maze}
-        roofHeight={ROOF_HEIGHT}
-      />
+      {/* Ceiling lights */}
+      <CellarLights maze={maze} roofHeight={ROOF_HEIGHT} />
     </group>
   );
 };
@@ -94,7 +85,6 @@ const RoofTiles = ({ gridWidth, gridHeight, roofHeight }: { gridWidth: number; g
   
   const tiles = useMemo(() => {
     const result: { x: number; z: number }[] = [];
-    // Tile every 2 cells for coverage
     for (let x = -1; x < gridWidth + 1; x += 2) {
       for (let z = -1; z < gridHeight + 1; z += 2) {
         result.push({ x: x + 1, z: z + 1 });
@@ -106,7 +96,7 @@ const RoofTiles = ({ gridWidth, gridHeight, roofHeight }: { gridWidth: number; g
   return (
     <group>
       {tiles.map((tile, i) => {
-        const cloned = scene.clone();
+        const cloned = scene.clone(true);
         return (
           <primitive
             key={`roof-${i}`}
@@ -128,9 +118,9 @@ const CellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number }) 
     const positions: { x: number; z: number }[] = [];
     const grid = maze.grid;
     
-    // Place a light every ~3 cells in open spaces
-    for (let y = 1; y < grid.length - 1; y += 3) {
-      for (let x = 1; x < grid[0].length - 1; x += 3) {
+    // Place a light every 2 cells in open spaces for good coverage
+    for (let y = 1; y < grid.length - 1; y += 2) {
+      for (let x = 1; x < grid[0].length - 1; x += 2) {
         if (!grid[y][x].isWall) {
           positions.push({ x: x + 0.5, z: y + 0.5 });
         }
@@ -143,17 +133,17 @@ const CellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number }) 
   return (
     <group>
       {lightPositions.map((pos, i) => {
-        const cloned = scene.clone();
+        const cloned = scene.clone(true);
         return (
-          <group key={`light-${i}`} position={[pos.x, roofHeight - 0.1, pos.z]}>
-            <primitive object={cloned} scale={[0.3, 0.3, 0.3]} />
+          <group key={`light-${i}`} position={[pos.x, roofHeight - 0.05, pos.z]}>
+            <primitive object={cloned} scale={[0.45, 0.45, 0.45]} />
             {/* Point light for each ceiling light */}
             <pointLight
-              position={[0, -0.3, 0]}
+              position={[0, -0.2, 0]}
               color="#FFE0A0"
-              intensity={5}
-              distance={10}
-              decay={1.2}
+              intensity={4}
+              distance={6}
+              decay={1}
               castShadow={false}
             />
           </group>
