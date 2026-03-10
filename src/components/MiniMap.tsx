@@ -111,6 +111,19 @@ export const MiniMap = ({ maze, playerPos, isVisible, onClose, timeLeft, selecte
     });
     return positions;
   }, [maze]);
+
+  // Find vision-cone NPCs (sparrows, foxes, etc.) to show on map
+  const visionNPCs = useMemo(() => {
+    if (!maze.characters) return [];
+    return maze.characters
+      .filter(c => c.coneVision || c.directionalVision)
+      .map(c => ({
+        x: c.position.x,
+        y: c.position.y,
+        emoji: c.emoji,
+        id: c.id,
+      }));
+  }, [maze]);
   
   const isInEndRegion = (x: number, y: number) => 
     endBounds && x >= endBounds.minX && x <= endBounds.maxX && y >= endBounds.minY && y <= endBounds.maxY;
@@ -264,6 +277,33 @@ export const MiniMap = ({ maze, playerPos, isVisible, onClose, timeLeft, selecte
                     }}
                   >
                     <span style={{ fontSize: cellSize * 1.2 }}>🗺️</span>
+                  </div>
+                );
+              })}
+
+              {/* Vision NPC icons (sparrows, foxes, etc.) */}
+              {visionNPCs.map((npc) => {
+                const transformed = transformCoord(npc.x, npc.y);
+                const iconSize = cellSize * 1.6;
+                return (
+                  <div
+                    key={`npc-${npc.id}`}
+                    className="absolute flex items-center justify-center pointer-events-none z-10"
+                    style={{
+                      left: (transformed.tx + 0.5) * cellSize - iconSize / 2,
+                      top: (transformed.ty + 0.5) * cellSize - iconSize / 2,
+                      width: iconSize,
+                      height: iconSize,
+                    }}
+                  >
+                    <div 
+                      className="absolute rounded-full bg-destructive/25 border border-destructive/50"
+                      style={{
+                        width: cellSize * 2,
+                        height: cellSize * 2,
+                      }}
+                    />
+                    <span style={{ fontSize: cellSize * 1.2 }}>{npc.emoji}</span>
                   </div>
                 );
               })}
