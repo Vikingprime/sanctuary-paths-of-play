@@ -314,6 +314,9 @@ interface GameHUDProps {
     nextTier: { id: string; name: string; pointsRequired: number } | null;
     progress: number;
   };
+  // Bait system
+  hasBait?: boolean;
+  onBaitThrow?: () => void;
 }
 
 export const GameHUD = ({
@@ -399,6 +402,9 @@ export const GameHUD = ({
   onAppleDrop,
   berryCount = 0,
   friendshipProgress,
+  // Bait system
+  hasBait = false,
+  onBaitThrow,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
@@ -482,10 +488,12 @@ export const GameHUD = ({
           </button>
           
           {/* Item Panel - below control buttons */}
-          {onAppleDrop && (
+          {(onAppleDrop || hasBait) && (
             <ItemPanel
               appleCount={appleCount}
-              onAppleDrop={onAppleDrop}
+              onAppleDrop={onAppleDrop ?? (() => {})}
+              hasBait={hasBait}
+              onBaitThrow={onBaitThrow}
             />
           )}
           

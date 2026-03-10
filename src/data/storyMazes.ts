@@ -654,8 +654,8 @@ const chapter7LlamaBlockade: StoryMaze = {
   id: 107, name: "Llama Roadblock", chapterId: 'llama_blockade', difficulty: 'medium',
   timeLimit: 200, timerDisabled: true, previewTime: 10, medalTimes: { gold: 60, silver: 90, bronze: 120 },
   characters: [
-    { id: 'llama_1', name: 'Llama', emoji: '🦙', model: 'Cow.glb', animation: 'idle', position: { x: 5, y: 5 } },
-    { id: 'llama_2', name: 'Llama', emoji: '🦙', model: 'Cow.glb', animation: 'idle', position: { x: 10, y: 7 } },
+    { id: 'llama_1', name: 'Llama', emoji: '🦙', model: 'Cow.glb', animation: 'idle', position: { x: 5, y: 5 }, luredByBait: true },
+    { id: 'llama_2', name: 'Llama', emoji: '🦙', model: 'Cow.glb', animation: 'idle', position: { x: 10, y: 7 }, luredByBait: true },
     { id: 'pumpkin_patch', name: 'Pumpkin Patch', emoji: '🎃', model: 'Bush_with_Berries.glb', animation: 'idle', position: { x: 14, y: 10 } },
   ],
   storyCharacters: [], quest: { id: 'quest_llama_blockade', title: 'Llama Roadblock', description: 'Convince the llamas to move and reach the pumpkin patch!', objectives: [

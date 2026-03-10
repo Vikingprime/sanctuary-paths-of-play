@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Maze, AnimalType, MedalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { StoryProgress } from '@/types/quest';
@@ -300,6 +300,40 @@ export const MazeGame3D = ({
   
   // Track which NPCs are currently blocked (stopped due to collision with player)
   const [npcBlockedStates, setNpcBlockedStates] = useState<Record<string, boolean>>({});
+
+  // Bait system - placed bait positions in the world
+  const [baitPositions, setBaitPositions] = useState<Array<{ id: string; x: number; y: number }>>([]);
+  const baitIdCounter = useRef(0);
+  
+  // Check if this maze has any luredByBait characters
+  const hasBaitableNPCs = useMemo(() => 
+    maze.characters?.some(c => c.luredByBait) ?? false, 
+    [maze.characters]
+  );
+  
+  // Handle bait throw - place bait 2 cells in front of player
+  const handleBaitThrow = useCallback(() => {
+    const ps = playerStateRef.current;
+    // Calculate position 2 cells ahead of player's facing direction
+    const throwDist = 2.0;
+    const baitX = ps.x + Math.sin(ps.rotation) * throwDist;
+    const baitY = ps.y + Math.cos(ps.rotation) * throwDist;
+    
+    // Check if the target position is a valid (non-wall) cell
+    const gridX = Math.floor(baitX);
+    const gridY = Math.floor(baitY);
+    if (maze.grid[gridY]?.[gridX]?.isWall) {
+      // Try 1 cell ahead instead
+      const baitX1 = ps.x + Math.sin(ps.rotation) * 1.0;
+      const baitY1 = ps.y + Math.cos(ps.rotation) * 1.0;
+      const gx1 = Math.floor(baitX1);
+      const gy1 = Math.floor(baitY1);
+      if (maze.grid[gy1]?.[gx1]?.isWall) return; // Can't place
+      setBaitPositions(prev => [...prev, { id: `bait_${baitIdCounter.current++}`, x: baitX1, y: baitY1 }]);
+    } else {
+      setBaitPositions(prev => [...prev, { id: `bait_${baitIdCounter.current++}`, x: baitX, y: baitY }]);
+    }
+  }, [maze.grid]);
 
   // Helper to find the speaker position for a dialogue
   const findSpeakerPositionForDialogue = useCallback((dialogue: DialogueTrigger | null): { x: number; y: number } | null => {
@@ -620,8 +654,47 @@ export const MazeGame3D = ({
           if (didTurn) changed = true;
         }
         
+        // Bait lure: if character is luredByBait, find nearest bait and walk toward it
+        if (char.luredByBait && baitPositions.length > 0) {
+          // Find nearest bait
+          let nearestBait: { x: number; y: number } | null = null;
+          let nearestDist = Infinity;
+          for (const bait of baitPositions) {
+            const bdx = bait.x - (state.patrolPosition.x + 0.5);
+            const bdy = bait.y - (state.patrolPosition.y + 0.5);
+            const bd = Math.sqrt(bdx * bdx + bdy * bdy);
+            if (bd < nearestDist) {
+              nearestDist = bd;
+              nearestBait = bait;
+            }
+          }
+          
+          if (nearestBait && nearestDist > 0.3) {
+            // Move toward bait at a moderate speed
+            const BAIT_SPEED = 1.2; // cells per second
+            const bdx = nearestBait.x - (state.patrolPosition.x + 0.5);
+            const bdy = nearestBait.y - (state.patrolPosition.y + 0.5);
+            const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
+            const moveAmount = BAIT_SPEED * (TICK_MS / 1000);
+            const ratio = Math.min(moveAmount / bdist, 1.0);
+            state.patrolPosition.x += bdx * ratio;
+            state.patrolPosition.y += bdy * ratio;
+            
+            // Update facing
+            if (Math.abs(bdx) > Math.abs(bdy)) {
+              state.currentDirection = bdx > 0 ? 'east' : 'west';
+            } else {
+              state.currentDirection = bdy > 0 ? 'south' : 'north';
+            }
+            changed = true;
+            newBlockedStates[char.id] = false;
+          } else {
+            // At bait - idle
+            newBlockedStates[char.id] = false;
+          }
+        }
         // Update patrol (pass player position for collision stopping)
-        if (char.patrol) {
+        else if (char.patrol) {
           const isWall = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
           const playerWorld = { x: playerStateRef.current.x, y: playerStateRef.current.y };
           const didMove = updateNPCPatrol(state, char, TICK_MS / 1000, isWall, playerWorld);
@@ -1764,6 +1837,7 @@ export const MazeGame3D = ({
         npcPositions={npcPositions}
         npcBlockedStates={npcBlockedStates}
         hideVisionCones={!visionEnabled || activeDialogue !== null}
+        baitPositions={baitPositions}
       />}
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -1870,6 +1944,9 @@ export const MazeGame3D = ({
           onAppleDrop={handleAppleDrop}
           berryCount={berryCount}
           friendshipProgress={friendshipProgress}
+          // Bait system
+          hasBait={hasBaitableNPCs}
+          onBaitThrow={handleBaitThrow}
         />
       )}
 

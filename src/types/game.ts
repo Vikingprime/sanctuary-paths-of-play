@@ -98,6 +98,8 @@ export interface MazeCharacter {
   turning?: TurningConfig;
   // Patrol behavior
   patrol?: PatrolConfig;
+  // Bait attraction - NPC will walk toward placed bait
+  luredByBait?: boolean;
 }
 
 // Defines a single item in a per-animal dialogue sequence
