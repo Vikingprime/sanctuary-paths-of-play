@@ -664,7 +664,8 @@ export const MazeGame3D = ({
     if (!maze.dialogues) return null;
     
     // Check vision zones on characters (continuous cone detection)
-    if (maze.characters) {
+    // Skip if vision disabled via debug toggle
+    if (maze.characters && visionEnabled) {
       const playerWorldX = gridX + 0.5;
       const playerWorldY = gridY + 0.5;
       for (const char of maze.characters) {
