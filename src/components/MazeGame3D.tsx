@@ -718,7 +718,7 @@ export const MazeGame3D = ({
       }
     }
     return null;
-  }, [maze.dialogues, maze.characters]);
+  }, [maze.dialogues, maze.characters, visionEnabled]);
 
   // Handle click-triggered dialogue for a specific character
   const handleCharacterClick = useCallback((characterId: string) => {
