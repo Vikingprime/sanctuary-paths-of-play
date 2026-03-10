@@ -651,7 +651,7 @@ export const MazeGame3D = ({
     }, TICK_MS);
     
     return () => clearInterval(interval);
-  }, [isPreviewing, gameOver, maze.characters, maze.grid, maze.dialogues, activeDialogue, activeAppleDialogue, postDialoguePause]);
+  }, [isPreviewing, gameOver, maze.characters, maze.grid, maze.dialogues, activeDialogue, activeAppleDialogue, postDialoguePause, visionEnabled]);
 
   const areRequirementsMet = useCallback((dialogue: DialogueTrigger): boolean => {
     if (!dialogue.requires || dialogue.requires.length === 0) return true;
