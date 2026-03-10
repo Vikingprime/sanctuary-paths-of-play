@@ -113,18 +113,21 @@ export const MiniMap = ({ maze, playerPos, isVisible, onClose, timeLeft, selecte
     return positions;
   }, [maze]);
 
-  // Find vision-cone NPCs (sparrows, foxes, etc.) to show on map
+  // Find NPCs to show on map (vision NPCs + patrolling NPCs)
   const visionNPCs = useMemo(() => {
     if (!maze.characters) return [];
     return maze.characters
-      .filter(c => c.coneVision || c.directionalVision)
-      .map(c => ({
-        x: c.position.x,
-        y: c.position.y,
-        emoji: c.emoji,
-        id: c.id,
-      }));
-  }, [maze]);
+      .filter(c => c.coneVision || c.directionalVision || c.patrol)
+      .map(c => {
+        const livePos = npcPositions[c.id];
+        return {
+          x: livePos?.x ?? c.position.x,
+          y: livePos?.y ?? c.position.y,
+          emoji: c.emoji,
+          id: c.id,
+        };
+      });
+  }, [maze, npcPositions]);
   
   const isInEndRegion = (x: number, y: number) => 
     endBounds && x >= endBounds.minX && x <= endBounds.maxX && y >= endBounds.minY && y <= endBounds.maxY;

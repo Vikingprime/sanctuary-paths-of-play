@@ -2129,6 +2129,7 @@ export const MazeGame3D = ({
         }}
         timeLeft={mapViewTimeLeft}
         selectedAnimal={animals.find(a => a.id === animalType)}
+        npcPositions={npcPositions}
       />
     </div>
   );
