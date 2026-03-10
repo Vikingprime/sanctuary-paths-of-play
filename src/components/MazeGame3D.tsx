@@ -1722,6 +1722,7 @@ export const MazeGame3D = ({
         railTurnSpeed={railTurnSpeed}
         onRailMoveComplete={handleRailStop}
         npcRotations={npcRotations}
+        hideVisionCones={!visionEnabled || activeDialogue !== null}
       />}
 
       {/* Preview overlay - shows on top while scene loads in background */}
