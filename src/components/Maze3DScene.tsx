@@ -1079,7 +1079,7 @@ const PlacedCharacter = ({
     >
       <CharacterRenderer
         modelFile={character.model}
-        position={character.position}
+        position={positionOverride ?? character.position}
         animation={character.animation}
         playerStateRef={playerStateRef}
         isDialogueActive={isDialogueActive}
