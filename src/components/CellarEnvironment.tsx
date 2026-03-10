@@ -151,9 +151,9 @@ const CellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number }) 
             <pointLight
               position={[0, -0.3, 0]}
               color="#FFE0A0"
-              intensity={1.5}
-              distance={5}
-              decay={2}
+              intensity={3}
+              distance={8}
+              decay={1.5}
               castShadow={false}
             />
           </group>
