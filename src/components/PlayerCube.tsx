@@ -488,13 +488,14 @@ export const PlayerCube = ({ animalType, position, rotation = 0, isMovingRef, is
     const HEAD_RADIUS = 0.15;
     const DEBUG_Y = 0.65;  // Raised more to overlap with head
     
-    // Use centralized yOffset from CharacterConfig
+    // Use centralized yOffset and scale from CharacterConfig
     const cowYOffset = getCharacterYOffset('Cow.glb');
+    const cowScale = getCharacterScale('Cow.glb');
     
     return (
       <group position={position}>
         <group ref={cowGroupRef} position={[0, cowYOffset, 0]}>
-          <primitive object={clonedCowScene} scale={[0.2, 0.2, 0.2]} position={[0, -0.15, 0]} />
+          <primitive object={clonedCowScene} scale={[cowScale, cowScale, cowScale]} />
         </group>
         
         {/* Debug ground plane - shows y=0 level to help adjust yOffset */}
