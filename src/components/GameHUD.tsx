@@ -314,6 +314,9 @@ interface GameHUDProps {
     nextTier: { id: string; name: string; pointsRequired: number } | null;
     progress: number;
   };
+  // Bait system
+  hasBait?: boolean;
+  onBaitThrow?: () => void;
 }
 
 export const GameHUD = ({
