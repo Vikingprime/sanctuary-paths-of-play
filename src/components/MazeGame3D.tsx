@@ -170,6 +170,7 @@ export const MazeGame3D = ({
   const [autopushEnabled, setAutopushEnabled] = useState(true);
   const [losFaderEnabled, setLosFaderEnabled] = useState(true);
   const [verboseLogging, setVerboseLogging] = useState(false);
+  const [visionEnabled, setVisionEnabled] = useState(true);
   // Feature toggles for performance testing
   const [shadowsEnabled, setShadowsEnabled] = useState(true);
   const [grassEnabled, setGrassEnabled] = useState(true);
