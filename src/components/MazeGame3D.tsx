@@ -839,8 +839,9 @@ export const MazeGame3D = ({
     
     // Find a click-triggered dialogue linked to this character
     for (const dialogue of maze.dialogues) {
-      if (triggeredDialogues.has(dialogue.id)) continue;
-      if (dialogue.triggerType !== 'click') continue;
+      // Check if this dialogue is click-triggered (explicit or via maze-level default)
+      const effectiveTriggerType = dialogue.triggerType ?? maze.dialogueTriggerMode ?? 'proximity';
+      if (effectiveTriggerType !== 'click') continue;
       if (dialogue.speakerCharacterId !== characterId) continue;
       
       // Check requirements
