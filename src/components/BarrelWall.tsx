@@ -38,9 +38,9 @@ function pickBarrelType(seed: number): number {
   return 0;
 }
 
-// Placement density — reduced 5x from original (was ROWS=3, STALKS=2, SPACING=0.38)
+// Placement density — minimal: 1 barrel per cell
 const ROWS = 1;
-const STALKS_PER_ROW = 2;
+const STALKS_PER_ROW = 1;
 const STALK_SPACING = 0.55;
 
 interface BarrelTransform {
