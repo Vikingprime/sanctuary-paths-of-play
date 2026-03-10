@@ -268,7 +268,7 @@ export const mazes: Maze[] = [
         emoji: '🧑',
         model: 'Animated_Woman.glb',
         animation: 'idle',
-        position: { x: 11, y: 2 },
+        position: { x: 11, y: 3 },
       }
     ],
     dialogues: [
@@ -277,7 +277,7 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Stella',
         speakerEmoji: '👩‍🌾',
         message: 'Hello there!',
-        cells: [{ x: 11, y: 2 }, { x: 10, y: 2 }, { x: 11, y: 3 }, { x: 10, y: 3 }],
+        cells: [{ x: 11, y: 3 }, { x: 10, y: 3 }, { x: 11, y: 4 }, { x: 10, y: 4 }],
         characterModel: 'Animated_Woman.glb',
         characterAnimation: 'idle',
       },
