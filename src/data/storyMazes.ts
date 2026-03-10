@@ -1018,7 +1018,7 @@ const act2_6_Scavenger2: StoryMaze = {
   ], rewards: { stars: 15, medal: true } },
   dialogues: [
     { id: 'marker1_check', speaker: 'You', speakerEmoji: '🐷', message: "Footprints lead east... and there's a feather pointing south!", cells: [{ x: 5, y: 4 }, { x: 6, y: 4 }, { x: 6, y: 3 }], speakerCharacterId: 'marker_1', questAction: { type: 'complete_objective', objectiveId: 'find_marker1' } },
-    { id: 'marker2_check', speaker: 'You', speakerEmoji: '🐷', message: "More tracks! The stash must be close...", cells: [{ x: 9, y: 8 }, { x: 10, y: 8 }, { x: 10, y: 7 }], speakerCharacterId: 'marker_2', requires: ['marker1_check'], questAction: { type: 'complete_objective', objectiveId: 'find_marker2' } },
+    { id: 'marker2_check', speaker: 'You', speakerEmoji: '🐷', message: "More tracks! The stash must be close...", cells: [{ x: 8, y: 8 }, { x: 9, y: 8 }, { x: 8, y: 7 }], speakerCharacterId: 'marker_2', requires: ['marker1_check'], questAction: { type: 'complete_objective', objectiveId: 'find_marker2' } },
     { id: 'stash_found', speaker: 'You', speakerEmoji: '🐷', message: "Found the stash! More clues inside about the shiny thing...", cells: [{ x: 13, y: 10 }, { x: 14, y: 10 }, { x: 14, y: 9 }], speakerCharacterId: 'stash_marker', requires: ['marker2_check'], questAction: { type: 'complete_objective', objectiveId: 'find_stash' } },
   ],
   endConditions: { requiredDialogues: ['stash_found'] },
