@@ -626,15 +626,13 @@ export const MazeGame3D = ({
         newRotations[char.id] = directionToRotation(state.currentDirection);
       }
       
-      if (changed) {
-        setNpcRotations({ ...newRotations });
-        // Update patrol positions for rendering
-        const newPositions: Record<string, { x: number; y: number }> = {};
-        for (const [id, state] of states.entries()) {
-          newPositions[id] = { x: state.patrolPosition.x, y: state.patrolPosition.y };
-        }
-        setNpcPositions(newPositions);
+      // Always update positions (patrol moves continuously)
+      setNpcRotations({ ...newRotations });
+      const newPositions: Record<string, { x: number; y: number }> = {};
+      for (const [id, state] of states.entries()) {
+        newPositions[id] = { x: state.patrolPosition.x, y: state.patrolPosition.y };
       }
+      setNpcPositions(newPositions);
       
       // After updating NPC states, check if player is now in any vision cone
       // Skip detection if vision is disabled (debug toggle) or dialogue is active

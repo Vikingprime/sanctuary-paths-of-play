@@ -10,9 +10,10 @@ interface MiniMapProps {
   onClose: () => void;
   timeLeft?: number | null;
   selectedAnimal?: Animal;
+  npcPositions?: Record<string, { x: number; y: number }>;
 }
 
-export const MiniMap = ({ maze, playerPos, isVisible, onClose, timeLeft, selectedAnimal }: MiniMapProps) => {
+export const MiniMap = ({ maze, playerPos, isVisible, onClose, timeLeft, selectedAnimal, npcPositions = {} }: MiniMapProps) => {
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
   
   // Pulsing animation state
