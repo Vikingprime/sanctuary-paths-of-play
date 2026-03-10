@@ -292,3 +292,63 @@ export function extractSpineFineCells<T extends FineGridCellLike>(fineGrid: T[][
 
   return fineCells;
 }
+
+/**
+ * Trim N fine cells from each branch endpoint (dead-end).
+ * This prevents the player from starting/ending pressed against walls.
+ * Only trims from endpoints (cells with exactly 1 neighbor), not from junction nodes.
+ */
+export function trimSpineEndpoints<T extends FineGridCellLike>(
+  fineGrid: T[][],
+  trimCount: number
+): void {
+  if (trimCount <= 0) return;
+  
+  const cells = extractSpineFineCells(fineGrid);
+  if (cells.length === 0) return;
+  
+  const cellSet = createSpineFineCellSet(cells);
+  
+  // Find all endpoints (cells with exactly 1 skeleton neighbor)
+  const endpoints: SpineFineCellCoordinate[] = [];
+  for (const cell of cells) {
+    const neighbors = getNeighborSpineFineCells(cell, cellSet);
+    if (neighbors.length === 1) {
+      endpoints.push(cell);
+    }
+  }
+  
+  // For each endpoint, walk inward and remove up to trimCount cells
+  for (const endpoint of endpoints) {
+    let current = endpoint;
+    let prev: SpineFineCellCoordinate | null = null;
+    
+    for (let i = 0; i < trimCount; i++) {
+      const key = getSpineFineCellKey(current.x, current.y);
+      if (!cellSet.has(key)) break;
+      
+      // Get neighbors of current cell (excluding prev)
+      const neighbors = getNeighborSpineFineCells(current, cellSet);
+      const nextNeighbors = prev 
+        ? neighbors.filter(n => n.x !== prev!.x || n.y !== prev!.y)
+        : neighbors;
+      
+      // Remove current cell
+      const fineCell = fineGrid[current.y]?.[current.x];
+      if (fineCell) {
+        fineCell.isSkeleton = false;
+        if ('isSpur' in fineCell) fineCell.isSpur = false;
+      }
+      cellSet.delete(key);
+      
+      // Move to next cell (if it has exactly 1 remaining neighbor after removal, it's still a chain)
+      if (nextNeighbors.length === 0) break;
+      prev = current;
+      current = nextNeighbors[0];
+      
+      // Stop if we've reached a junction (don't trim past junctions)
+      const currentNeighbors = getNeighborSpineFineCells(current, cellSet);
+      if (currentNeighbors.length > 1) break; // Junction - stop trimming
+    }
+  }
+}
