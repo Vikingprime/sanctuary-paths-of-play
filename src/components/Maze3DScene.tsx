@@ -1184,13 +1184,13 @@ const VisionConeOverlay = ({
     geom.setAttribute('position', new Float32BufferAttribute(new Float32Array(fanVertices), 3));
     geom.computeVertexNormals();
     return geom;
-  }, [character.coneVision, character.position, rotationOverride, maze]);
+  }, [character.coneVision, character.position, positionOverride, rotationOverride, maze]);
   
   if (!coneGeometry) return null;
   
   
   
-  const pos = character.position;
+  const pos = positionOverride ?? character.position;
   
   // Characters render at (pos.x + 0.5, pos.y + 0.5) - center of grid cell
   const cx = pos.x + 0.5;
