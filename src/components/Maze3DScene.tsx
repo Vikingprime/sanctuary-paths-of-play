@@ -3059,6 +3059,7 @@ return (
           onClick={onCharacterClick}
           rotationOverride={npcRotations[character.id]}
           positionOverride={npcPositions[character.id]}
+          isBlocked={npcBlockedStates[character.id]}
         />
       ))}
       
