@@ -253,6 +253,7 @@ export const MazeGame3D = ({
   const [activeDialogue, setActiveDialogue] = useState<DialogueTrigger | null>(null);
   const [triggeredDialogues, setTriggeredDialogues] = useState<Set<string>>(new Set());
   const triggeredDialoguesRef = useRef<Set<string>>(triggeredDialogues);
+  useEffect(() => { triggeredDialoguesRef.current = triggeredDialogues; }, [triggeredDialogues]);
   const [dialogueMessageIndex, setDialogueMessageIndex] = useState(0); // For multi-message dialogues
   const [postDialoguePause, setPostDialoguePause] = useState(false); // Pause after dialogue ends until player clicks to resume
   
