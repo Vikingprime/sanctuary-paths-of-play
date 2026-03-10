@@ -33,6 +33,7 @@ import {
   isPointInVisionCone,
   NPCRuntimeState,
 } from '@/game/NPCRuntime';
+import { validateMazeVisionSafety } from '@/game/VisionSafetyValidator';
 
 // Import pure game logic (Unity-portable)
 import {
