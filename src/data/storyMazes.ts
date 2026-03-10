@@ -650,27 +650,40 @@ const chapter6PumpkinHunt: StoryMaze = {
 };
 
 // === ACT 1 LEVEL 7: Llama Roadblock ===
+// Llamas must be ON the spine so they physically block the main path.
+// Player uses bait (🥕) to lure them into side alcoves.
 const chapter7LlamaBlockade: StoryMaze = {
   id: 107, name: "Llama Roadblock", chapterId: 'llama_blockade', difficulty: 'medium',
   timeLimit: 200, timerDisabled: true, previewTime: 10, medalTimes: { gold: 60, silver: 90, bronze: 120 },
   characters: [
-    { id: 'llama_1', name: 'Llama', emoji: '🦙', model: 'Cow.glb', animation: 'idle', position: { x: 5, y: 5 }, luredByBait: true },
-    { id: 'llama_2', name: 'Llama', emoji: '🦙', model: 'Cow.glb', animation: 'idle', position: { x: 10, y: 7 }, luredByBait: true },
+    // Llama 1 blocks the left gap chokepoint at row 3-4, col 4-5
+    { id: 'llama_1', name: 'Llama', emoji: '🦙', model: 'Cow.glb', animation: 'idle', position: { x: 4, y: 4 }, luredByBait: true },
+    // Llama 2 blocks the right gap chokepoint at row 7-8, col 14-15
+    { id: 'llama_2', name: 'Llama', emoji: '🦙', model: 'Cow.glb', animation: 'idle', position: { x: 14, y: 7 }, luredByBait: true },
     { id: 'pumpkin_patch', name: 'Pumpkin Patch', emoji: '🎃', model: 'Bush_with_Berries.glb', animation: 'idle', position: { x: 14, y: 10 } },
   ],
-  storyCharacters: [], quest: { id: 'quest_llama_blockade', title: 'Llama Roadblock', description: 'Convince the llamas to move and reach the pumpkin patch!', objectives: [
-    { id: 'talk_llama', type: 'talk_to', description: 'Talk to the llama', targetCharacterId: 'llama_1', completed: false },
+  storyCharacters: [], quest: { id: 'quest_llama_blockade', title: 'Llama Roadblock', description: 'Use bait to lure the llamas out of your path!', objectives: [
     { id: 'reach_pumpkins', type: 'talk_to', description: 'Reach the pumpkin patch', targetCharacterId: 'pumpkin_patch', completed: false },
   ], rewards: { stars: 12, medal: true } },
   dialogues: [
-    { id: 'llama1_talk', speaker: 'Llama', speakerEmoji: '🦙', message: "*chews slowly* Fine, I'll move. Only because you said please.", cells: [{ x: 4, y: 5 }, { x: 5, y: 5 }, { x: 5, y: 4 }, { x: 6, y: 5 }], speakerCharacterId: 'llama_1', questAction: { type: 'complete_objective', objectiveId: 'talk_llama' } },
-    { id: 'patch_found', speaker: 'You', speakerEmoji: '🐷', message: "Found the pumpkin patch! 🎃", cells: [{ x: 13, y: 10 }, { x: 14, y: 10 }, { x: 14, y: 9 }], speakerCharacterId: 'pumpkin_patch', requires: ['llama1_talk'], questAction: { type: 'complete_objective', objectiveId: 'reach_pumpkins' } },
+    { id: 'patch_found', speaker: 'You', speakerEmoji: '🐷', message: "Found the pumpkin patch! 🎃", cells: [{ x: 13, y: 10 }, { x: 14, y: 10 }, { x: 15, y: 10 }], speakerCharacterId: 'pumpkin_patch', questAction: { type: 'complete_objective', objectiveId: 'reach_pumpkins' } },
   ],
-  endConditions: { requiredDialogues: ['llama1_talk', 'patch_found'] },
+  endConditions: { requiredDialogues: ['patch_found'] },
+  // 20x12 grid with 2-wide corridors. Llamas block the only chokepoints.
+  // Side alcoves next to chokepoints give space to throw bait into.
   grid: createGrid([
-    '##################', '##SS        ######', '##    ##    ######', '####  ##      ####',
-    '####            ##', '##        ##    ##', '##    ##  ##  ####', '####  ##      ####',
-    '####        ##  ##', '##    ####  ##  ##', '##    ####      ##', '##################',
+    '####################',
+    '##SS            ####',
+    '##              ####',
+    '####  ########  ####',
+    '####  ########  ####',
+    '##                ##',
+    '##                ##',
+    '####  ########  ####',
+    '####  ########  ####',
+    '##              ####',
+    '##            EE####',
+    '####################',
   ]),
 };
 
