@@ -301,6 +301,40 @@ export const MazeGame3D = ({
   // Track which NPCs are currently blocked (stopped due to collision with player)
   const [npcBlockedStates, setNpcBlockedStates] = useState<Record<string, boolean>>({});
 
+  // Bait system - placed bait positions in the world
+  const [baitPositions, setBaitPositions] = useState<Array<{ id: string; x: number; y: number }>>([]);
+  const baitIdCounter = useRef(0);
+  
+  // Check if this maze has any luredByBait characters
+  const hasBaitableNPCs = useMemo(() => 
+    maze.characters?.some(c => c.luredByBait) ?? false, 
+    [maze.characters]
+  );
+  
+  // Handle bait throw - place bait 2 cells in front of player
+  const handleBaitThrow = useCallback(() => {
+    const ps = playerStateRef.current;
+    // Calculate position 2 cells ahead of player's facing direction
+    const throwDist = 2.0;
+    const baitX = ps.x + Math.sin(ps.rotation) * throwDist;
+    const baitY = ps.y + Math.cos(ps.rotation) * throwDist;
+    
+    // Check if the target position is a valid (non-wall) cell
+    const gridX = Math.floor(baitX);
+    const gridY = Math.floor(baitY);
+    if (maze.grid[gridY]?.[gridX]?.isWall) {
+      // Try 1 cell ahead instead
+      const baitX1 = ps.x + Math.sin(ps.rotation) * 1.0;
+      const baitY1 = ps.y + Math.cos(ps.rotation) * 1.0;
+      const gx1 = Math.floor(baitX1);
+      const gy1 = Math.floor(baitY1);
+      if (maze.grid[gy1]?.[gx1]?.isWall) return; // Can't place
+      setBaitPositions(prev => [...prev, { id: `bait_${baitIdCounter.current++}`, x: baitX1, y: baitY1 }]);
+    } else {
+      setBaitPositions(prev => [...prev, { id: `bait_${baitIdCounter.current++}`, x: baitX, y: baitY }]);
+    }
+  }, [maze.grid]);
+
   // Helper to find the speaker position for a dialogue
   const findSpeakerPositionForDialogue = useCallback((dialogue: DialogueTrigger | null): { x: number; y: number } | null => {
     if (!dialogue || !maze.dialogues) return null;
