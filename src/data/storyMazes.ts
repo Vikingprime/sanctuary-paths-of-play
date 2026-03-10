@@ -836,21 +836,21 @@ const chapter15LightsOut: StoryMaze = {
   id: 115, name: "Lights Out", chapterId: 'porcupine_dark', difficulty: 'hard',
   timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 70, silver: 100, bronze: 140 },
   characters: [
-    { id: 'porcupine_final', name: 'Porcupine Boss', emoji: '🦔', model: 'Squirrel.glb', animation: 'idle', position: { x: 16, y: 12 } },
-    { id: 'fox_dark_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 8, y: 5 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 8, y: 4 }, { x: 8, y: 8 }], speedCellsPerSec: 0.8 } },
-    { id: 'fox_dark_2', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 12, y: 8 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['north', 'west'], intervalMs: 2500 } },
+    { id: 'porcupine_final', name: 'Porcupine Boss', emoji: '🦔', model: 'Squirrel.glb', animation: 'idle', position: { x: 14, y: 10 } },
+    { id: 'fox_dark_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 6, y: 7 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 5 }, { x: 6, y: 9 }], speedCellsPerSec: 0.8 } },
+    { id: 'fox_dark_2', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 10, y: 5 }, visionDialogueId: 'fox_caught_dark', coneVision: { range: 3, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['north', 'west'], intervalMs: 2500 } },
   ],
   storyCharacters: [], quest: { id: 'quest_porcupine_dark', title: 'Lights Out', description: "Navigate through darkness past foxes to reach Porcupine Boss.", objectives: [{ id: 'reach_porcupine_dark', type: 'talk_to', description: 'Reach Porcupine Boss', targetCharacterId: 'porcupine_final', completed: false }], rewards: { stars: 25, medal: true } },
   dialogues: [
     { id: 'fox_caught_dark', speaker: 'Fox', speakerEmoji: '🦊', message: "I can see in the dark, little one!", cells: [], speakerCharacterId: 'fox_dark_1', effect: 'game_over' },
-    { id: 'porcupine_final_talk', speaker: 'Porcupine Boss', speakerEmoji: '🦔', message: "Impressive! The suspects are ferrets, raccoon, sheep, skunk, and goat.", messages: [{ speaker: 'Porcupine Boss', speakerEmoji: '🦔', message: "Investigate them all. The truth is out there... somewhere in the fog." }], cells: [{ x: 15, y: 12 }, { x: 16, y: 12 }, { x: 16, y: 11 }], speakerCharacterId: 'porcupine_final', questAction: { type: 'complete_objective', objectiveId: 'reach_porcupine_dark' } },
+    { id: 'porcupine_final_talk', speaker: 'Porcupine Boss', speakerEmoji: '🦔', message: "Impressive! The suspects are ferrets, raccoon, sheep, skunk, and goat.", messages: [{ speaker: 'Porcupine Boss', speakerEmoji: '🦔', message: "Investigate them all. The truth is out there... somewhere in the fog." }], cells: [{ x: 13, y: 10 }, { x: 14, y: 10 }, { x: 14, y: 9 }], speakerCharacterId: 'porcupine_final', questAction: { type: 'complete_objective', objectiveId: 'reach_porcupine_dark' } },
   ],
   endConditions: { requiredDialogues: ['porcupine_final_talk'] },
   grid: createGrid([
-    '####################', '##SS          ######', '##    ####    ######', '####  ####        ##',
-    '####              ##', '##    ##    ####  ##', '##    ##    ####  ##', '####          ######',
-    '####  ##      ######', '##    ##  ####    ##', '##        ####    ##', '####          ##  ##',
-    '####          ##  ##', '####################',
+    '####################', '##SS        ########', '##          ########', '##  ######  ########',
+    '##  ######  ########', '##  ##      ########', '##  ##      ########', '######  ############',
+    '######  ############', '######          ####', '######        EE####', '####################',
+    '####################', '####################',
   ]),
 };
 
