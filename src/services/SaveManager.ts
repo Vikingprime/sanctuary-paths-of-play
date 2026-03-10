@@ -7,7 +7,7 @@ const SAVE_FILENAME = 'sanctuary_run_save.json';
 
 class SaveManagerClass {
   private cache: SaveData | null = null;
-  private saveTimeout: NodeJS.Timeout | null = null;
+  private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
   async load(): Promise<SaveData> {
     if (this.cache) return this.cache;
