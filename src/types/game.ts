@@ -174,6 +174,7 @@ export interface Maze {
   spineEndpointTrim?: number; // Number of fine cells to trim from each branch endpoint (prevents player starting pressed against walls)
   obstacles?: MazeObstacle[]; // Placed obstacles (logs, etc.) that can block LOS
   theme?: MazeTheme; // Visual theme: 'corn' (default) or 'cellar' (barrels, dark room)
+  dialogueTriggerMode?: 'proximity' | 'click'; // Default trigger mode for all dialogues (individual dialogues can override)
 }
 
 export interface GameState {
