@@ -1181,7 +1181,7 @@ const act2_12_FireflyBoss2: StoryMaze = {
       dialogueSequence: [{ type: 'normal', id: 'raccoon_truth' }] },
     { id: 'night_bird_1', name: 'Night Bird', emoji: '🦉', model: 'Sparrow.glb', animation: 'idle', position: { x: 6, y: 4 },
       visionDialogueId: 'night_bird_caught', coneVision: { range: 4, spreadPerCell: 1 },
-      patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 3 }, { x: 6, y: 8 }], speedCellsPerSec: 1.2 } },
+      patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 4 }, { x: 14, y: 4 }], speedCellsPerSec: 1.2 } },
     { id: 'night_bird_2', name: 'Night Bird', emoji: '🦉', model: 'Sparrow.glb', animation: 'idle', position: { x: 14, y: 7 },
       visionDialogueId: 'night_bird_caught', coneVision: { range: 4, spreadPerCell: 1 },
       turning: { pattern: 'ping-pong', directions: ['west', 'south'], intervalMs: 2000 } },
