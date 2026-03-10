@@ -87,6 +87,73 @@ export function updateNPCTurning(state: NPCRuntimeState, character: MazeCharacte
 }
 
 /**
+ * Continuous cone detection: checks if a world-space point is inside the NPC's vision cone,
+ * using ray-marching to respect wall occlusion (matches the visual cone overlay exactly).
+ */
+export function isPointInVisionCone(
+  npcGridPos: { x: number; y: number },
+  targetWorldPos: { x: number; y: number },
+  config: ConeVisionConfig,
+  direction: CardinalDirection,
+  grid: { isWall?: boolean }[][]
+): boolean {
+  const cx = npcGridPos.x + 0.5; // NPC center in world coords
+  const cz = npcGridPos.y + 0.5;
+  
+  // Calculate cone half-angle (must match VisionConeOverlay)
+  const farHalfWidth = config.spreadPerCell * (config.range - 1) + 0.5;
+  const halfAngle = Math.atan2(farHalfWidth, config.range);
+  
+  // Forward direction angle in XZ plane (must match VisionConeOverlay)
+  let baseAngle: number;
+  switch (direction) {
+    case 'south': baseAngle = Math.PI / 2; break;
+    case 'north': baseAngle = -Math.PI / 2; break;
+    case 'east':  baseAngle = 0; break;
+    case 'west':  baseAngle = Math.PI; break;
+  }
+  
+  // Vector from NPC to target
+  const dx = targetWorldPos.x - cx;
+  const dz = targetWorldPos.y - cz;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  
+  if (dist < 0.1) return false; // Too close (on top of NPC)
+  
+  const maxDist = config.range + 0.5;
+  if (dist > maxDist) return false; // Out of range
+  
+  // Check angle
+  const angleToTarget = Math.atan2(dz, dx);
+  let angleDiff = angleToTarget - baseAngle;
+  // Normalize to [-PI, PI]
+  while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+  while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+  
+  if (Math.abs(angleDiff) > halfAngle) return false; // Outside cone angle
+  
+  // Ray-march from NPC toward target to check for wall occlusion
+  const stepSize = 0.12;
+  const dirX = dx / dist;
+  const dirZ = dz / dist;
+  const gridHeight = grid.length;
+  const gridWidth = grid[0]?.length ?? 0;
+  
+  for (let d = stepSize; d < dist; d += stepSize) {
+    const wx = cx + dirX * d;
+    const wz = cz + dirZ * d;
+    const gx = Math.floor(wx);
+    const gz = Math.floor(wz);
+    
+    if (gz < 0 || gz >= gridHeight || gx < 0 || gx >= gridWidth || grid[gz]?.[gx]?.isWall) {
+      return false; // Wall blocks LOS
+    }
+  }
+  
+  return true;
+}
+
+/**
  * Get the world-space rotation (Y-axis) for a cardinal direction.
  * 0 = facing +Z (south in grid coords), PI = facing -Z (north)
  */
