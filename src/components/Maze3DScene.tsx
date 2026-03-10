@@ -1101,6 +1101,11 @@ const VisionConeOverlay = ({
     if (!character.coneVision) return null;
     
     const { range, spreadPerCell } = character.coneVision;
+    const pos = character.position;
+    
+    // Calculate cone half-angle from spread parameters
+    const farHalfWidth = spreadPerCell * (range - 1) + 0.5;
+    const halfAngle = Math.atan2(farHalfWidth, range);
     
     // Determine direction
     let direction: 'north' | 'south' | 'east' | 'west' = 'south';
@@ -1112,47 +1117,65 @@ const VisionConeOverlay = ({
       else direction = 'east';
     }
     
-    // Build triangle vertices in local space (relative to character position)
-    // Tip at character center (0,0,0), widens to match cone spread at far end
-    const farHalfWidth = spreadPerCell * (range - 1) + 0.5; // Match generateConeVisionOffsets formula
-    const farDist = range;
-    
-    // Define triangle points based on direction (in XZ plane)
-    // Tip is always at character center (0,0,0)
-    const tip: [number, number, number] = [0, 0, 0];
-    let left: [number, number, number];
-    let right: [number, number, number];
-    
+    // Forward direction angle in XZ plane
+    let baseAngle: number;
     switch (direction) {
-      case 'north':
-        left = [-farHalfWidth, 0, -farDist];
-        right = [farHalfWidth, 0, -farDist];
-        break;
-      case 'south':
-        left = [farHalfWidth, 0, farDist];
-        right = [-farHalfWidth, 0, farDist];
-        break;
-      case 'east':
-        left = [farDist, 0, -farHalfWidth];
-        right = [farDist, 0, farHalfWidth];
-        break;
-      case 'west':
-      default:
-        left = [-farDist, 0, farHalfWidth];
-        right = [-farDist, 0, -farHalfWidth];
-        break;
+      case 'south': baseAngle = Math.PI / 2; break;   // +Z
+      case 'north': baseAngle = -Math.PI / 2; break;  // -Z
+      case 'east':  baseAngle = 0; break;              // +X
+      case 'west':  baseAngle = Math.PI; break;        // -X
+    }
+    
+    // Ray-march across the cone to find wall intersections
+    const rayCount = 48;
+    const maxDist = range + 0.5;
+    const stepSize = 0.12;
+    const rayEndpoints: [number, number][] = [];
+    
+    // NPC center in world coords
+    const cx = pos.x + 0.5;
+    const cz = pos.y + 0.5;
+    const gridHeight = maze.grid.length;
+    const gridWidth = maze.grid[0]?.length ?? 0;
+    
+    for (let i = 0; i <= rayCount; i++) {
+      const t = i / rayCount;
+      const angle = baseAngle - halfAngle + t * 2 * halfAngle;
+      const dirX = Math.cos(angle);
+      const dirZ = Math.sin(angle);
+      
+      // March ray until wall or max distance
+      let hitDist = maxDist;
+      for (let d = stepSize; d <= maxDist; d += stepSize) {
+        const wx = cx + dirX * d;
+        const wz = cz + dirZ * d;
+        const gx = Math.floor(wx);
+        const gz = Math.floor(wz);
+        
+        // Out of bounds or wall cell = stop ray
+        if (gz < 0 || gz >= gridHeight || gx < 0 || gx >= gridWidth || maze.grid[gz]?.[gx]?.isWall) {
+          hitDist = d - stepSize * 0.5; // Pull back slightly to not overlap wall
+          break;
+        }
+      }
+      
+      // Store endpoint in local space (relative to NPC center)
+      rayEndpoints.push([dirX * hitDist, dirZ * hitDist]);
+    }
+    
+    // Build triangle fan from center to adjacent ray endpoint pairs
+    const fanVertices: number[] = [];
+    for (let i = 0; i < rayCount; i++) {
+      fanVertices.push(0, 0, 0);
+      fanVertices.push(rayEndpoints[i][0], 0, rayEndpoints[i][1]);
+      fanVertices.push(rayEndpoints[i + 1][0], 0, rayEndpoints[i + 1][1]);
     }
     
     const geom = new BufferGeometry();
-    const vertices = new Float32Array([
-      tip[0], tip[1], tip[2],
-      left[0], left[1], left[2],
-      right[0], right[1], right[2],
-    ]);
-    geom.setAttribute('position', new Float32BufferAttribute(vertices, 3));
+    geom.setAttribute('position', new Float32BufferAttribute(new Float32Array(fanVertices), 3));
     geom.computeVertexNormals();
     return geom;
-  }, [character.coneVision, rotationOverride]);
+  }, [character.coneVision, character.position, rotationOverride, maze]);
   
   if (!coneGeometry) return null;
   
