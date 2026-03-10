@@ -660,19 +660,19 @@ export const MazeGame3D = ({
   const checkDialogueAtCell = useCallback((gridX: number, gridY: number, currentTriggered: Set<string>): DialogueTrigger | null => {
     if (!maze.dialogues) return null;
     
-    // Check vision zones on characters
+    // Check vision zones on characters (continuous cone detection)
     if (maze.characters) {
+      const playerWorldX = gridX + 0.5;
+      const playerWorldY = gridY + 0.5;
       for (const char of maze.characters) {
         if (!char.visionDialogueId) continue;
         if (currentTriggered.has(char.visionDialogueId)) continue;
+        if (!char.coneVision) continue;
         
-        // Resolve active vision cells with wall blocking
         const npcState = npcRuntimeStatesRef.current.get(char.id);
-        const isWallFn = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
-        const activeCells = resolveVisionCells(char, npcState, isWallFn);
-        if (activeCells.length === 0) continue;
-        
-        const inVision = activeCells.some(cell => cell.x === gridX && cell.y === gridY);
+        const direction = npcState?.currentDirection ?? 'south';
+        const npcPos = npcState?.patrolPosition ?? char.position;
+        const inVision = isPointInVisionCone(npcPos, { x: playerWorldX, y: playerWorldY }, char.coneVision, direction, maze.grid);
         if (inVision) {
           const visionDialogue = maze.dialogues.find(d => d.id === char.visionDialogueId);
           if (visionDialogue && !currentTriggered.has(visionDialogue.id)) {
