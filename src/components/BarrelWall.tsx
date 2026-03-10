@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { Object3D, InstancedMesh as ThreeInstancedMesh, BufferGeometry, Material, Box3, Vector3 } from 'three';
+import { Object3D, InstancedMesh as ThreeInstancedMesh, BufferGeometry, Material, Box3, Vector3, Group } from 'three';
 import { useGLTF } from '@react-three/drei';
 
 // Preload all barrel models
@@ -8,12 +8,12 @@ useGLTF.preload('/models/Barrel_1.glb');
 useGLTF.preload('/models/Beer_Keg.glb');
 useGLTF.preload('/models/Keg.glb');
 
-// Better seeded random (integer hash) to ensure variety
+// Integer hash for variety
 const seededRandom = (seed: number): number => {
-  let s = (seed * 2654435761) >>> 0;
-  s = ((s >> 16) ^ s) * 0x45d9f3b >>> 0;
-  s = ((s >> 16) ^ s) >>> 0;
-  return s / 0xffffffff;
+  let s = Math.imul(seed | 0, 2654435761) >>> 0;
+  s = Math.imul((s >>> 16) ^ s, 0x45d9f3b) >>> 0;
+  s = ((s >>> 16) ^ s) >>> 0;
+  return s / 4294967295;
 };
 
 // Barrel type config
@@ -50,24 +50,32 @@ interface BarrelTransform {
   typeIndex: number;
 }
 
+interface MeshParts {
+  geometry: BufferGeometry;
+  material: Material;
+}
+
 interface InstancedBarrelWallsProps {
   edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[];
   noShadowPositions?: { x: number; z: number; avoidEdges?: ('left' | 'right' | 'top' | 'bottom')[] }[];
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
 }
 
-export const InstancedBarrelWalls = ({ 
-  edgePositions, 
-  noShadowPositions = [], 
-  boundaryPositions = [] 
+export const InstancedBarrelWalls = ({
+  edgePositions,
+  noShadowPositions = [],
+  boundaryPositions = [],
 }: InstancedBarrelWallsProps) => {
+  const groupRef = useRef<Group>(null);
+  const createdRef = useRef(false);
+
   const barrel0 = useGLTF(BARREL_TYPES[0].model);
   const barrel1 = useGLTF(BARREL_TYPES[1].model);
   const barrel2 = useGLTF(BARREL_TYPES[2].model);
   const barrel3 = useGLTF(BARREL_TYPES[3].model);
   const models = [barrel0, barrel1, barrel2, barrel3];
 
-  // Compute bounding boxes per type for correct ground placement
+  // Compute bounding boxes per type for ground placement
   const typeMetrics = useMemo(() => {
     return models.map((model) => {
       const box = new Box3();
@@ -83,38 +91,51 @@ export const InstancedBarrelWalls = ({
       });
       const size = new Vector3();
       box.getSize(size);
-      return { 
-        minY: box.min.y, 
-        height: size.y,
+      return {
+        minY: isFinite(box.min.y) ? box.min.y : 0,
+        height: isFinite(size.y) ? size.y : 1,
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barrel0, barrel1, barrel2, barrel3]);
 
-  // Generate barrel positions mirroring corn stalk placement
+  // Extract cloned mesh parts per type (clone to avoid shared material issues)
+  const meshPartsPerType = useMemo(() => {
+    return models.map((model) => {
+      const parts: MeshParts[] = [];
+      model.scene.traverse((child: any) => {
+        if (child.isMesh) {
+          parts.push({
+            geometry: child.geometry.clone(),
+            material: child.material.clone(),
+          });
+        }
+      });
+      return parts;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barrel0, barrel1, barrel2, barrel3]);
+
+  // Generate barrel transforms mirroring corn stalk placement
   const transforms = useMemo(() => {
     const result: BarrelTransform[] = [];
 
-    // Helper: place barrels in a grid pattern within a cell (like corn stalks)
     const placeBarrelsInCell = (
-      centerX: number, centerZ: number, 
+      centerX: number, centerZ: number,
       baseSeed: number,
       skipEdges?: ('left' | 'right' | 'top' | 'bottom')[]
     ) => {
       const edgeZone = 0.35;
-      
       for (let row = 0; row < ROWS; row++) {
         const stalksInRow = STALKS_PER_ROW + (row % 2);
         const rowOffset = (row % 2) * (STALK_SPACING / 2);
-
         for (let col = 0; col < stalksInRow; col++) {
           const stalkSeed = baseSeed + row * 100 + col * 13;
-          let offsetX = (col - (stalksInRow - 1) / 2) * STALK_SPACING + rowOffset;
-          let offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
+          const offsetX = (col - (stalksInRow - 1) / 2) * STALK_SPACING + rowOffset;
+          const offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
           const jitterX = (seededRandom(stalkSeed + 1) - 0.5) * 0.1;
           const jitterZ = (seededRandom(stalkSeed + 2) - 0.5) * 0.1;
 
-          // Skip barrels that are too close to avoided edges
           if (skipEdges) {
             const fx = offsetX + jitterX;
             const fz = offsetZ + jitterZ;
@@ -126,16 +147,14 @@ export const InstancedBarrelWalls = ({
 
           const typeIndex = pickBarrelType(stalkSeed + 7);
           const baseScale = BARREL_TYPES[typeIndex].baseScale;
-          const scaleVar = 0.85 + seededRandom(stalkSeed + 3) * 0.3;
-          const scale = baseScale * scaleVar;
+          const scale = baseScale * (0.85 + seededRandom(stalkSeed + 3) * 0.3);
           const groundY = -typeMetrics[typeIndex].minY * scale;
-          const rotation = seededRandom(stalkSeed + 4) * Math.PI * 2;
 
           result.push({
             x: centerX + offsetX + jitterX,
             y: groundY,
             z: centerZ + offsetZ + jitterZ,
-            rotation,
+            rotation: seededRandom(stalkSeed + 4) * Math.PI * 2,
             scale,
             typeIndex,
           });
@@ -143,7 +162,6 @@ export const InstancedBarrelWalls = ({
       }
     };
 
-    // Helper: place edge barrels (only along specific edges of a cell)
     const placeEdgeBarrels = (
       centerX: number, centerZ: number,
       edges: ('left' | 'right' | 'top' | 'bottom')[],
@@ -152,9 +170,7 @@ export const InstancedBarrelWalls = ({
       edges.forEach((edge, edgeIdx) => {
         for (let col = 0; col < STALKS_PER_ROW; col++) {
           const stalkSeed = baseSeed + edgeIdx * 1000 + col * 13;
-          
-          let offsetX = 0;
-          let offsetZ = 0;
+          let offsetX = 0, offsetZ = 0;
           const edgeOffset = 0.42;
           const colOffset = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING;
 
@@ -167,19 +183,16 @@ export const InstancedBarrelWalls = ({
 
           const jitterX = (seededRandom(stalkSeed + 1) - 0.5) * 0.1;
           const jitterZ = (seededRandom(stalkSeed + 2) - 0.5) * 0.1;
-
           const typeIndex = pickBarrelType(stalkSeed + 7);
           const baseScale = BARREL_TYPES[typeIndex].baseScale;
-          const scaleVar = 0.85 + seededRandom(stalkSeed + 3) * 0.3;
-          const scale = baseScale * scaleVar;
+          const scale = baseScale * (0.85 + seededRandom(stalkSeed + 3) * 0.3);
           const groundY = -typeMetrics[typeIndex].minY * scale;
-          const rotation = seededRandom(stalkSeed + 4) * Math.PI * 2;
 
           result.push({
             x: centerX + offsetX + jitterX,
             y: groundY,
             z: centerZ + offsetZ + jitterZ,
-            rotation,
+            rotation: seededRandom(stalkSeed + 4) * Math.PI * 2,
             scale,
             typeIndex,
           });
@@ -187,16 +200,14 @@ export const InstancedBarrelWalls = ({
       });
     };
 
-    // Edge positions: barrels along path-facing edges
+    // Edge positions
     edgePositions.forEach((pos) => {
-      const baseSeed = pos.x * 1000 + pos.z;
-      placeEdgeBarrels(pos.x + 0.5, pos.z + 0.5, pos.edges, baseSeed);
+      placeEdgeBarrels(pos.x + 0.5, pos.z + 0.5, pos.edges, pos.x * 1000 + pos.z);
     });
 
-    // Interior/depth walls: fill entire cell, avoiding certain edges
+    // Interior/depth walls
     noShadowPositions.forEach((pos) => {
-      const baseSeed = pos.x * 1000 + pos.z + 10000;
-      placeBarrelsInCell(pos.x + 0.5, pos.z + 0.5, baseSeed, pos.avoidEdges);
+      placeBarrelsInCell(pos.x + 0.5, pos.z + 0.5, pos.x * 1000 + pos.z + 10000, pos.avoidEdges);
     });
 
     // Boundary walls
@@ -210,119 +221,89 @@ export const InstancedBarrelWalls = ({
         for (let col = 0; col < 2; col++) {
           const stalkSeed = baseSeed + row * 100 + col * 13;
           const colOffset = (col - 0.5) * 0.4;
-          const jitterX = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
-          const jitterZ = (seededRandom(stalkSeed + 2) - 0.5) * 0.03;
+          const jX = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
+          const jZ = (seededRandom(stalkSeed + 2) - 0.5) * 0.03;
 
-          let posX = pos.x + 0.5 + jitterX;
-          let posZ = pos.z + 0.5 + jitterZ;
+          let posX = pos.x + 0.5 + jX;
+          let posZ = pos.z + 0.5 + jZ;
 
-          if (dirX !== 0) {
-            posX += dirX * depthOffset;
-            posZ += colOffset;
-          } else {
-            posX += colOffset;
-            posZ += dirZ * depthOffset;
-          }
+          if (dirX !== 0) { posX += dirX * depthOffset; posZ += colOffset; }
+          else { posX += colOffset; posZ += dirZ * depthOffset; }
 
           const typeIndex = pickBarrelType(stalkSeed + 7);
           const baseScale = BARREL_TYPES[typeIndex].baseScale;
-          const scaleVar = 0.85 + seededRandom(stalkSeed + 3) * 0.3;
-          const scale = baseScale * scaleVar;
+          const scale = baseScale * (0.85 + seededRandom(stalkSeed + 3) * 0.3);
           const groundY = -typeMetrics[typeIndex].minY * scale;
-          const rotation = seededRandom(stalkSeed + 4) * Math.PI * 2;
 
-          result.push({
-            x: posX,
-            y: groundY,
-            z: posZ,
-            rotation,
-            scale,
-            typeIndex,
-          });
+          result.push({ x: posX, y: groundY, z: posZ, rotation: seededRandom(stalkSeed + 4) * Math.PI * 2, scale, typeIndex });
         }
       }
     });
 
+    console.log('[BARREL_WALL] Generated transforms:', result.length, 
+      'edge:', edgePositions.length, 'depth:', noShadowPositions.length, 'boundary:', boundaryPositions.length);
     return result;
   }, [edgePositions, noShadowPositions, boundaryPositions, typeMetrics]);
 
-  // Group by barrel type for instanced rendering
+  // Group by type
   const groupedTransforms = useMemo(() => {
     const groups: BarrelTransform[][] = BARREL_TYPES.map(() => []);
     transforms.forEach(t => groups[t.typeIndex].push(t));
+    console.log('[BARREL_WALL] Per-type counts:', groups.map((g, i) => `type${i}:${g.length}`).join(', '));
     return groups;
   }, [transforms]);
 
-  // Extract mesh data from each model
-  const meshDataPerType = useMemo(() => {
-    return models.map((model) => {
-      const meshes: { geometry: BufferGeometry; material: Material | Material[] }[] = [];
-      model.scene.traverse((child: any) => {
-        if (child.isMesh) {
-          meshes.push({ geometry: child.geometry, material: child.material });
-        }
-      });
-      return meshes;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [barrel0, barrel1, barrel2, barrel3]);
-
-  return (
-    <group>
-      {groupedTransforms.map((group, typeIndex) => {
-        if (group.length === 0) return null;
-        const meshes = meshDataPerType[typeIndex];
-        if (meshes.length === 0) return null;
-
-        return meshes.map((meshData, meshIdx) => (
-          <BarrelInstances
-            key={`barrel-type-${typeIndex}-mesh-${meshIdx}`}
-            geometry={meshData.geometry}
-            material={meshData.material}
-            transforms={group}
-          />
-        ));
-      })}
-    </group>
-  );
-};
-
-interface BarrelInstancesProps {
-  geometry: BufferGeometry;
-  material: Material | Material[];
-  transforms: BarrelTransform[];
-}
-
-const BarrelInstances = ({ geometry, material, transforms }: BarrelInstancesProps) => {
-  const meshRef = useRef<ThreeInstancedMesh>(null);
-
+  // Imperatively create InstancedMesh objects (avoids R3F primitive/material attachment issues)
   useEffect(() => {
-    if (!meshRef.current) return;
+    const group = groupRef.current;
+    if (!group || createdRef.current) return;
+    createdRef.current = true;
 
+    const allMeshes: ThreeInstancedMesh[] = [];
     const dummy = new Object3D();
-    transforms.forEach((t, i) => {
-      dummy.position.set(t.x, t.y, t.z);
-      dummy.rotation.set(0, t.rotation, 0);
-      dummy.scale.setScalar(t.scale);
-      dummy.updateMatrix();
-      meshRef.current!.setMatrixAt(i, dummy.matrix);
-    });
-    meshRef.current.instanceMatrix.needsUpdate = true;
-  }, [transforms]);
 
-  return (
-    <instancedMesh
-      ref={meshRef}
-      args={[geometry, undefined, transforms.length]}
-      castShadow
-      receiveShadow
-      frustumCulled={false}
-    >
-      {Array.isArray(material) ? (
-        material.map((mat, i) => <primitive key={i} object={mat} attach={`material-${i}`} />)
-      ) : (
-        <primitive object={material} attach="material" />
-      )}
-    </instancedMesh>
-  );
+    groupedTransforms.forEach((typeTransforms, typeIndex) => {
+      if (typeTransforms.length === 0) return;
+      const parts = meshPartsPerType[typeIndex];
+      if (parts.length === 0) return;
+
+      parts.forEach((part) => {
+        const mesh = new ThreeInstancedMesh(part.geometry, part.material, typeTransforms.length);
+
+        typeTransforms.forEach((t, i) => {
+          dummy.position.set(t.x, t.y, t.z);
+          dummy.rotation.set(0, t.rotation, 0);
+          dummy.scale.setScalar(t.scale);
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+        });
+
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.frustumCulled = false;
+
+        group.add(mesh);
+        allMeshes.push(mesh);
+      });
+    });
+
+    console.log('[BARREL_WALL] Created', allMeshes.length, 'instanced meshes');
+
+    return () => {
+      allMeshes.forEach(mesh => {
+        group.remove(mesh);
+        mesh.geometry.dispose();
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach(m => m.dispose());
+        } else {
+          mesh.material.dispose();
+        }
+        mesh.dispose();
+      });
+      createdRef.current = false;
+    };
+  }, [groupedTransforms, meshPartsPerType]);
+
+  return <group ref={groupRef} />;
 };
