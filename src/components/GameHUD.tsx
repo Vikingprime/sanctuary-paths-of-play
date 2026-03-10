@@ -341,6 +341,8 @@ export const GameHUD = ({
   onToggleVerboseLogging,
   losFaderEnabled = true,
   onToggleLOSFader,
+  visionEnabled = true,
+  onToggleVision,
   // New feature toggles
   shadowsEnabled = true,
   onToggleShadows,
