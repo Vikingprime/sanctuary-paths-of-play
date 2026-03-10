@@ -155,14 +155,16 @@ export function isPointInVisionCone(
 
 /**
  * Get the world-space rotation (Y-axis) for a cardinal direction.
- * 0 = facing +Z (south in grid coords), PI = facing -Z (north)
+ * Uses the same convention as CharacterRenderer's initial facing:
+ *   rotation.y = PI/2 - atan2(dx, dz)
+ * where (dx, dz) is the forward direction vector.
  */
 export function directionToRotation(direction: CardinalDirection): number {
   switch (direction) {
-    case 'south': return 0;
-    case 'west': return Math.PI / 2;
-    case 'north': return Math.PI;
-    case 'east': return -Math.PI / 2;
+    case 'south': return Math.PI / 2;       // forward = (0, +1) → atan2(0,1)=0 → PI/2
+    case 'north': return -Math.PI / 2;      // forward = (0, -1) → atan2(0,-1)=PI → PI/2-PI
+    case 'east':  return 0;                  // forward = (+1, 0) → atan2(1,0)=PI/2 → 0
+    case 'west':  return Math.PI;            // forward = (-1, 0) → atan2(-1,0)=-PI/2 → PI
   }
 }
 

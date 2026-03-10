@@ -984,9 +984,10 @@ const CharacterRenderer = ({
         const angle = Math.atan2(dx, dz);
         groupRef.current.rotation.y = angle;
       } else if (rotationOverride !== undefined) {
-        // Apply NPC turning rotation override + model-specific rotation offset
-        const rotOffset = getCharacterRotationOffset(modelFile);
-        groupRef.current.rotation.y = rotationOverride + rotOffset;
+        // Apply NPC turning/patrol rotation override directly
+        // directionToRotation already uses the same convention as initialRotation (PI/2 - atan2)
+        // No rotationOffset needed - that was causing east/west to be swapped
+        groupRef.current.rotation.y = rotationOverride;
       }
       
       // Apply opacity fade based on distance from player
