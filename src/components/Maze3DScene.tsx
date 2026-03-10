@@ -2867,7 +2867,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
       positions.push({
         x: pos.x,
         y: pos.y,
-        radius: char.patrol ? 0.3 : CHARACTER_COLLISION_RADIUS, // Patrolling NPCs have larger collision
+        radius: char.patrol ? 0.15 : CHARACTER_COLLISION_RADIUS, // Patrolling NPCs - player can squeeze past
       });
     });
     
