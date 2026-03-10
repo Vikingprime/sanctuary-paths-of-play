@@ -588,7 +588,7 @@ const chapter5BerryGauntlet: StoryMaze = {
     { id: 'bush_2', name: 'Berry Bush', emoji: '🫐', model: 'Bush_with_Berries.glb', animation: 'idle', position: { x: 10, y: 2 } },
     { id: 'bush_3', name: 'Berry Bush', emoji: '🫐', model: 'Bush_with_Berries.glb', animation: 'idle', position: { x: 6, y: 10 } },
     { id: 'sparrow_g1', name: 'Sparrow', emoji: '🐦', model: 'Sparrow.glb', animation: 'idle', position: { x: 4, y: 3 }, visionDialogueId: 'sparrow_caught_g', coneVision: { range: 4, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['east', 'west'], intervalMs: 2500 } },
-    { id: 'sparrow_g2', name: 'Sparrow', emoji: '🐦', model: 'Sparrow.glb', animation: 'idle', position: { x: 10, y: 7 }, visionDialogueId: 'sparrow_caught_g', coneVision: { range: 5, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['north', 'south'], intervalMs: 3000 } },
+    { id: 'sparrow_g2', name: 'Sparrow', emoji: '🐦', model: 'Sparrow.glb', animation: 'idle', position: { x: 10, y: 7 }, visionDialogueId: 'sparrow_caught_g', coneVision: { range: 3, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['north', 'south'], intervalMs: 3500 } },
     { id: 'sparrow_g3', name: 'Sparrow', emoji: '🐦', model: 'Sparrow.glb', animation: 'idle', position: { x: 8, y: 8 }, visionDialogueId: 'sparrow_caught_g', coneVision: { range: 4, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['south', 'east'], intervalMs: 2800 } },
   ],
   storyCharacters: [],
