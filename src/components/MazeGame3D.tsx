@@ -1867,8 +1867,8 @@ export const MazeGame3D = ({
         />
       )}
       
-      {/* Rail Controls - on-rail navigation mode */}
-      {!isPreviewing && mobileControlsEnabled && controlMode === 'rail' && (
+      {/* Rail Controls - on-rail navigation mode, hidden during dialogue */}
+      {!isPreviewing && mobileControlsEnabled && !activeDialogue && !activeAppleDialogue && controlMode === 'rail' && (
         <>
           <RailControls
             cache={magnetismCacheRef.current}
