@@ -3080,7 +3080,13 @@ return (
           rimLightStrength={cornRimLight}
         />
       )}
-      {isCellar && <InstancedBarrelWalls wallPositions={allWallPositions} />}
+      {isCellar && (
+        <InstancedBarrelWalls
+          edgePositions={cellarWallData.edgePositions}
+          noShadowPositions={cellarWallData.depthOnlyWalls}
+          boundaryPositions={cellarWallData.boundaryWalls}
+        />
+      )}
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (
