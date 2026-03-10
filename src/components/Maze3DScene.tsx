@@ -132,6 +132,8 @@ interface Maze3DSceneProps {
   onMagnetismCacheReady?: (cache: MagnetismCache) => void;
   // NPC rotation overrides (characterId -> Y rotation in radians)
   npcRotations?: Record<string, number>;
+  // NPC position overrides for patrolling characters (characterId -> {x, y} grid position)
+  npcPositions?: Record<string, { x: number; y: number }>;
   // Hide vision cone overlays (during dialogue or debug toggle)
   hideVisionCones?: boolean;
 }
@@ -1054,6 +1056,7 @@ const PlacedCharacter = ({
   showCollisionDebug,
   onClick,
   rotationOverride,
+  positionOverride,
 }: { 
   character: MazeCharacter;
   playerStateRef?: MutableRefObject<PlayerState>;
@@ -1062,6 +1065,7 @@ const PlacedCharacter = ({
   showCollisionDebug?: boolean;
   onClick?: (characterId: string) => void;
   rotationOverride?: number; // Y rotation in radians, overrides default facing
+  positionOverride?: { x: number; y: number }; // Override position for patrolling NPCs
 }) => {
   // Check if this character has any click-triggered dialogues
   const hasClickDialogue = maze.dialogues?.some(
@@ -1077,7 +1081,7 @@ const PlacedCharacter = ({
     >
       <CharacterRenderer
         modelFile={character.model}
-        position={character.position}
+        position={positionOverride ?? character.position}
         animation={character.animation}
         playerStateRef={playerStateRef}
         isDialogueActive={isDialogueActive}
@@ -1094,17 +1098,19 @@ const PlacedCharacter = ({
 const VisionConeOverlay = ({ 
   character, 
   rotationOverride,
+  positionOverride,
   maze,
 }: { 
   character: MazeCharacter;
   rotationOverride?: number;
+  positionOverride?: { x: number; y: number };
   maze: Maze;
 }) => {
   const coneGeometry = useMemo(() => {
     if (!character.coneVision) return null;
     
     const { range, spreadPerCell } = character.coneVision;
-    const pos = character.position;
+    const pos = positionOverride ?? character.position;
     
     // Calculate cone half-angle from spread parameters
     const farHalfWidth = spreadPerCell * (range - 1) + 0.5;
@@ -1178,13 +1184,13 @@ const VisionConeOverlay = ({
     geom.setAttribute('position', new Float32BufferAttribute(new Float32Array(fanVertices), 3));
     geom.computeVertexNormals();
     return geom;
-  }, [character.coneVision, character.position, rotationOverride, maze]);
+  }, [character.coneVision, character.position, positionOverride, rotationOverride, maze]);
   
   if (!coneGeometry) return null;
   
   
   
-  const pos = character.position;
+  const pos = positionOverride ?? character.position;
   
   // Characters render at (pos.x + 0.5, pos.y + 0.5) - center of grid cell
   const cx = pos.x + 0.5;
@@ -2831,7 +2837,7 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, cameraOrbitDeltaRef, cameraOrbitActiveRef, speedBoostActive, onCellInteraction, onCharacterClick, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, debugMode = false, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady, npcRotations = {}, hideVisionCones = false }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, cameraOrbitDeltaRef, cameraOrbitActiveRef, speedBoostActive, onCellInteraction, onCharacterClick, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, debugMode = false, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady, npcRotations = {}, npcPositions = {}, hideVisionCones = false }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -2855,12 +2861,13 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
     
-    // Add placed characters from maze.characters
+    // Add placed characters from maze.characters (use npcPositions for patrolling ones)
     maze.characters?.forEach((char) => {
+      const pos = npcPositions[char.id] ?? char.position;
       positions.push({
-        x: char.position.x,
-        y: char.position.y,
-        radius: CHARACTER_COLLISION_RADIUS,
+        x: pos.x,
+        y: pos.y,
+        radius: char.patrol ? 0.3 : CHARACTER_COLLISION_RADIUS, // Patrolling NPCs have larger collision
       });
     });
     
@@ -2880,7 +2887,7 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     });
     
     return positions;
-  }, [maze]);
+  }, [maze, npcPositions]);
 
   const items = useMemo(() => {
     const powerUps: { pos: [number, number, number]; key: string }[] = [];
@@ -3029,13 +3036,14 @@ return (
           playerStateRef={playerStateRef}
           isDialogueActive={
             dialogueTarget !== null && 
-            Math.abs(dialogueTarget.speakerX - character.position.x) < 0.5 &&
-            Math.abs(dialogueTarget.speakerZ - character.position.y) < 0.5
+            Math.abs(dialogueTarget.speakerX - (npcPositions[character.id]?.x ?? character.position.x)) < 0.5 &&
+            Math.abs(dialogueTarget.speakerZ - (npcPositions[character.id]?.y ?? character.position.y)) < 0.5
           }
           maze={maze}
           showCollisionDebug={showCollisionDebug}
           onClick={onCharacterClick}
           rotationOverride={npcRotations[character.id]}
+          positionOverride={npcPositions[character.id]}
         />
       ))}
       
@@ -3045,6 +3053,7 @@ return (
           key={`vision-${character.id}`}
           character={character}
           rotationOverride={npcRotations[character.id]}
+          positionOverride={npcPositions[character.id]}
           maze={maze}
         />
       ))}

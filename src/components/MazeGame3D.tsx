@@ -289,6 +289,14 @@ export const MazeGame3D = ({
     }
     return initial;
   });
+  // NPC position overrides for patrolling characters
+  const [npcPositions, setNpcPositions] = useState<Record<string, { x: number; y: number }>>(() => {
+    const initial: Record<string, { x: number; y: number }> = {};
+    for (const [id, state] of npcRuntimeStatesRef.current.entries()) {
+      initial[id] = { ...state.patrolPosition };
+    }
+    return initial;
+  });
   
   // Helper to find the speaker position for a dialogue
   const findSpeakerPositionForDialogue = useCallback((dialogue: DialogueTrigger | null): { x: number; y: number } | null => {
@@ -620,6 +628,12 @@ export const MazeGame3D = ({
       
       if (changed) {
         setNpcRotations({ ...newRotations });
+        // Update patrol positions for rendering
+        const newPositions: Record<string, { x: number; y: number }> = {};
+        for (const [id, state] of states.entries()) {
+          newPositions[id] = { x: state.patrolPosition.x, y: state.patrolPosition.y };
+        }
+        setNpcPositions(newPositions);
       }
       
       // After updating NPC states, check if player is now in any vision cone
@@ -1491,6 +1505,7 @@ export const MazeGame3D = ({
     // Reset NPC runtime states (turning, patrol)
     npcRuntimeStatesRef.current = initNPCRuntimeStates(maze.characters ?? []);
     setNpcRotations({});
+    setNpcPositions({});
     
     // Reset timing refs
     gameStartTimeRef.current = null;
@@ -1731,6 +1746,7 @@ export const MazeGame3D = ({
         railTurnSpeed={railTurnSpeed}
         onRailMoveComplete={handleRailStop}
         npcRotations={npcRotations}
+        npcPositions={npcPositions}
         hideVisionCones={!visionEnabled || activeDialogue !== null}
       />}
 
