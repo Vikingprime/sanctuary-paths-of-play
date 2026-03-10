@@ -8,13 +8,15 @@ useGLTF.preload('/models/Barrel_1.glb');
 useGLTF.preload('/models/Beer_Keg.glb');
 useGLTF.preload('/models/Keg.glb');
 
-// Seeded random for stable placement
+// Better seeded random to avoid clustering
 const seededRandom = (seed: number): number => {
-  const x = Math.sin(seed * 12.9898 + seed * 78.233) * 43758.5453;
-  return x - Math.floor(x);
+  let s = Math.imul(seed | 0, 0x45d9f3b);
+  s = Math.imul((s >>> 16) ^ s, 0x45d9f3b);
+  s = (s >>> 16) ^ s;
+  return (s >>> 0) / 0xffffffff;
 };
 
-// Barrel type config - all 4 types with varied weights
+// Barrel type config - all 4 types
 const BARREL_TYPES = [
   { model: '/models/Barrel.glb', weight: 3, baseScale: 0.38 },
   { model: '/models/Barrel_1.glb', weight: 3, baseScale: 0.38 },
@@ -48,77 +50,101 @@ interface InstancedBarrelWallsProps {
 }
 
 export const InstancedBarrelWalls = ({ wallPositions }: InstancedBarrelWallsProps) => {
-  // Load all barrel models
   const barrel0 = useGLTF(BARREL_TYPES[0].model);
   const barrel1 = useGLTF(BARREL_TYPES[1].model);
   const barrel2 = useGLTF(BARREL_TYPES[2].model);
   const barrel3 = useGLTF(BARREL_TYPES[3].model);
   const models = [barrel0, barrel1, barrel2, barrel3];
 
-  // Generate transforms: 3-5 barrels per wall cell, some stacked for height
+  // Compute per-type bounding info for correct ground placement
+  const typeInfo = useMemo(() => {
+    return models.map((model) => {
+      let minY = Infinity;
+      let maxY = -Infinity;
+      model.scene.traverse((child: any) => {
+        if (child.isMesh && child.geometry) {
+          child.geometry.computeBoundingBox();
+          const bb = child.geometry.boundingBox;
+          if (bb) {
+            minY = Math.min(minY, bb.min.y);
+            maxY = Math.max(maxY, bb.max.y);
+          }
+        }
+      });
+      return { minY: isFinite(minY) ? minY : 0, height: isFinite(maxY - minY) ? maxY - minY : 1 };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barrel0, barrel1, barrel2, barrel3]);
+
+  // Generate transforms
   const transforms = useMemo(() => {
     const result: BarrelTransform[] = [];
-    
-    wallPositions.forEach((pos) => {
-      const baseSeed = pos.x * 1000 + pos.z;
-      
-      // Ground layer: 2-3 barrels filling the cell
+
+    wallPositions.forEach((pos, wallIdx) => {
+      const baseSeed = wallIdx * 997 + pos.x * 131 + pos.z * 37 + 12345;
+
       const groundCount = seededRandom(baseSeed + 99) > 0.3 ? 3 : 2;
-      
-      // Positions for ground barrels - spread to fill the cell
+
       const groundOffsets = [
         { dx: -0.15, dz: -0.15 },
         { dx: 0.18, dz: 0.12 },
         { dx: -0.05, dz: 0.2 },
       ];
-      
+
       for (let i = 0; i < groundCount; i++) {
-        const seed = baseSeed + i * 7;
+        const seed = baseSeed + i * 131 + 7;
         const typeIndex = pickBarrelType(seed);
         const baseScale = BARREL_TYPES[typeIndex].baseScale;
         const scaleVariation = 0.85 + seededRandom(seed + 3) * 0.3;
-        
+        const scale = baseScale * scaleVariation;
+
         const offset = groundOffsets[i];
-        const jitterX = (seededRandom(seed + 4) - 0.5) * 0.08;
-        const jitterZ = (seededRandom(seed + 5) - 0.5) * 0.08;
-        
+        const jitterX = (seededRandom(seed + 41) - 0.5) * 0.08;
+        const jitterZ = (seededRandom(seed + 53) - 0.5) * 0.08;
+
+        // Place bottom of model at ground level (y=0)
+        const groundY = -typeInfo[typeIndex].minY * scale;
+
         result.push({
           x: pos.x + 0.5 + offset.dx + jitterX,
-          y: -0.15,
+          y: groundY,
           z: pos.z + 0.5 + offset.dz + jitterZ,
           rotation: seededRandom(seed + 2) * Math.PI * 2,
-          scale: baseScale * scaleVariation,
+          scale,
           typeIndex,
         });
       }
-      
-      // Stacked layer: 1-2 barrels on top for wall height
+
+      // Stacked layer
       const stackCount = seededRandom(baseSeed + 200) > 0.25 ? 2 : 1;
-      
+
       for (let i = 0; i < stackCount; i++) {
-        const seed = baseSeed + (groundCount + i) * 7 + 100;
+        const seed = baseSeed + (groundCount + i) * 131 + 300;
         const typeIndex = pickBarrelType(seed);
         const baseScale = BARREL_TYPES[typeIndex].baseScale;
         const scaleVariation = 0.8 + seededRandom(seed + 3) * 0.25;
-        
-        const offsetX = (seededRandom(seed + 4) - 0.5) * 0.2;
-        const offsetZ = (seededRandom(seed + 5) - 0.5) * 0.2;
-        // Stack height varies: roughly on top of ground barrels
-        const stackY = 0.35 + seededRandom(seed + 6) * 0.1;
-        
+        const scale = baseScale * scaleVariation;
+
+        const offsetX = (seededRandom(seed + 41) - 0.5) * 0.2;
+        const offsetZ = (seededRandom(seed + 53) - 0.5) * 0.2;
+
+        // Stack height: ground barrel height + this barrel's bottom offset
+        const groundBarrelHeight = typeInfo[0].height * BARREL_TYPES[0].baseScale * 0.95;
+        const stackY = groundBarrelHeight + (-typeInfo[typeIndex].minY * scale);
+
         result.push({
           x: pos.x + 0.5 + offsetX,
           y: stackY,
           z: pos.z + 0.5 + offsetZ,
           rotation: seededRandom(seed + 2) * Math.PI * 2,
-          scale: baseScale * scaleVariation,
+          scale,
           typeIndex,
         });
       }
     });
-    
+
     return result;
-  }, [wallPositions]);
+  }, [wallPositions, typeInfo]);
 
   // Group transforms by barrel type for instanced rendering
   const groupedTransforms = useMemo(() => {
@@ -127,23 +153,19 @@ export const InstancedBarrelWalls = ({ wallPositions }: InstancedBarrelWallsProp
     return groups;
   }, [transforms]);
 
-  // Extract mesh data from each model - collect ALL meshes per model
+  // Extract mesh data from each model
   const meshDataPerType = useMemo(() => {
     return models.map((model) => {
       const meshes: { geometry: BufferGeometry; material: Material | Material[] }[] = [];
-      
       model.scene.traverse((child: any) => {
         if (child.isMesh) {
-          meshes.push({
-            geometry: child.geometry,
-            material: child.material,
-          });
+          meshes.push({ geometry: child.geometry, material: child.material });
         }
       });
-      
       return meshes;
     });
-  }, [models]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barrel0, barrel1, barrel2, barrel3]);
 
   return (
     <group>
@@ -151,7 +173,7 @@ export const InstancedBarrelWalls = ({ wallPositions }: InstancedBarrelWallsProp
         if (group.length === 0) return null;
         const meshes = meshDataPerType[typeIndex];
         if (meshes.length === 0) return null;
-        
+
         return meshes.map((meshData, meshIdx) => (
           <BarrelInstances
             key={`barrel-type-${typeIndex}-mesh-${meshIdx}`}
@@ -173,10 +195,10 @@ interface BarrelInstancesProps {
 
 const BarrelInstances = ({ geometry, material, transforms }: BarrelInstancesProps) => {
   const meshRef = useRef<ThreeInstancedMesh>(null);
-  
+
   useEffect(() => {
     if (!meshRef.current) return;
-    
+
     const dummy = new Object3D();
     transforms.forEach((t, i) => {
       dummy.position.set(t.x, t.y, t.z);
