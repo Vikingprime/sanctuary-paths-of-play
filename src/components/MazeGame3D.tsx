@@ -614,16 +614,18 @@ export const MazeGame3D = ({
       }
       
       // After updating NPC states, check if player is now in any vision cone
-      const playerGridX = Math.floor(playerStateRef.current.x);
-      const playerGridY = Math.floor(playerStateRef.current.y);
+      // Use continuous cone detection (matches visual overlay exactly)
+      const playerWorldX = playerStateRef.current.x + 0.5; // Convert to world center
+      const playerWorldY = playerStateRef.current.y + 0.5;
       for (const char of characters) {
         if (!char.visionDialogueId) continue;
         if (triggeredDialoguesRef.current.has(char.visionDialogueId)) continue;
+        if (!char.coneVision) continue;
         
         const npcState = states.get(char.id);
-        const isWallFn = (gx: number, gy: number) => maze.grid[gy]?.[gx]?.isWall ?? true;
-        const activeCells = resolveVisionCells(char, npcState, isWallFn);
-        const inVision = activeCells.some(cell => cell.x === playerGridX && cell.y === playerGridY);
+        const direction = npcState?.currentDirection ?? 'south';
+        const npcPos = npcState?.patrolPosition ?? char.position;
+        const inVision = isPointInVisionCone(npcPos, { x: playerWorldX, y: playerWorldY }, char.coneVision, direction, maze.grid);
         
         if (inVision && maze.dialogues) {
           const visionDialogue = maze.dialogues.find(d => d.id === char.visionDialogueId);
