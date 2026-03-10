@@ -2981,35 +2981,36 @@ return (
       {!isCellar && <ambientLight intensity={0.9} color="#FFE4CC" />}
       {isCellar && <ambientLight intensity={0.15} color="#332818" />}
       
-      {/* Near shadows - resolution controlled by lowShadowRes toggle */}
-      {/* Key forces remount when resolution changes - Three.js caches shadow maps */}
-      {/* Main light coming from barn direction (Panel 1 = ~180° = -Z direction) */}
-      <directionalLight
-        key={`shadow-light-${lowShadowRes ? 'lo' : 'hi'}`}
-        ref={lightRef}
-        position={[0, 50, -25]}
-        intensity={1.75}
-        color="#FFA050"
-        castShadow={shadowsEnabled}
-        shadow-mapSize={lowShadowRes ? [512, 512] : [2048, 2048]}
-        shadow-camera-near={0.5}
-        shadow-camera-far={50}
-          shadow-camera-left={-15}
-          shadow-camera-right={15}
-          shadow-camera-top={15}
-          shadow-camera-bottom={-15}
-        shadow-bias={-0.0001}
-      >
-        <object3D attach="target" />
-      </directionalLight>
+      {/* Main directional light - golden hour for corn, dim for cellar */}
+      {!isCellar && (
+        <directionalLight
+          key={`shadow-light-${lowShadowRes ? 'lo' : 'hi'}`}
+          ref={lightRef}
+          position={[0, 50, -25]}
+          intensity={1.75}
+          color="#FFA050"
+          castShadow={shadowsEnabled}
+          shadow-mapSize={lowShadowRes ? [512, 512] : [2048, 2048]}
+          shadow-camera-near={0.5}
+          shadow-camera-far={50}
+            shadow-camera-left={-15}
+            shadow-camera-right={15}
+            shadow-camera-top={15}
+            shadow-camera-bottom={-15}
+          shadow-bias={-0.0001}
+        >
+          <object3D attach="target" />
+        </directionalLight>
+      )}
       
-      
-      {/* Fill light from opposite side (trees direction) */}
-      <directionalLight
-        position={[0, 15, 25]}
-        intensity={0.45}
-        color="#FFE8D0"
-      />
+      {/* Fill light (corn theme only) */}
+      {!isCellar && (
+        <directionalLight
+          position={[0, 15, 25]}
+          intensity={0.45}
+          color="#FFE8D0"
+        />
+      )}
       
       {/* Hemisphere light for natural sky/ground color */}
       {!isCellar && <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
