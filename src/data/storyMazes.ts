@@ -544,7 +544,7 @@ const chapter4BerryFetch: StoryMaze = {
         },
       ],
       cells: [
-        { x: 11, y: 4 }, { x: 12, y: 4 }, { x: 12, y: 3 },
+        { x: 13, y: 4 }, { x: 12, y: 4 }, { x: 12, y: 3 },
       ],
       speakerCharacterId: 'berry_bush',
       questAction: { type: 'complete_objective', objectiveId: 'reach_bush' },
