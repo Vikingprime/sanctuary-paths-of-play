@@ -220,7 +220,7 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        cells: [{ x: 12, y: 12 }, { x: 11, y: 11 }, { x: 12, y: 11 }, { x: 11, y: 12 }],
+        cells: [{ x: 7, y: 12 }, { x: 8, y: 12 }, { x: 7, y: 11 }, { x: 8, y: 11 }],
         speakerCharacterId: 'sanctuary_sam',
       },
     ],
