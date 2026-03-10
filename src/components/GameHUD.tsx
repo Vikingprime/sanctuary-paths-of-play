@@ -239,6 +239,8 @@ interface GameHUDProps {
   onToggleVerboseLogging?: () => void;
   losFaderEnabled?: boolean;
   onToggleLOSFader?: () => void;
+  visionEnabled?: boolean;
+  onToggleVision?: () => void;
   // Feature toggles for performance testing
   shadowsEnabled?: boolean;
   onToggleShadows?: () => void;
@@ -339,6 +341,8 @@ export const GameHUD = ({
   onToggleVerboseLogging,
   losFaderEnabled = true,
   onToggleLOSFader,
+  visionEnabled = true,
+  onToggleVision,
   // New feature toggles
   shadowsEnabled = true,
   onToggleShadows,
@@ -583,6 +587,18 @@ export const GameHUD = ({
                   title="LOS corn fading"
                 >
                   🌽 LOSFader {losFaderEnabled ? 'On' : 'Off'}
+                </button>
+              )}
+              {onToggleVision && (
+                <button
+                  onClick={onToggleVision}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    visionEnabled ? 'text-green-500' : 'text-red-500'
+                  )}
+                  title="Toggle NPC vision detection"
+                >
+                  👁️ Vision {visionEnabled ? 'On' : 'Off'}
                 </button>
               )}
               {onToggleVerboseLogging && (

@@ -170,6 +170,7 @@ export const MazeGame3D = ({
   const [autopushEnabled, setAutopushEnabled] = useState(true);
   const [losFaderEnabled, setLosFaderEnabled] = useState(true);
   const [verboseLogging, setVerboseLogging] = useState(false);
+  const [visionEnabled, setVisionEnabled] = useState(true);
   // Feature toggles for performance testing
   const [shadowsEnabled, setShadowsEnabled] = useState(true);
   const [grassEnabled, setGrassEnabled] = useState(true);
@@ -614,6 +615,8 @@ export const MazeGame3D = ({
       }
       
       // After updating NPC states, check if player is now in any vision cone
+      // Skip detection if vision is disabled (debug toggle) or dialogue is active
+      if (!visionEnabled) return;
       // Use continuous cone detection (matches visual overlay exactly)
       const playerWorldX = playerStateRef.current.x + 0.5; // Convert to world center
       const playerWorldY = playerStateRef.current.y + 0.5;
@@ -648,7 +651,7 @@ export const MazeGame3D = ({
     }, TICK_MS);
     
     return () => clearInterval(interval);
-  }, [isPreviewing, gameOver, maze.characters, maze.grid, maze.dialogues, activeDialogue, activeAppleDialogue, postDialoguePause]);
+  }, [isPreviewing, gameOver, maze.characters, maze.grid, maze.dialogues, activeDialogue, activeAppleDialogue, postDialoguePause, visionEnabled]);
 
   const areRequirementsMet = useCallback((dialogue: DialogueTrigger): boolean => {
     if (!dialogue.requires || dialogue.requires.length === 0) return true;
@@ -661,7 +664,8 @@ export const MazeGame3D = ({
     if (!maze.dialogues) return null;
     
     // Check vision zones on characters (continuous cone detection)
-    if (maze.characters) {
+    // Skip if vision disabled via debug toggle
+    if (maze.characters && visionEnabled) {
       const playerWorldX = gridX + 0.5;
       const playerWorldY = gridY + 0.5;
       for (const char of maze.characters) {
@@ -1718,6 +1722,7 @@ export const MazeGame3D = ({
         railTurnSpeed={railTurnSpeed}
         onRailMoveComplete={handleRailStop}
         npcRotations={npcRotations}
+        hideVisionCones={!visionEnabled || activeDialogue !== null}
       />}
 
       {/* Preview overlay - shows on top while scene loads in background */}
@@ -1763,6 +1768,8 @@ export const MazeGame3D = ({
           onToggleLOSFader={() => setLosFaderEnabled(prev => !prev)}
           verboseLogging={verboseLogging}
           onToggleVerboseLogging={() => setVerboseLogging(prev => !prev)}
+          visionEnabled={visionEnabled}
+          onToggleVision={() => setVisionEnabled(prev => !prev)}
           // Feature toggles
           shadowsEnabled={shadowsEnabled}
           onToggleShadows={() => setShadowsEnabled(prev => !prev)}
