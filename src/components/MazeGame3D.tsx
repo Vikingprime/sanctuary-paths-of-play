@@ -597,7 +597,7 @@ export const MazeGame3D = ({
     const hasAnyTurning = characters.some(c => c.turning || c.patrol);
     if (!hasAnyTurning) return;
     
-    const TICK_MS = 100; // Update every 100ms for smooth turning
+    const TICK_MS = 16; // ~60fps for smooth patrol movement
     const interval = setInterval(() => {
       // Pause NPC turning/patrol during dialogue
       if (activeDialogue || activeAppleDialogue || postDialoguePause) return;
@@ -626,15 +626,13 @@ export const MazeGame3D = ({
         newRotations[char.id] = directionToRotation(state.currentDirection);
       }
       
-      if (changed) {
-        setNpcRotations({ ...newRotations });
-        // Update patrol positions for rendering
-        const newPositions: Record<string, { x: number; y: number }> = {};
-        for (const [id, state] of states.entries()) {
-          newPositions[id] = { x: state.patrolPosition.x, y: state.patrolPosition.y };
-        }
-        setNpcPositions(newPositions);
+      // Always update positions (patrol moves continuously)
+      setNpcRotations({ ...newRotations });
+      const newPositions: Record<string, { x: number; y: number }> = {};
+      for (const [id, state] of states.entries()) {
+        newPositions[id] = { x: state.patrolPosition.x, y: state.patrolPosition.y };
       }
+      setNpcPositions(newPositions);
       
       // After updating NPC states, check if player is now in any vision cone
       // Skip detection if vision is disabled (debug toggle) or dialogue is active
@@ -2131,6 +2129,7 @@ export const MazeGame3D = ({
         }}
         timeLeft={mapViewTimeLeft}
         selectedAnimal={animals.find(a => a.id === animalType)}
+        npcPositions={npcPositions}
       />
     </div>
   );
