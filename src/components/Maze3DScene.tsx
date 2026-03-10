@@ -3036,13 +3036,14 @@ return (
           playerStateRef={playerStateRef}
           isDialogueActive={
             dialogueTarget !== null && 
-            Math.abs(dialogueTarget.speakerX - character.position.x) < 0.5 &&
-            Math.abs(dialogueTarget.speakerZ - character.position.y) < 0.5
+            Math.abs(dialogueTarget.speakerX - (npcPositions[character.id]?.x ?? character.position.x)) < 0.5 &&
+            Math.abs(dialogueTarget.speakerZ - (npcPositions[character.id]?.y ?? character.position.y)) < 0.5
           }
           maze={maze}
           showCollisionDebug={showCollisionDebug}
           onClick={onCharacterClick}
           rotationOverride={npcRotations[character.id]}
+          positionOverride={npcPositions[character.id]}
         />
       ))}
       
