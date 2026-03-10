@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Maze, AnimalType, MedalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { StoryProgress } from '@/types/quest';
