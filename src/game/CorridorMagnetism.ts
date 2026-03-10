@@ -17,7 +17,7 @@
  */
 
 import { Maze } from '@/types/game';
-import { applyDeletedSpineFineCells } from '@/lib/spineFineCells';
+import { applyDeletedSpineFineCells, trimSpineEndpoints } from '@/lib/spineFineCells';
 import { GameConfig } from './GameConfig';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from './MedialAxis';
 import { buildSmoothedPolylines, PolylineGraph, PolylineSegment, Point2D, PolylineConfig, Junction } from './SkeletonPolyline';
