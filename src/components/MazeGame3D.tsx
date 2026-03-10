@@ -628,6 +628,12 @@ export const MazeGame3D = ({
       
       if (changed) {
         setNpcRotations({ ...newRotations });
+        // Update patrol positions for rendering
+        const newPositions: Record<string, { x: number; y: number }> = {};
+        for (const [id, state] of states.entries()) {
+          newPositions[id] = { x: state.patrolPosition.x, y: state.patrolPosition.y };
+        }
+        setNpcPositions(newPositions);
       }
       
       // After updating NPC states, check if player is now in any vision cone
