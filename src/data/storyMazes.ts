@@ -870,7 +870,7 @@ const act2_1_FindAlly: StoryMaze = {
   ], rewards: { stars: 15, medal: true } },
   dialogues: [
     { id: 'remy_act2_start', speaker: 'Remy', speakerEmoji: '🐀', message: "One of Porcupine's guards is sympathetic. Find them using riddles I remember!", cells: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 1 }], speakerCharacterId: 'remy_act2', questAction: { type: 'complete_objective', objectiveId: 'talk_remy_start' } },
-    { id: 'guard1_riddle', speaker: 'Guard Fox', speakerEmoji: '🦊', message: "I guard the boss with pride. Move along!", cells: [{ x: 5, y: 3 }, { x: 6, y: 3 }, { x: 6, y: 2 }], speakerCharacterId: 'guard_1', requires: ['remy_act2_start'] },
+    { id: 'guard1_riddle', speaker: 'Guard Fox', speakerEmoji: '🦊', message: "I guard the boss with pride. Move along!", cells: [{ x: 4, y: 3 }, { x: 5, y: 3 }, { x: 4, y: 4 }], speakerCharacterId: 'guard_1', requires: ['remy_act2_start'] },
     { id: 'guard2_riddle', speaker: 'Guard Fox', speakerEmoji: '🦊', message: "No visitors! Boss's orders!", cells: [{ x: 11, y: 6 }, { x: 12, y: 6 }, { x: 12, y: 5 }], speakerCharacterId: 'guard_2', requires: ['remy_act2_start'] },
     { id: 'ally_found', speaker: 'Sympathetic Guard', speakerEmoji: '🦊', message: "Remy sent you? The boss is great, but I can't excuse thievery.", messages: [
       { speaker: 'Sympathetic Guard', speakerEmoji: '🦊', message: "If the boss stole it, it's in his safe. I'll show you where." },
