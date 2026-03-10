@@ -6,6 +6,9 @@ interface ItemPanelProps {
   appleCount?: number;
   onAppleDrop: () => void;
   className?: string;
+  // Bait system
+  hasBait?: boolean;
+  onBaitThrow?: () => void;
 }
 
 // Simple floating apple panel for gameplay with draggable apples
@@ -13,6 +16,8 @@ export const ItemPanel = ({
   appleCount = 100,
   onAppleDrop,
   className,
+  hasBait = false,
+  onBaitThrow,
 }: ItemPanelProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
@@ -113,6 +118,25 @@ export const ItemPanel = ({
           ×{displayCount}
         </span>
       </div>
+      
+      {/* Bait button */}
+      {hasBait && onBaitThrow && (
+        <button
+          onClick={onBaitThrow}
+          className="flex items-center gap-1 pointer-events-auto select-none transition-transform hover:scale-110 active:scale-95 mt-1"
+        >
+          <span className="text-3xl">🥕</span>
+          <span 
+            className="font-display font-bold text-lg"
+            style={{ 
+              color: '#ffffff',
+              textShadow: '2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)'
+            }}
+          >
+            ∞
+          </span>
+        </button>
+      )}
       
       {/* Dragging apple indicator */}
       {isDragging && (
