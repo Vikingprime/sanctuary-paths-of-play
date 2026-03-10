@@ -138,6 +138,8 @@ interface Maze3DSceneProps {
   npcBlockedStates?: Record<string, boolean>;
   // Hide vision cone overlays (during dialogue or debug toggle)
   hideVisionCones?: boolean;
+  // Bait positions in world space
+  baitPositions?: Array<{ id: string; x: number; y: number }>;
 }
 
 // Ground shader using multiple photo textures with random patches
