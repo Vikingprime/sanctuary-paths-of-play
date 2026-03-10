@@ -3011,19 +3011,24 @@ return (
       />
       
       {/* Hemisphere light for natural sky/ground color */}
-      <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />
+      {!isCellar && <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
+      {isCellar && <hemisphereLight args={['#2a2018', '#1a1410', 0.3]} />}
       
-      {/* Sky orb - flat material, no fog/tonemapping */}
-      {skyEnabled && <SkyBackground />}
+      {/* Sky orb - flat material, no fog/tonemapping (corn theme only) */}
+      {skyEnabled && !isCellar && <SkyBackground />}
       
-      {/* Exponential fog - uses unified atmosphere color
-          Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
-      <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />
-      {/* Ground */}
-      <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />
+      {/* Fog - lighter in cellar */}
+      {!isCellar && <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />}
+      {isCellar && <fogExp2 attach="fog" args={['#0a0806', 0.18]} />}
+
+      {/* Cellar environment - dark room enclosure, roof, ceiling lights */}
+      {isCellar && <CellarEnvironment maze={maze} />}
       
-      {/* Maze Walls (corn) with optimizations */}
-      {cornEnabled && (
+      {/* Ground (corn theme only - cellar has its own floor) */}
+      {!isCellar && <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />}
+      
+      {/* Maze Walls - corn or barrels based on theme */}
+      {cornEnabled && !isCellar && (
         <MazeWalls 
           ref={foliageGroupRef}
           maze={maze} 
@@ -3034,6 +3039,7 @@ return (
           rimLightStrength={cornRimLight}
         />
       )}
+      {isCellar && <InstancedBarrelWalls wallPositions={allWallPositions} />}
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (
