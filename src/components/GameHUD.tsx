@@ -402,6 +402,9 @@ export const GameHUD = ({
   onAppleDrop,
   berryCount = 0,
   friendshipProgress,
+  // Bait system
+  hasBait = false,
+  onBaitThrow,
 }: GameHUDProps) => {
   const animal = animals.find((a) => a.id === animalType)!;
   const [showRestartDialog, setShowRestartDialog] = useState(false);
