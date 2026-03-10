@@ -50,6 +50,7 @@ interface CharacterConfig {
   directionalVision?: DirectionalVision;
   coneVision?: ConeVisionConfig;
   turning?: TurningConfig;
+  luredByBait?: boolean;
 }
 
 interface ObstacleConfig {
