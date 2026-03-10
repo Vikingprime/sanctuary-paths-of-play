@@ -134,6 +134,8 @@ interface Maze3DSceneProps {
   npcRotations?: Record<string, number>;
   // NPC position overrides for patrolling characters (characterId -> {x, y} grid position)
   npcPositions?: Record<string, { x: number; y: number }>;
+  // NPC blocked states (stopped due to collision with player)
+  npcBlockedStates?: Record<string, boolean>;
   // Hide vision cone overlays (during dialogue or debug toggle)
   hideVisionCones?: boolean;
 }

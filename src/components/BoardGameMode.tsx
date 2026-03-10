@@ -564,8 +564,8 @@ export const BoardGameMode = ({
   const [diceVisible, setDiceVisible] = useState(false);
   const [hopSequence, setHopSequence] = useState<number[] | null>(null);
   const pendingRewardPos = useRef<number | null>(null);
-  const rollingInterval = useRef<NodeJS.Timeout | null>(null);
-  const hideTimeout = useRef<NodeJS.Timeout | null>(null);
+  const rollingInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const applyReward = useCallback((pos: number) => {
     const square = board[pos];
