@@ -273,6 +273,13 @@ export const MazeGame3D = ({
   const npcRuntimeStatesRef = useRef<Map<string, NPCRuntimeState>>(
     initNPCRuntimeStates(maze.characters ?? [])
   );
+  
+  // Run vision safety validation on mount (dev mode)
+  useEffect(() => {
+    if (maze.characters?.some(c => c.turning && c.coneVision)) {
+      validateMazeVisionSafety(maze.id, maze.name, maze.characters, maze.grid);
+    }
+  }, [maze.id]);
   // NPC rotation overrides for the 3D scene (characterId -> Y rotation)
   // Initialize with correct starting rotations so vision cones match initial facing
   const [npcRotations, setNpcRotations] = useState<Record<string, number>>(() => {
