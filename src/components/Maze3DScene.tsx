@@ -132,6 +132,8 @@ interface Maze3DSceneProps {
   onMagnetismCacheReady?: (cache: MagnetismCache) => void;
   // NPC rotation overrides (characterId -> Y rotation in radians)
   npcRotations?: Record<string, number>;
+  // Hide vision cone overlays (during dialogue or debug toggle)
+  hideVisionCones?: boolean;
 }
 
 // Ground shader using multiple photo textures with random patches
