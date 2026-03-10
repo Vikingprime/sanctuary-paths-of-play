@@ -1505,6 +1505,7 @@ export const MazeGame3D = ({
     // Reset NPC runtime states (turning, patrol)
     npcRuntimeStatesRef.current = initNPCRuntimeStates(maze.characters ?? []);
     setNpcRotations({});
+    setNpcPositions({});
     
     // Reset timing refs
     gameStartTimeRef.current = null;
