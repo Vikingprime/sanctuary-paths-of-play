@@ -1837,6 +1837,7 @@ export const MazeGame3D = ({
         npcPositions={npcPositions}
         npcBlockedStates={npcBlockedStates}
         hideVisionCones={!visionEnabled || activeDialogue !== null}
+        baitPositions={baitPositions}
       />}
 
       {/* Preview overlay - shows on top while scene loads in background */}
