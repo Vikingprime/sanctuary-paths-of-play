@@ -688,12 +688,14 @@ const chapter7LlamaBlockade: StoryMaze = {
 };
 
 // === ACT 1 LEVEL 8: Rootbeer Cellar ===
+// Uses 'cellar' theme: barrels instead of corn, dark room, ceiling lights
 const chapter8RootbeerCellar: StoryMaze = {
   id: 108, name: "Remy's Root Beer Run", chapterId: 'rootbeer_cellar', difficulty: 'medium',
   timeLimit: 200, timerDisabled: true, previewTime: 10, medalTimes: { gold: 50, silver: 80, bronze: 120 },
+  theme: 'cellar',
   characters: [
     { id: 'remy_cellar', name: 'Remy', emoji: '🐀', model: 'Rat.glb', animation: 'idle', position: { x: 2, y: 2 } },
-    { id: 'rootbeer', name: 'Root Beer', emoji: '🍺', model: 'Log.glb', animation: 'idle', position: { x: 13, y: 10 } },
+    { id: 'rootbeer', name: 'Root Beer', emoji: '🍺', model: 'Beer_Keg.glb', animation: 'idle', position: { x: 13, y: 10 } },
   ],
   storyCharacters: [], quest: { id: 'quest_rootbeer_cellar', title: "Remy's Root Beer Run", description: 'Navigate the cellar to find the root beer stash!', objectives: [{ id: 'find_rootbeer', type: 'talk_to', description: 'Find the root beer', targetCharacterId: 'rootbeer', completed: false }], rewards: { stars: 12, medal: true } },
   dialogues: [
