@@ -1071,6 +1071,7 @@ const PlacedCharacter = ({
   onClick,
   rotationOverride,
   positionOverride,
+  isBlocked = false,
 }: { 
   character: MazeCharacter;
   playerStateRef?: MutableRefObject<PlayerState>;
@@ -1080,6 +1081,7 @@ const PlacedCharacter = ({
   onClick?: (characterId: string) => void;
   rotationOverride?: number; // Y rotation in radians, overrides default facing
   positionOverride?: { x: number; y: number }; // Override position for patrolling NPCs
+  isBlocked?: boolean; // True when NPC is stopped due to player collision
 }) => {
   // Check if this character has any click-triggered dialogues
   const hasClickDialogue = maze.dialogues?.some(
@@ -1096,7 +1098,7 @@ const PlacedCharacter = ({
       <CharacterRenderer
         modelFile={character.model}
         position={positionOverride ?? character.position}
-        animation={character.animation}
+        animation={isBlocked ? 'idle' : character.animation}
         playerStateRef={playerStateRef}
         isDialogueActive={isDialogueActive}
         alwaysFacePlayer={character.alwaysFacePlayer}
