@@ -1853,8 +1853,8 @@ export const MazeGame3D = ({
         />
       )}
 
-      {/* Mobile/Rail Controls - only render after preview ends AND if enabled */}
-      {!isPreviewing && mobileControlsEnabled && controlMode === 'joystick' && (
+      {/* Mobile/Rail Controls - only render after preview ends AND if enabled, hidden during dialogue */}
+      {!isPreviewing && mobileControlsEnabled && !activeDialogue && !activeAppleDialogue && controlMode === 'joystick' && (
         <MobileControls
           playerStateRef={playerStateRef}
           joystickXRef={joystickXRef}
