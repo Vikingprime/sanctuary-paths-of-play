@@ -616,10 +616,11 @@ export const MazeGame3D = ({
           if (didTurn) changed = true;
         }
         
-        // Update patrol
+        // Update patrol (pass player position for collision stopping)
         if (char.patrol) {
           const isWall = (x: number, y: number) => maze.grid[y]?.[x]?.isWall ?? true;
-          const didMove = updateNPCPatrol(state, char, TICK_MS / 1000, isWall);
+          const playerWorld = { x: playerStateRef.current.x, y: playerStateRef.current.y };
+          const didMove = updateNPCPatrol(state, char, TICK_MS / 1000, isWall, playerWorld);
           if (didMove) changed = true;
         }
         

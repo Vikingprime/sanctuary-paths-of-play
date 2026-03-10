@@ -349,13 +349,15 @@ export function resolveVisionCellsWithLOS(
 
 /**
  * Update patrol movement for an NPC.
+ * Stops if the NPC would collide with the player.
  * Returns true if position changed.
  */
 export function updateNPCPatrol(
   state: NPCRuntimeState, 
   character: MazeCharacter, 
   deltaSec: number,
-  isWall: (x: number, y: number) => boolean
+  isWall: (x: number, y: number) => boolean,
+  playerPos?: { x: number; y: number }
 ): boolean {
   if (!character.patrol) return false;
   
@@ -370,6 +372,29 @@ export function updateNPCPatrol(
       state.patrolPauseElapsed = 0;
     }
     return false;
+  }
+  
+  // Check if player is blocking the path ahead (NPC stops)
+  if (playerPos) {
+    const NPC_STOP_RADIUS = 0.8; // Stop when player is within this distance
+    const npcCenterX = state.patrolPosition.x + 0.5;
+    const npcCenterY = state.patrolPosition.y + 0.5;
+    const dx = playerPos.x - npcCenterX;
+    const dy = playerPos.y - npcCenterY;
+    const distToPlayer = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distToPlayer < NPC_STOP_RADIUS) {
+      // Player is blocking - don't move, but still update facing
+      const targetWP = waypoints[state.patrolWaypointIndex];
+      const tdx = targetWP.x - state.patrolPosition.x;
+      const tdy = targetWP.y - state.patrolPosition.y;
+      if (Math.abs(tdx) > Math.abs(tdy)) {
+        state.currentDirection = tdx > 0 ? 'east' : 'west';
+      } else {
+        state.currentDirection = tdy > 0 ? 'south' : 'north';
+      }
+      return false;
+    }
   }
   
   // Move toward current target waypoint
