@@ -814,20 +814,20 @@ const chapter14PorcupineBarn: StoryMaze = {
   id: 114, name: "The Barn", chapterId: 'porcupine_barn', difficulty: 'hard',
   timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 60, silver: 90, bronze: 120 },
   characters: [
-    { id: 'porcupine_boss', name: 'Porcupine Boss', emoji: '🦔', model: 'Squirrel.glb', animation: 'idle', position: { x: 16, y: 10 } },
-    { id: 'fox_guard_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 4, y: 4 }, visionDialogueId: 'fox_caught', coneVision: { range: 5, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 4, y: 4 }, { x: 4, y: 7 }], speedCellsPerSec: 1.0, pauseMs: 1000 } },
-    { id: 'fox_guard_2', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 12, y: 6 }, visionDialogueId: 'fox_caught', coneVision: { range: 4, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['west', 'east'], intervalMs: 3000 } },
+    { id: 'porcupine_boss', name: 'Porcupine Boss', emoji: '🦔', model: 'Squirrel.glb', animation: 'idle', position: { x: 14, y: 10 } },
+    { id: 'fox_guard_1', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 6, y: 7 }, visionDialogueId: 'fox_caught', coneVision: { range: 5, spreadPerCell: 1 }, patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 5 }, { x: 6, y: 9 }], speedCellsPerSec: 1.0, pauseMs: 1000 } },
+    { id: 'fox_guard_2', name: 'Fox', emoji: '🦊', model: 'Rat.glb', animation: 'idle', position: { x: 10, y: 5 }, visionDialogueId: 'fox_caught', coneVision: { range: 4, spreadPerCell: 1 }, turning: { pattern: 'ping-pong', directions: ['west', 'south'], intervalMs: 3000 } },
   ],
   storyCharacters: [], quest: { id: 'quest_porcupine_barn', title: 'The Barn', description: "Dodge fox patrols to reach Porcupine Boss!", objectives: [{ id: 'reach_porcupine', type: 'talk_to', description: 'Reach Porcupine Boss', targetCharacterId: 'porcupine_boss', completed: false }], rewards: { stars: 20, medal: true } },
   dialogues: [
     { id: 'fox_caught', speaker: 'Fox', speakerEmoji: '🦊', message: "HALT! No chickens allowed!", cells: [], speakerCharacterId: 'fox_guard_1', effect: 'game_over' },
-    { id: 'porcupine_talk', speaker: 'Porcupine Boss', speakerEmoji: '🦔', message: "A little chicken made it past my guards!", messages: [{ speaker: 'Porcupine Boss', speakerEmoji: '🦔', message: "Ferrets, raccoon, sheep, skunk, goat — all were at the scene that night. But first — the lights!" }], cells: [{ x: 15, y: 10 }, { x: 16, y: 10 }, { x: 16, y: 9 }], speakerCharacterId: 'porcupine_boss', questAction: { type: 'complete_objective', objectiveId: 'reach_porcupine' } },
+    { id: 'porcupine_talk', speaker: 'Porcupine Boss', speakerEmoji: '🦔', message: "A little chicken made it past my guards!", messages: [{ speaker: 'Porcupine Boss', speakerEmoji: '🦔', message: "Ferrets, raccoon, sheep, skunk, goat — all were at the scene that night. But first — the lights!" }], cells: [{ x: 13, y: 10 }, { x: 14, y: 10 }, { x: 14, y: 9 }], speakerCharacterId: 'porcupine_boss', questAction: { type: 'complete_objective', objectiveId: 'reach_porcupine' } },
   ],
   endConditions: { requiredDialogues: ['porcupine_talk'] },
   grid: createGrid([
-    '####################', '##SS        ##  ####', '##    ####  ##  ####', '####  ####      ####',
-    '####          ##  ##', '##    ##  ##  ##  ##', '##    ##  ##      ##', '####          ######',
-    '####  ####    ######', '##    ####  ##    ##', '##          ##    ##', '####################',
+    '####################', '##SS######        ##', '##  ######        ##', '##  ######  ########',
+    '##  ######  ########', '##              ####', '##              ####', '######  ######  ####',
+    '######  ######  ####', '######          ####', '######        EE####', '####################',
   ]),
 };
 
