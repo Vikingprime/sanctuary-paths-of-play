@@ -627,8 +627,8 @@ const chapter6PumpkinHunt: StoryMaze = {
   timeLimit: 90, timerDisabled: false, previewTime: 10, medalTimes: { gold: 40, silver: 60, bronze: 80 },
   characters: [
     { id: 'pumpkin', name: 'Pumpkin', emoji: '🎃', model: 'Bush_with_Berries.glb', animation: 'idle', position: { x: 16, y: 10 } },
-    { id: 'horse_1', name: 'Horse', emoji: '🐴', model: 'Cow.glb', animation: 'idle', position: { x: 8, y: 2 }, patrol: { pattern: 'loop', waypoints: [{ x: 4, y: 2 }, { x: 16, y: 2 }], speedCellsPerSec: 1.5 } },
-    { id: 'horse_2', name: 'Horse', emoji: '🐴', model: 'Cow.glb', animation: 'idle', position: { x: 14, y: 7 }, patrol: { pattern: 'loop', waypoints: [{ x: 14, y: 4 }, { x: 14, y: 9 }], speedCellsPerSec: 1.2 } },
+    { id: 'horse_1', name: 'Horse', emoji: '🐴', model: 'Cow.glb', animation: 'walk', position: { x: 8, y: 2 }, patrol: { pattern: 'loop', waypoints: [{ x: 4, y: 2 }, { x: 16, y: 2 }], speedCellsPerSec: 1.5 } },
+    { id: 'horse_2', name: 'Horse', emoji: '🐴', model: 'Cow.glb', animation: 'walk', position: { x: 14, y: 7 }, patrol: { pattern: 'loop', waypoints: [{ x: 14, y: 4 }, { x: 14, y: 9 }], speedCellsPerSec: 1.2 } },
   ],
   storyCharacters: [], quest: { id: 'quest_pumpkin_hunt', title: 'The Pumpkin Race', description: 'Find the pumpkin before time runs out!', objectives: [{ id: 'find_pumpkin', type: 'talk_to', description: 'Reach the pumpkin', targetCharacterId: 'pumpkin', completed: false }], rewards: { stars: 12, medal: true } },
   dialogues: [{ id: 'pumpkin_found', speaker: 'You', speakerEmoji: '🐷', message: "Found the pumpkin! 🎃 Perfect for the feast!", cells: [{ x: 15, y: 10 }, { x: 16, y: 10 }, { x: 16, y: 9 }], speakerCharacterId: 'pumpkin', questAction: { type: 'complete_objective', objectiveId: 'find_pumpkin' } }],
