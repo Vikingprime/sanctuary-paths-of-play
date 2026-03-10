@@ -17,7 +17,7 @@
  */
 
 import { Maze } from '@/types/game';
-import { applyDeletedSpineFineCells } from '@/lib/spineFineCells';
+import { applyDeletedSpineFineCells, trimSpineEndpoints } from '@/lib/spineFineCells';
 import { GameConfig } from './GameConfig';
 import { computeMedialAxis, MedialAxisResult, SpurConfig } from './MedialAxis';
 import { buildSmoothedPolylines, PolylineGraph, PolylineSegment, Point2D, PolylineConfig, Junction } from './SkeletonPolyline';
@@ -204,6 +204,9 @@ export function buildMagnetismCache(
   const result = computeMedialAxis(maze, 20, spurConfig);
   const { fineGrid, scale, fineCellSize } = result;
   applyDeletedSpineFineCells(fineGrid, maze.deletedSpineFineCells, maze.deletedSpineBranches);
+  if (maze.spineEndpointTrim && maze.spineEndpointTrim > 0) {
+    trimSpineEndpoints(fineGrid, maze.spineEndpointTrim);
+  }
   
   const fineHeight = fineGrid.length;
   const fineWidth = fineGrid[0]?.length ?? 0;

@@ -122,6 +122,7 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     scale: 0.005,
     yOffset: 0.15,
     height: 0.25,
+    rotationOffset: Math.PI,
     debugPlaneColor: '#dd8844',
     animations: ['idle'],
   },

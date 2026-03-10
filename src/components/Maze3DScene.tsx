@@ -8,7 +8,7 @@ import { NPCRuntimeState } from '@/game/NPCRuntime';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision, checkCollision } from '@/game/GameLogic';
-import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor, getCharacterTintColor } from '@/game/CharacterConfig';
+import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor, getCharacterTintColor, getCharacterRotationOffset } from '@/game/CharacterConfig';
 import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
 import { getAutopushEnabled, getLOSFaderEnabled, frameMetrics, checkGcSpike } from '@/lib/debug';
@@ -966,8 +966,9 @@ const CharacterRenderer = ({
         const angle = Math.atan2(dx, dz);
         groupRef.current.rotation.y = angle;
       } else if (rotationOverride !== undefined) {
-        // Apply NPC turning rotation override
-        groupRef.current.rotation.y = rotationOverride;
+        // Apply NPC turning rotation override + model-specific rotation offset
+        const rotOffset = getCharacterRotationOffset(modelFile);
+        groupRef.current.rotation.y = rotationOverride + rotOffset;
       }
       
       // Apply opacity fade based on distance from player
