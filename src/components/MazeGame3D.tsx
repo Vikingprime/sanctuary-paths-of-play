@@ -1768,6 +1768,8 @@ export const MazeGame3D = ({
           onToggleLOSFader={() => setLosFaderEnabled(prev => !prev)}
           verboseLogging={verboseLogging}
           onToggleVerboseLogging={() => setVerboseLogging(prev => !prev)}
+          visionEnabled={visionEnabled}
+          onToggleVision={() => setVisionEnabled(prev => !prev)}
           // Feature toggles
           shadowsEnabled={shadowsEnabled}
           onToggleShadows={() => setShadowsEnabled(prev => !prev)}

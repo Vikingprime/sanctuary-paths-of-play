@@ -589,6 +589,18 @@ export const GameHUD = ({
                   🌽 LOSFader {losFaderEnabled ? 'On' : 'Off'}
                 </button>
               )}
+              {onToggleVision && (
+                <button
+                  onClick={onToggleVision}
+                  className={cn(
+                    'bg-card/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg font-display text-xs transition-colors',
+                    visionEnabled ? 'text-green-500' : 'text-red-500'
+                  )}
+                  title="Toggle NPC vision detection"
+                >
+                  👁️ Vision {visionEnabled ? 'On' : 'Off'}
+                </button>
+              )}
               {onToggleVerboseLogging && (
                 <button
                   onClick={onToggleVerboseLogging}

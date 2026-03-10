@@ -3039,8 +3039,8 @@ return (
         />
       ))}
       
-      {/* Vision Cone overlays for NPCs with vision */}
-      {maze.characters?.filter(c => c.coneVision || c.directionalVision).map((character) => (
+      {/* Vision Cone overlays for NPCs with vision - hidden during dialogue or when debug-disabled */}
+      {!hideVisionCones && maze.characters?.filter(c => c.coneVision || c.directionalVision).map((character) => (
         <VisionConeOverlay
           key={`vision-${character.id}`}
           character={character}
