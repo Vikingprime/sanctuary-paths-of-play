@@ -1745,6 +1745,7 @@ export const MazeGame3D = ({
         railTurnSpeed={railTurnSpeed}
         onRailMoveComplete={handleRailStop}
         npcRotations={npcRotations}
+        npcPositions={npcPositions}
         hideVisionCones={!visionEnabled || activeDialogue !== null}
       />}
 
