@@ -488,10 +488,12 @@ export const GameHUD = ({
           </button>
           
           {/* Item Panel - below control buttons */}
-          {onAppleDrop && (
+          {(onAppleDrop || hasBait) && (
             <ItemPanel
               appleCount={appleCount}
-              onAppleDrop={onAppleDrop}
+              onAppleDrop={onAppleDrop ?? (() => {})}
+              hasBait={hasBait}
+              onBaitThrow={onBaitThrow}
             />
           )}
           
