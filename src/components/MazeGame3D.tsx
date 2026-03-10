@@ -609,10 +609,41 @@ export const MazeGame3D = ({
       if (changed) {
         setNpcRotations({ ...newRotations });
       }
+      
+      // After updating NPC states, check if player is now in any vision cone
+      const playerGridX = Math.floor(playerStateRef.current.x);
+      const playerGridY = Math.floor(playerStateRef.current.y);
+      for (const char of characters) {
+        if (!char.visionDialogueId) continue;
+        if (triggeredDialoguesRef.current.has(char.visionDialogueId)) continue;
+        
+        const npcState = states.get(char.id);
+        const isWallFn = (gx: number, gy: number) => maze.grid[gy]?.[gx]?.isWall ?? true;
+        const activeCells = resolveVisionCells(char, npcState, isWallFn);
+        const inVision = activeCells.some(cell => cell.x === playerGridX && cell.y === playerGridY);
+        
+        if (inVision && maze.dialogues) {
+          const visionDialogue = maze.dialogues.find(d => d.id === char.visionDialogueId);
+          if (visionDialogue && !triggeredDialoguesRef.current.has(visionDialogue.id)) {
+            // Check requirements
+            if (visionDialogue.requires?.length) {
+              if (!visionDialogue.requires.every(r => triggeredDialoguesRef.current.has(r))) continue;
+            }
+            if (visionDialogue.requiresNot?.length) {
+              if (visionDialogue.requiresNot.some(r => triggeredDialoguesRef.current.has(r))) continue;
+            }
+            // Trigger detection
+            setActiveDialogue(visionDialogue);
+            setDialogueMessageIndex(0);
+            setTriggeredDialogues(prev => new Set([...prev, visionDialogue.id]));
+            break;
+          }
+        }
+      }
     }, TICK_MS);
     
     return () => clearInterval(interval);
-  }, [isPreviewing, gameOver, maze.characters, maze.grid, activeDialogue, activeAppleDialogue, postDialoguePause]);
+  }, [isPreviewing, gameOver, maze.characters, maze.grid, maze.dialogues, activeDialogue, activeAppleDialogue, postDialoguePause]);
 
   const areRequirementsMet = useCallback((dialogue: DialogueTrigger): boolean => {
     if (!dialogue.requires || dialogue.requires.length === 0) return true;
