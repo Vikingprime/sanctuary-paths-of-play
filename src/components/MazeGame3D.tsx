@@ -809,7 +809,9 @@ export const MazeGame3D = ({
     for (const dialogue of maze.dialogues) {
       if (currentTriggered.has(dialogue.id)) continue;
       // Skip click-triggered dialogues - they're handled by character clicks
-      if (dialogue.triggerType === 'click') continue;
+      // Respect maze-level dialogueTriggerMode: if 'click', treat all dialogues as click-triggered unless explicitly set to 'proximity'
+      const effectiveTriggerType = dialogue.triggerType ?? maze.dialogueTriggerMode ?? 'proximity';
+      if (effectiveTriggerType === 'click') continue;
       
       // Check requirements inline to avoid stale closure
       if (dialogue.requires && dialogue.requires.length > 0) {
