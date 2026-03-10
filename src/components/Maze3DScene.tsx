@@ -1101,6 +1101,7 @@ const PlacedCharacter = ({
         maze={maze}
         showCollisionDebug={showCollisionDebug}
         rotationOverride={rotationOverride}
+        isPatrolling={!!positionOverride}
       />
     </group>
   );
