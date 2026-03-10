@@ -111,6 +111,19 @@ export const MiniMap = ({ maze, playerPos, isVisible, onClose, timeLeft, selecte
     });
     return positions;
   }, [maze]);
+
+  // Find vision-cone NPCs (sparrows, foxes, etc.) to show on map
+  const visionNPCs = useMemo(() => {
+    if (!maze.characters) return [];
+    return maze.characters
+      .filter(c => c.coneVision || c.directionalVision)
+      .map(c => ({
+        x: c.position.x,
+        y: c.position.y,
+        emoji: c.emoji,
+        id: c.id,
+      }));
+  }, [maze]);
   
   const isInEndRegion = (x: number, y: number) => 
     endBounds && x >= endBounds.minX && x <= endBounds.maxX && y >= endBounds.minY && y <= endBounds.maxY;
