@@ -765,7 +765,7 @@ const chapter12HerdChicks: StoryMaze = {
   dialogues: [
     { id: 'henrietta_help', speaker: 'Henrietta', speakerEmoji: '🐔', message: "My babies! Please find all three!", cells: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 1 }], speakerCharacterId: 'henrietta_home' },
     { id: 'chick1_found', speaker: 'Chick', speakerEmoji: '🐥', message: "Peep peep! *follows you*", cells: [{ x: 7, y: 3 }, { x: 8, y: 3 }, { x: 8, y: 2 }], speakerCharacterId: 'chick_1', questAction: { type: 'complete_objective', objectiveId: 'find_chick_1' } },
-    { id: 'chick2_found', speaker: 'Chick', speakerEmoji: '🐥', message: "Peep! *happy to see you*", cells: [{ x: 11, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 6 }], speakerCharacterId: 'chick_2', questAction: { type: 'complete_objective', objectiveId: 'find_chick_2' } },
+    { id: 'chick2_found', speaker: 'Chick', speakerEmoji: '🐥', message: "Peep! *happy to see you*", cells: [{ x: 7, y: 6 }, { x: 8, y: 6 }, { x: 9, y: 6 }], speakerCharacterId: 'chick_2', questAction: { type: 'complete_objective', objectiveId: 'find_chick_2' } },
     { id: 'chick3_found', speaker: 'Chick', speakerEmoji: '🐥', message: "PEEP! *runs in circles*", cells: [{ x: 4, y: 9 }, { x: 5, y: 9 }, { x: 5, y: 8 }], speakerCharacterId: 'chick_3', questAction: { type: 'complete_objective', objectiveId: 'find_chick_3' } },
   ],
   endConditions: { requiredDialogues: ['chick1_found', 'chick2_found', 'chick3_found'] },
