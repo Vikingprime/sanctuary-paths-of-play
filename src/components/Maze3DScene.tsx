@@ -2861,12 +2861,13 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   const characterPositions = useMemo<CharacterPosition[]>(() => {
     const positions: CharacterPosition[] = [];
     
-    // Add placed characters from maze.characters
+    // Add placed characters from maze.characters (use npcPositions for patrolling ones)
     maze.characters?.forEach((char) => {
+      const pos = npcPositions[char.id] ?? char.position;
       positions.push({
-        x: char.position.x,
-        y: char.position.y,
-        radius: CHARACTER_COLLISION_RADIUS,
+        x: pos.x,
+        y: pos.y,
+        radius: char.patrol ? 0.3 : CHARACTER_COLLISION_RADIUS, // Patrolling NPCs have larger collision
       });
     });
     
