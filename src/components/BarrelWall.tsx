@@ -8,20 +8,21 @@ useGLTF.preload('/models/Barrel_1.glb');
 useGLTF.preload('/models/Beer_Keg.glb');
 useGLTF.preload('/models/Keg.glb');
 
-// Integer hash for variety
+// Integer hash - tested to produce good distribution across 0-1
 const seededRandom = (seed: number): number => {
-  let s = Math.imul(seed | 0, 2654435761) >>> 0;
-  s = Math.imul((s >>> 16) ^ s, 0x45d9f3b) >>> 0;
-  s = ((s >>> 16) ^ s) >>> 0;
+  let s = seed | 0;
+  s = Math.imul(s ^ 0x5bd1e995, 0x5bd1e995) >>> 0;
+  s = Math.imul(s ^ (s >>> 15), 0x27d4eb2d) >>> 0;
+  s = (s ^ (s >>> 13)) >>> 0;
   return s / 4294967295;
 };
 
-// Barrel type config
+// Barrel type config - bigger scales, more variety with Beer_Keg and Keg
 const BARREL_TYPES = [
-  { model: '/models/Barrel.glb', weight: 3, baseScale: 0.35 },
-  { model: '/models/Barrel_1.glb', weight: 3, baseScale: 0.35 },
-  { model: '/models/Beer_Keg.glb', weight: 2, baseScale: 0.30 },
-  { model: '/models/Keg.glb', weight: 2, baseScale: 0.30 },
+  { model: '/models/Barrel.glb', weight: 3, baseScale: 0.55 },
+  { model: '/models/Barrel_1.glb', weight: 3, baseScale: 0.55 },
+  { model: '/models/Beer_Keg.glb', weight: 2, baseScale: 0.50 },
+  { model: '/models/Keg.glb', weight: 2, baseScale: 0.50 },
 ];
 
 const TOTAL_WEIGHT = BARREL_TYPES.reduce((sum, b) => sum + b.weight, 0);
@@ -36,10 +37,10 @@ function pickBarrelType(seed: number): number {
   return 0;
 }
 
-// Placement density - mirrors corn stalk layout
+// Placement density
 const ROWS = 3;
 const STALKS_PER_ROW = 2;
-const STALK_SPACING = 0.42;
+const STALK_SPACING = 0.38;
 
 interface BarrelTransform {
   x: number;
@@ -77,7 +78,7 @@ export const InstancedBarrelWalls = ({
 
   // Compute bounding boxes per type for ground placement
   const typeMetrics = useMemo(() => {
-    return models.map((model) => {
+    return models.map((model, idx) => {
       const box = new Box3();
       model.scene.traverse((child: any) => {
         if (child.isMesh && child.geometry) {
@@ -91,6 +92,7 @@ export const InstancedBarrelWalls = ({
       });
       const size = new Vector3();
       box.getSize(size);
+      console.log(`[BARREL] Type ${idx} (${BARREL_TYPES[idx].model}): minY=${box.min.y.toFixed(3)}, height=${size.y.toFixed(3)}`);
       return {
         minY: isFinite(box.min.y) ? box.min.y : 0,
         height: isFinite(size.y) ? size.y : 1,
@@ -99,9 +101,9 @@ export const InstancedBarrelWalls = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barrel0, barrel1, barrel2, barrel3]);
 
-  // Extract cloned mesh parts per type (clone to avoid shared material issues)
+  // Extract cloned mesh parts per type
   const meshPartsPerType = useMemo(() => {
-    return models.map((model) => {
+    return models.map((model, idx) => {
       const parts: MeshParts[] = [];
       model.scene.traverse((child: any) => {
         if (child.isMesh) {
@@ -111,14 +113,22 @@ export const InstancedBarrelWalls = ({
           });
         }
       });
+      console.log(`[BARREL] Type ${idx}: ${parts.length} mesh parts`);
       return parts;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barrel0, barrel1, barrel2, barrel3]);
 
-  // Generate barrel transforms mirroring corn stalk placement
+  // Generate barrel transforms
   const transforms = useMemo(() => {
     const result: BarrelTransform[] = [];
+
+    // Verify hash distribution
+    const typeCounts = [0, 0, 0, 0];
+    for (let i = 0; i < 100; i++) {
+      typeCounts[pickBarrelType(i * 37 + 7)]++;
+    }
+    console.log('[BARREL] Hash distribution test (100 samples):', typeCounts);
 
     const placeBarrelsInCell = (
       centerX: number, centerZ: number,
@@ -130,11 +140,11 @@ export const InstancedBarrelWalls = ({
         const stalksInRow = STALKS_PER_ROW + (row % 2);
         const rowOffset = (row % 2) * (STALK_SPACING / 2);
         for (let col = 0; col < stalksInRow; col++) {
-          const stalkSeed = baseSeed + row * 100 + col * 13;
+          const stalkSeed = baseSeed + row * 137 + col * 51;
           const offsetX = (col - (stalksInRow - 1) / 2) * STALK_SPACING + rowOffset;
           const offsetZ = (row - (ROWS - 1) / 2) * STALK_SPACING;
-          const jitterX = (seededRandom(stalkSeed + 1) - 0.5) * 0.1;
-          const jitterZ = (seededRandom(stalkSeed + 2) - 0.5) * 0.1;
+          const jitterX = (seededRandom(stalkSeed + 11) - 0.5) * 0.08;
+          const jitterZ = (seededRandom(stalkSeed + 23) - 0.5) * 0.08;
 
           if (skipEdges) {
             const fx = offsetX + jitterX;
@@ -145,16 +155,16 @@ export const InstancedBarrelWalls = ({
             if (skipEdges.includes('bottom') && fz > edgeZone - 0.1) continue;
           }
 
-          const typeIndex = pickBarrelType(stalkSeed + 7);
+          const typeIndex = pickBarrelType(stalkSeed * 31 + 7);
           const baseScale = BARREL_TYPES[typeIndex].baseScale;
-          const scale = baseScale * (0.85 + seededRandom(stalkSeed + 3) * 0.3);
+          const scale = baseScale * (0.9 + seededRandom(stalkSeed + 37) * 0.25);
           const groundY = -typeMetrics[typeIndex].minY * scale;
 
           result.push({
             x: centerX + offsetX + jitterX,
             y: groundY,
             z: centerZ + offsetZ + jitterZ,
-            rotation: seededRandom(stalkSeed + 4) * Math.PI * 2,
+            rotation: seededRandom(stalkSeed + 43) * Math.PI * 2,
             scale,
             typeIndex,
           });
@@ -169,9 +179,9 @@ export const InstancedBarrelWalls = ({
     ) => {
       edges.forEach((edge, edgeIdx) => {
         for (let col = 0; col < STALKS_PER_ROW; col++) {
-          const stalkSeed = baseSeed + edgeIdx * 1000 + col * 13;
+          const stalkSeed = baseSeed + edgeIdx * 997 + col * 51;
           let offsetX = 0, offsetZ = 0;
-          const edgeOffset = 0.42;
+          const edgeOffset = 0.40;
           const colOffset = (col - (STALKS_PER_ROW - 1) / 2) * STALK_SPACING;
 
           switch (edge) {
@@ -181,18 +191,18 @@ export const InstancedBarrelWalls = ({
             case 'bottom': offsetX = colOffset;   offsetZ = edgeOffset; break;
           }
 
-          const jitterX = (seededRandom(stalkSeed + 1) - 0.5) * 0.1;
-          const jitterZ = (seededRandom(stalkSeed + 2) - 0.5) * 0.1;
-          const typeIndex = pickBarrelType(stalkSeed + 7);
+          const jitterX = (seededRandom(stalkSeed + 11) - 0.5) * 0.08;
+          const jitterZ = (seededRandom(stalkSeed + 23) - 0.5) * 0.08;
+          const typeIndex = pickBarrelType(stalkSeed * 31 + 7);
           const baseScale = BARREL_TYPES[typeIndex].baseScale;
-          const scale = baseScale * (0.85 + seededRandom(stalkSeed + 3) * 0.3);
+          const scale = baseScale * (0.9 + seededRandom(stalkSeed + 37) * 0.25);
           const groundY = -typeMetrics[typeIndex].minY * scale;
 
           result.push({
             x: centerX + offsetX + jitterX,
             y: groundY,
             z: centerZ + offsetZ + jitterZ,
-            rotation: seededRandom(stalkSeed + 4) * Math.PI * 2,
+            rotation: seededRandom(stalkSeed + 43) * Math.PI * 2,
             scale,
             typeIndex,
           });
@@ -200,48 +210,50 @@ export const InstancedBarrelWalls = ({
       });
     };
 
-    // Edge positions
     edgePositions.forEach((pos) => {
-      placeEdgeBarrels(pos.x + 0.5, pos.z + 0.5, pos.edges, pos.x * 1000 + pos.z);
+      placeEdgeBarrels(pos.x + 0.5, pos.z + 0.5, pos.edges, pos.x * 997 + pos.z * 31);
     });
 
-    // Interior/depth walls
     noShadowPositions.forEach((pos) => {
-      placeBarrelsInCell(pos.x + 0.5, pos.z + 0.5, pos.x * 1000 + pos.z + 10000, pos.avoidEdges);
+      placeBarrelsInCell(pos.x + 0.5, pos.z + 0.5, pos.x * 997 + pos.z * 31 + 10000, pos.avoidEdges);
     });
 
-    // Boundary walls
     boundaryPositions.forEach((pos) => {
-      const baseSeed = pos.x * 1000 + pos.z + 50000;
+      const baseSeed = pos.x * 997 + pos.z * 31 + 50000;
       const dirX = pos.offsetX !== 0 ? Math.sign(pos.offsetX) : 0;
       const dirZ = pos.offsetZ !== 0 ? Math.sign(pos.offsetZ) : 0;
 
       for (let row = 0; row < 2; row++) {
         const depthOffset = row * 0.8;
         for (let col = 0; col < 2; col++) {
-          const stalkSeed = baseSeed + row * 100 + col * 13;
+          const stalkSeed = baseSeed + row * 137 + col * 51;
           const colOffset = (col - 0.5) * 0.4;
-          const jX = (seededRandom(stalkSeed + 1) - 0.5) * 0.03;
-          const jZ = (seededRandom(stalkSeed + 2) - 0.5) * 0.03;
+          const jX = (seededRandom(stalkSeed + 11) - 0.5) * 0.03;
+          const jZ = (seededRandom(stalkSeed + 23) - 0.5) * 0.03;
 
           let posX = pos.x + 0.5 + jX;
           let posZ = pos.z + 0.5 + jZ;
-
           if (dirX !== 0) { posX += dirX * depthOffset; posZ += colOffset; }
           else { posX += colOffset; posZ += dirZ * depthOffset; }
 
-          const typeIndex = pickBarrelType(stalkSeed + 7);
+          const typeIndex = pickBarrelType(stalkSeed * 31 + 7);
           const baseScale = BARREL_TYPES[typeIndex].baseScale;
-          const scale = baseScale * (0.85 + seededRandom(stalkSeed + 3) * 0.3);
+          const scale = baseScale * (0.9 + seededRandom(stalkSeed + 37) * 0.25);
           const groundY = -typeMetrics[typeIndex].minY * scale;
 
-          result.push({ x: posX, y: groundY, z: posZ, rotation: seededRandom(stalkSeed + 4) * Math.PI * 2, scale, typeIndex });
+          result.push({ x: posX, y: groundY, z: posZ, rotation: seededRandom(stalkSeed + 43) * Math.PI * 2, scale, typeIndex });
         }
       }
     });
 
-    console.log('[BARREL_WALL] Generated transforms:', result.length, 
-      'edge:', edgePositions.length, 'depth:', noShadowPositions.length, 'boundary:', boundaryPositions.length);
+    console.log('[BARREL_WALL] Total transforms:', result.length,
+      '| edge cells:', edgePositions.length, '| depth cells:', noShadowPositions.length, '| boundary cells:', boundaryPositions.length);
+    
+    // Log type distribution
+    const dist = [0, 0, 0, 0];
+    result.forEach(t => dist[t.typeIndex]++);
+    console.log('[BARREL_WALL] Type distribution:', dist);
+
     return result;
   }, [edgePositions, noShadowPositions, boundaryPositions, typeMetrics]);
 
@@ -249,11 +261,10 @@ export const InstancedBarrelWalls = ({
   const groupedTransforms = useMemo(() => {
     const groups: BarrelTransform[][] = BARREL_TYPES.map(() => []);
     transforms.forEach(t => groups[t.typeIndex].push(t));
-    console.log('[BARREL_WALL] Per-type counts:', groups.map((g, i) => `type${i}:${g.length}`).join(', '));
     return groups;
   }, [transforms]);
 
-  // Imperatively create InstancedMesh objects (avoids R3F primitive/material attachment issues)
+  // Imperatively create InstancedMesh objects
   useEffect(() => {
     const group = groupRef.current;
     if (!group || createdRef.current) return;
@@ -263,11 +274,17 @@ export const InstancedBarrelWalls = ({
     const dummy = new Object3D();
 
     groupedTransforms.forEach((typeTransforms, typeIndex) => {
-      if (typeTransforms.length === 0) return;
+      if (typeTransforms.length === 0) {
+        console.log(`[BARREL] Skipping type ${typeIndex}: 0 transforms`);
+        return;
+      }
       const parts = meshPartsPerType[typeIndex];
-      if (parts.length === 0) return;
+      if (parts.length === 0) {
+        console.log(`[BARREL] Skipping type ${typeIndex}: 0 mesh parts`);
+        return;
+      }
 
-      parts.forEach((part) => {
+      parts.forEach((part, partIdx) => {
         const mesh = new ThreeInstancedMesh(part.geometry, part.material, typeTransforms.length);
 
         typeTransforms.forEach((t, i) => {
@@ -285,10 +302,11 @@ export const InstancedBarrelWalls = ({
 
         group.add(mesh);
         allMeshes.push(mesh);
+        console.log(`[BARREL] Created instanced mesh: type=${typeIndex} part=${partIdx} count=${typeTransforms.length}`);
       });
     });
 
-    console.log('[BARREL_WALL] Created', allMeshes.length, 'instanced meshes');
+    console.log('[BARREL_WALL] Total instanced meshes created:', allMeshes.length);
 
     return () => {
       allMeshes.forEach(mesh => {
