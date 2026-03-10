@@ -6,6 +6,8 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { NPCRuntimeState } from '@/game/NPCRuntime';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
+import { InstancedBarrelWalls } from './BarrelWall';
+import { CellarEnvironment } from './CellarEnvironment';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision, checkCollision } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor, getCharacterTintColor, getCharacterRotationOffset } from '@/game/CharacterConfig';
@@ -2871,8 +2873,23 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
     }
   });
 
+  // Detect cellar theme
+  const isCellar = maze.theme === 'cellar';
+  
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
+
+  // All wall positions for barrel rendering (cellar theme)
+  const allWallPositions = useMemo(() => {
+    if (!isCellar) return [];
+    const walls: { x: number; z: number }[] = [];
+    maze.grid.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell.isWall) walls.push({ x, z: y });
+      });
+    });
+    return walls;
+  }, [maze, isCellar]);
 
   // Generate character positions for collision (all placed characters + map stations)
   const CHARACTER_COLLISION_RADIUS = 0.1;
@@ -2960,53 +2977,60 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
 return (
     <>
       
-      {/* Lighting - 8am morning sunlight */}
-      <ambientLight intensity={0.9} color="#FFE4CC" />
+      {/* Lighting - theme-dependent */}
+      {!isCellar && <ambientLight intensity={0.9} color="#FFE4CC" />}
+      {isCellar && <ambientLight intensity={0.15} color="#332818" />}
       
-      {/* Near shadows - resolution controlled by lowShadowRes toggle */}
-      {/* Key forces remount when resolution changes - Three.js caches shadow maps */}
-      {/* Main light coming from barn direction (Panel 1 = ~180° = -Z direction) */}
-      <directionalLight
-        key={`shadow-light-${lowShadowRes ? 'lo' : 'hi'}`}
-        ref={lightRef}
-        position={[0, 50, -25]}
-        intensity={1.75}
-        color="#FFA050"
-        castShadow={shadowsEnabled}
-        shadow-mapSize={lowShadowRes ? [512, 512] : [2048, 2048]}
-        shadow-camera-near={0.5}
-        shadow-camera-far={50}
-          shadow-camera-left={-15}
-          shadow-camera-right={15}
-          shadow-camera-top={15}
-          shadow-camera-bottom={-15}
-        shadow-bias={-0.0001}
-      >
-        <object3D attach="target" />
-      </directionalLight>
+      {/* Main directional light - golden hour for corn, dim for cellar */}
+      {!isCellar && (
+        <directionalLight
+          key={`shadow-light-${lowShadowRes ? 'lo' : 'hi'}`}
+          ref={lightRef}
+          position={[0, 50, -25]}
+          intensity={1.75}
+          color="#FFA050"
+          castShadow={shadowsEnabled}
+          shadow-mapSize={lowShadowRes ? [512, 512] : [2048, 2048]}
+          shadow-camera-near={0.5}
+          shadow-camera-far={50}
+            shadow-camera-left={-15}
+            shadow-camera-right={15}
+            shadow-camera-top={15}
+            shadow-camera-bottom={-15}
+          shadow-bias={-0.0001}
+        >
+          <object3D attach="target" />
+        </directionalLight>
+      )}
       
-      
-      {/* Fill light from opposite side (trees direction) */}
-      <directionalLight
-        position={[0, 15, 25]}
-        intensity={0.45}
-        color="#FFE8D0"
-      />
+      {/* Fill light (corn theme only) */}
+      {!isCellar && (
+        <directionalLight
+          position={[0, 15, 25]}
+          intensity={0.45}
+          color="#FFE8D0"
+        />
+      )}
       
       {/* Hemisphere light for natural sky/ground color */}
-      <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />
+      {!isCellar && <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
+      {isCellar && <hemisphereLight args={['#2a2018', '#1a1410', 0.3]} />}
       
-      {/* Sky orb - flat material, no fog/tonemapping */}
-      {skyEnabled && <SkyBackground />}
+      {/* Sky orb - flat material, no fog/tonemapping (corn theme only) */}
+      {skyEnabled && !isCellar && <SkyBackground />}
       
-      {/* Exponential fog - uses unified atmosphere color
-          Density 0.14 ensures corn is ~90% obscured at 14m cull distance */}
-      <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />
-      {/* Ground */}
-      <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />
+      {/* Fog - lighter in cellar */}
+      {!isCellar && <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />}
+      {isCellar && <fogExp2 attach="fog" args={['#0a0806', 0.18]} />}
+
+      {/* Cellar environment - dark room enclosure, roof, ceiling lights */}
+      {isCellar && <CellarEnvironment maze={maze} />}
       
-      {/* Maze Walls (corn) with optimizations */}
-      {cornEnabled && (
+      {/* Ground (corn theme only - cellar has its own floor) */}
+      {!isCellar && <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />}
+      
+      {/* Maze Walls - corn or barrels based on theme */}
+      {cornEnabled && !isCellar && (
         <MazeWalls 
           ref={foliageGroupRef}
           maze={maze} 
@@ -3017,6 +3041,7 @@ return (
           rimLightStrength={cornRimLight}
         />
       )}
+      {isCellar && <InstancedBarrelWalls wallPositions={allWallPositions} />}
       
       {/* Power-ups */}
       {visiblePowerUps.map((p, i) => (
