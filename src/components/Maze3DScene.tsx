@@ -3068,6 +3068,21 @@ return (
         />
       ))}
       
+      {/* Placed Bait objects */}
+      {baitPositions?.map((bait) => (
+        <group key={bait.id} position={[bait.x, 0.05, bait.y]}>
+          <mesh>
+            <sphereGeometry args={[0.12, 12, 12]} />
+            <meshStandardMaterial color="#ff8800" emissive="#ff6600" emissiveIntensity={0.3} />
+          </mesh>
+          {/* Glow ring */}
+          <mesh rotation-x={-Math.PI / 2} position-y={0.01}>
+            <ringGeometry args={[0.15, 0.25, 16]} />
+            <meshBasicMaterial color="#ffaa00" transparent opacity={0.4} />
+          </mesh>
+        </group>
+      ))}
+      
       {/* Vision Cone overlays for NPCs with vision - hidden during dialogue or when debug-disabled */}
       {!hideVisionCones && maze.characters?.filter(c => c.coneVision || c.directionalVision).map((character) => (
         <VisionConeOverlay
