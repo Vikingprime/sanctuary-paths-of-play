@@ -1090,7 +1090,8 @@ const PlacedCharacter = ({
 }) => {
   // Check if this character has any click-triggered dialogues
   const hasClickDialogue = maze.dialogues?.some(
-    d => d.triggerType === 'click' && d.speakerCharacterId === character.id
+    d => d.speakerCharacterId === character.id && 
+      (d.triggerType === 'click' || (!d.triggerType && maze.dialogueTriggerMode === 'click'))
   );
   
   return (

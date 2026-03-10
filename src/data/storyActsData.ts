@@ -96,8 +96,8 @@ const act1: StoryAct = {
     },
     {
       id: 'rat_city',
-      title: 'Rat City',
-      description: "Find Remy's cousin in the bustling underground rat city.",
+      title: 'Rodent City',
+      description: "Find Stash the Squirrel in the bustling underground rodent city. Click on rodents to talk!",
       emoji: '🏙️',
       timed: false,
       mazeId: 109,

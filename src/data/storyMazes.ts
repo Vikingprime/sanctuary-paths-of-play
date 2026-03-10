@@ -710,22 +710,34 @@ const chapter8RootbeerCellar: StoryMaze = {
   ]),
 };
 
-// === ACT 1 LEVEL 9: Rat City ===
+// === ACT 1 LEVEL 9: Rodent City ===
+// All dialogues are click-triggered. Patrolling rodents avoid blocking the spine.
 const chapter9RatCity: StoryMaze = {
-  id: 109, name: "Rat City", chapterId: 'rat_city', difficulty: 'easy',
+  id: 109, name: "Rodent City", chapterId: 'rat_city', difficulty: 'easy',
   timeLimit: 200, timerDisabled: true, previewTime: 10, medalTimes: { gold: 30, silver: 50, bronze: 80 },
+  dialogueTriggerMode: 'click',
   characters: [
-    { id: 'rat_citizen_1', name: 'Rat Citizen', emoji: '🐀', model: 'Rat.glb', animation: 'idle', position: { x: 4, y: 3 } },
-    { id: 'rat_citizen_2', name: 'Rat Citizen', emoji: '🐀', model: 'Rat-2.glb', animation: 'idle', position: { x: 10, y: 5 } },
-    { id: 'remy_cousin_city', name: "Remy's Cousin", emoji: '🐀', model: 'Kangaroo_rat.glb', animation: 'idle', position: { x: 14, y: 8 } },
+    // Patrolling rodents - patrols run parallel to the spine, not across it
+    { id: 'rat_citizen_1', name: 'Rat Citizen', emoji: '🐀', model: 'Rat.glb', animation: 'walk', position: { x: 3, y: 2 },
+      patrol: { pattern: 'loop', waypoints: [{ x: 3, y: 2 }, { x: 6, y: 2 }], speedCellsPerSec: 0.8 } },
+    { id: 'rat_citizen_2', name: 'Rat Citizen', emoji: '🐀', model: 'Rat-2.glb', animation: 'walk', position: { x: 10, y: 4 },
+      patrol: { pattern: 'loop', waypoints: [{ x: 10, y: 4 }, { x: 10, y: 6 }], speedCellsPerSec: 0.7 } },
+    { id: 'hamster_citizen', name: 'Hamster', emoji: '🐹', model: 'Hamster.glb', animation: 'walk', position: { x: 6, y: 6 },
+      patrol: { pattern: 'loop', waypoints: [{ x: 6, y: 6 }, { x: 6, y: 8 }], speedCellsPerSec: 0.6 } },
+    { id: 'mouse_citizen', name: 'Mouse', emoji: '🐭', model: 'Spiny_mouse.glb', animation: 'walk', position: { x: 13, y: 5 },
+      patrol: { pattern: 'loop', waypoints: [{ x: 13, y: 5 }, { x: 15, y: 5 }], speedCellsPerSec: 0.9 } },
+    // Stash the Squirrel - quest target, stationary
+    { id: 'stash_squirrel', name: 'Stash', emoji: '🐿️', model: 'Squirrel.glb', animation: 'idle', position: { x: 14, y: 8 }, alwaysFacePlayer: true },
   ],
-  storyCharacters: [], quest: { id: 'quest_rat_city', title: 'Rat City', description: "Find Remy's cousin in the underground rat city.", objectives: [{ id: 'find_cousin', type: 'talk_to', description: "Find Remy's cousin", targetCharacterId: 'remy_cousin_city', completed: false }], rewards: { stars: 10, medal: true } },
+  storyCharacters: [], quest: { id: 'quest_rat_city', title: 'Rodent City', description: "Find Stash the Squirrel in the underground rodent city. Click on residents to talk!", objectives: [{ id: 'find_stash', type: 'talk_to', description: 'Find Stash the Squirrel', targetCharacterId: 'stash_squirrel', completed: false }], rewards: { stars: 10, medal: true } },
   dialogues: [
-    { id: 'citizen1_chat', speaker: 'Rat Citizen', speakerEmoji: '🐀', message: "Welcome to Rat City! Try the east tunnels.", cells: [{ x: 3, y: 3 }, { x: 4, y: 3 }, { x: 4, y: 2 }], speakerCharacterId: 'rat_citizen_1' },
-    { id: 'citizen2_chat', speaker: 'Rat Citizen', speakerEmoji: '🐀', message: "Remy's cousin lives further east.", cells: [{ x: 9, y: 5 }, { x: 10, y: 5 }, { x: 10, y: 4 }], speakerCharacterId: 'rat_citizen_2' },
-    { id: 'cousin_found', speaker: "Remy's Cousin", speakerEmoji: '🐀', message: "Ah, you must be the one Remy sent! The Raccoon knows things.", messages: [{ speaker: "Remy's Cousin", speakerEmoji: '🐀', message: "I'll help with the feast — but talk to Raccoon first." }], cells: [{ x: 13, y: 8 }, { x: 14, y: 8 }, { x: 14, y: 7 }], speakerCharacterId: 'remy_cousin_city', questAction: { type: 'complete_objective', objectiveId: 'find_cousin' } },
+    { id: 'citizen1_chat', speaker: 'Rat Citizen', speakerEmoji: '🐀', message: "Welcome to Rodent City! Click on us to chat.", cells: [{ x: 3, y: 2 }, { x: 4, y: 2 }, { x: 5, y: 2 }, { x: 6, y: 2 }], speakerCharacterId: 'rat_citizen_1', triggerType: 'click' },
+    { id: 'citizen2_chat', speaker: 'Rat Citizen', speakerEmoji: '🐀', message: "Stash hangs out in the east side. Can't miss the bushy tail.", cells: [{ x: 9, y: 4 }, { x: 10, y: 4 }, { x: 10, y: 5 }, { x: 10, y: 6 }], speakerCharacterId: 'rat_citizen_2', triggerType: 'click' },
+    { id: 'hamster_chat', speaker: 'Hamster', speakerEmoji: '🐹', message: "I moved here from the farm. Best decision ever!", cells: [{ x: 5, y: 6 }, { x: 6, y: 6 }, { x: 6, y: 7 }, { x: 6, y: 8 }], speakerCharacterId: 'hamster_citizen', triggerType: 'click' },
+    { id: 'mouse_chat', speaker: 'Mouse', speakerEmoji: '🐭', message: "The tunnels go deeper than you'd think. Watch your step!", cells: [{ x: 13, y: 5 }, { x: 14, y: 5 }, { x: 15, y: 5 }], speakerCharacterId: 'mouse_citizen', triggerType: 'click' },
+    { id: 'stash_found', speaker: 'Stash', speakerEmoji: '🐿️', message: "Ah, you must be the one Remy sent! The Raccoon knows things.", messages: [{ speaker: 'Stash', speakerEmoji: '🐿️', message: "I'll help with the feast — but talk to Raccoon first." }], cells: [{ x: 13, y: 8 }, { x: 14, y: 8 }, { x: 14, y: 7 }, { x: 15, y: 8 }], speakerCharacterId: 'stash_squirrel', triggerType: 'click', questAction: { type: 'complete_objective', objectiveId: 'find_stash' } },
   ],
-  endConditions: { requiredDialogues: ['cousin_found'] },
+  endConditions: { requiredDialogues: ['stash_found'] },
   grid: createGrid([
     '##################', '##SS        ######', '##      ##  ######', '####    ##      ##',
     '####          ####', '##    ####    ####', '##    ####      ##', '####        ##  ##',
