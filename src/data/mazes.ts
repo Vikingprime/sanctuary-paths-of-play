@@ -211,7 +211,7 @@ export const mazes: Maze[] = [
         emoji: '🧑‍🌾',
         model: 'Farmer.glb',
         animation: 'wave',
-        position: { x: 11, y: 13 },
+        position: { x: 12, y: 12 },
       }
     ],
     dialogues: [
@@ -220,7 +220,7 @@ export const mazes: Maze[] = [
         speaker: 'Sanctuary Sam',
         speakerEmoji: '👨‍🌾',
         message: "By Golly, I've been looking everywhere for you!",
-        cells: [{ x: 11, y: 13 }, { x: 10, y: 12 }, { x: 11, y: 12 }, { x: 10, y: 13 }],
+        cells: [{ x: 12, y: 12 }, { x: 11, y: 11 }, { x: 12, y: 11 }, { x: 11, y: 12 }],
         speakerCharacterId: 'sanctuary_sam',
       },
     ],
