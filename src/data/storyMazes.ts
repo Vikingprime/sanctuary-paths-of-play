@@ -1007,7 +1007,7 @@ const act2_6_Scavenger2: StoryMaze = {
   timeLimit: 300, timerDisabled: true, previewTime: 10, medalTimes: { gold: 45, silver: 75, bronze: 110 },
   characters: [
     { id: 'marker_1', name: 'Trail Marker', emoji: '👣', model: 'Log.glb', animation: 'idle', position: { x: 6, y: 4 }, dialogueSequence: [{ type: 'normal', id: 'marker1_check' }] },
-    { id: 'marker_2', name: 'Trail Marker', emoji: '👣', model: 'Log.glb', animation: 'idle', position: { x: 10, y: 8 }, dialogueSequence: [{ type: 'normal', id: 'marker2_check' }] },
+    { id: 'marker_2', name: 'Trail Marker', emoji: '👣', model: 'Log.glb', animation: 'idle', position: { x: 8, y: 8 }, dialogueSequence: [{ type: 'normal', id: 'marker2_check' }] },
     { id: 'stash_marker', name: 'Stash', emoji: '📦', model: 'Log.glb', animation: 'idle', position: { x: 14, y: 10 }, dialogueSequence: [{ type: 'normal', id: 'stash_found' }] },
   ],
   storyCharacters: [],
