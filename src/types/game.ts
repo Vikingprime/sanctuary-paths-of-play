@@ -144,6 +144,8 @@ export interface MazeObstacle {
   rotation?: number; // Y-axis rotation in degrees (default: 0)
 }
 
+export type MazeTheme = 'corn' | 'cellar';
+
 export interface Maze {
   id: number;
   name: string;
