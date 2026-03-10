@@ -40,10 +40,10 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
   
   // Animals (player-controlled) - these offsets are applied in PlayerCube.tsx
   'Cow.glb': {
-    scale: 0.2, // Matches PlayerCube hardcoded scale
-    yOffset: 0.18,
+    scale: 0.2,
+    yOffset: 0.03, // Effective offset: was 0.18 (group) + -0.15 (primitive) in PlayerCube
     height: 1.4,
-    rotationOffset: Math.PI, // Cow model faces -Z by default, flip to face +Z
+    rotationOffset: Math.PI,
     debugPlaneColor: '#0088ff',
     animations: ['idle', 'walk', 'gallop'],
   },
