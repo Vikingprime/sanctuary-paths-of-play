@@ -1389,8 +1389,11 @@ export const storyMazeToMaze = (storyMaze: StoryMaze): Maze => {
     freeMapAccess: storyMaze.freeMapAccess ?? true,
     deletedSpineBranches: storyMaze.deletedSpineBranches,
     deletedSpineFineCells: storyMaze.deletedSpineFineCells,
-    spineEndpointTrim: storyMaze.spineEndpointTrim ?? 5, // Default: trim 5 fine cells from branch endpoints
+    spineEndpointTrim: storyMaze.spineEndpointTrim ?? 5,
     obstacles: storyMaze.obstacles,
+    theme: storyMaze.theme,
+    introDialogues: storyMaze.introDialogues,
+    dialogueTriggerMode: storyMaze.dialogueTriggerMode,
   };
 };
 
