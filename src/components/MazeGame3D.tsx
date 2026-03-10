@@ -618,8 +618,9 @@ export const MazeGame3D = ({
       // Skip detection if vision is disabled (debug toggle) or dialogue is active
       if (!visionEnabled) return;
       // Use continuous cone detection (matches visual overlay exactly)
-      const playerWorldX = playerStateRef.current.x + 0.5; // Convert to world center
-      const playerWorldY = playerStateRef.current.y + 0.5;
+      // playerStateRef.current.x/y are already world-space (cell center = gridPos + 0.5)
+      const playerWorldX = playerStateRef.current.x;
+      const playerWorldY = playerStateRef.current.y;
       for (const char of characters) {
         if (!char.visionDialogueId) continue;
         if (triggeredDialoguesRef.current.has(char.visionDialogueId)) continue;
