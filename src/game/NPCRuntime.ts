@@ -160,11 +160,12 @@ export function isPointInVisionCone(
  * where (dx, dz) is the forward direction vector.
  */
 export function directionToRotation(direction: CardinalDirection): number {
+  // Uses atan2(dx, dz) convention, consistent with face-player and initialRotation
   switch (direction) {
-    case 'south': return Math.PI / 2;       // forward = (0, +1) → atan2(0,1)=0 → PI/2
-    case 'north': return -Math.PI / 2;      // forward = (0, -1) → atan2(0,-1)=PI → PI/2-PI
-    case 'east':  return 0;                  // forward = (+1, 0) → atan2(1,0)=PI/2 → 0
-    case 'west':  return Math.PI;            // forward = (-1, 0) → atan2(-1,0)=-PI/2 → PI
+    case 'south': return 0;                  // forward = (0, +1) → atan2(0, 1) = 0
+    case 'north': return Math.PI;            // forward = (0, -1) → atan2(0, -1) = PI
+    case 'east':  return Math.PI / 2;        // forward = (+1, 0) → atan2(1, 0) = PI/2
+    case 'west':  return -Math.PI / 2;       // forward = (-1, 0) → atan2(-1, 0) = -PI/2
   }
 }
 
