@@ -608,6 +608,7 @@ export const MazeGame3D = ({
       const states = npcRuntimeStatesRef.current;
       const newRotations: Record<string, number> = {};
       let changed = false;
+      const newBlockedStates: Record<string, boolean> = {};
       
       for (const char of characters) {
         const state = states.get(char.id);
@@ -625,10 +626,22 @@ export const MazeGame3D = ({
           const playerWorld = { x: playerStateRef.current.x, y: playerStateRef.current.y };
           const didMove = updateNPCPatrol(state, char, TICK_MS / 1000, isWall, playerWorld);
           if (didMove) changed = true;
+          
+          // Track blocked state: if char has patrol but didn't move and is close to player
+          const npcCenterX = state.patrolPosition.x + 0.5;
+          const npcCenterY = state.patrolPosition.y + 0.5;
+          const dx = playerWorld.x - npcCenterX;
+          const dy = playerWorld.y - npcCenterY;
+          const distToPlayer = Math.sqrt(dx * dx + dy * dy);
+          const NPC_STOP_RADIUS = 0.8;
+          newBlockedStates[char.id] = !didMove && distToPlayer < NPC_STOP_RADIUS;
         }
         
         newRotations[char.id] = directionToRotation(state.currentDirection);
       }
+      
+      // Update blocked states
+      setNpcBlockedStates(newBlockedStates);
       
       // Always update positions (patrol moves continuously)
       setNpcRotations({ ...newRotations });
