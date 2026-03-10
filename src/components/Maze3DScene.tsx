@@ -1056,6 +1056,7 @@ const PlacedCharacter = ({
   showCollisionDebug,
   onClick,
   rotationOverride,
+  positionOverride,
 }: { 
   character: MazeCharacter;
   playerStateRef?: MutableRefObject<PlayerState>;
@@ -1064,6 +1065,7 @@ const PlacedCharacter = ({
   showCollisionDebug?: boolean;
   onClick?: (characterId: string) => void;
   rotationOverride?: number; // Y rotation in radians, overrides default facing
+  positionOverride?: { x: number; y: number }; // Override position for patrolling NPCs
 }) => {
   // Check if this character has any click-triggered dialogues
   const hasClickDialogue = maze.dialogues?.some(
