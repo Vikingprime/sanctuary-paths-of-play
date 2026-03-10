@@ -8,18 +8,21 @@ useGLTF.preload('/models/Barrel_1.glb');
 useGLTF.preload('/models/Beer_Keg.glb');
 useGLTF.preload('/models/Keg.glb');
 
-// Seeded random for stable placement
+// Seeded random for stable placement — better hash to avoid clustering
 const seededRandom = (seed: number): number => {
-  const x = Math.sin(seed * 12.9898 + seed * 78.233) * 43758.5453;
-  return x - Math.floor(x);
+  let s = seed;
+  s = ((s >>> 16) ^ s) * 0x45d9f3b | 0;
+  s = ((s >>> 16) ^ s) * 0x45d9f3b | 0;
+  s = (s >>> 16) ^ s;
+  return (s & 0x7fffffff) / 0x7fffffff;
 };
 
-// Barrel type config - all 4 types with varied weights
+// Barrel type config - all 4 types with varied weights and per-type ground Y
 const BARREL_TYPES = [
-  { model: '/models/Barrel.glb', weight: 3, baseScale: 0.38 },
-  { model: '/models/Barrel_1.glb', weight: 3, baseScale: 0.38 },
-  { model: '/models/Beer_Keg.glb', weight: 2, baseScale: 0.32 },
-  { model: '/models/Keg.glb', weight: 2, baseScale: 0.32 },
+  { model: '/models/Barrel.glb', weight: 3, baseScale: 0.38, groundY: 0.0 },
+  { model: '/models/Barrel_1.glb', weight: 3, baseScale: 0.38, groundY: 0.0 },
+  { model: '/models/Beer_Keg.glb', weight: 2, baseScale: 0.32, groundY: 0.0 },
+  { model: '/models/Keg.glb', weight: 2, baseScale: 0.32, groundY: 0.0 },
 ];
 
 const TOTAL_WEIGHT = BARREL_TYPES.reduce((sum, b) => sum + b.weight, 0);
