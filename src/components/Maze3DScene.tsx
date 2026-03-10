@@ -966,8 +966,9 @@ const CharacterRenderer = ({
         const angle = Math.atan2(dx, dz);
         groupRef.current.rotation.y = angle;
       } else if (rotationOverride !== undefined) {
-        // Apply NPC turning rotation override
-        groupRef.current.rotation.y = rotationOverride;
+        // Apply NPC turning rotation override + model-specific rotation offset
+        const rotOffset = getCharacterRotationOffset(modelFile);
+        groupRef.current.rotation.y = rotationOverride + rotOffset;
       }
       
       // Apply opacity fade based on distance from player
