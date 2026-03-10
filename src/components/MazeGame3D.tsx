@@ -298,6 +298,9 @@ export const MazeGame3D = ({
     return initial;
   });
   
+  // Track which NPCs are currently blocked (stopped due to collision with player)
+  const [npcBlockedStates, setNpcBlockedStates] = useState<Record<string, boolean>>({});
+
   // Helper to find the speaker position for a dialogue
   const findSpeakerPositionForDialogue = useCallback((dialogue: DialogueTrigger | null): { x: number; y: number } | null => {
     if (!dialogue || !maze.dialogues) return null;
