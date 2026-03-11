@@ -144,6 +144,13 @@ export interface MazeObstacle {
   rotation?: number; // Y-axis rotation in degrees (default: 0)
 }
 
+// Pushable barrel - Sokoban-style: player pushes it one cell at a time
+export interface PushableBarrel {
+  id: string;
+  model: string; // GLB file name (e.g., 'Barrel.glb')
+  position: { x: number; y: number }; // Current grid position (mutated at runtime)
+}
+
 export type MazeTheme = 'corn' | 'cellar';
 
 export interface Maze {
