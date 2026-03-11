@@ -332,7 +332,7 @@ export const InstancedBarrelWalls = ({
         }
         mesh.dispose();
       });
-      createdRef.current = false;
+      
     };
   }, [groupedTransforms, meshPartsPerType]);
 
