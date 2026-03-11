@@ -2434,9 +2434,10 @@ const OverShoulderCameraController = ({
         );
         
         // Check if the RAW HIT is significant (not the clamped distance)
-        // This properly detects real obstructions vs grazing leaves
+        // This properly detects real obstructions vs grazing leaves.
+        // Hard wall blockers always count as significant to prevent penetration.
         const rawObstruction = desiredDistForAutopush - closestHitDist;
-        const isSignificantHit = rawObstruction > autopush.minPushDelta;
+        const isSignificantHit = hardWallHit || rawObstruction > autopush.minPushDelta;
         
         if (isSignificantHit) {
           // Significant hit - push camera in front of wall
