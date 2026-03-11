@@ -265,6 +265,9 @@ interface GameHUDProps {
   // Shadow resolution toggle
   lowShadowRes?: boolean;
   onToggleLowShadowRes?: () => void;
+  // Barrel type toggles
+  enabledBarrelTypes?: boolean[];
+  onToggleBarrelType?: (idx: number) => void;
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
