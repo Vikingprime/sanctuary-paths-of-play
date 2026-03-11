@@ -1718,6 +1718,18 @@ const RefBasedPlayer = ({
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         playerStateRef.current = { x: newState.x, y: newState.y, rotation: newState.rotation };
         collisionIntensityRef.current = newState.collisionIntensity;
+        
+        // Check pushable barrel interactions
+        if (pushableBarrelStatesRef.current.length > 0) {
+          const moveX = newState.x - prev.x;
+          const moveY = newState.y - prev.y;
+          if (Math.abs(moveX) > 0.001 || Math.abs(moveY) > 0.001) {
+            const pushResult = checkAndPushBarrels(maze, newState.x, newState.y, moveX, moveY, pushableBarrelStatesRef.current);
+            if (pushResult.pushed) {
+              setPushableBarrelStates(pushResult.barrels);
+            }
+          }
+        }
       } else if (mobileActive) {
         // MOBILE JOYSTICK MODE: Summer Afternoon style camera-relative movement
         // Camera orbits based on joystick X
