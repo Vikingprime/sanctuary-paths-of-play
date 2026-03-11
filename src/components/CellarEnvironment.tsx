@@ -1,6 +1,6 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { DoubleSide, Object3D, InstancedMesh as ThreeInstancedMesh, BufferGeometry, Material, Group, Box3, Vector3 } from 'three';
-import { useGLTF } from '@react-three/drei';
+import { DoubleSide, Object3D, InstancedMesh as ThreeInstancedMesh, BufferGeometry, Material, Group, Box3, Vector3, RepeatWrapping, LinearMipmapLinearFilter, LinearFilter, DataTexture, ShaderMaterial, Color } from 'three';
+import { useGLTF, useTexture } from '@react-three/drei';
 import { Maze } from '@/types/game';
 
 // Preload models
