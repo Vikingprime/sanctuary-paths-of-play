@@ -180,6 +180,7 @@ export interface Maze {
   deletedSpineFineCells?: { x: number; y: number }[]; // Optional per-cell spine overrides removed from generated traversal paths
   spineEndpointTrim?: number; // Number of fine cells to trim from each branch endpoint (prevents player starting pressed against walls)
   obstacles?: MazeObstacle[]; // Placed obstacles (logs, etc.) that can block LOS
+  pushableBarrels?: PushableBarrel[]; // Sokoban-style barrels the player can push
   theme?: MazeTheme; // Visual theme: 'corn' (default) or 'cellar' (barrels, dark room)
   dialogueTriggerMode?: 'proximity' | 'click'; // Default trigger mode for all dialogues (individual dialogues can override)
 }
