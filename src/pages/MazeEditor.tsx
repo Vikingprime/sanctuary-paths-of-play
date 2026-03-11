@@ -1401,6 +1401,22 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                 className="absolute inset-0 z-10 flex items-center justify-center text-[8px] cursor-grab active:cursor-grabbing"
                               >🪵</span>
                             )}
+                            {pushBarrel && !character && !obstacle && (
+                              <span
+                                draggable
+                                onDragStart={(e) => {
+                                  e.stopPropagation();
+                                  e.dataTransfer.setData(DRAG_TYPE_PLACED_PUSHABLE_BARREL, pushBarrel.id);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPushableBarrels(prev => prev.filter(b => b.id !== pushBarrel.id));
+                                  toast.info('Pushable barrel removed');
+                                }}
+                                className="absolute inset-0 z-10 flex items-center justify-center text-[8px] cursor-grab active:cursor-grabbing"
+                              >🛢️</span>
+                            )}
                             {character && (
                               <span
                                 draggable
