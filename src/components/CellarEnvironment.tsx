@@ -237,18 +237,31 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
 
   const lightPositions = useMemo(() => {
     const positions: { x: number; z: number }[] = [];
-    const grid = maze.grid;
+    const gridH = maze.grid.length;
+    const gridW = maze.grid[0]?.length ?? 0;
     
-    // Place a light every 4 cells in open spaces (sparse for performance)
-    for (let y = 2; y < grid.length - 1; y += 4) {
-      for (let x = 2; x < grid[0].length - 1; x += 4) {
-        if (!grid[y][x].isWall) {
-          positions.push({ x: x + 0.5, z: y + 0.5 });
-        }
-      }
+    // Place lights along the perimeter walls so camera doesn't clip through them
+    const OFFSET = -0.8; // How far inside from the wall edge
+    const SPACING = 4;   // Space between lights along each wall
+    
+    // North wall (z = OFFSET)
+    for (let x = 2; x < gridW; x += SPACING) {
+      positions.push({ x: x + 0.5, z: OFFSET });
+    }
+    // South wall (z = gridH - OFFSET)
+    for (let x = 2; x < gridW; x += SPACING) {
+      positions.push({ x: x + 0.5, z: gridH - OFFSET });
+    }
+    // West wall (x = OFFSET)
+    for (let y = 2; y < gridH; y += SPACING) {
+      positions.push({ x: OFFSET, z: y + 0.5 });
+    }
+    // East wall (x = gridW - OFFSET)
+    for (let y = 2; y < gridH; y += SPACING) {
+      positions.push({ x: gridW - OFFSET, z: y + 0.5 });
     }
     
-    console.log('[CELLAR] Ceiling light positions:', positions.length);
+    console.log('[CELLAR] Ceiling light positions (perimeter):', positions.length);
     return positions;
   }, [maze]);
 
