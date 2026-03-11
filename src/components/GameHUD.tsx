@@ -272,6 +272,8 @@ interface GameHUDProps {
   onToggleCellarLights?: () => void;
   cellarRoofEnabled?: boolean;
   onToggleCellarRoof?: () => void;
+  cellarRoofHeight?: number;
+  onCellarRoofHeightChange?: (height: number) => void;
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
@@ -382,6 +384,8 @@ export const GameHUD = ({
   onToggleCellarLights,
   cellarRoofEnabled = true,
   onToggleCellarRoof,
+  cellarRoofHeight = 2.4,
+  onCellarRoofHeightChange,
   sensitivityConfig = DEFAULT_SENSITIVITY,
   onSensitivityChange,
   mobileControlsEnabled = true,
@@ -943,6 +947,21 @@ export const GameHUD = ({
                 >
                   Roof
                 </button>
+              )}
+              {onCellarRoofHeightChange && (
+                <div className="flex items-center gap-1 bg-card/90 rounded px-2 py-1">
+                  <span className="text-[9px] text-yellow-400 whitespace-nowrap">Ceil</span>
+                  <input
+                    type="range"
+                    min="1.5"
+                    max="4.0"
+                    step="0.1"
+                    value={cellarRoofHeight}
+                    onChange={(e) => onCellarRoofHeightChange(parseFloat(e.target.value))}
+                    className="w-16 h-2 accent-yellow-500"
+                  />
+                  <span className="text-[9px] text-yellow-400 w-6">{cellarRoofHeight.toFixed(1)}</span>
+                </div>
               )}
               {onToggleMobileControls && (
                 <button

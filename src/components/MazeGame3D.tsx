@@ -221,6 +221,7 @@ export const MazeGame3D = ({
   const [enabledBarrelTypes, setEnabledBarrelTypes] = useState([true, true, true, true]);
   const [cellarLightsEnabled, setCellarLightsEnabled] = useState(true);
   const [cellarRoofEnabled, setCellarRoofEnabled] = useState(true);
+  const [cellarRoofHeight, setCellarRoofHeight] = useState(2.4);
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
   // Per-animal rim light: 0.3 for cow/pig, 0 for chicken (uses defaults in PlayerCube)
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
@@ -1812,6 +1813,7 @@ export const MazeGame3D = ({
         enabledBarrelTypes={enabledBarrelTypes}
         cellarLightsEnabled={cellarLightsEnabled}
         cellarRoofEnabled={cellarRoofEnabled}
+        cellarRoofHeight={cellarRoofHeight}
         skeletonEnabled={skeletonEnabled}
         overlayGridEnabled={overlayGridEnabled}
         showPrunedSpurs={showPrunedSpurs}
@@ -1928,6 +1930,8 @@ export const MazeGame3D = ({
           onToggleCellarLights={() => setCellarLightsEnabled(prev => !prev)}
           cellarRoofEnabled={cellarRoofEnabled}
           onToggleCellarRoof={() => setCellarRoofEnabled(prev => !prev)}
+          cellarRoofHeight={cellarRoofHeight}
+          onCellarRoofHeightChange={setCellarRoofHeight}
           onSensitivityChange={setSensitivityConfig}
           mobileControlsEnabled={mobileControlsEnabled}
           onToggleMobileControls={() => setMobileControlsEnabled(prev => !prev)}
