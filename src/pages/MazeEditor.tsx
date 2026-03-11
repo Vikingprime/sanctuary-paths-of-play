@@ -63,6 +63,12 @@ interface ObstacleConfig {
   rotation?: number;
 }
 
+interface PushableBarrelConfig {
+  id: string;
+  model: string;
+  position: { x: number; y: number } | null;
+}
+
 type VisionConePreset = 'none' | 'narrow' | 'wide' | 'long';
 
 const VISION_CONE_PRESETS: Record<VisionConePreset, { label: string; description: string }> = {
