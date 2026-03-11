@@ -2964,6 +2964,21 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
+  // Pushable barrel state - initialized from maze data
+  const [pushableBarrelStates, setPushableBarrelStates] = useState<PushableBarrelState[]>(() => 
+    (maze.pushableBarrels || []).map(b => ({
+      id: b.id,
+      model: b.model,
+      x: b.position.x,
+      y: b.position.y,
+      animX: b.position.x + 0.5,
+      animY: b.position.y + 0.5,
+    }))
+  );
+  // Expose barrel states via ref for movement loop
+  const pushableBarrelStatesRef = useRef(pushableBarrelStates);
+  pushableBarrelStatesRef.current = pushableBarrelStates;
+
   // Cellar wall positions (edge/depth/boundary) mirroring MazeWalls logic
   const cellarWallData = useMemo(() => {
     if (!isCellar) return { edgePositions: [], depthOnlyWalls: [], boundaryWalls: [], allWallPositions: [] };
