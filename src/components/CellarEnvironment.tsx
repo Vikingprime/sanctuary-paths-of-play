@@ -259,16 +259,18 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
   );
 };
 
-// Cellar ground with dirt texture - darker under walls (barrels), lighter on paths
+// Cellar ground - uses the SAME shader as the corn maze ground, just with cellar fog
 const CellarGround = ({ maze, centerX, centerZ, sizeX, sizeZ }: { maze: Maze; centerX: number; centerZ: number; sizeX: number; sizeZ: number }) => {
+  const pathTexture = useTexture('/textures/ground-path-v2.jpg');
+  const grassTexture = useTexture('/textures/ground-grass.jpg');
+  const leavesTexture = useTexture('/textures/ground-leaves.jpg');
   const dirtTexture = useTexture('/textures/dirt_floor.jpg');
-  const mudTexture = useTexture('/textures/ground-mud-leaves.jpg');
 
   const material = useMemo(() => {
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
 
-    [dirtTexture, mudTexture].forEach(tex => {
+    [pathTexture, grassTexture, leavesTexture, dirtTexture].forEach(tex => {
       tex.wrapS = RepeatWrapping;
       tex.wrapT = RepeatWrapping;
       tex.minFilter = LinearMipmapLinearFilter;
@@ -295,17 +297,22 @@ const CellarGround = ({ maze, centerX, centerZ, sizeX, sizeZ }: { maze: Maze; ce
 
     return new ShaderMaterial({
       uniforms: {
+        pathTex: { value: pathTexture },
+        grassTex: { value: grassTexture },
+        leavesTex: { value: leavesTexture },
         dirtTex: { value: dirtTexture },
-        mudTex: { value: mudTexture },
         wallMap: { value: wallMapTex },
         mazeWidth: { value: mazeWidth },
         mazeHeight: { value: mazeHeight },
         tileScale: { value: 2.0 },
-        pathBrightness: { value: 0.55 },
-        wallDarkness: { value: 0.3 },
+        pathBrightness: { value: 0.48 },
+        grassDarkness: { value: 0.25 },
+        spilloverStrength: { value: 1.5 },
         fogColor: { value: new Color('#0a0806') },
         fogDensity: { value: 0.06 },
+        fogHeightMax: { value: 2.5 },
       },
+      fog: true,
       vertexShader: `
         varying vec3 vWorldPos;
         varying float vFogDepth;
@@ -317,56 +324,96 @@ const CellarGround = ({ maze, centerX, centerZ, sizeX, sizeZ }: { maze: Maze; ce
         }
       `,
       fragmentShader: `
+        uniform sampler2D pathTex;
+        uniform sampler2D grassTex;
+        uniform sampler2D leavesTex;
         uniform sampler2D dirtTex;
-        uniform sampler2D mudTex;
         uniform sampler2D wallMap;
         uniform float mazeWidth;
         uniform float mazeHeight;
         uniform float tileScale;
         uniform float pathBrightness;
-        uniform float wallDarkness;
+        uniform float grassDarkness;
+        uniform float spilloverStrength;
         uniform vec3 fogColor;
         uniform float fogDensity;
+        uniform float fogHeightMax;
         varying vec3 vWorldPos;
         varying float vFogDepth;
 
-        // Simple hash for variation
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
         }
 
-        void main() {
-          vec2 mazeUV = vWorldPos.xz / vec2(mazeWidth, mazeHeight);
-          float isWall = texture2D(wallMap, mazeUV).r;
-          float wallMask = smoothstep(0.4, 0.6, isWall);
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
 
-          // Tile UVs for textures
-          vec2 tileUV = vWorldPos.xz * tileScale;
+        void main() {
+          vec2 worldUV = vWorldPos.xz;
+          vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
+          float isWall = texture2D(wallMap, mazeUV).r;
+
+          // Soft organic edge for wall/path boundary
+          float edgeNoise = noise(worldUV * 1.2) * 0.4;
+          float wallMask = smoothstep(0.25, 0.75, isWall + edgeNoise);
+
+          // Edge proximity for transition effects
+          float edgeProximity = smoothstep(0.05, 0.45, isWall) * smoothstep(0.95, 0.4, isWall);
+
+          // Grass jutting from barrel edges - irregular protrusions
+          float pathArea = 1.0 - smoothstep(0.3, 0.7, isWall);
+          float juttingNoise = noise(worldUV * 3.0 + 100.0);
+          float juttingDetail = noise(worldUV * 6.0 + 150.0) * 0.25;
+          float irregularEdge = edgeProximity + juttingNoise * 0.4;
+          float juttingAmount = smoothstep(0.35, 0.65, irregularEdge) * smoothstep(0.4, 0.6, juttingNoise + juttingDetail);
+          float grassLeak = juttingAmount * spilloverStrength;
+
+          float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) *
+                          step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
+          wallMask = mix(1.0, wallMask, inBounds);
+          grassLeak = grassLeak * inBounds;
 
           // Sample textures
-          vec3 dirtColor = texture2D(dirtTex, tileUV).rgb;
-          vec3 mudColor = texture2D(mudTex, tileUV * 0.8).rgb;
+          vec2 texUV = worldUV * tileScale;
+          vec3 pathColor = texture2D(pathTex, texUV).rgb * pathBrightness * vec3(1.0, 0.85, 0.7);
+          vec3 grassColor = texture2D(grassTex, texUV).rgb * grassDarkness * vec3(1.0, 0.8, 0.55);
+          vec3 leavesColor = texture2D(leavesTex, texUV * 0.8).rgb * 0.65;
+          vec3 dirtColor = texture2D(dirtTex, texUV * 1.5).rgb * 0.95;
 
-          // Path = dirt texture (brighter), Wall = mud texture (darker, under barrels)
-          vec3 pathResult = dirtColor * pathBrightness;
-          vec3 wallResult = mudColor * wallDarkness;
+          // Sparse patches near edges
+          float patchNoise1 = noise(worldUV * 1.2 + 300.0);
+          float patchNoise2 = noise(worldUV * 0.9 + 500.0);
+          float leavesPatch = smoothstep(0.72, 0.85, patchNoise1) * edgeProximity * 0.4;
+          float dirtPatch = smoothstep(0.75, 0.88, patchNoise2) * edgeProximity * 0.35;
 
-          vec3 finalColor = mix(pathResult, wallResult, wallMask);
+          // Base: path is dominant, dark soil under barrels
+          vec3 baseColor = mix(pathColor, grassColor, wallMask);
+          baseColor = mix(baseColor, grassColor, grassLeak);
 
-          // Add subtle variation
-          float noise = hash(floor(vWorldPos.xz * 3.0)) * 0.06;
-          finalColor += noise - 0.03;
+          // Apply sparse patches
+          vec3 finalColor = baseColor;
+          finalColor = mix(finalColor, leavesColor, leavesPatch);
+          finalColor = mix(finalColor, dirtColor, dirtPatch);
 
           // Fog
+          float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
           float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+          fogFactor *= heightAttenuation;
           finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
 
           gl_FragColor = vec4(finalColor, 1.0);
         }
       `,
-      fog: false,
     });
-  }, [maze, dirtTexture, mudTexture]);
+  }, [maze, pathTexture, grassTexture, leavesTexture, dirtTexture]);
 
   return (
     <mesh position={[centerX, -0.01, centerZ]} rotation-x={-Math.PI / 2} receiveShadow>
