@@ -672,6 +672,10 @@ const MazeEditor: React.FC = () => {
     return obstacles.find(o => o.position?.x === x && o.position?.y === y);
   };
 
+  const getPushableBarrelAtCell = (x: number, y: number): PushableBarrelConfig | undefined => {
+    return pushableBarrels.find(b => b.position?.x === x && b.position?.y === y);
+  };
+
   const addObstacle = () => {
     const newId = `obstacle_${Date.now()}`;
     const newObstacle: ObstacleConfig = {
