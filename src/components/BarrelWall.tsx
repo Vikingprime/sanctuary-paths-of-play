@@ -19,11 +19,12 @@ const seededRandom = (seed: number): number => {
 
 // Barrel type config - scales normalized so all barrels are ~1.4 world units tall
 // Raw model heights: Barrel=0.002, Barrel_1=0.010, Beer_Keg=1.272, Keg=0.011
+// rotationX corrects models that are oriented sideways in their GLB
 const BARREL_TYPES = [
-  { model: '/models/Barrel.glb', weight: 3, baseScale: 350 },
-  { model: '/models/Barrel_1.glb', weight: 3, baseScale: 70 },
-  { model: '/models/Beer_Keg.glb', weight: 2, baseScale: 0.56 },
-  { model: '/models/Keg.glb', weight: 2, baseScale: 64 },
+  { model: '/models/Barrel.glb', weight: 3, baseScale: 350, rotationX: 0 },
+  { model: '/models/Barrel_1.glb', weight: 3, baseScale: 70, rotationX: 0 },
+  { model: '/models/Beer_Keg.glb', weight: 2, baseScale: 0.56, rotationX: -Math.PI / 2 },
+  { model: '/models/Keg.glb', weight: 2, baseScale: 64, rotationX: 0 },
 ];
 
 const TOTAL_WEIGHT = BARREL_TYPES.reduce((sum, b) => sum + b.weight, 0);
@@ -48,6 +49,7 @@ interface BarrelTransform {
   y: number;
   z: number;
   rotation: number;
+  rotationX: number;
   scale: number;
   typeIndex: number;
 }
@@ -169,6 +171,7 @@ export const InstancedBarrelWalls = ({
             y: groundY,
             z: centerZ + offsetZ + jitterZ,
             rotation: seededRandom(stalkSeed + 43) * Math.PI * 2,
+            rotationX: BARREL_TYPES[typeIndex].rotationX,
             scale,
             typeIndex,
           });
@@ -207,6 +210,7 @@ export const InstancedBarrelWalls = ({
             y: groundY,
             z: centerZ + offsetZ + jitterZ,
             rotation: seededRandom(stalkSeed + 43) * Math.PI * 2,
+            rotationX: BARREL_TYPES[typeIndex].rotationX,
             scale,
             typeIndex,
           });
@@ -245,7 +249,7 @@ export const InstancedBarrelWalls = ({
           const scale = baseScale * (0.9 + seededRandom(stalkSeed + 37) * 0.25);
           const groundY = -typeMetrics[typeIndex].minY * scale;
 
-          result.push({ x: posX, y: groundY, z: posZ, rotation: seededRandom(stalkSeed + 43) * Math.PI * 2, scale, typeIndex });
+          result.push({ x: posX, y: groundY, z: posZ, rotation: seededRandom(stalkSeed + 43) * Math.PI * 2, rotationX: BARREL_TYPES[typeIndex].rotationX, scale, typeIndex });
         }
       }
     });
@@ -302,7 +306,7 @@ export const InstancedBarrelWalls = ({
 
         typeTransforms.forEach((t, i) => {
           dummy.position.set(t.x, t.y, t.z);
-          dummy.rotation.set(0, t.rotation, 0);
+          dummy.rotation.set(t.rotationX, t.rotation, 0);
           dummy.scale.setScalar(t.scale);
           dummy.updateMatrix();
           mesh.setMatrixAt(i, dummy.matrix);
