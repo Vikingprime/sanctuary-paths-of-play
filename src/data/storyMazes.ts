@@ -689,39 +689,44 @@ const chapter7LlamaBlockade: StoryMaze = {
 
 // === ACT 1 LEVEL 8: Rootbeer Cellar ===
 // Uses 'cellar' theme: barrels instead of corn, dark room, ceiling lights
-// Grid uses 2-wide corridors minimum. Beer_Mug is the goal, Beer_Keg is decoration.
+// Grid uses 3-wide corridors (CELL_SIZE=0.667 → 3 cells = 2.0 world units)
 const chapter8RootbeerCellar: StoryMaze = {
   id: 108, name: "Remy's Root Beer Run", chapterId: 'rootbeer_cellar', difficulty: 'medium',
   timeLimit: 200, timerDisabled: true, previewTime: 10, medalTimes: { gold: 50, silver: 80, bronze: 120 },
   theme: 'cellar',
   freeMapAccess: true,
   characters: [
-    { id: 'remy_cellar', name: 'Remy', emoji: '🐀', model: 'Rat.glb', animation: 'idle', position: { x: 2, y: 2 } },
-    { id: 'rootbeer', name: 'Root Beer', emoji: '🍺', model: 'Beer_Mug.glb', animation: 'idle', position: { x: 16, y: 11 } },
+    { id: 'remy_cellar', name: 'Remy', emoji: '🐀', model: 'Rat.glb', animation: 'idle', position: { x: 4, y: 2 } },
+    { id: 'rootbeer', name: 'Root Beer', emoji: '🍺', model: 'Beer_Mug.glb', animation: 'idle', position: { x: 19, y: 15 } },
     // Decorative kegs - placed against walls, not blocking paths
-    { id: 'keg_deco_1', name: 'Beer Keg', emoji: '🛢️', model: 'Beer_Keg.glb', animation: 'idle', position: { x: 2, y: 6 } },
-    { id: 'keg_deco_2', name: 'Beer Keg', emoji: '🛢️', model: 'Beer_Keg.glb', animation: 'idle', position: { x: 19, y: 7 } },
+    { id: 'keg_deco_1', name: 'Beer Keg', emoji: '🛢️', model: 'Beer_Keg.glb', animation: 'idle', position: { x: 3, y: 9 } },
+    { id: 'keg_deco_2', name: 'Beer Keg', emoji: '🛢️', model: 'Beer_Keg.glb', animation: 'idle', position: { x: 23, y: 9 } },
   ],
   storyCharacters: [], quest: { id: 'quest_rootbeer_cellar', title: "Remy's Root Beer Run", description: 'Navigate the cellar to find the root beer stash!', objectives: [{ id: 'find_rootbeer', type: 'talk_to', description: 'Find the root beer', targetCharacterId: 'rootbeer', completed: false }], rewards: { stars: 12, medal: true } },
   dialogues: [
-    { id: 'remy_cellar_intro', speaker: 'Remy', speakerEmoji: '🐀', message: "This is my favorite cellar! The root beer is hidden somewhere down here.", cells: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 1 }], speakerCharacterId: 'remy_cellar' },
-    { id: 'rootbeer_found', speaker: 'Remy', speakerEmoji: '🐀', message: "🍺 Found it! Perfect for the feast!", cells: [{ x: 15, y: 10 }, { x: 16, y: 11 }, { x: 16, y: 10 }, { x: 17, y: 11 }], speakerCharacterId: 'rootbeer', requires: ['remy_cellar_intro'], questAction: { type: 'complete_objective', objectiveId: 'find_rootbeer' } },
+    { id: 'remy_cellar_intro', speaker: 'Remy', speakerEmoji: '🐀', message: "This is my favorite cellar! The root beer is hidden somewhere down here.", cells: [{ x: 3, y: 1 }, { x: 4, y: 2 }, { x: 5, y: 2 }, { x: 4, y: 1 }], speakerCharacterId: 'remy_cellar' },
+    { id: 'rootbeer_found', speaker: 'Remy', speakerEmoji: '🐀', message: "🍺 Found it! Perfect for the feast!", cells: [{ x: 18, y: 15 }, { x: 19, y: 15 }, { x: 20, y: 15 }, { x: 19, y: 14 }], speakerCharacterId: 'rootbeer', requires: ['remy_cellar_intro'], questAction: { type: 'complete_objective', objectiveId: 'find_rootbeer' } },
   ],
   endConditions: { requiredDialogues: ['rootbeer_found'] },
   grid: createGrid([
-    '######################',
-    '##SS            ######',
-    '##              ######',
-    '####  ########  ######',
-    '####  ########      ##',
-    '####  ########      ##',
-    '##                  ##',
-    '##                  ##',
-    '####  ########      ##',
-    '####  ########      ##',
-    '##              EE  ##',
-    '##              EE  ##',
-    '######################',
+    '###########################',
+    '###SSS               ######',
+    '###                  ######',
+    '###                  ######',
+    '#######   ########   ######',
+    '#######   ########      ###',
+    '#######   ########      ###',
+    '#######   ########      ###',
+    '###                     ###',
+    '###                     ###',
+    '###                     ###',
+    '#######   ########      ###',
+    '#######   ########      ###',
+    '#######   ########      ###',
+    '###               EEE   ###',
+    '###               EEE   ###',
+    '###               EEE   ###',
+    '###########################',
   ]),
 };
 
