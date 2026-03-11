@@ -1564,32 +1564,39 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
               </CardContent>
             </Card>
 
-            {/* Preview Panel */}
-            <Card className="lg:col-span-1">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center justify-between">
-                  <span>Schema Output</span>
-                  <div className="flex gap-1">
-                    <Button size="icon" variant="ghost" onClick={copyToClipboard} title="Copy to clipboard">
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={downloadSchema} title="Download">
-                      <Download className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={generateSchema()}
-                  readOnly
-                  className="font-mono text-xs h-[50vh] resize-none"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Copy this schema and paste it into src/data/mazes.ts
-                </p>
-              </CardContent>
-            </Card>
+            {/* Schema Output - Collapsible */}
+            <Collapsible defaultOpen className="shrink-0">
+              <Card className="w-72">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors">
+                      <span>Schema Output</span>
+                      <ChevronDown className="w-4 h-4 transition-transform [[data-state=closed]_&]:[-rotate-90]" />
+                    </CollapsibleTrigger>
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" onClick={copyToClipboard} title="Copy to clipboard">
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={downloadSchema} title="Download">
+                        <Download className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent>
+                    <Textarea
+                      value={generateSchema()}
+                      readOnly
+                      className="font-mono text-xs h-[50vh] resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Copy this schema and paste it into src/data/mazes.ts
+                    </p>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           </div>
         </div>
 
