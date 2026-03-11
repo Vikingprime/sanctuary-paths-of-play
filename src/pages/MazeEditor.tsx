@@ -1014,43 +1014,6 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
         </div>
 
         <div className="flex gap-4">
-          {/* Maze List Sidebar */}
-          {showMazeList && (
-            <Card className="w-64 shrink-0">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">
-                  All Mazes ({allMazes.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
-                {allMazes.map((maze) => (
-                  <div
-                    key={maze.id}
-                    className={`p-2 rounded-lg border cursor-pointer transition-colors ${
-                      loadedMazeId === maze.id
-                        ? 'bg-primary/10 border-primary'
-                        : 'hover:bg-muted border-transparent'
-                    }`}
-                    onClick={() => loadMaze(maze.id, false)}
-                  >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-sm font-medium truncate">{maze.name}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      ID: {maze.id} • {maze.difficulty}
-                    </div>
-                  </div>
-                ))}
-                
-                <div className="pt-4 border-t">
-                  <p className="text-xs text-muted-foreground text-center">
-                    Edit mazes here, then copy schema to update mazes.ts
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Palette Sidebar - Drag characters & obstacles onto grid */}
           <EditorPalette className="w-44" />
 
