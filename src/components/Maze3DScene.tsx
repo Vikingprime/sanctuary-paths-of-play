@@ -9,7 +9,7 @@ import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullSt
 import { InstancedBarrelWalls } from './BarrelWall';
 import { CellarEnvironment } from './CellarEnvironment';
 import { PlayerCube } from './PlayerCube';
-import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision, checkCollision } from '@/game/GameLogic';
+import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision, checkCollision, PushableBarrelState, checkAndPushBarrels } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor, getCharacterTintColor, getCharacterRotationOffset } from '@/game/CharacterConfig';
 import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
