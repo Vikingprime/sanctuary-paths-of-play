@@ -57,10 +57,13 @@ interface MeshParts {
   material: Material;
 }
 
+export const BARREL_TYPE_NAMES = ['Barrel', 'Barrel_1', 'Beer_Keg', 'Keg'] as const;
+
 interface InstancedBarrelWallsProps {
   edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[];
   noShadowPositions?: { x: number; z: number; avoidEdges?: ('left' | 'right' | 'top' | 'bottom')[] }[];
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
+  enabledTypes?: boolean[];
 }
 
 export const InstancedBarrelWalls = ({
