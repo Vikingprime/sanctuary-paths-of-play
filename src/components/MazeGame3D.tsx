@@ -1807,6 +1807,7 @@ export const MazeGame3D = ({
         skyEnabled={skyEnabled}
         shaderFadeEnabled={shaderFadeEnabled}
         lowShadowRes={lowShadowRes}
+        enabledBarrelTypes={enabledBarrelTypes}
         skeletonEnabled={skeletonEnabled}
         overlayGridEnabled={overlayGridEnabled}
         showPrunedSpurs={showPrunedSpurs}
