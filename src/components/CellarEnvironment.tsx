@@ -9,6 +9,8 @@ useGLTF.preload('/models/Ceiling_Light.glb');
 
 interface CellarEnvironmentProps {
   maze: Maze;
+  lightsEnabled?: boolean;
+  roofEnabled?: boolean;
 }
 
 // Dark room enclosure with roof and ceiling lights
