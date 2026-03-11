@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple, Route, GripVertical } from 'lucide-react';
+import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple, Route, GripVertical, ChevronDown, ChevronRight, PanelLeftClose, PanelRightClose } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { FineSpineEditor } from '@/components/FineSpineEditor';
 import { useMazeStorage, createGrid } from '@/hooks/useMazeStorage';
@@ -1074,227 +1075,251 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
           <EditorPalette className="w-44" />
 
           {/* Main Editor Area */}
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4">
-            {/* Tools Panel */}
-            <Card className="lg:col-span-1">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Tools</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Cell Type Tools */}
-                <div className="space-y-2">
-                  <Label>Paint Tool</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(Object.keys(CELL_LABELS) as CellType[]).map(cell => (
-                      <Button
-                        key={cell}
-                        variant={selectedTool === cell ? 'default' : 'outline'}
+          <div className="flex-1 flex gap-4">
+            {/* Tools Panel - Collapsible */}
+            <Collapsible defaultOpen className="shrink-0">
+              <Card className="w-64">
+                <CardHeader className="pb-2">
+                  <CollapsibleTrigger asChild>
+                    <CardTitle className="text-lg flex items-center justify-between cursor-pointer hover:text-primary transition-colors">
+                      <span>Tools</span>
+                      <ChevronDown className="w-4 h-4 transition-transform [[data-state=closed]_&]:[-rotate-90]" />
+                    </CardTitle>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="space-y-3 pt-0">
+                    {/* Paint Tool - Collapsible */}
+                    <Collapsible defaultOpen>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
+                        <Label className="cursor-pointer">Paint Tool</Label>
+                        <ChevronDown className="w-3 h-3 transition-transform [[data-state=closed]_&]:[-rotate-90]" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="space-y-2 mt-1">
+                          <div className="grid grid-cols-2 gap-2">
+                            {(Object.keys(CELL_LABELS) as CellType[]).map(cell => (
+                              <Button
+                                key={cell}
+                                variant={selectedTool === cell ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedTool(cell);
+                                  if (cell === 'D') setShowDialoguePanel(true);
+                                }}
+                                className={`text-xs ${selectedTool === cell ? '' : CELL_COLORS[cell]}`}
+                              >
+                                {CELL_LABELS[cell]}
+                              </Button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2 pt-2">
+                            <input
+                              type="checkbox"
+                              id="singleTileMode"
+                              checked={singleTileMode}
+                              onChange={e => setSingleTileMode(e.target.checked)}
+                              className="rounded"
+                            />
+                            <Label htmlFor="singleTileMode" className="text-xs cursor-pointer">
+                              Single tile mode (Start/End)
+                            </Label>
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* Grid Size - Collapsible */}
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full text-left border-t pt-2">
+                        <Label className="cursor-pointer">Grid Size</Label>
+                        <ChevronDown className="w-3 h-3 transition-transform [[data-state=closed]_&]:[-rotate-90]" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="space-y-2 mt-1">
+                          <div className="flex gap-2">
+                            <Input
+                              type="number"
+                              value={width}
+                              onChange={e => setWidth(Math.max(8, Math.min(50, parseInt(e.target.value) || 8)))}
+                              min={8}
+                              max={50}
+                              className="w-20"
+                            />
+                            <span className="self-center">x</span>
+                            <Input
+                              type="number"
+                              value={height}
+                              onChange={e => setHeight(Math.max(8, Math.min(50, parseInt(e.target.value) || 8)))}
+                              min={8}
+                              max={50}
+                              className="w-20"
+                            />
+                          </div>
+                          <Button onClick={resizeGrid} size="sm" variant="outline" className="w-full">
+                            <Grid3X3 className="w-4 h-4 mr-2" />
+                            Apply Size
+                          </Button>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* Maze Config - Collapsible */}
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full text-left border-t pt-2">
+                        <Label className="cursor-pointer">Maze Config</Label>
+                        <ChevronDown className="w-3 h-3 transition-transform [[data-state=closed]_&]:[-rotate-90]" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="space-y-2 mt-1">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Maze Name</Label>
+                            <Input
+                              value={config.name}
+                              onChange={e => setConfig(c => ({ ...c, name: e.target.value }))}
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="text-xs">Difficulty</Label>
+                            <Select
+                              value={config.difficulty}
+                              onValueChange={(v: 'easy' | 'medium' | 'hard') => setConfig(c => ({ ...c, difficulty: v }))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="easy">Easy</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="hard">Hard</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Time Limit</Label>
+                              <Input
+                                type="number"
+                                value={config.timeLimit}
+                                onChange={e => setConfig(c => ({ ...c, timeLimit: parseInt(e.target.value) || 60 }))}
+                                min={10}
+                                disabled={config.timerDisabled}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Preview Time</Label>
+                              <Input
+                                type="number"
+                                value={config.previewTime}
+                                onChange={e => setConfig(c => ({ ...c, previewTime: parseInt(e.target.value) || 5 }))}
+                                min={1}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm">Disable Timer</Label>
+                            <Switch
+                              checked={config.timerDisabled || false}
+                              onCheckedChange={(checked) => setConfig(c => ({ ...c, timerDisabled: checked }))}
+                            />
+                          </div>
+
+                          {/* Goal Character */}
+                          {characters.length > 0 && (
+                            <div className="space-y-1">
+                              <Label className="text-xs">Goal Character</Label>
+                              <Select
+                                value={config.goalCharacterId || '_none'}
+                                onValueChange={(v) => setConfig(c => ({ ...c, goalCharacterId: v === '_none' ? undefined : v }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="None (use end cell)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="_none">None (use end cell)</SelectItem>
+                                  {characters.map(ch => (
+                                    <SelectItem key={ch.id} value={ch.id}>
+                                      {ch.emoji} {ch.name} ({ch.id})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-muted-foreground">Reaching this character completes the level</p>
+                            </div>
+                          )}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* Panel Toggles */}
+                    <div className="space-y-2 border-t pt-2">
+                      <Button 
+                        onClick={() => setShowCharacterPanel(!showCharacterPanel)} 
+                        variant={placingCharacterId ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => {
-                          setSelectedTool(cell);
-                          if (cell === 'D') setShowDialoguePanel(true);
-                        }}
-                        className={`text-xs ${selectedTool === cell ? '' : CELL_COLORS[cell]}`}
+                        className="w-full"
                       >
-                        {CELL_LABELS[cell]}
+                        <User className="w-4 h-4 mr-2" />
+                        Characters ({characters.length})
                       </Button>
-                    ))}
-                  </div>
-                  
-                  <div className="flex items-center gap-2 pt-2">
-                    <input
-                      type="checkbox"
-                      id="singleTileMode"
-                      checked={singleTileMode}
-                      onChange={e => setSingleTileMode(e.target.checked)}
-                      className="rounded"
-                    />
-                    <Label htmlFor="singleTileMode" className="text-xs cursor-pointer">
-                      Single tile mode (Start/End)
-                    </Label>
-                  </div>
-                </div>
-
-                {/* Grid Size */}
-                <div className="space-y-2">
-                  <Label>Grid Size</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      value={width}
-                      onChange={e => setWidth(Math.max(8, Math.min(50, parseInt(e.target.value) || 8)))}
-                      min={8}
-                      max={50}
-                      className="w-20"
-                    />
-                    <span className="self-center">x</span>
-                    <Input
-                      type="number"
-                      value={height}
-                      onChange={e => setHeight(Math.max(8, Math.min(50, parseInt(e.target.value) || 8)))}
-                      min={8}
-                      max={50}
-                      className="w-20"
-                    />
-                  </div>
-                  <Button onClick={resizeGrid} size="sm" variant="outline" className="w-full">
-                    <Grid3X3 className="w-4 h-4 mr-2" />
-                    Apply Size
-                  </Button>
-                </div>
-
-                {/* Maze Config */}
-                <div className="space-y-2">
-                  <Label>Maze Name</Label>
-                  <Input
-                    value={config.name}
-                    onChange={e => setConfig(c => ({ ...c, name: e.target.value }))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Difficulty</Label>
-                  <Select
-                    value={config.difficulty}
-                    onValueChange={(v: 'easy' | 'medium' | 'hard') => setConfig(c => ({ ...c, difficulty: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Time Limit</Label>
-                    <Input
-                      type="number"
-                      value={config.timeLimit}
-                      onChange={e => setConfig(c => ({ ...c, timeLimit: parseInt(e.target.value) || 60 }))}
-                      min={10}
-                      disabled={config.timerDisabled}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Preview Time</Label>
-                    <Input
-                      type="number"
-                      value={config.previewTime}
-                      onChange={e => setConfig(c => ({ ...c, previewTime: parseInt(e.target.value) || 5 }))}
-                      min={1}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm">Disable Timer</Label>
-                  <Switch
-                    checked={config.timerDisabled || false}
-                    onCheckedChange={(checked) => setConfig(c => ({ ...c, timerDisabled: checked }))}
-                  />
-                </div>
-
-                {/* Goal Character */}
-                {characters.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>Goal Character</Label>
-                    <Select
-                      value={config.goalCharacterId || '_none'}
-                      onValueChange={(v) => setConfig(c => ({ ...c, goalCharacterId: v === '_none' ? undefined : v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="None (use end cell)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="_none">None (use end cell)</SelectItem>
-                        {characters.map(ch => (
-                          <SelectItem key={ch.id} value={ch.id}>
-                            {ch.emoji} {ch.name} ({ch.id})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">Reaching this character completes the level</p>
-                  </div>
-                )}
-
-                {/* Characters Toggle */}
-                <div className="pt-2 border-t">
-                  <Button 
-                    onClick={() => setShowCharacterPanel(!showCharacterPanel)} 
-                    variant={placingCharacterId ? 'default' : 'outline'}
-                    className="w-full"
-                  >
-                    <User className="w-4 h-4 mr-2" />
-                    Characters ({characters.length})
-                  </Button>
-                </div>
-
-                {/* Dialogues Toggle */}
-                <div className="pt-2">
-                  <Button 
-                    onClick={() => setShowDialoguePanel(!showDialoguePanel)} 
-                    variant="outline" 
-                    className="w-full"
-                  >
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Dialogues ({dialogues.length})
-                  </Button>
-                </div>
-
-                {/* Obstacles Toggle */}
-                <div className="pt-2">
-                  <Button 
-                    onClick={() => setShowObstaclePanel(!showObstaclePanel)} 
-                    variant={placingObstacleId ? 'default' : 'outline'}
-                    className="w-full"
-                  >
-                    🪵 Obstacles ({obstacles.length})
-                  </Button>
-                </div>
-
-                {/* Apple Dialogues Toggle */}
-                <div className="pt-2">
-                  <Button 
-                    onClick={() => setShowAppleDialoguePanel(!showAppleDialoguePanel)} 
-                    variant="outline" 
-                    className="w-full"
-                  >
-                    <Apple className="w-4 h-4 mr-2" />
-                    Apple Dialogues
-                  </Button>
-                </div>
-
-                {/* Validation Warnings */}
-                {(() => {
-                  const warnings = getValidationWarnings();
-                  if (warnings.length === 0) return null;
-                  return (
-                    <div className="p-2 bg-yellow-100 rounded-lg border border-yellow-400 space-y-1">
-                      <div className="text-xs font-bold text-yellow-800">Validation Issues:</div>
-                      {warnings.map((w, i) => (
-                        <div key={i} className="text-xs text-yellow-700">{w}</div>
-                      ))}
+                      <Button 
+                        onClick={() => setShowDialoguePanel(!showDialoguePanel)} 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full"
+                      >
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        Dialogues ({dialogues.length})
+                      </Button>
+                      <Button 
+                        onClick={() => setShowObstaclePanel(!showObstaclePanel)} 
+                        variant={placingObstacleId ? 'default' : 'outline'}
+                        size="sm"
+                        className="w-full"
+                      >
+                        🪵 Obstacles ({obstacles.length})
+                      </Button>
+                      <Button 
+                        onClick={() => setShowAppleDialoguePanel(!showAppleDialoguePanel)} 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full"
+                      >
+                        <Apple className="w-4 h-4 mr-2" />
+                        Apple Dialogues
+                      </Button>
                     </div>
-                  );
-                })()}
 
-                {/* Quick Actions */}
-                <div className="pt-2 border-t flex gap-2">
-                  <Button onClick={clearGrid} size="sm" variant="destructive" className="flex-1">
-                    Clear
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                    {/* Validation Warnings */}
+                    {(() => {
+                      const warnings = getValidationWarnings();
+                      if (warnings.length === 0) return null;
+                      return (
+                        <div className="p-2 bg-yellow-100 rounded-lg border border-yellow-400 space-y-1">
+                          <div className="text-xs font-bold text-yellow-800">Validation Issues:</div>
+                          {warnings.map((w, i) => (
+                            <div key={i} className="text-xs text-yellow-700">{w}</div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Quick Actions */}
+                    <div className="pt-2 border-t flex gap-2">
+                      <Button onClick={clearGrid} size="sm" variant="destructive" className="flex-1">
+                        Clear
+                      </Button>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
 
             {/* Grid Editor */}
-            <Card className="lg:col-span-2">
+            <Card className="flex-1 min-w-0">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center justify-between gap-3">
                   <span>Grid ({grid[0]?.length || 0} x {grid.length})</span>
@@ -1539,32 +1564,39 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
               </CardContent>
             </Card>
 
-            {/* Preview Panel */}
-            <Card className="lg:col-span-1">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center justify-between">
-                  <span>Schema Output</span>
-                  <div className="flex gap-1">
-                    <Button size="icon" variant="ghost" onClick={copyToClipboard} title="Copy to clipboard">
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={downloadSchema} title="Download">
-                      <Download className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={generateSchema()}
-                  readOnly
-                  className="font-mono text-xs h-[50vh] resize-none"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Copy this schema and paste it into src/data/mazes.ts
-                </p>
-              </CardContent>
-            </Card>
+            {/* Schema Output - Collapsible */}
+            <Collapsible defaultOpen className="shrink-0">
+              <Card className="w-72">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors">
+                      <span>Schema Output</span>
+                      <ChevronDown className="w-4 h-4 transition-transform [[data-state=closed]_&]:[-rotate-90]" />
+                    </CollapsibleTrigger>
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" onClick={copyToClipboard} title="Copy to clipboard">
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={downloadSchema} title="Download">
+                        <Download className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent>
+                    <Textarea
+                      value={generateSchema()}
+                      readOnly
+                      className="font-mono text-xs h-[50vh] resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Copy this schema and paste it into src/data/mazes.ts
+                    </p>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           </div>
         </div>
 
