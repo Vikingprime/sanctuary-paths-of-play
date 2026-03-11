@@ -2337,6 +2337,7 @@ const OverShoulderCameraController = ({
       // Perform raycasts (1 or 3 rays)
       let closestHitDist = rayLength;
       let hitObjectName = '';
+      let hardWallHit = false;
       // Reuse Set refs to avoid per-frame allocations
       hitCellsRef.current.clear();
       centerRayHitCellsRef.current.clear();
@@ -2349,10 +2350,14 @@ const OverShoulderCameraController = ({
         // Use recursive=true to check nested meshes inside the foliage group
         const intersects = raycaster.current.intersectObjects(cameraBlockers, true);
         if (intersects.length > 0) {
-          const hitDist = intersects[0].distance;
+          const nearestHit = intersects[0];
+          const hitDist = nearestHit.distance;
+          if (nearestHit.object.userData?.cameraBlockerType === 'hard-wall') {
+            hardWallHit = true;
+          }
           if (hitDist < closestHitDist) {
             closestHitDist = hitDist;
-            hitObjectName = intersects[0].object.name || 'unnamed';
+            hitObjectName = nearestHit.object.name || 'unnamed';
           }
           
           // Only the center ray contributes cells for translucency.
