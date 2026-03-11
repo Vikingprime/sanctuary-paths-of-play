@@ -384,6 +384,8 @@ export const GameHUD = ({
   onToggleCellarLights,
   cellarRoofEnabled = true,
   onToggleCellarRoof,
+  cellarRoofHeight = 2.4,
+  onCellarRoofHeightChange,
   sensitivityConfig = DEFAULT_SENSITIVITY,
   onSensitivityChange,
   mobileControlsEnabled = true,
