@@ -268,6 +268,10 @@ interface GameHUDProps {
   // Barrel type toggles
   enabledBarrelTypes?: boolean[];
   onToggleBarrelType?: (idx: number) => void;
+  cellarLightsEnabled?: boolean;
+  onToggleCellarLights?: () => void;
+  cellarRoofEnabled?: boolean;
+  onToggleCellarRoof?: () => void;
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
