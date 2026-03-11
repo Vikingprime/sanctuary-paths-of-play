@@ -163,9 +163,9 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
     const positions: { x: number; z: number }[] = [];
     const grid = maze.grid;
     
-    // Place a light every 2 cells in open spaces
-    for (let y = 1; y < grid.length - 1; y += 2) {
-      for (let x = 1; x < grid[0].length - 1; x += 2) {
+    // Place a light every 4 cells in open spaces (sparse for performance)
+    for (let y = 2; y < grid.length - 1; y += 4) {
+      for (let x = 2; x < grid[0].length - 1; x += 4) {
         if (!grid[y][x].isWall) {
           positions.push({ x: x + 0.5, z: y + 0.5 });
         }
