@@ -114,6 +114,7 @@ interface Maze3DSceneProps {
   cellarLightsEnabled?: boolean;
   cellarRoofEnabled?: boolean;
   cellarRoofHeight?: number;
+  walledMazeCameraCollision?: boolean;
   skeletonEnabled?: boolean;
   overlayGridEnabled?: boolean;
   showPrunedSpurs?: boolean;
