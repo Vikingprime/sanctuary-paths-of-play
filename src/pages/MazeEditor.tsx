@@ -750,6 +750,22 @@ const MazeEditor: React.FC = () => {
       return;
     }
 
+    // Check for new pushable barrel drop
+    const pushData = e.dataTransfer.getData(DRAG_TYPE_PUSHABLE_BARREL);
+    if (pushData) {
+      try {
+        const data: DragPushableBarrelData = JSON.parse(pushData);
+        const newId = `pushbarrel_${Date.now()}`;
+        setPushableBarrels(prev => [...prev, {
+          id: newId,
+          model: data.model,
+          position: { x, y },
+        }]);
+        toast.success(`Pushable barrel placed at (${x}, ${y})`);
+      } catch {}
+      return;
+    }
+
     // Check for placed character repositioning
     const placedCharData = e.dataTransfer.getData(DRAG_TYPE_PLACED_CHARACTER);
     if (placedCharData) {
@@ -765,6 +781,15 @@ const MazeEditor: React.FC = () => {
       const obsId = placedObsData;
       setObstacles(prev => prev.map(o => o.id === obsId ? { ...o, position: { x, y } } : o));
       toast.success(`Obstacle moved to (${x}, ${y})`);
+      return;
+    }
+
+    // Check for placed pushable barrel repositioning
+    const placedPushData = e.dataTransfer.getData(DRAG_TYPE_PLACED_PUSHABLE_BARREL);
+    if (placedPushData) {
+      const barrelId = placedPushData;
+      setPushableBarrels(prev => prev.map(b => b.id === barrelId ? { ...b, position: { x, y } } : b));
+      toast.success(`Pushable barrel moved to (${x}, ${y})`);
       return;
     }
   }, [updateCharacter]);
