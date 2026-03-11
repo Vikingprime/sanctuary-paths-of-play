@@ -1368,10 +1368,12 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                               w-4 h-4 md:w-5 md:h-5 cursor-crosshair transition-colors relative
                               ${character ? 'ring-2 ring-primary' : ''}
                               ${obstacle && !character ? 'ring-2 ring-amber-700' : ''}
+                              ${pushBarrel && !character && !obstacle ? 'ring-2 ring-cyan-600' : ''}
                               ${dragOverCell?.x === x && dragOverCell?.y === y ? 'ring-2 ring-blue-500 bg-blue-200/50' : ''}
                               ${isDialogueCell && !isMultiDialogue ? dialogueColor : ''}
-                              ${!isDialogueCell && !obstacle ? CELL_COLORS[cell] : ''}
+                              ${!isDialogueCell && !obstacle && !pushBarrel ? CELL_COLORS[cell] : ''}
                               ${!isDialogueCell && obstacle ? 'bg-amber-600' : ''}
+                              ${!isDialogueCell && !obstacle && pushBarrel ? 'bg-cyan-700' : ''}
                               ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
                               
                               ${selectedCharacterId && character?.id === selectedCharacterId ? 'ring-2 ring-offset-1 ring-blue-500' : ''}
