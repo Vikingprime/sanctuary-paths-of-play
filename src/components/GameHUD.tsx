@@ -372,6 +372,8 @@ export const GameHUD = ({
   onToggleShaderFade,
   lowShadowRes = false,
   onToggleLowShadowRes,
+  enabledBarrelTypes = [true, true, true, true],
+  onToggleBarrelType,
   sensitivityConfig = DEFAULT_SENSITIVITY,
   onSensitivityChange,
   mobileControlsEnabled = true,
