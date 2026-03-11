@@ -437,17 +437,21 @@ const CellarGround = ({ maze, centerX, centerZ, sizeX, sizeZ }: { maze: Maze; ce
 
           // Sample textures
           vec2 texUV = worldUV * tileScale;
-          // Path: stone/rock floor - warm cellar tones
-          vec3 stoneColor = texture2D(rockTex, texUV).rgb * 0.55 * vec3(1.0, 0.9, 0.75);
-          // Under barrels: dark dirt
-          vec3 dirtColor = texture2D(dirtTex, texUV * 1.2).rgb * 0.3 * vec3(0.9, 0.8, 0.65);
+          // Path: cool grey stone floor - cellar cobblestone look
+          vec3 stoneBase = texture2D(rockTex, texUV).rgb;
+          vec3 stoneColor = stoneBase * 0.45 * vec3(0.85, 0.82, 0.78);
+          // Under barrels: darker stone (not dirt)
+          vec3 darkStone = stoneBase * 0.2 * vec3(0.7, 0.68, 0.65);
 
-          // Subtle variation on path
-          float variation = noise(worldUV * 2.0 + 200.0) * 0.15;
-          stoneColor *= (0.9 + variation);
+          // Subtle variation on path - stain patches
+          float variation = noise(worldUV * 2.0 + 200.0) * 0.12;
+          float stain = noise(worldUV * 0.8 + 500.0);
+          stoneColor *= (0.92 + variation);
+          // Slight warm stain in patches for realism
+          stoneColor = mix(stoneColor, stoneColor * vec3(1.05, 0.95, 0.85), smoothstep(0.55, 0.75, stain) * 0.3);
 
-          // Blend: path areas get stone, wall areas get dark dirt
-          vec3 finalColor = mix(stoneColor, dirtColor, wallMask);
+          // Blend: path areas get stone, wall areas get darker stone
+          vec3 finalColor = mix(stoneColor, darkStone, wallMask);
 
           // Fog
           float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
