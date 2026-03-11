@@ -211,7 +211,7 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
 
     const allMeshes: ThreeInstancedMesh[] = [];
     const dummy = new Object3D();
-    const lightScale = 0.5;
+    const lightScale = 1.0;
 
     meshParts.forEach((part) => {
       const mesh = new ThreeInstancedMesh(part.geometry, part.material, lightPositions.length);
