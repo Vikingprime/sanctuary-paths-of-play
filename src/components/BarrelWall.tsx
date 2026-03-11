@@ -49,6 +49,7 @@ interface BarrelTransform {
   y: number;
   z: number;
   rotation: number;
+  rotationX: number;
   scale: number;
   typeIndex: number;
 }
