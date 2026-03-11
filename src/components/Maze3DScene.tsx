@@ -1348,6 +1348,10 @@ const RefBasedPlayer = ({
   onRailMoveComplete,
   // Polyline config for cache rebuilding
   polylineConfig,
+  restartKey,
+  // Pushable barrels
+  pushableBarrelStatesRef,
+  onPushableBarrelPush,
   // Restart key to force cache re-trigger
   pushableBarrelStatesRef,
   onPushableBarrelPush,
