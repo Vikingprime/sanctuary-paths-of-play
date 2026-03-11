@@ -1384,7 +1384,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             onDragOver={(e) => handleGridDragOver(e, x, y)}
                             onDragLeave={handleGridDragLeave}
                             onDrop={(e) => handleGridDrop(e, x, y)}
-                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
+                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${pushBarrel ? ` - 🛢️ ${pushBarrel.model} (pushable)` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
                           >
                             {isOnSpine && (
                               <span className="pointer-events-none absolute inset-[3px] rounded-full border border-primary bg-primary/35" />
