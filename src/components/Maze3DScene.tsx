@@ -1349,7 +1349,8 @@ const RefBasedPlayer = ({
   // Polyline config for cache rebuilding
   polylineConfig,
   // Restart key to force cache re-trigger
-  restartKey,
+  pushableBarrelStatesRef,
+  onPushableBarrelPush,
 }: {
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
