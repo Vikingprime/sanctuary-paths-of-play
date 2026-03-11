@@ -1071,6 +1071,36 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive, maze, showColl
   );
 };
 
+// PushableBarrelModel - renders a barrel that can be pushed by the player
+const PushableBarrelModel = ({ barrel }: { barrel: PushableBarrelState }) => {
+  const { scene } = useGLTF(`/models/${barrel.model}`);
+  const groupRef = useRef<Group>(null);
+  const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
+  
+  // Smooth animation toward target position
+  useFrame((_, delta) => {
+    if (!groupRef.current) return;
+    const targetX = barrel.x + 0.5;
+    const targetZ = barrel.y + 0.5;
+    // Lerp toward target
+    groupRef.current.position.x += (targetX - groupRef.current.position.x) * Math.min(1, delta * 8);
+    groupRef.current.position.z += (targetZ - groupRef.current.position.z) * Math.min(1, delta * 8);
+  });
+
+  // Need X-rotation for barrel models to stand upright
+  const needsXRotation = barrel.model === 'Barrel.glb' || barrel.model === 'Barrel_1.glb';
+
+  return (
+    <group ref={groupRef} position={[barrel.x + 0.5, 0, barrel.y + 0.5]}>
+      <primitive 
+        object={clonedScene} 
+        scale={0.7}
+        rotation={needsXRotation ? [Math.PI / 2, 0, 0] : [0, 0, 0]}
+      />
+    </group>
+  );
+};
+
 // PlacedCharacter - wraps CharacterRenderer for maze.characters array
 const PlacedCharacter = ({ 
   character, 
