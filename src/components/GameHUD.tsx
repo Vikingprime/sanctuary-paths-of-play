@@ -922,6 +922,28 @@ export const GameHUD = ({
                   ))}
                 </>
               )}
+              {onToggleCellarLights && (
+                <button
+                  onClick={onToggleCellarLights}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    cellarLightsEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Lights
+                </button>
+              )}
+              {onToggleCellarRoof && (
+                <button
+                  onClick={onToggleCellarRoof}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    cellarRoofEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Roof
+                </button>
+              )}
               {onToggleMobileControls && (
                 <button
                   onClick={onToggleMobileControls}
