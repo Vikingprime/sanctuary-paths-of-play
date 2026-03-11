@@ -71,6 +71,16 @@ export interface DragPlacedObstacleData {
   obstacleId: string;
 }
 
+export interface DragPushableBarrelData {
+  type: 'new-pushable-barrel';
+  model: string;
+}
+
+export interface DragPlacedPushableBarrelData {
+  type: 'placed-pushable-barrel';
+  barrelId: string;
+}
+
 interface PaletteItemProps {
   emoji: string;
   name: string;
