@@ -20,7 +20,7 @@ export const CellarEnvironment = ({ maze, lightsEnabled = true, roofEnabled = tr
   const gridHeight = maze.grid.length;
   const gridWidth = maze.grid[0]?.length ?? 0;
   
-  const PAD = 1;
+  const PAD = 2;
   const WALL_HEIGHT = roofHeightProp + 0.4;
   const ROOF_HEIGHT = roofHeightProp;
   
