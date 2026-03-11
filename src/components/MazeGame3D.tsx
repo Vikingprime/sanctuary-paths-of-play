@@ -219,6 +219,8 @@ export const MazeGame3D = ({
   
   const [lowShadowRes, setLowShadowRes] = useState(false); // Default high-res (2048), toggle to 512
   const [enabledBarrelTypes, setEnabledBarrelTypes] = useState([true, true, true, true]);
+  const [cellarLightsEnabled, setCellarLightsEnabled] = useState(true);
+  const [cellarRoofEnabled, setCellarRoofEnabled] = useState(true);
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>(DEFAULT_SENSITIVITY);
   // Per-animal rim light: 0.3 for cow/pig, 0 for chicken (uses defaults in PlayerCube)
   const [rendererInfo, setRendererInfo] = useState<PerformanceInfo>({ drawCalls: 0, triangles: 0, geometries: 0, textures: 0, programs: 0, frameTime: 0 });
@@ -1808,6 +1810,8 @@ export const MazeGame3D = ({
         shaderFadeEnabled={shaderFadeEnabled}
         lowShadowRes={lowShadowRes}
         enabledBarrelTypes={enabledBarrelTypes}
+        cellarLightsEnabled={cellarLightsEnabled}
+        cellarRoofEnabled={cellarRoofEnabled}
         skeletonEnabled={skeletonEnabled}
         overlayGridEnabled={overlayGridEnabled}
         showPrunedSpurs={showPrunedSpurs}
@@ -1920,6 +1924,10 @@ export const MazeGame3D = ({
             return next;
           })}
           sensitivityConfig={sensitivityConfig}
+          cellarLightsEnabled={cellarLightsEnabled}
+          onToggleCellarLights={() => setCellarLightsEnabled(prev => !prev)}
+          cellarRoofEnabled={cellarRoofEnabled}
+          onToggleCellarRoof={() => setCellarRoofEnabled(prev => !prev)}
           onSensitivityChange={setSensitivityConfig}
           mobileControlsEnabled={mobileControlsEnabled}
           onToggleMobileControls={() => setMobileControlsEnabled(prev => !prev)}

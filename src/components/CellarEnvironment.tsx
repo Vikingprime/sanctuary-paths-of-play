@@ -9,10 +9,12 @@ useGLTF.preload('/models/Ceiling_Light.glb');
 
 interface CellarEnvironmentProps {
   maze: Maze;
+  lightsEnabled?: boolean;
+  roofEnabled?: boolean;
 }
 
 // Dark room enclosure with roof and ceiling lights
-export const CellarEnvironment = ({ maze }: CellarEnvironmentProps) => {
+export const CellarEnvironment = ({ maze, lightsEnabled = true, roofEnabled = true }: CellarEnvironmentProps) => {
   const gridHeight = maze.grid.length;
   const gridWidth = maze.grid[0]?.length ?? 0;
   
@@ -71,10 +73,10 @@ export const CellarEnvironment = ({ maze }: CellarEnvironmentProps) => {
       </mesh>
       
       {/* Roof tiles (instanced) */}
-      <InstancedRoofTiles gridWidth={gridWidth} gridHeight={gridHeight} roofHeight={ROOF_HEIGHT} />
+      {roofEnabled && <InstancedRoofTiles gridWidth={gridWidth} gridHeight={gridHeight} roofHeight={ROOF_HEIGHT} />}
       
       {/* Ceiling lights (instanced) */}
-      <InstancedCellarLights maze={maze} roofHeight={ROOF_HEIGHT} />
+      {lightsEnabled && <InstancedCellarLights maze={maze} roofHeight={ROOF_HEIGHT} />}
     </group>
   );
 };

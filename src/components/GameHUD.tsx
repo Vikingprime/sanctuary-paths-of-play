@@ -268,6 +268,10 @@ interface GameHUDProps {
   // Barrel type toggles
   enabledBarrelTypes?: boolean[];
   onToggleBarrelType?: (idx: number) => void;
+  cellarLightsEnabled?: boolean;
+  onToggleCellarLights?: () => void;
+  cellarRoofEnabled?: boolean;
+  onToggleCellarRoof?: () => void;
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
@@ -374,6 +378,10 @@ export const GameHUD = ({
   onToggleLowShadowRes,
   enabledBarrelTypes = [true, true, true, true],
   onToggleBarrelType,
+  cellarLightsEnabled = true,
+  onToggleCellarLights,
+  cellarRoofEnabled = true,
+  onToggleCellarRoof,
   sensitivityConfig = DEFAULT_SENSITIVITY,
   onSensitivityChange,
   mobileControlsEnabled = true,
@@ -913,6 +921,28 @@ export const GameHUD = ({
                     </button>
                   ))}
                 </>
+              )}
+              {onToggleCellarLights && (
+                <button
+                  onClick={onToggleCellarLights}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    cellarLightsEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Lights
+                </button>
+              )}
+              {onToggleCellarRoof && (
+                <button
+                  onClick={onToggleCellarRoof}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-bold',
+                    cellarRoofEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                  )}
+                >
+                  Roof
+                </button>
               )}
               {onToggleMobileControls && (
                 <button
