@@ -1855,6 +1855,18 @@ const RefBasedPlayer = ({
           playerStateRef.current = { x: constrained.x, y: constrained.z, rotation: newState.rotation };
           collisionIntensityRef.current = newState.collisionIntensity;
           
+          // Check pushable barrel interactions (mobile)
+          if (pushableBarrelStatesRef && pushableBarrelStatesRef.current.length > 0) {
+            const pMoveX = constrained.x - prev.x;
+            const pMoveY = constrained.z - prev.y;
+            if (Math.abs(pMoveX) > 0.001 || Math.abs(pMoveY) > 0.001) {
+              const pushResult = checkAndPushBarrels(maze, constrained.x, constrained.z, pMoveX, pMoveY, pushableBarrelStatesRef.current);
+              if (pushResult.pushed && onPushableBarrelPush) {
+                onPushableBarrelPush(pushResult.barrels);
+              }
+            }
+          }
+          
           // Update animation refs
           isMovingRef.current = true;
           isTurningRef.current = Math.abs(angleDiff) > 0.15; // Turning significantly
