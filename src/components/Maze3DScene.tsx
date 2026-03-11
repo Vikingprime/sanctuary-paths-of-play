@@ -111,6 +111,8 @@ interface Maze3DSceneProps {
   shaderFadeEnabled?: boolean;
   lowShadowRes?: boolean;
   enabledBarrelTypes?: boolean[];
+  cellarLightsEnabled?: boolean;
+  cellarRoofEnabled?: boolean;
   skeletonEnabled?: boolean;
   overlayGridEnabled?: boolean;
   showPrunedSpurs?: boolean;
