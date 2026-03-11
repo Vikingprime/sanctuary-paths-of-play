@@ -696,16 +696,11 @@ const chapter8RootbeerCellar: StoryMaze = {
   theme: 'cellar',
   freeMapAccess: true,
   characters: [
-    { id: 'remy_cellar', name: 'Remy', emoji: '🐀', model: 'Rat.glb', animation: 'idle', position: { x: 2, y: 2 } },
     { id: 'rootbeer', name: 'Root Beer', emoji: '🍺', model: 'Beer_Mug.glb', animation: 'idle', position: { x: 17, y: 13 } },
-    // Decorative kegs - placed against walls, not blocking paths
-    { id: 'keg_deco_1', name: 'Beer Keg', emoji: '🛢️', model: 'Beer_Keg.glb', animation: 'idle', position: { x: 2, y: 7 } },
-    { id: 'keg_deco_2', name: 'Beer Keg', emoji: '🛢️', model: 'Beer_Keg.glb', animation: 'idle', position: { x: 19, y: 7 } },
   ],
-  storyCharacters: [], quest: { id: 'quest_rootbeer_cellar', title: "Remy's Root Beer Run", description: 'Navigate the cellar to find the root beer stash!', objectives: [{ id: 'find_rootbeer', type: 'talk_to', description: 'Find the root beer', targetCharacterId: 'rootbeer', completed: false }], rewards: { stars: 12, medal: true } },
+  storyCharacters: [], quest: { id: 'quest_rootbeer_cellar', title: "Root Beer Run", description: 'Navigate the cellar to find the root beer stash!', objectives: [{ id: 'find_rootbeer', type: 'talk_to', description: 'Find the root beer', targetCharacterId: 'rootbeer', completed: false }], rewards: { stars: 12, medal: true } },
   dialogues: [
-    { id: 'remy_cellar_intro', speaker: 'Remy', speakerEmoji: '🐀', message: "This is my favorite cellar! The root beer is hidden somewhere down here.", cells: [{ x: 2, y: 1 }, { x: 3, y: 1 }, { x: 2, y: 2 }, { x: 3, y: 2 }], speakerCharacterId: 'remy_cellar' },
-    { id: 'rootbeer_found', speaker: 'Remy', speakerEmoji: '🐀', message: "🍺 Found it! Perfect for the feast!", cells: [{ x: 16, y: 13 }, { x: 17, y: 13 }, { x: 16, y: 14 }, { x: 17, y: 14 }], speakerCharacterId: 'rootbeer', requires: ['remy_cellar_intro'], questAction: { type: 'complete_objective', objectiveId: 'find_rootbeer' } },
+    { id: 'rootbeer_found', speaker: 'You', speakerEmoji: '🐷', message: "🍺 Found it! Perfect for the feast!", cells: [{ x: 16, y: 13 }, { x: 17, y: 13 }, { x: 16, y: 14 }, { x: 17, y: 14 }], speakerCharacterId: 'rootbeer', questAction: { type: 'complete_objective', objectiveId: 'find_rootbeer' } },
   ],
   endConditions: { requiredDialogues: ['rootbeer_found'] },
   grid: createGrid([
