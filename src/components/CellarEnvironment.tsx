@@ -6,6 +6,7 @@ import { Maze } from '@/types/game';
 // Preload models
 useGLTF.preload('/models/Roof_Flat_Center.glb');
 useGLTF.preload('/models/Ceiling_Light.glb');
+useGLTF.preload('/models/Brick_wall.glb');
 
 interface CellarEnvironmentProps {
   maze: Maze;
@@ -40,29 +41,8 @@ export const CellarEnvironment = ({ maze, lightsEnabled = true, roofEnabled = tr
       {/* Textured dirt floor */}
       <CellarGround maze={maze} centerX={centerX} centerZ={centerZ} sizeX={sizeX} sizeZ={sizeZ} />
       
-      {/* Back wall (north) */}
-      <mesh position={[centerX, WALL_HEIGHT / 2, minZ]} receiveShadow>
-        <planeGeometry args={[sizeX, WALL_HEIGHT]} />
-        <meshStandardMaterial color={wallColor} side={DoubleSide} roughness={0.95} />
-      </mesh>
-      
-      {/* Front wall (south) */}
-      <mesh position={[centerX, WALL_HEIGHT / 2, maxZ]} rotation-y={Math.PI} receiveShadow>
-        <planeGeometry args={[sizeX, WALL_HEIGHT]} />
-        <meshStandardMaterial color={wallColor} side={DoubleSide} roughness={0.95} />
-      </mesh>
-      
-      {/* Left wall (west) */}
-      <mesh position={[minX, WALL_HEIGHT / 2, centerZ]} rotation-y={Math.PI / 2} receiveShadow>
-        <planeGeometry args={[sizeZ, WALL_HEIGHT]} />
-        <meshStandardMaterial color={wallColor} side={DoubleSide} roughness={0.95} />
-      </mesh>
-      
-      {/* Right wall (east) */}
-      <mesh position={[maxX, WALL_HEIGHT / 2, centerZ]} rotation-y={-Math.PI / 2} receiveShadow>
-        <planeGeometry args={[sizeZ, WALL_HEIGHT]} />
-        <meshStandardMaterial color={wallColor} side={DoubleSide} roughness={0.95} />
-      </mesh>
+      {/* Brick walls around perimeter */}
+      <InstancedBrickWalls minX={minX} minZ={minZ} maxX={maxX} maxZ={maxZ} sizeX={sizeX} sizeZ={sizeZ} wallHeight={WALL_HEIGHT} />
       
       {/* Ceiling slab */}
       <mesh position={[centerX, ROOF_HEIGHT, centerZ]} rotation-x={Math.PI / 2}>
@@ -77,6 +57,104 @@ export const CellarEnvironment = ({ maze, lightsEnabled = true, roofEnabled = tr
       {lightsEnabled && <InstancedCellarLights maze={maze} roofHeight={ROOF_HEIGHT} />}
     </group>
   );
+};
+
+// Instanced brick walls around the cellar perimeter
+const InstancedBrickWalls = ({ minX, minZ, maxX, maxZ, sizeX, sizeZ, wallHeight }: {
+  minX: number; minZ: number; maxX: number; maxZ: number; sizeX: number; sizeZ: number; wallHeight: number;
+}) => {
+  const groupRef = useRef<Group>(null);
+  const createdRef = useRef(false);
+  const { scene } = useGLTF('/models/Brick_wall.glb');
+
+  // Measure model to determine tiling
+  const { meshParts, modelSize } = useMemo(() => {
+    const parts: { geometry: BufferGeometry; material: Material }[] = [];
+    const box = new Box3();
+    scene.traverse((child: any) => {
+      if (child.isMesh) {
+        parts.push({ geometry: child.geometry.clone(), material: child.material.clone() });
+        child.geometry.computeBoundingBox();
+        const bb = child.geometry.boundingBox;
+        if (bb) { box.expandByPoint(bb.min); box.expandByPoint(bb.max); }
+      }
+    });
+    const size = new Vector3();
+    box.getSize(size);
+    console.log('[CELLAR] Brick wall model size:', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2));
+    return { meshParts: parts, modelSize: size };
+  }, [scene]);
+
+  // Generate positions for all 4 walls
+  const instances = useMemo(() => {
+    if (modelSize.x === 0 || modelSize.y === 0) return [];
+    
+    // Scale model to fit wall height
+    const scale = wallHeight / modelSize.y;
+    const tileWidth = modelSize.x * scale;
+    
+    const result: { x: number; z: number; rotY: number }[] = [];
+    
+    // North wall (back) - along X at minZ
+    for (let offset = 0; offset < sizeX; offset += tileWidth) {
+      result.push({ x: minX + offset + tileWidth / 2, z: minZ, rotY: 0 });
+    }
+    // South wall (front) - along X at maxZ
+    for (let offset = 0; offset < sizeX; offset += tileWidth) {
+      result.push({ x: minX + offset + tileWidth / 2, z: maxZ, rotY: Math.PI });
+    }
+    // West wall (left) - along Z at minX
+    for (let offset = 0; offset < sizeZ; offset += tileWidth) {
+      result.push({ x: minX, z: minZ + offset + tileWidth / 2, rotY: Math.PI / 2 });
+    }
+    // East wall (right) - along Z at maxX
+    for (let offset = 0; offset < sizeZ; offset += tileWidth) {
+      result.push({ x: maxX, z: minZ + offset + tileWidth / 2, rotY: -Math.PI / 2 });
+    }
+    
+    console.log('[CELLAR] Brick wall instances:', result.length, 'tileWidth:', tileWidth.toFixed(2), 'scale:', scale.toFixed(2));
+    return result;
+  }, [minX, minZ, maxX, maxZ, sizeX, sizeZ, wallHeight, modelSize]);
+
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group || createdRef.current || instances.length === 0 || meshParts.length === 0) return;
+    createdRef.current = true;
+
+    const allMeshes: ThreeInstancedMesh[] = [];
+    const dummy = new Object3D();
+    const scale = wallHeight / modelSize.y;
+
+    meshParts.forEach((part) => {
+      const mesh = new ThreeInstancedMesh(part.geometry, part.material, instances.length);
+
+      instances.forEach((inst, i) => {
+        dummy.position.set(inst.x, 0, inst.z);
+        dummy.rotation.set(0, inst.rotY, 0);
+        dummy.scale.setScalar(scale);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      });
+
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.frustumCulled = false;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+      allMeshes.push(mesh);
+    });
+
+    return () => {
+      allMeshes.forEach(mesh => {
+        group.remove(mesh);
+        mesh.geometry.dispose();
+        (mesh.material as Material).dispose();
+        mesh.dispose();
+      });
+      createdRef.current = false;
+    };
+  }, [instances, meshParts, wallHeight, modelSize]);
+
+  return <group ref={groupRef} />;
 };
 
 // Instanced roof tiles using imperative THREE.js
