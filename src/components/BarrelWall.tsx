@@ -294,7 +294,7 @@ export const InstancedBarrelWalls = ({
     console.log('[BARREL_WALL] Type distribution:', dist);
 
     return accepted;
-  }, [edgePositions, noShadowPositions, boundaryPositions, typeMetrics]);
+  }, [edgePositions, noShadowPositions, boundaryPositions, typeMetrics, skipEdgeBarrels]);
 
   // Group by type
   const groupedTransforms = useMemo(() => {
