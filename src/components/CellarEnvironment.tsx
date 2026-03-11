@@ -37,11 +37,8 @@ export const CellarEnvironment = ({ maze, lightsEnabled = true, roofEnabled = tr
 
   return (
     <group>
-      {/* Dark floor */}
-      <mesh position={[centerX, -0.01, centerZ]} rotation-x={-Math.PI / 2} receiveShadow>
-        <planeGeometry args={[sizeX, sizeZ]} />
-        <meshStandardMaterial color={floorColor} roughness={0.9} />
-      </mesh>
+      {/* Textured dirt floor */}
+      <CellarGround maze={maze} centerX={centerX} centerZ={centerZ} sizeX={sizeX} sizeZ={sizeZ} />
       
       {/* Back wall (north) */}
       <mesh position={[centerX, WALL_HEIGHT / 2, minZ]} receiveShadow>
