@@ -3136,6 +3136,9 @@ return (
       )}
       {isCellar && (
         <group ref={foliageGroupRef}>
+          {walledMazeCameraCollision && (
+            <CellarPerimeterCameraBlockers maze={maze} roofHeight={cellarRoofHeight} />
+          )}
           <InstancedBarrelWalls
             edgePositions={cellarWallData.edgePositions}
             noShadowPositions={cellarWallData.depthOnlyWalls}
