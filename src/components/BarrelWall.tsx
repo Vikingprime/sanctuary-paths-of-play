@@ -21,8 +21,8 @@ const seededRandom = (seed: number): number => {
 // Raw model heights: Barrel=0.002, Barrel_1=0.010, Beer_Keg=1.272, Keg=0.011
 // rotationX corrects models that are oriented sideways in their GLB
 const BARREL_TYPES = [
-  { model: '/models/Barrel.glb', weight: 3, baseScale: 350, rotationX: -Math.PI / 2 },
-  { model: '/models/Barrel_1.glb', weight: 3, baseScale: 70, rotationX: -Math.PI / 2 },
+  { model: '/models/Barrel.glb', weight: 3, baseScale: 350, rotationX: Math.PI / 2 },
+  { model: '/models/Barrel_1.glb', weight: 3, baseScale: 70, rotationX: Math.PI / 2 },
   { model: '/models/Beer_Keg.glb', weight: 2, baseScale: 0.56, rotationX: 0 },
   { model: '/models/Keg.glb', weight: 2, baseScale: 64, rotationX: 0 },
 ];
@@ -98,9 +98,18 @@ export const InstancedBarrelWalls = ({
       });
       const size = new Vector3();
       box.getSize(size);
-      console.log(`[BARREL] Type ${idx} (${BARREL_TYPES[idx].model}): minY=${box.min.y.toFixed(3)}, height=${size.y.toFixed(3)}`);
+      
+      const rx = BARREL_TYPES[idx].rotationX;
+      // When rotated PI/2 on X, the model's Z becomes Y and Y becomes -Z
+      let effectiveMinY = box.min.y;
+      if (Math.abs(rx) > 0.01) {
+        // After X rotation, the lowest point comes from the Z extent
+        effectiveMinY = box.min.z;
+      }
+      
+      console.log(`[BARREL] Type ${idx} (${BARREL_TYPES[idx].model}): minY=${box.min.y.toFixed(3)}, minZ=${box.min.z.toFixed(3)}, height=${size.y.toFixed(3)}, rotX=${rx.toFixed(2)}, effectiveMinY=${effectiveMinY.toFixed(3)}`);
       return {
-        minY: isFinite(box.min.y) ? box.min.y : 0,
+        minY: isFinite(effectiveMinY) ? effectiveMinY : 0,
         height: isFinite(size.y) ? size.y : 1,
       };
     });
