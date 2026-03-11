@@ -3066,7 +3066,7 @@ return (
       {isCellar && <fogExp2 attach="fog" args={['#0a0806', 0.06]} />}
 
       {/* Cellar environment - dark room enclosure, roof, ceiling lights */}
-      {isCellar && <CellarEnvironment maze={maze} lightsEnabled={cellarLightsEnabled} roofEnabled={cellarRoofEnabled} />}
+      {isCellar && <CellarEnvironment maze={maze} lightsEnabled={cellarLightsEnabled} roofEnabled={cellarRoofEnabled} roofHeight={cellarRoofHeight} />}
       
       {/* Ground (corn theme only - cellar has its own floor) */}
       {!isCellar && <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />}

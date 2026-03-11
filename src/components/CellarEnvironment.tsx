@@ -11,16 +11,17 @@ interface CellarEnvironmentProps {
   maze: Maze;
   lightsEnabled?: boolean;
   roofEnabled?: boolean;
+  roofHeight?: number;
 }
 
 // Dark room enclosure with roof and ceiling lights
-export const CellarEnvironment = ({ maze, lightsEnabled = true, roofEnabled = true }: CellarEnvironmentProps) => {
+export const CellarEnvironment = ({ maze, lightsEnabled = true, roofEnabled = true, roofHeight: roofHeightProp = 2.4 }: CellarEnvironmentProps) => {
   const gridHeight = maze.grid.length;
   const gridWidth = maze.grid[0]?.length ?? 0;
   
   const PAD = 1;
-  const WALL_HEIGHT = 2.8;
-  const ROOF_HEIGHT = 2.4;
+  const WALL_HEIGHT = roofHeightProp + 0.4;
+  const ROOF_HEIGHT = roofHeightProp;
   
   const minX = -PAD;
   const minZ = -PAD;
