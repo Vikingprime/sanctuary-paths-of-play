@@ -272,6 +272,8 @@ interface GameHUDProps {
   onToggleCellarLights?: () => void;
   cellarRoofEnabled?: boolean;
   onToggleCellarRoof?: () => void;
+  cellarRoofHeight?: number;
+  onCellarRoofHeightChange?: (height: number) => void;
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
