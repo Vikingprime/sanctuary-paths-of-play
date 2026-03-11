@@ -699,7 +699,9 @@ const MazeEditor: React.FC = () => {
   // --- Drag-and-Drop Handlers ---
   const handleGridDragOver = useCallback((e: React.DragEvent, x: number, y: number) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+    // Use 'move' if dragging a placed item, 'copy' for new palette items
+    const hasPlaced = e.dataTransfer.types.some(t => t.startsWith('maze-editor/placed-'));
+    e.dataTransfer.dropEffect = hasPlaced ? 'move' : 'copy';
     setDragOverCell({ x, y });
   }, []);
 
