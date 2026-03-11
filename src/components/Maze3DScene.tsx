@@ -3333,7 +3333,14 @@ return (
         onRailMoveComplete={onRailMoveComplete}
         polylineConfig={polylineConfig}
         restartKey={restartKey}
+        pushableBarrelStatesRef={pushableBarrelStatesRef}
+        onPushableBarrelPush={setPushableBarrelStates}
       />
+      
+      {/* Pushable Barrels */}
+      {pushableBarrelStates.map(barrel => (
+        <PushableBarrelModel key={barrel.id} barrel={barrel} />
+      ))}
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
       {dialogueTarget ? (
