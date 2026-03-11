@@ -173,6 +173,29 @@ export const EditorPalette: React.FC<EditorPaletteProps> = ({ className }) => {
                 ))}
               </div>
             </div>
+
+            <Separator />
+
+            {/* Pushable Barrels */}
+            <div>
+              <Label className="text-xs font-semibold px-2 text-muted-foreground uppercase tracking-wider">
+                Pushable Barrels
+              </Label>
+              <div className="mt-1 space-y-0.5">
+                {PUSHABLE_BARREL_TEMPLATES.map(t => (
+                  <PaletteItem
+                    key={`push-${t.model}`}
+                    emoji={t.emoji}
+                    name={t.name}
+                    dragType={DRAG_TYPE_PUSHABLE_BARREL}
+                    dragData={JSON.stringify({
+                      type: 'new-pushable-barrel',
+                      model: t.model,
+                    } as DragPushableBarrelData)}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </ScrollArea>
       </CardContent>
@@ -180,4 +203,4 @@ export const EditorPalette: React.FC<EditorPaletteProps> = ({ className }) => {
   );
 };
 
-export { CHARACTER_TEMPLATES, OBSTACLE_TEMPLATES };
+export { CHARACTER_TEMPLATES, OBSTACLE_TEMPLATES, PUSHABLE_BARREL_TEMPLATES };
