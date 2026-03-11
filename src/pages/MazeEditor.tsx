@@ -1319,7 +1319,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
             </Collapsible>
 
             {/* Grid Editor */}
-            <Card className="lg:col-span-2">
+            <Card className="flex-1 min-w-0">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center justify-between gap-3">
                   <span>Grid ({grid[0]?.length || 0} x {grid.length})</span>
