@@ -34,11 +34,19 @@ const OBSTACLE_TEMPLATES = [
   { model: 'Log_with_Fungus.glb', emoji: '🍄', name: 'Log (Fungus)' },
 ];
 
+const PUSHABLE_BARREL_TEMPLATES = [
+  { model: 'Barrel.glb', emoji: '🛢️', name: 'Barrel (push)' },
+  { model: 'Barrel_1.glb', emoji: '🪣', name: 'Barrel 2 (push)' },
+  { model: 'Beer_Keg.glb', emoji: '🍺', name: 'Keg (push)' },
+];
+
 // Drag data types
 export const DRAG_TYPE_CHARACTER = 'maze-editor/character';
 export const DRAG_TYPE_OBSTACLE = 'maze-editor/obstacle';
+export const DRAG_TYPE_PUSHABLE_BARREL = 'maze-editor/pushable-barrel';
 export const DRAG_TYPE_PLACED_CHARACTER = 'maze-editor/placed-character';
 export const DRAG_TYPE_PLACED_OBSTACLE = 'maze-editor/placed-obstacle';
+export const DRAG_TYPE_PLACED_PUSHABLE_BARREL = 'maze-editor/placed-pushable-barrel';
 
 export interface DragCharacterData {
   type: 'new-character';

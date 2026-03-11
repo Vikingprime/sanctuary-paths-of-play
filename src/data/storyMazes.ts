@@ -691,7 +691,7 @@ const chapter7LlamaBlockade: StoryMaze = {
 // Uses 'cellar' theme: barrels instead of corn, dark room, ceiling lights
 // Grid uses 2-wide corridors. CELL_SIZE=0.667 → 2 cells ≈ 1.33 world units.
 const chapter8RootbeerCellar: StoryMaze = {
-  id: 108, name: "Remy's Root Beer Run", chapterId: 'rootbeer_cellar', difficulty: 'medium',
+  id: 108, name: "Root Beer Run", chapterId: 'rootbeer_cellar', difficulty: 'medium',
   timeLimit: 200, timerDisabled: true, previewTime: 10, medalTimes: { gold: 50, silver: 80, bronze: 120 },
   theme: 'cellar',
   freeMapAccess: true,
