@@ -1813,6 +1813,7 @@ export const MazeGame3D = ({
         enabledBarrelTypes={enabledBarrelTypes}
         cellarLightsEnabled={cellarLightsEnabled}
         cellarRoofEnabled={cellarRoofEnabled}
+        cellarRoofHeight={cellarRoofHeight}
         skeletonEnabled={skeletonEnabled}
         overlayGridEnabled={overlayGridEnabled}
         showPrunedSpurs={showPrunedSpurs}
