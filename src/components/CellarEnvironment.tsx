@@ -1,6 +1,6 @@
 import { useRef, useMemo, useEffect } from 'react';
-import { DoubleSide, Object3D, InstancedMesh as ThreeInstancedMesh, BufferGeometry, Material, Group, Box3, Vector3 } from 'three';
-import { useGLTF } from '@react-three/drei';
+import { DoubleSide, Object3D, InstancedMesh as ThreeInstancedMesh, BufferGeometry, Material, Group, Box3, Vector3, RepeatWrapping, LinearMipmapLinearFilter, LinearFilter, DataTexture, ShaderMaterial, Color } from 'three';
+import { useGLTF, useTexture } from '@react-three/drei';
 import { Maze } from '@/types/game';
 
 // Preload models
@@ -37,11 +37,8 @@ export const CellarEnvironment = ({ maze, lightsEnabled = true, roofEnabled = tr
 
   return (
     <group>
-      {/* Dark floor */}
-      <mesh position={[centerX, -0.01, centerZ]} rotation-x={-Math.PI / 2} receiveShadow>
-        <planeGeometry args={[sizeX, sizeZ]} />
-        <meshStandardMaterial color={floorColor} roughness={0.9} />
-      </mesh>
+      {/* Textured dirt floor */}
+      <CellarGround maze={maze} centerX={centerX} centerZ={centerZ} sizeX={sizeX} sizeZ={sizeZ} />
       
       {/* Back wall (north) */}
       <mesh position={[centerX, WALL_HEIGHT / 2, minZ]} receiveShadow>
@@ -259,5 +256,122 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
         />
       ))}
     </group>
+  );
+};
+
+// Cellar ground with dirt texture - darker under walls (barrels), lighter on paths
+const CellarGround = ({ maze, centerX, centerZ, sizeX, sizeZ }: { maze: Maze; centerX: number; centerZ: number; sizeX: number; sizeZ: number }) => {
+  const dirtTexture = useTexture('/textures/dirt_floor.jpg');
+  const mudTexture = useTexture('/textures/ground-mud-leaves.jpg');
+
+  const material = useMemo(() => {
+    const mazeWidth = maze.grid[0].length;
+    const mazeHeight = maze.grid.length;
+
+    [dirtTexture, mudTexture].forEach(tex => {
+      tex.wrapS = RepeatWrapping;
+      tex.wrapT = RepeatWrapping;
+      tex.minFilter = LinearMipmapLinearFilter;
+      tex.magFilter = LinearFilter;
+    });
+
+    // Wall map: white = wall (barrel), black = path
+    const data = new Uint8Array(mazeWidth * mazeHeight * 4);
+    for (let y = 0; y < mazeHeight; y++) {
+      for (let x = 0; x < mazeWidth; x++) {
+        const idx = (y * mazeWidth + x) * 4;
+        const isWall = maze.grid[y][x].isWall ? 255 : 0;
+        data[idx] = isWall;
+        data[idx + 1] = isWall;
+        data[idx + 2] = isWall;
+        data[idx + 3] = 255;
+      }
+    }
+
+    const wallMapTex = new DataTexture(data, mazeWidth, mazeHeight);
+    wallMapTex.needsUpdate = true;
+    wallMapTex.magFilter = LinearFilter;
+    wallMapTex.minFilter = LinearFilter;
+
+    return new ShaderMaterial({
+      uniforms: {
+        dirtTex: { value: dirtTexture },
+        mudTex: { value: mudTexture },
+        wallMap: { value: wallMapTex },
+        mazeWidth: { value: mazeWidth },
+        mazeHeight: { value: mazeHeight },
+        tileScale: { value: 2.0 },
+        pathBrightness: { value: 0.55 },
+        wallDarkness: { value: 0.3 },
+        fogColor: { value: new Color('#0a0806') },
+        fogDensity: { value: 0.06 },
+      },
+      vertexShader: `
+        varying vec3 vWorldPos;
+        varying float vFogDepth;
+        void main() {
+          vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          vFogDepth = -mvPosition.z;
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D dirtTex;
+        uniform sampler2D mudTex;
+        uniform sampler2D wallMap;
+        uniform float mazeWidth;
+        uniform float mazeHeight;
+        uniform float tileScale;
+        uniform float pathBrightness;
+        uniform float wallDarkness;
+        uniform vec3 fogColor;
+        uniform float fogDensity;
+        varying vec3 vWorldPos;
+        varying float vFogDepth;
+
+        // Simple hash for variation
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        void main() {
+          vec2 mazeUV = vWorldPos.xz / vec2(mazeWidth, mazeHeight);
+          float isWall = texture2D(wallMap, mazeUV).r;
+          float wallMask = smoothstep(0.4, 0.6, isWall);
+
+          // Tile UVs for textures
+          vec2 tileUV = vWorldPos.xz * tileScale;
+
+          // Sample textures
+          vec3 dirtColor = texture2D(dirtTex, tileUV).rgb;
+          vec3 mudColor = texture2D(mudTex, tileUV * 0.8).rgb;
+
+          // Path = dirt texture (brighter), Wall = mud texture (darker, under barrels)
+          vec3 pathResult = dirtColor * pathBrightness;
+          vec3 wallResult = mudColor * wallDarkness;
+
+          vec3 finalColor = mix(pathResult, wallResult, wallMask);
+
+          // Add subtle variation
+          float noise = hash(floor(vWorldPos.xz * 3.0)) * 0.06;
+          finalColor += noise - 0.03;
+
+          // Fog
+          float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+          finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
+
+          gl_FragColor = vec4(finalColor, 1.0);
+        }
+      `,
+      fog: false,
+    });
+  }, [maze, dirtTexture, mudTexture]);
+
+  return (
+    <mesh position={[centerX, -0.01, centerZ]} rotation-x={-Math.PI / 2} receiveShadow>
+      <planeGeometry args={[sizeX, sizeZ]} />
+      <primitive object={material} attach="material" />
+    </mesh>
   );
 };
