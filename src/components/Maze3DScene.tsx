@@ -3090,6 +3090,7 @@ return (
           noShadowPositions={cellarWallData.depthOnlyWalls}
           boundaryPositions={cellarWallData.boundaryWalls}
           enabledTypes={enabledBarrelTypes}
+          skipEdgeBarrels={true}
         />
       )}
       
