@@ -1348,11 +1348,9 @@ const RefBasedPlayer = ({
   onRailMoveComplete,
   // Polyline config for cache rebuilding
   polylineConfig,
+  // Restart key to force cache re-trigger
   restartKey,
   // Pushable barrels
-  pushableBarrelStatesRef,
-  onPushableBarrelPush,
-  // Restart key to force cache re-trigger
   pushableBarrelStatesRef,
   onPushableBarrelPush,
 }: {
@@ -1379,7 +1377,6 @@ const RefBasedPlayer = ({
   magnetismConfig?: MagnetismConfig;
   magnetismDebugRef?: MutableRefObject<MagnetismTurnResult['debug'] | null>;
   onMagnetismCacheReady?: (cache: MagnetismCache) => void;
-  // Rail movement props
   railMode?: boolean;
   railPathRef?: MutableRefObject<Array<{ x: number; z: number }>>;
   railPathIndexRef?: MutableRefObject<number>;
@@ -1388,10 +1385,10 @@ const RefBasedPlayer = ({
   railTargetAngleRef?: MutableRefObject<number>;
   railTurnSpeed?: number;
   onRailMoveComplete?: () => void;
-  // Polyline config
   polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; chaikinFactor?: number; cornerPushStrength?: number } | null;
-  // Restart key to force cache re-trigger on restart
   restartKey?: number;
+  pushableBarrelStatesRef?: MutableRefObject<PushableBarrelState[]>;
+  onPushableBarrelPush?: (barrels: PushableBarrelState[]) => void;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
