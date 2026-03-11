@@ -698,9 +698,9 @@ const chapter8RootbeerCellar: StoryMaze = {
   characters: [
     { id: 'remy_cellar', name: 'Remy', emoji: '🐀', model: 'Rat.glb', animation: 'idle', position: { x: 2, y: 2 } },
     { id: 'rootbeer', name: 'Root Beer', emoji: '🍺', model: 'Beer_Mug.glb', animation: 'idle', position: { x: 16, y: 11 } },
-    // Decorative kegs
-    { id: 'keg_deco_1', name: 'Beer Keg', emoji: '🛢️', model: 'Beer_Keg.glb', animation: 'idle', position: { x: 7, y: 1 } },
-    { id: 'keg_deco_2', name: 'Beer Keg', emoji: '🛢️', model: 'Beer_Keg.glb', animation: 'idle', position: { x: 14, y: 5 } },
+    // Decorative kegs - placed against walls, not blocking paths
+    { id: 'keg_deco_1', name: 'Beer Keg', emoji: '🛢️', model: 'Beer_Keg.glb', animation: 'idle', position: { x: 2, y: 6 } },
+    { id: 'keg_deco_2', name: 'Beer Keg', emoji: '🛢️', model: 'Beer_Keg.glb', animation: 'idle', position: { x: 19, y: 7 } },
   ],
   storyCharacters: [], quest: { id: 'quest_rootbeer_cellar', title: "Remy's Root Beer Run", description: 'Navigate the cellar to find the root beer stash!', objectives: [{ id: 'find_rootbeer', type: 'talk_to', description: 'Find the root beer', targetCharacterId: 'rootbeer', completed: false }], rewards: { stars: 12, medal: true } },
   dialogues: [
