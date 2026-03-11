@@ -3085,13 +3085,15 @@ return (
         />
       )}
       {isCellar && (
-        <InstancedBarrelWalls
-          edgePositions={cellarWallData.edgePositions}
-          noShadowPositions={cellarWallData.depthOnlyWalls}
-          boundaryPositions={cellarWallData.boundaryWalls}
-          enabledTypes={enabledBarrelTypes}
-          skipEdgeBarrels={true}
-        />
+        <group ref={foliageGroupRef}>
+          <InstancedBarrelWalls
+            edgePositions={cellarWallData.edgePositions}
+            noShadowPositions={cellarWallData.depthOnlyWalls}
+            boundaryPositions={cellarWallData.boundaryWalls}
+            enabledTypes={enabledBarrelTypes}
+            skipEdgeBarrels={true}
+          />
+        </group>
       )}
       
       {/* Power-ups */}
