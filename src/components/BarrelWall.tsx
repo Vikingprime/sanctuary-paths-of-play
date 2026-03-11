@@ -249,7 +249,7 @@ export const InstancedBarrelWalls = ({
           const scale = baseScale * (0.9 + seededRandom(stalkSeed + 37) * 0.25);
           const groundY = -typeMetrics[typeIndex].minY * scale;
 
-          result.push({ x: posX, y: groundY, z: posZ, rotation: seededRandom(stalkSeed + 43) * Math.PI * 2, scale, typeIndex });
+          result.push({ x: posX, y: groundY, z: posZ, rotation: seededRandom(stalkSeed + 43) * Math.PI * 2, rotationX: BARREL_TYPES[typeIndex].rotationX, scale, typeIndex });
         }
       }
     });
