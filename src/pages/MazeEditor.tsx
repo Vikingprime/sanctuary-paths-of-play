@@ -12,7 +12,7 @@ import { Copy, Download, Grid3X3, Plus, MessageSquare, X, User, ArrowLeft, Apple
 import { toast } from 'sonner';
 import { FineSpineEditor } from '@/components/FineSpineEditor';
 import { useMazeStorage, createGrid } from '@/hooks/useMazeStorage';
-import { Maze, DialogueSequenceItem, CardinalDirection, DirectionalVision, TurningConfig, RelativeVisionZone, ConeVisionConfig, MazeObstacle } from '@/types/game';
+import { Maze, DialogueSequenceItem, CardinalDirection, DirectionalVision, TurningConfig, RelativeVisionZone, ConeVisionConfig, MazeObstacle, PushableBarrel } from '@/types/game';
 import { useBackButton } from '@/hooks/useBackButton';
 import { animalAppleDialogues, AnimalAppleDialogues, AppleDialogue, getAppleDialogueCount } from '@/data/appleDialogues';
 import { canBeFedApples } from '@/types/appleDialogue';
@@ -24,10 +24,13 @@ import {
   EditorPalette, 
   DRAG_TYPE_CHARACTER, 
   DRAG_TYPE_OBSTACLE, 
+  DRAG_TYPE_PUSHABLE_BARREL,
   DRAG_TYPE_PLACED_CHARACTER, 
   DRAG_TYPE_PLACED_OBSTACLE,
+  DRAG_TYPE_PLACED_PUSHABLE_BARREL,
   type DragCharacterData,
   type DragObstacleData,
+  type DragPushableBarrelData,
 } from '@/components/maze-editor/EditorPalette';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
@@ -58,6 +61,12 @@ interface ObstacleConfig {
   model: string;
   position: { x: number; y: number } | null;
   rotation?: number;
+}
+
+interface PushableBarrelConfig {
+  id: string;
+  model: string;
+  position: { x: number; y: number } | null;
 }
 
 type VisionConePreset = 'none' | 'narrow' | 'wide' | 'long';
@@ -238,6 +247,8 @@ const MazeEditor: React.FC = () => {
   const [obstacles, setObstacles] = useState<ObstacleConfig[]>([]);
   const [showObstaclePanel, setShowObstaclePanel] = useState(false);
   const [placingObstacleId, setPlacingObstacleId] = useState<string | null>(null);
+  const [pushableBarrels, setPushableBarrels] = useState<PushableBarrelConfig[]>([]);
+  const [placingPushableBarrelId, setPlacingPushableBarrelId] = useState<string | null>(null);
   const [dragOverCell, setDragOverCell] = useState<{ x: number; y: number } | null>(null);
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
@@ -377,6 +388,17 @@ const MazeEditor: React.FC = () => {
       })));
     } else {
       setObstacles([]);
+    }
+
+    // Load pushable barrels
+    if (maze.pushableBarrels) {
+      setPushableBarrels(maze.pushableBarrels.map(b => ({
+        id: b.id,
+        model: b.model,
+        position: b.position,
+      })));
+    } else {
+      setPushableBarrels([]);
     }
     
     setLoadedMazeId(mazeId);
@@ -650,6 +672,10 @@ const MazeEditor: React.FC = () => {
     return obstacles.find(o => o.position?.x === x && o.position?.y === y);
   };
 
+  const getPushableBarrelAtCell = (x: number, y: number): PushableBarrelConfig | undefined => {
+    return pushableBarrels.find(b => b.position?.x === x && b.position?.y === y);
+  };
+
   const addObstacle = () => {
     const newId = `obstacle_${Date.now()}`;
     const newObstacle: ObstacleConfig = {
@@ -724,6 +750,22 @@ const MazeEditor: React.FC = () => {
       return;
     }
 
+    // Check for new pushable barrel drop
+    const pushData = e.dataTransfer.getData(DRAG_TYPE_PUSHABLE_BARREL);
+    if (pushData) {
+      try {
+        const data: DragPushableBarrelData = JSON.parse(pushData);
+        const newId = `pushbarrel_${Date.now()}`;
+        setPushableBarrels(prev => [...prev, {
+          id: newId,
+          model: data.model,
+          position: { x, y },
+        }]);
+        toast.success(`Pushable barrel placed at (${x}, ${y})`);
+      } catch {}
+      return;
+    }
+
     // Check for placed character repositioning
     const placedCharData = e.dataTransfer.getData(DRAG_TYPE_PLACED_CHARACTER);
     if (placedCharData) {
@@ -739,6 +781,15 @@ const MazeEditor: React.FC = () => {
       const obsId = placedObsData;
       setObstacles(prev => prev.map(o => o.id === obsId ? { ...o, position: { x, y } } : o));
       toast.success(`Obstacle moved to (${x}, ${y})`);
+      return;
+    }
+
+    // Check for placed pushable barrel repositioning
+    const placedPushData = e.dataTransfer.getData(DRAG_TYPE_PLACED_PUSHABLE_BARREL);
+    if (placedPushData) {
+      const barrelId = placedPushData;
+      setPushableBarrels(prev => prev.map(b => b.id === barrelId ? { ...b, position: { x, y } } : b));
+      toast.success(`Pushable barrel moved to (${x}, ${y})`);
       return;
     }
   }, [updateCharacter]);
@@ -854,20 +905,25 @@ ${normalizedDeletedSpineFineCells.map((cell) => `    { x: ${cell.x}, y: ${cell.y
 ${obstacles.filter(o => o.position).map(o => `    { id: '${o.id}', model: '${o.model}', position: { x: ${o.position!.x}, y: ${o.position!.y} }${o.rotation ? `, rotation: ${o.rotation}` : ''} },`).join('\n')}
   ],` : '';
 
+    const pushableBarrelsSchema = pushableBarrels.filter(b => b.position).length > 0 ? `
+  pushableBarrels: [
+${pushableBarrels.filter(b => b.position).map(b => `    { id: '${b.id}', model: '${b.model}', position: { x: ${b.position!.x}, y: ${b.position!.y} } },`).join('\n')}
+  ],` : '';
+
     const schema = `{
   id: ${loadedMazeId || Date.now()},
   name: '${config.name}',
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
   previewTime: ${config.previewTime},${timerDisabledSchema}${deletedSpineBranchesSchema}${deletedSpineFineCellsSchema}
-  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${obstaclesSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
+  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${obstaclesSchema}${pushableBarrelsSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
   ]),
 },`;
     
     return schema;
-  }, [grid, config, dialogues, characters, obstacles, loadedMazeId, normalizedDeletedSpineBranches, normalizedDeletedSpineFineCells]);
+  }, [grid, config, dialogues, characters, obstacles, pushableBarrels, loadedMazeId, normalizedDeletedSpineBranches, normalizedDeletedSpineFineCells]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateSchema());
@@ -1294,6 +1350,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const dialogue = cellDialogues[0];
                         const character = getCharacterAtCell(x, y);
                         const obstacle = getObstacleAtCell(x, y);
+                        const pushBarrel = getPushableBarrelAtCell(x, y);
                         
                         const isDialogueCell = cellDialogues.length > 0;
                         const isMultiDialogue = cellDialogues.length > 1;
@@ -1311,10 +1368,12 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                               w-4 h-4 md:w-5 md:h-5 cursor-crosshair transition-colors relative
                               ${character ? 'ring-2 ring-primary' : ''}
                               ${obstacle && !character ? 'ring-2 ring-amber-700' : ''}
+                              ${pushBarrel && !character && !obstacle ? 'ring-2 ring-cyan-600' : ''}
                               ${dragOverCell?.x === x && dragOverCell?.y === y ? 'ring-2 ring-blue-500 bg-blue-200/50' : ''}
                               ${isDialogueCell && !isMultiDialogue ? dialogueColor : ''}
-                              ${!isDialogueCell && !obstacle ? CELL_COLORS[cell] : ''}
+                              ${!isDialogueCell && !obstacle && !pushBarrel ? CELL_COLORS[cell] : ''}
                               ${!isDialogueCell && obstacle ? 'bg-amber-600' : ''}
+                              ${!isDialogueCell && !obstacle && pushBarrel ? 'bg-cyan-700' : ''}
                               ${isSelectedDialogue ? 'ring-2 ring-offset-1 ring-foreground' : ''}
                               
                               ${selectedCharacterId && character?.id === selectedCharacterId ? 'ring-2 ring-offset-1 ring-blue-500' : ''}
@@ -1325,7 +1384,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                             onDragOver={(e) => handleGridDragOver(e, x, y)}
                             onDragLeave={handleGridDragLeave}
                             onDrop={(e) => handleGridDrop(e, x, y)}
-                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
+                            title={`(${x}, ${y}) ${CELL_LABELS[cell]}${isDialogueCell ? ` - ${dialogueNames}${isMultiDialogue ? ' (overlapping)' : ''}` : ''}${character ? ` - ${character.name}` : ''}${obstacle ? ` - 🪵 ${obstacle.model}` : ''}${pushBarrel ? ` - 🛢️ ${pushBarrel.model} (pushable)` : ''}${isOnSpine ? ' - Traversal spine' : ''}`}
                           >
                             {isOnSpine && (
                               <span className="pointer-events-none absolute inset-[3px] rounded-full border border-primary bg-primary/35" />
@@ -1341,6 +1400,22 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                                 onClick={(e) => handleGridObstacleClick(obstacle.id, e)}
                                 className="absolute inset-0 z-10 flex items-center justify-center text-[8px] cursor-grab active:cursor-grabbing"
                               >🪵</span>
+                            )}
+                            {pushBarrel && !character && !obstacle && (
+                              <span
+                                draggable
+                                onDragStart={(e) => {
+                                  e.stopPropagation();
+                                  e.dataTransfer.setData(DRAG_TYPE_PLACED_PUSHABLE_BARREL, pushBarrel.id);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPushableBarrels(prev => prev.filter(b => b.id !== pushBarrel.id));
+                                  toast.info('Pushable barrel removed');
+                                }}
+                                className="absolute inset-0 z-10 flex items-center justify-center text-[8px] cursor-grab active:cursor-grabbing"
+                              >🛢️</span>
                             )}
                             {character && (
                               <span

@@ -34,11 +34,19 @@ const OBSTACLE_TEMPLATES = [
   { model: 'Log_with_Fungus.glb', emoji: '🍄', name: 'Log (Fungus)' },
 ];
 
+const PUSHABLE_BARREL_TEMPLATES = [
+  { model: 'Barrel.glb', emoji: '🛢️', name: 'Barrel (push)' },
+  { model: 'Barrel_1.glb', emoji: '🪣', name: 'Barrel 2 (push)' },
+  { model: 'Beer_Keg.glb', emoji: '🍺', name: 'Keg (push)' },
+];
+
 // Drag data types
 export const DRAG_TYPE_CHARACTER = 'maze-editor/character';
 export const DRAG_TYPE_OBSTACLE = 'maze-editor/obstacle';
+export const DRAG_TYPE_PUSHABLE_BARREL = 'maze-editor/pushable-barrel';
 export const DRAG_TYPE_PLACED_CHARACTER = 'maze-editor/placed-character';
 export const DRAG_TYPE_PLACED_OBSTACLE = 'maze-editor/placed-obstacle';
+export const DRAG_TYPE_PLACED_PUSHABLE_BARREL = 'maze-editor/placed-pushable-barrel';
 
 export interface DragCharacterData {
   type: 'new-character';
@@ -61,6 +69,16 @@ export interface DragPlacedCharacterData {
 export interface DragPlacedObstacleData {
   type: 'placed-obstacle';
   obstacleId: string;
+}
+
+export interface DragPushableBarrelData {
+  type: 'new-pushable-barrel';
+  model: string;
+}
+
+export interface DragPlacedPushableBarrelData {
+  type: 'placed-pushable-barrel';
+  barrelId: string;
 }
 
 interface PaletteItemProps {
@@ -155,6 +173,29 @@ export const EditorPalette: React.FC<EditorPaletteProps> = ({ className }) => {
                 ))}
               </div>
             </div>
+
+            <Separator />
+
+            {/* Pushable Barrels */}
+            <div>
+              <Label className="text-xs font-semibold px-2 text-muted-foreground uppercase tracking-wider">
+                Pushable Barrels
+              </Label>
+              <div className="mt-1 space-y-0.5">
+                {PUSHABLE_BARREL_TEMPLATES.map(t => (
+                  <PaletteItem
+                    key={`push-${t.model}`}
+                    emoji={t.emoji}
+                    name={t.name}
+                    dragType={DRAG_TYPE_PUSHABLE_BARREL}
+                    dragData={JSON.stringify({
+                      type: 'new-pushable-barrel',
+                      model: t.model,
+                    } as DragPushableBarrelData)}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </ScrollArea>
       </CardContent>
@@ -162,4 +203,4 @@ export const EditorPalette: React.FC<EditorPaletteProps> = ({ className }) => {
   );
 };
 
-export { CHARACTER_TEMPLATES, OBSTACLE_TEMPLATES };
+export { CHARACTER_TEMPLATES, OBSTACLE_TEMPLATES, PUSHABLE_BARREL_TEMPLATES };

@@ -920,8 +920,8 @@ export function calculateMovement(
               pushedX, pushedY, slideX, slideY, newRotation,
               capsule, maze, rocks, characters, animalType
             );
-            
-            
+
+
             // Always increment stuck counter when blocked, regardless of tiny progress
             // This handles corner cases where player ping-pongs between obstacles
             if (slideResult.blocked) {
@@ -1214,3 +1214,81 @@ export function executeAbility(
  *     public static AbilityResult ExecuteAbility(AnimalType type, Maze maze, PlayerState state) { ... }
  * }
  */
+
+// ============================================
+// PUSHABLE BARREL LOGIC (Sokoban-style)
+// ============================================
+
+export interface PushableBarrelState {
+  id: string;
+  model: string;
+  x: number; // Grid x
+  y: number; // Grid y
+  // Animation state
+  animX: number; // Interpolated world x (for smooth sliding)
+  animY: number; // Interpolated world y
+}
+
+/**
+ * Determine push direction based on player movement vector.
+ * Returns the cardinal direction (dx, dy) the barrel should move.
+ */
+function getPushDirection(moveX: number, moveY: number): { dx: number; dy: number } | null {
+  if (Math.abs(moveX) < 0.001 && Math.abs(moveY) < 0.001) return null;
+  if (Math.abs(moveX) > Math.abs(moveY)) {
+    return { dx: moveX > 0 ? 1 : -1, dy: 0 };
+  } else {
+    return { dx: 0, dy: moveY > 0 ? 1 : -1 };
+  }
+}
+
+/**
+ * Try to push a barrel at (barrelX, barrelY) in direction (dx, dy).
+ * Returns new position if push succeeds, or null if blocked.
+ */
+export function tryPushBarrel(
+  maze: Maze,
+  barrelX: number,
+  barrelY: number,
+  dx: number,
+  dy: number,
+  allBarrels: Array<{ x: number; y: number }>
+): { newX: number; newY: number } | null {
+  const newX = barrelX + dx;
+  const newY = barrelY + dy;
+  if (isWall(maze, newX, newY)) return null;
+  const blocked = allBarrels.some(b => b.x === newX && b.y === newY);
+  if (blocked) return null;
+  return { newX, newY };
+}
+
+/**
+ * Check if the player's current grid cell contains a pushable barrel,
+ * and attempt to push it. Returns the updated barrel positions and
+ * whether a push occurred.
+ */
+export function checkAndPushBarrels(
+  maze: Maze,
+  playerX: number,
+  playerY: number,
+  moveX: number,
+  moveY: number,
+  barrels: PushableBarrelState[]
+): { barrels: PushableBarrelState[]; pushed: boolean } {
+  const gridX = Math.floor(playerX);
+  const gridY = Math.floor(playerY);
+  const barrelIndex = barrels.findIndex(b => b.x === gridX && b.y === gridY);
+  if (barrelIndex === -1) return { barrels, pushed: false };
+  const dir = getPushDirection(moveX, moveY);
+  if (!dir) return { barrels, pushed: false };
+  const allPositions = barrels.map(b => ({ x: b.x, y: b.y }));
+  const result = tryPushBarrel(maze, gridX, gridY, dir.dx, dir.dy, allPositions.filter((_, i) => i !== barrelIndex));
+  if (!result) return { barrels, pushed: false };
+  const updated = [...barrels];
+  updated[barrelIndex] = {
+    ...updated[barrelIndex],
+    x: result.newX,
+    y: result.newY,
+  };
+  return { barrels: updated, pushed: true };
+}

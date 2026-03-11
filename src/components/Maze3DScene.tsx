@@ -9,7 +9,7 @@ import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullSt
 import { InstancedBarrelWalls } from './BarrelWall';
 import { CellarEnvironment } from './CellarEnvironment';
 import { PlayerCube } from './PlayerCube';
-import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision, checkCollision } from '@/game/GameLogic';
+import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision, checkCollision, PushableBarrelState, checkAndPushBarrels } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor, getCharacterTintColor, getCharacterRotationOffset } from '@/game/CharacterConfig';
 import { findBestDirectionAngle } from '@/game/MazeUtils';
 import { calculateFadeFactor, useOpacityFade } from './FogFadeMaterial';
@@ -1071,6 +1071,36 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive, maze, showColl
   );
 };
 
+// PushableBarrelModel - renders a barrel that can be pushed by the player
+const PushableBarrelModel = ({ barrel }: { barrel: PushableBarrelState }) => {
+  const { scene } = useGLTF(`/models/${barrel.model}`);
+  const groupRef = useRef<Group>(null);
+  const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
+  
+  // Smooth animation toward target position
+  useFrame((_, delta) => {
+    if (!groupRef.current) return;
+    const targetX = barrel.x + 0.5;
+    const targetZ = barrel.y + 0.5;
+    // Lerp toward target
+    groupRef.current.position.x += (targetX - groupRef.current.position.x) * Math.min(1, delta * 8);
+    groupRef.current.position.z += (targetZ - groupRef.current.position.z) * Math.min(1, delta * 8);
+  });
+
+  // Need X-rotation for barrel models to stand upright
+  const needsXRotation = barrel.model === 'Barrel.glb' || barrel.model === 'Barrel_1.glb';
+
+  return (
+    <group ref={groupRef} position={[barrel.x + 0.5, 0, barrel.y + 0.5]}>
+      <primitive 
+        object={clonedScene} 
+        scale={0.7}
+        rotation={needsXRotation ? [Math.PI / 2, 0, 0] : [0, 0, 0]}
+      />
+    </group>
+  );
+};
+
 // PlacedCharacter - wraps CharacterRenderer for maze.characters array
 const PlacedCharacter = ({ 
   character, 
@@ -1320,6 +1350,9 @@ const RefBasedPlayer = ({
   polylineConfig,
   // Restart key to force cache re-trigger
   restartKey,
+  // Pushable barrels
+  pushableBarrelStatesRef,
+  onPushableBarrelPush,
 }: {
   animalType: AnimalType;
   playerStateRef: MutableRefObject<PlayerState>;
@@ -1344,7 +1377,6 @@ const RefBasedPlayer = ({
   magnetismConfig?: MagnetismConfig;
   magnetismDebugRef?: MutableRefObject<MagnetismTurnResult['debug'] | null>;
   onMagnetismCacheReady?: (cache: MagnetismCache) => void;
-  // Rail movement props
   railMode?: boolean;
   railPathRef?: MutableRefObject<Array<{ x: number; z: number }>>;
   railPathIndexRef?: MutableRefObject<number>;
@@ -1353,10 +1385,10 @@ const RefBasedPlayer = ({
   railTargetAngleRef?: MutableRefObject<number>;
   railTurnSpeed?: number;
   onRailMoveComplete?: () => void;
-  // Polyline config
   polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; chaikinFactor?: number; cornerPushStrength?: number } | null;
-  // Restart key to force cache re-trigger on restart
   restartKey?: number;
+  pushableBarrelStatesRef?: MutableRefObject<PushableBarrelState[]>;
+  onPushableBarrelPush?: (barrels: PushableBarrelState[]) => void;
 }) => {
   const groupRef = useRef<any>(null);
   const smoothRotation = useRef<number | null>(null); // Initialize to null, set on first frame
@@ -1688,6 +1720,18 @@ const RefBasedPlayer = ({
         const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
         playerStateRef.current = { x: newState.x, y: newState.y, rotation: newState.rotation };
         collisionIntensityRef.current = newState.collisionIntensity;
+        
+        // Check pushable barrel interactions
+        if (pushableBarrelStatesRef && pushableBarrelStatesRef.current.length > 0) {
+          const moveX = newState.x - prev.x;
+          const moveY = newState.y - prev.y;
+          if (Math.abs(moveX) > 0.001 || Math.abs(moveY) > 0.001) {
+            const pushResult = checkAndPushBarrels(maze, newState.x, newState.y, moveX, moveY, pushableBarrelStatesRef.current);
+            if (pushResult.pushed && onPushableBarrelPush) {
+              onPushableBarrelPush(pushResult.barrels);
+            }
+          }
+        }
       } else if (mobileActive) {
         // MOBILE JOYSTICK MODE: Summer Afternoon style camera-relative movement
         // Camera orbits based on joystick X
@@ -1810,6 +1854,18 @@ const RefBasedPlayer = ({
           
           playerStateRef.current = { x: constrained.x, y: constrained.z, rotation: newState.rotation };
           collisionIntensityRef.current = newState.collisionIntensity;
+          
+          // Check pushable barrel interactions (mobile)
+          if (pushableBarrelStatesRef && pushableBarrelStatesRef.current.length > 0) {
+            const pMoveX = constrained.x - prev.x;
+            const pMoveY = constrained.z - prev.y;
+            if (Math.abs(pMoveX) > 0.001 || Math.abs(pMoveY) > 0.001) {
+              const pushResult = checkAndPushBarrels(maze, constrained.x, constrained.z, pMoveX, pMoveY, pushableBarrelStatesRef.current);
+              if (pushResult.pushed && onPushableBarrelPush) {
+                onPushableBarrelPush(pushResult.barrels);
+              }
+            }
+          }
           
           // Update animation refs
           isMovingRef.current = true;
@@ -2934,6 +2990,21 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
+  // Pushable barrel state - initialized from maze data
+  const [pushableBarrelStates, setPushableBarrelStates] = useState<PushableBarrelState[]>(() => 
+    (maze.pushableBarrels || []).map(b => ({
+      id: b.id,
+      model: b.model,
+      x: b.position.x,
+      y: b.position.y,
+      animX: b.position.x + 0.5,
+      animY: b.position.y + 0.5,
+    }))
+  );
+  // Expose barrel states via ref for movement loop
+  const pushableBarrelStatesRef = useRef(pushableBarrelStates);
+  pushableBarrelStatesRef.current = pushableBarrelStates;
+
   // Cellar wall positions (edge/depth/boundary) mirroring MazeWalls logic
   const cellarWallData = useMemo(() => {
     if (!isCellar) return { edgePositions: [], depthOnlyWalls: [], boundaryWalls: [], allWallPositions: [] };
@@ -3274,7 +3345,14 @@ return (
         onRailMoveComplete={onRailMoveComplete}
         polylineConfig={polylineConfig}
         restartKey={restartKey}
+        pushableBarrelStatesRef={pushableBarrelStatesRef}
+        onPushableBarrelPush={setPushableBarrelStates}
       />
+      
+      {/* Pushable Barrels */}
+      {pushableBarrelStates.map(barrel => (
+        <PushableBarrelModel key={barrel.id} barrel={barrel} />
+      ))}
       
       {/* Camera - use cutscene camera during dialogue, otherwise normal follow */}
       {dialogueTarget ? (
