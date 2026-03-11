@@ -172,7 +172,7 @@ export const InstancedBarrelWalls = ({
 
           const typeIndex = pickBarrelType(stalkSeed * 31 + 7);
           const baseScale = BARREL_TYPES[typeIndex].baseScale;
-          const scale = baseScale * (0.9 + seededRandom(stalkSeed + 37) * 0.25);
+          const scale = baseScale;
           const groundY = -typeMetrics[typeIndex].minY * scale;
 
           result.push({
@@ -211,7 +211,7 @@ export const InstancedBarrelWalls = ({
           const jitterZ = (seededRandom(stalkSeed + 23) - 0.5) * 0.08;
           const typeIndex = pickBarrelType(stalkSeed * 31 + 7);
           const baseScale = BARREL_TYPES[typeIndex].baseScale;
-          const scale = baseScale * (0.9 + seededRandom(stalkSeed + 37) * 0.25);
+          const scale = baseScale;
           const groundY = -typeMetrics[typeIndex].minY * scale;
 
           result.push({
@@ -255,7 +255,7 @@ export const InstancedBarrelWalls = ({
 
           const typeIndex = pickBarrelType(stalkSeed * 31 + 7);
           const baseScale = BARREL_TYPES[typeIndex].baseScale;
-          const scale = baseScale * (0.9 + seededRandom(stalkSeed + 37) * 0.25);
+          const scale = baseScale;
           const groundY = -typeMetrics[typeIndex].minY * scale;
 
           result.push({ x: posX, y: groundY, z: posZ, rotation: seededRandom(stalkSeed + 43) * Math.PI * 2, rotationX: BARREL_TYPES[typeIndex].rotationX, scale, typeIndex });
