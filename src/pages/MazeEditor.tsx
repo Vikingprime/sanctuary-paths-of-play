@@ -241,7 +241,7 @@ const MazeEditor: React.FC = () => {
   const [dragOverCell, setDragOverCell] = useState<{ x: number; y: number } | null>(null);
   const [loadedMazeId, setLoadedMazeId] = useState<number | null>(null);
   const [singleTileMode, setSingleTileMode] = useState(false);
-  const [showMazeList, setShowMazeList] = useState(true);
+  
   const [showAppleDialoguePanel, setShowAppleDialoguePanel] = useState(false);
   const [showSpineOverlay, setShowSpineOverlay] = useState(true);
   const [enableFineSpineEditing, setEnableFineSpineEditing] = useState(false);
