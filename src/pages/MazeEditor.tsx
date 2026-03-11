@@ -389,6 +389,17 @@ const MazeEditor: React.FC = () => {
     } else {
       setObstacles([]);
     }
+
+    // Load pushable barrels
+    if (maze.pushableBarrels) {
+      setPushableBarrels(maze.pushableBarrels.map(b => ({
+        id: b.id,
+        model: b.model,
+        position: b.position,
+      })));
+    } else {
+      setPushableBarrels([]);
+    }
     
     setLoadedMazeId(mazeId);
     setSearchParams({ mazeId: String(mazeId) });
