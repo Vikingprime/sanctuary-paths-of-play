@@ -923,7 +923,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
 },`;
     
     return schema;
-  }, [grid, config, dialogues, characters, obstacles, loadedMazeId, normalizedDeletedSpineBranches, normalizedDeletedSpineFineCells]);
+  }, [grid, config, dialogues, characters, obstacles, pushableBarrels, loadedMazeId, normalizedDeletedSpineBranches, normalizedDeletedSpineFineCells]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateSchema());
