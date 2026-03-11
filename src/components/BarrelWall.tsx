@@ -229,9 +229,11 @@ export const InstancedBarrelWalls = ({
       });
     };
 
-    edgePositions.forEach((pos) => {
-      placeEdgeBarrels(pos.x + 0.5, pos.z + 0.5, pos.edges, pos.x * 997 + pos.z * 31);
-    });
+    if (!skipEdgeBarrels) {
+      edgePositions.forEach((pos) => {
+        placeEdgeBarrels(pos.x + 0.5, pos.z + 0.5, pos.edges, pos.x * 997 + pos.z * 31);
+      });
+    }
 
     noShadowPositions.forEach((pos) => {
       placeBarrelsInCell(pos.x + 0.5, pos.z + 0.5, pos.x * 997 + pos.z * 31 + 10000, pos.avoidEdges);
