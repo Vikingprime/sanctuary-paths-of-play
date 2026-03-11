@@ -73,7 +73,6 @@ export const InstancedBarrelWalls = ({
   enabledTypes = [true, true, true, true],
 }: InstancedBarrelWallsProps) => {
   const groupRef = useRef<Group>(null);
-  const createdRef = useRef(false);
 
   const barrel0 = useGLTF(BARREL_TYPES[0].model);
   const barrel1 = useGLTF(BARREL_TYPES[1].model);
