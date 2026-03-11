@@ -1913,6 +1913,12 @@ export const MazeGame3D = ({
           onToggleShaderFade={() => setShaderFadeEnabled(prev => !prev)}
           lowShadowRes={lowShadowRes}
           onToggleLowShadowRes={() => setLowShadowRes(prev => !prev)}
+          enabledBarrelTypes={enabledBarrelTypes}
+          onToggleBarrelType={(idx: number) => setEnabledBarrelTypes(prev => {
+            const next = [...prev];
+            next[idx] = !next[idx];
+            return next;
+          })}
           sensitivityConfig={sensitivityConfig}
           onSensitivityChange={setSensitivityConfig}
           mobileControlsEnabled={mobileControlsEnabled}

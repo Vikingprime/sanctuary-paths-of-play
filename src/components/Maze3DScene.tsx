@@ -3086,6 +3086,7 @@ return (
           edgePositions={cellarWallData.edgePositions}
           noShadowPositions={cellarWallData.depthOnlyWalls}
           boundaryPositions={cellarWallData.boundaryWalls}
+          enabledTypes={enabledBarrelTypes}
         />
       )}
       
