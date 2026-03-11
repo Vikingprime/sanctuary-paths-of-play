@@ -897,6 +897,23 @@ export const GameHUD = ({
                   {lowShadowRes ? 'ShadLo' : 'ShadHi'}
                 </button>
               )}
+              {onToggleBarrelType && (
+                <>
+                  {['Brl', 'Brl1', 'BKeg', 'Keg'].map((label, idx) => (
+                    <button
+                      key={label}
+                      onClick={() => onToggleBarrelType(idx)}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-[10px] font-bold',
+                        enabledBarrelTypes[idx] ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                      )}
+                      title={`Toggle barrel type ${idx}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </>
+              )}
               {onToggleMobileControls && (
                 <button
                   onClick={onToggleMobileControls}
