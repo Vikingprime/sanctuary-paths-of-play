@@ -1009,9 +1009,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
             🌽 Maze Editor (Read-Only Preview)
           </h1>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowMazeList(!showMazeList)}>
-              {showMazeList ? 'Hide' : 'Show'} Mazes
-            </Button>
+            {/* Maze list removed */}
           </div>
         </div>
 
