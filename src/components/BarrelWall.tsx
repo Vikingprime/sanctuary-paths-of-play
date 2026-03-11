@@ -306,7 +306,7 @@ export const InstancedBarrelWalls = ({
 
         typeTransforms.forEach((t, i) => {
           dummy.position.set(t.x, t.y, t.z);
-          dummy.rotation.set(0, t.rotation, 0);
+          dummy.rotation.set(t.rotationX, t.rotation, 0);
           dummy.scale.setScalar(t.scale);
           dummy.updateMatrix();
           mesh.setMatrixAt(i, dummy.matrix);
