@@ -916,7 +916,7 @@ ${pushableBarrels.filter(b => b.position).map(b => `    { id: '${b.id}', model: 
   difficulty: '${config.difficulty}',
   timeLimit: ${config.timeLimit},
   previewTime: ${config.previewTime},${timerDisabledSchema}${deletedSpineBranchesSchema}${deletedSpineFineCellsSchema}
-  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${obstaclesSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
+  medalTimes: { gold: 15, silver: 25, bronze: 40 },${charactersSchema}${obstaclesSchema}${pushableBarrelsSchema}${dialogueSchema}${endConditionsSchema}${goalCharacterSchema}
   grid: createGrid([
 ${gridStrings.map(row => `    '${row}',`).join('\n')}
   ]),
