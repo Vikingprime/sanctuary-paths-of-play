@@ -1350,6 +1350,7 @@ ${gridStrings.map(row => `    '${row}',`).join('\n')}
                         const dialogue = cellDialogues[0];
                         const character = getCharacterAtCell(x, y);
                         const obstacle = getObstacleAtCell(x, y);
+                        const pushBarrel = getPushableBarrelAtCell(x, y);
                         
                         const isDialogueCell = cellDialogues.length > 0;
                         const isMultiDialogue = cellDialogues.length > 1;
