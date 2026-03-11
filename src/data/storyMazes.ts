@@ -705,7 +705,7 @@ const chapter8RootbeerCellar: StoryMaze = {
   storyCharacters: [], quest: { id: 'quest_rootbeer_cellar', title: "Remy's Root Beer Run", description: 'Navigate the cellar to find the root beer stash!', objectives: [{ id: 'find_rootbeer', type: 'talk_to', description: 'Find the root beer', targetCharacterId: 'rootbeer', completed: false }], rewards: { stars: 12, medal: true } },
   dialogues: [
     { id: 'remy_cellar_intro', speaker: 'Remy', speakerEmoji: '🐀', message: "This is my favorite cellar! The root beer is hidden somewhere down here.", cells: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 1 }], speakerCharacterId: 'remy_cellar' },
-    { id: 'rootbeer_found', speaker: 'Remy', speakerEmoji: '🐀', message: "🍺 Found it! Perfect for the feast!", cells: [{ x: 16, y: 10 }, { x: 17, y: 10 }, { x: 17, y: 9 }, { x: 18, y: 10 }], speakerCharacterId: 'rootbeer', requires: ['remy_cellar_intro'], questAction: { type: 'complete_objective', objectiveId: 'find_rootbeer' } },
+    { id: 'rootbeer_found', speaker: 'Remy', speakerEmoji: '🐀', message: "🍺 Found it! Perfect for the feast!", cells: [{ x: 15, y: 10 }, { x: 16, y: 11 }, { x: 16, y: 10 }, { x: 17, y: 11 }], speakerCharacterId: 'rootbeer', requires: ['remy_cellar_intro'], questAction: { type: 'complete_objective', objectiveId: 'find_rootbeer' } },
   ],
   endConditions: { requiredDialogues: ['rootbeer_found'] },
   grid: createGrid([
