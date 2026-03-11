@@ -276,8 +276,13 @@ export const InstancedBarrelWalls = ({
   // Imperatively create InstancedMesh objects
   useEffect(() => {
     const group = groupRef.current;
-    if (!group || createdRef.current) return;
-    createdRef.current = true;
+    if (!group) return;
+    // Clear previous meshes
+    const prevChildren = [...group.children];
+    prevChildren.forEach(child => {
+      group.remove(child);
+      if ((child as any).dispose) (child as any).dispose();
+    });
 
     const allMeshes: ThreeInstancedMesh[] = [];
     const dummy = new Object3D();
