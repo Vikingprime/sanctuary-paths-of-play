@@ -6,6 +6,7 @@ import { Maze } from '@/types/game';
 // Preload models
 useGLTF.preload('/models/Roof_Flat_Center.glb');
 useGLTF.preload('/models/Ceiling_Light.glb');
+useGLTF.preload('/models/Brick_wall.glb');
 
 interface CellarEnvironmentProps {
   maze: Maze;
