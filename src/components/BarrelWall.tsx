@@ -66,6 +66,7 @@ interface InstancedBarrelWallsProps {
   noShadowPositions?: { x: number; z: number; avoidEdges?: ('left' | 'right' | 'top' | 'bottom')[] }[];
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
   enabledTypes?: boolean[];
+  skipEdgeBarrels?: boolean;
 }
 
 export const InstancedBarrelWalls = ({
@@ -73,6 +74,7 @@ export const InstancedBarrelWalls = ({
   noShadowPositions = [],
   boundaryPositions = [],
   enabledTypes = [true, true, true, true],
+  skipEdgeBarrels = false,
 }: InstancedBarrelWallsProps) => {
   const groupRef = useRef<Group>(null);
 
