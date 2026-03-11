@@ -263,15 +263,33 @@ export const InstancedBarrelWalls = ({
       }
     });
 
-    console.log('[BARREL_WALL] Total transforms:', result.length,
+    // Overlap rejection pass — remove barrels whose XZ centers are too close
+    const MIN_SEPARATION = 0.45; // world units between barrel centers
+    const MIN_SEP_SQ = MIN_SEPARATION * MIN_SEPARATION;
+    const accepted: BarrelTransform[] = [];
+    for (const t of result) {
+      let overlaps = false;
+      for (const a of accepted) {
+        const dx = t.x - a.x;
+        const dz = t.z - a.z;
+        if (dx * dx + dz * dz < MIN_SEP_SQ) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (!overlaps) accepted.push(t);
+    }
+
+    console.log('[BARREL_WALL] Total before dedup:', result.length, '| after:', accepted.length,
+      '| removed:', result.length - accepted.length,
       '| edge cells:', edgePositions.length, '| depth cells:', noShadowPositions.length, '| boundary cells:', boundaryPositions.length);
     
     // Log type distribution
     const dist = [0, 0, 0, 0];
-    result.forEach(t => dist[t.typeIndex]++);
+    accepted.forEach(t => dist[t.typeIndex]++);
     console.log('[BARREL_WALL] Type distribution:', dist);
 
-    return result;
+    return accepted;
   }, [edgePositions, noShadowPositions, boundaryPositions, typeMetrics]);
 
   // Group by type
