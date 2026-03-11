@@ -210,6 +210,7 @@ export const InstancedBarrelWalls = ({
             y: groundY,
             z: centerZ + offsetZ + jitterZ,
             rotation: seededRandom(stalkSeed + 43) * Math.PI * 2,
+            rotationX: BARREL_TYPES[typeIndex].rotationX,
             scale,
             typeIndex,
           });
