@@ -17,13 +17,13 @@ const seededRandom = (seed: number): number => {
   return s / 4294967295;
 };
 
-// Barrel type config - scales normalized so all barrels are ~0.7 world units tall
+// Barrel type config - scales normalized so all barrels are ~1.4 world units tall
 // Raw model heights: Barrel=0.002, Barrel_1=0.010, Beer_Keg=1.272, Keg=0.011
 const BARREL_TYPES = [
-  { model: '/models/Barrel.glb', weight: 3, baseScale: 175 },
-  { model: '/models/Barrel_1.glb', weight: 3, baseScale: 35 },
-  { model: '/models/Beer_Keg.glb', weight: 2, baseScale: 0.28 },
-  { model: '/models/Keg.glb', weight: 2, baseScale: 32 },
+  { model: '/models/Barrel.glb', weight: 3, baseScale: 350 },
+  { model: '/models/Barrel_1.glb', weight: 3, baseScale: 70 },
+  { model: '/models/Beer_Keg.glb', weight: 2, baseScale: 0.56 },
+  { model: '/models/Keg.glb', weight: 2, baseScale: 64 },
 ];
 
 const TOTAL_WEIGHT = BARREL_TYPES.reduce((sum, b) => sum + b.weight, 0);
