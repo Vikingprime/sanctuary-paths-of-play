@@ -41,29 +41,8 @@ export const CellarEnvironment = ({ maze, lightsEnabled = true, roofEnabled = tr
       {/* Textured dirt floor */}
       <CellarGround maze={maze} centerX={centerX} centerZ={centerZ} sizeX={sizeX} sizeZ={sizeZ} />
       
-      {/* Back wall (north) */}
-      <mesh position={[centerX, WALL_HEIGHT / 2, minZ]} receiveShadow>
-        <planeGeometry args={[sizeX, WALL_HEIGHT]} />
-        <meshStandardMaterial color={wallColor} side={DoubleSide} roughness={0.95} />
-      </mesh>
-      
-      {/* Front wall (south) */}
-      <mesh position={[centerX, WALL_HEIGHT / 2, maxZ]} rotation-y={Math.PI} receiveShadow>
-        <planeGeometry args={[sizeX, WALL_HEIGHT]} />
-        <meshStandardMaterial color={wallColor} side={DoubleSide} roughness={0.95} />
-      </mesh>
-      
-      {/* Left wall (west) */}
-      <mesh position={[minX, WALL_HEIGHT / 2, centerZ]} rotation-y={Math.PI / 2} receiveShadow>
-        <planeGeometry args={[sizeZ, WALL_HEIGHT]} />
-        <meshStandardMaterial color={wallColor} side={DoubleSide} roughness={0.95} />
-      </mesh>
-      
-      {/* Right wall (east) */}
-      <mesh position={[maxX, WALL_HEIGHT / 2, centerZ]} rotation-y={-Math.PI / 2} receiveShadow>
-        <planeGeometry args={[sizeZ, WALL_HEIGHT]} />
-        <meshStandardMaterial color={wallColor} side={DoubleSide} roughness={0.95} />
-      </mesh>
+      {/* Brick walls around perimeter */}
+      <InstancedBrickWalls minX={minX} minZ={minZ} maxX={maxX} maxZ={maxZ} sizeX={sizeX} sizeZ={sizeZ} wallHeight={WALL_HEIGHT} />
       
       {/* Ceiling slab */}
       <mesh position={[centerX, ROOF_HEIGHT, centerZ]} rotation-x={Math.PI / 2}>
