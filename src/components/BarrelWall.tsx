@@ -57,19 +57,22 @@ interface MeshParts {
   material: Material;
 }
 
+export const BARREL_TYPE_NAMES = ['Barrel', 'Barrel_1', 'Beer_Keg', 'Keg'] as const;
+
 interface InstancedBarrelWallsProps {
   edgePositions: { x: number; z: number; edges: ('left' | 'right' | 'top' | 'bottom')[] }[];
   noShadowPositions?: { x: number; z: number; avoidEdges?: ('left' | 'right' | 'top' | 'bottom')[] }[];
   boundaryPositions?: { x: number; z: number; offsetX: number; offsetZ: number }[];
+  enabledTypes?: boolean[];
 }
 
 export const InstancedBarrelWalls = ({
   edgePositions,
   noShadowPositions = [],
   boundaryPositions = [],
+  enabledTypes = [true, true, true, true],
 }: InstancedBarrelWallsProps) => {
   const groupRef = useRef<Group>(null);
-  const createdRef = useRef(false);
 
   const barrel0 = useGLTF(BARREL_TYPES[0].model);
   const barrel1 = useGLTF(BARREL_TYPES[1].model);
@@ -261,15 +264,24 @@ export const InstancedBarrelWalls = ({
   // Group by type
   const groupedTransforms = useMemo(() => {
     const groups: BarrelTransform[][] = BARREL_TYPES.map(() => []);
-    transforms.forEach(t => groups[t.typeIndex].push(t));
+    transforms.forEach(t => {
+      if (enabledTypes[t.typeIndex]) {
+        groups[t.typeIndex].push(t);
+      }
+    });
     return groups;
-  }, [transforms]);
+  }, [transforms, enabledTypes]);
 
   // Imperatively create InstancedMesh objects
   useEffect(() => {
     const group = groupRef.current;
-    if (!group || createdRef.current) return;
-    createdRef.current = true;
+    if (!group) return;
+    // Clear previous meshes
+    const prevChildren = [...group.children];
+    prevChildren.forEach(child => {
+      group.remove(child);
+      if ((child as any).dispose) (child as any).dispose();
+    });
 
     const allMeshes: ThreeInstancedMesh[] = [];
     const dummy = new Object3D();
@@ -320,7 +332,7 @@ export const InstancedBarrelWalls = ({
         }
         mesh.dispose();
       });
-      createdRef.current = false;
+      
     };
   }, [groupedTransforms, meshPartsPerType]);
 

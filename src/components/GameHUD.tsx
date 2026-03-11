@@ -265,6 +265,9 @@ interface GameHUDProps {
   // Shadow resolution toggle
   lowShadowRes?: boolean;
   onToggleLowShadowRes?: () => void;
+  // Barrel type toggles
+  enabledBarrelTypes?: boolean[];
+  onToggleBarrelType?: (idx: number) => void;
   // Sensitivity tuning
   sensitivityConfig?: SensitivityConfig;
   onSensitivityChange?: (config: SensitivityConfig) => void;
@@ -369,6 +372,8 @@ export const GameHUD = ({
   onToggleShaderFade,
   lowShadowRes = false,
   onToggleLowShadowRes,
+  enabledBarrelTypes = [true, true, true, true],
+  onToggleBarrelType,
   sensitivityConfig = DEFAULT_SENSITIVITY,
   onSensitivityChange,
   mobileControlsEnabled = true,
@@ -891,6 +896,23 @@ export const GameHUD = ({
                 >
                   {lowShadowRes ? 'ShadLo' : 'ShadHi'}
                 </button>
+              )}
+              {onToggleBarrelType && (
+                <>
+                  {['Brl', 'Brl1', 'BKeg', 'Keg'].map((label, idx) => (
+                    <button
+                      key={label}
+                      onClick={() => onToggleBarrelType(idx)}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-[10px] font-bold',
+                        enabledBarrelTypes[idx] ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                      )}
+                      title={`Toggle barrel type ${idx}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </>
               )}
               {onToggleMobileControls && (
                 <button
