@@ -251,9 +251,9 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
           key={`cellar-light-${i}`}
           position={[pos.x, roofHeight - 0.25, pos.z]}
           color="#FFE0A0"
-          intensity={5}
-          distance={8}
-          decay={1.2}
+          intensity={8}
+          distance={12}
+          decay={1.5}
           castShadow={false}
         />
       ))}
