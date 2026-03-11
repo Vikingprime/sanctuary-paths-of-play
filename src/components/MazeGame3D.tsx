@@ -1930,6 +1930,8 @@ export const MazeGame3D = ({
           onToggleCellarLights={() => setCellarLightsEnabled(prev => !prev)}
           cellarRoofEnabled={cellarRoofEnabled}
           onToggleCellarRoof={() => setCellarRoofEnabled(prev => !prev)}
+          cellarRoofHeight={cellarRoofHeight}
+          onCellarRoofHeightChange={setCellarRoofHeight}
           onSensitivityChange={setSensitivityConfig}
           mobileControlsEnabled={mobileControlsEnabled}
           onToggleMobileControls={() => setMobileControlsEnabled(prev => !prev)}
