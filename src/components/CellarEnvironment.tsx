@@ -73,10 +73,10 @@ export const CellarEnvironment = ({ maze, lightsEnabled = true, roofEnabled = tr
       </mesh>
       
       {/* Roof tiles (instanced) */}
-      <InstancedRoofTiles gridWidth={gridWidth} gridHeight={gridHeight} roofHeight={ROOF_HEIGHT} />
+      {roofEnabled && <InstancedRoofTiles gridWidth={gridWidth} gridHeight={gridHeight} roofHeight={ROOF_HEIGHT} />}
       
       {/* Ceiling lights (instanced) */}
-      <InstancedCellarLights maze={maze} roofHeight={ROOF_HEIGHT} />
+      {lightsEnabled && <InstancedCellarLights maze={maze} roofHeight={ROOF_HEIGHT} />}
     </group>
   );
 };
