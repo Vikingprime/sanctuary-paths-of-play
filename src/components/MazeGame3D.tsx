@@ -1814,6 +1814,7 @@ export const MazeGame3D = ({
         cellarLightsEnabled={cellarLightsEnabled}
         cellarRoofEnabled={cellarRoofEnabled}
         cellarRoofHeight={cellarRoofHeight}
+        walledMazeCameraCollision={true}
         skeletonEnabled={skeletonEnabled}
         overlayGridEnabled={overlayGridEnabled}
         showPrunedSpurs={showPrunedSpurs}

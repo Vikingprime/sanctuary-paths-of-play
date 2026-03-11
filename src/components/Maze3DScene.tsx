@@ -114,6 +114,7 @@ interface Maze3DSceneProps {
   cellarLightsEnabled?: boolean;
   cellarRoofEnabled?: boolean;
   cellarRoofHeight?: number;
+  walledMazeCameraCollision?: boolean;
   skeletonEnabled?: boolean;
   overlayGridEnabled?: boolean;
   showPrunedSpurs?: boolean;
@@ -2336,6 +2337,7 @@ const OverShoulderCameraController = ({
       // Perform raycasts (1 or 3 rays)
       let closestHitDist = rayLength;
       let hitObjectName = '';
+      let hardWallHit = false;
       // Reuse Set refs to avoid per-frame allocations
       hitCellsRef.current.clear();
       centerRayHitCellsRef.current.clear();
@@ -2348,10 +2350,14 @@ const OverShoulderCameraController = ({
         // Use recursive=true to check nested meshes inside the foliage group
         const intersects = raycaster.current.intersectObjects(cameraBlockers, true);
         if (intersects.length > 0) {
-          const hitDist = intersects[0].distance;
+          const nearestHit = intersects[0];
+          const hitDist = nearestHit.distance;
+          if (nearestHit.object.userData?.cameraBlockerType === 'hard-wall') {
+            hardWallHit = true;
+          }
           if (hitDist < closestHitDist) {
             closestHitDist = hitDist;
-            hitObjectName = intersects[0].object.name || 'unnamed';
+            hitObjectName = nearestHit.object.name || 'unnamed';
           }
           
           // Only the center ray contributes cells for translucency.
@@ -2428,9 +2434,10 @@ const OverShoulderCameraController = ({
         );
         
         // Check if the RAW HIT is significant (not the clamped distance)
-        // This properly detects real obstructions vs grazing leaves
+        // This properly detects real obstructions vs grazing leaves.
+        // Hard wall blockers always count as significant to prevent penetration.
         const rawObstruction = desiredDistForAutopush - closestHitDist;
-        const isSignificantHit = rawObstruction > autopush.minPushDelta;
+        const isSignificantHit = hardWallHit || rawObstruction > autopush.minPushDelta;
         
         if (isSignificantHit) {
           // Significant hit - push camera in front of wall
@@ -2864,7 +2871,50 @@ const SkyBackground = () => {
   );
 };
 
-const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, cameraOrbitDeltaRef, cameraOrbitActiveRef, speedBoostActive, onCellInteraction, onCharacterClick, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, debugMode = false, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, enabledBarrelTypes, cellarLightsEnabled = true, cellarRoofEnabled = true, cellarRoofHeight = 2.4, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady, npcRotations = {}, npcPositions = {}, npcBlockedStates = {}, hideVisionCones = false, baitPositions = [] }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; enabledBarrelTypes?: boolean[]; cellarLightsEnabled?: boolean; cellarRoofEnabled?: boolean; cellarRoofHeight?: number; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
+const CellarPerimeterCameraBlockers = ({
+  maze,
+  roofHeight = 2.4,
+}: {
+  maze: Maze;
+  roofHeight?: number;
+}) => {
+  const PAD = 2;
+  const thickness = 0.9;
+  const gridHeight = maze.grid.length;
+  const gridWidth = maze.grid[0]?.length ?? 0;
+  const minX = -PAD;
+  const minZ = -PAD;
+  const maxX = gridWidth + PAD;
+  const maxZ = gridHeight + PAD;
+  const sizeX = maxX - minX;
+  const sizeZ = maxZ - minZ;
+  const wallHeight = roofHeight + 0.4;
+  const centerX = (minX + maxX) * 0.5;
+  const centerZ = (minZ + maxZ) * 0.5;
+
+  return (
+    <group>
+      <mesh position={[centerX, wallHeight * 0.5, minZ]} userData={{ cameraBlockerType: 'hard-wall' }}>
+        <boxGeometry args={[sizeX + thickness, wallHeight, thickness]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <mesh position={[centerX, wallHeight * 0.5, maxZ]} userData={{ cameraBlockerType: 'hard-wall' }}>
+        <boxGeometry args={[sizeX + thickness, wallHeight, thickness]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <mesh position={[minX, wallHeight * 0.5, centerZ]} userData={{ cameraBlockerType: 'hard-wall' }}>
+        <boxGeometry args={[thickness, wallHeight, sizeZ + thickness]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <mesh position={[maxX, wallHeight * 0.5, centerZ]} userData={{ cameraBlockerType: 'hard-wall' }}>
+        <boxGeometry args={[thickness, wallHeight, sizeZ + thickness]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+};
+
+const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUps = new Set(), keysPressed, joystickXRef, joystickYRef, mobileIsMovingRef, mobileTouchActiveRef, cameraYawRef, cameraOrbitDeltaRef, cameraOrbitActiveRef, speedBoostActive, onCellInteraction, onCharacterClick, isPaused, isMuted, onSceneReady, cornOptimizationSettings, onCullStats, debugMode = false, restartKey, dialogueTarget, topDownCamera = false, groundLevelCamera = false, showCollisionDebug = true, shadowsEnabled = true, grassEnabled = true, rocksEnabled = true, animationsEnabled = true, opacityFadeEnabled = true, cornEnabled = true, simpleGroundEnabled = false, cornCullingEnabled = true, skyEnabled = true, shaderFadeEnabled = true, lowShadowRes = false, enabledBarrelTypes, cellarLightsEnabled = true, cellarRoofEnabled = true, cellarRoofHeight = 2.4, walledMazeCameraCollision = true, cornRimLight = 0.25, animalRimLight = 0.5, skeletonEnabled = false, overlayGridEnabled = false, showPrunedSpurs = false, spurConfig = null, onDefaultSpurConfig, magnetismConfig, magnetismDebugRef, showMagnetTarget = false, showMagnetVector = false, polylineConfig = null, railMode = false, railPathRef, railPathIndexRef, railFractionalIndexRef, railTurnPhaseRef, railTargetAngleRef, railTurnSpeed = 2.5, onRailMoveComplete, onMagnetismCacheReady, npcRotations = {}, npcPositions = {}, npcBlockedStates = {}, hideVisionCones = false, baitPositions = [] }: Maze3DSceneProps & { simpleGroundEnabled?: boolean; cornCullingEnabled?: boolean; skyEnabled?: boolean; shaderFadeEnabled?: boolean; lowShadowRes?: boolean; enabledBarrelTypes?: boolean[]; cellarLightsEnabled?: boolean; cellarRoofEnabled?: boolean; cellarRoofHeight?: number; cornRimLight?: number; animalRimLight?: number; skeletonEnabled?: boolean; overlayGridEnabled?: boolean; showPrunedSpurs?: boolean; spurConfig?: { maxSpurLen: number; minSpurDistance: number } | null; onDefaultSpurConfig?: (config: { maxSpurLen: number; minSpurDistance: number }) => void; polylineConfig?: { chaikinIterations?: number; chaikinCornerExtraIterations?: number; cornerPushStrength?: number } | null }) => {
   // Signal scene is ready after first render
   const hasSignaled = useRef(false);
   
@@ -3086,6 +3136,9 @@ return (
       )}
       {isCellar && (
         <group ref={foliageGroupRef}>
+          {walledMazeCameraCollision && (
+            <CellarPerimeterCameraBlockers maze={maze} roofHeight={cellarRoofHeight} />
+          )}
           <InstancedBarrelWalls
             edgePositions={cellarWallData.edgePositions}
             noShadowPositions={cellarWallData.depthOnlyWalls}
