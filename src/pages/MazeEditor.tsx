@@ -905,6 +905,11 @@ ${normalizedDeletedSpineFineCells.map((cell) => `    { x: ${cell.x}, y: ${cell.y
 ${obstacles.filter(o => o.position).map(o => `    { id: '${o.id}', model: '${o.model}', position: { x: ${o.position!.x}, y: ${o.position!.y} }${o.rotation ? `, rotation: ${o.rotation}` : ''} },`).join('\n')}
   ],` : '';
 
+    const pushableBarrelsSchema = pushableBarrels.filter(b => b.position).length > 0 ? `
+  pushableBarrels: [
+${pushableBarrels.filter(b => b.position).map(b => `    { id: '${b.id}', model: '${b.model}', position: { x: ${b.position!.x}, y: ${b.position!.y} } },`).join('\n')}
+  ],` : '';
+
     const schema = `{
   id: ${loadedMazeId || Date.now()},
   name: '${config.name}',
