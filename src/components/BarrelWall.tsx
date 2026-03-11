@@ -70,6 +70,7 @@ export const InstancedBarrelWalls = ({
   edgePositions,
   noShadowPositions = [],
   boundaryPositions = [],
+  enabledTypes = [true, true, true, true],
 }: InstancedBarrelWallsProps) => {
   const groupRef = useRef<Group>(null);
   const createdRef = useRef(false);
