@@ -265,9 +265,13 @@ export const InstancedBarrelWalls = ({
   // Group by type
   const groupedTransforms = useMemo(() => {
     const groups: BarrelTransform[][] = BARREL_TYPES.map(() => []);
-    transforms.forEach(t => groups[t.typeIndex].push(t));
+    transforms.forEach(t => {
+      if (enabledTypes[t.typeIndex]) {
+        groups[t.typeIndex].push(t);
+      }
+    });
     return groups;
-  }, [transforms]);
+  }, [transforms, enabledTypes]);
 
   // Imperatively create InstancedMesh objects
   useEffect(() => {
