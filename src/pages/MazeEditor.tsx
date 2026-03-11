@@ -24,10 +24,13 @@ import {
   EditorPalette, 
   DRAG_TYPE_CHARACTER, 
   DRAG_TYPE_OBSTACLE, 
+  DRAG_TYPE_PUSHABLE_BARREL,
   DRAG_TYPE_PLACED_CHARACTER, 
   DRAG_TYPE_PLACED_OBSTACLE,
+  DRAG_TYPE_PLACED_PUSHABLE_BARREL,
   type DragCharacterData,
   type DragObstacleData,
+  type DragPushableBarrelData,
 } from '@/components/maze-editor/EditorPalette';
 
 type CellType = '#' | ' ' | 'S' | 'E' | 'P' | 'H' | 'D'; // D = Dialogue trigger
