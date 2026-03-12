@@ -692,40 +692,95 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     </group>
   );
 };
-// Simple perimeter walls for the cellar - 4 tall planes at maze edges
+// Brick wall perimeter for the cellar using instanced Brick_wall.glb
+useGLTF.preload('/models/Brick_wall.glb');
+
 const CellarWalls = ({ maze }: { maze: Maze }) => {
+  const groupRef = useRef<Group>(null);
+  const createdRef = useRef(false);
+  const { scene: brickScene } = useGLTF('/models/Brick_wall.glb');
   const w = maze.grid[0].length;
   const h = maze.grid.length;
-  const wallH = 4;
-  const y = wallH / 2;
-  const cx = w / 2;
-  const cz = h / 2;
-  const wallColor = '#2a1e14';
+  const WALL_HEIGHT = 4;
 
-  return (
-    <group>
-      {/* North wall */}
-      <mesh position={[cx, y, -0.5]}>
-        <planeGeometry args={[w + 1, wallH]} />
-        <meshStandardMaterial color={wallColor} roughness={0.95} />
-      </mesh>
-      {/* South wall */}
-      <mesh position={[cx, y, h + 0.5]} rotation-y={Math.PI}>
-        <planeGeometry args={[w + 1, wallH]} />
-        <meshStandardMaterial color={wallColor} roughness={0.95} />
-      </mesh>
-      {/* West wall */}
-      <mesh position={[-0.5, y, cz]} rotation-y={Math.PI / 2}>
-        <planeGeometry args={[h + 1, wallH]} />
-        <meshStandardMaterial color={wallColor} roughness={0.95} />
-      </mesh>
-      {/* East wall */}
-      <mesh position={[w + 0.5, y, cz]} rotation-y={-Math.PI / 2}>
-        <planeGeometry args={[h + 1, wallH]} />
-        <meshStandardMaterial color={wallColor} roughness={0.95} />
-      </mesh>
-    </group>
-  );
+  const { meshParts, modelSize } = useMemo(() => {
+    const parts: { geometry: BufferGeometry; material: Material }[] = [];
+    const box = new Box3();
+    brickScene.traverse((child: any) => {
+      if (child.isMesh) {
+        parts.push({ geometry: child.geometry.clone(), material: child.material.clone() });
+        child.geometry.computeBoundingBox();
+        const bb = child.geometry.boundingBox;
+        if (bb) { box.expandByPoint(bb.min); box.expandByPoint(bb.max); }
+      }
+    });
+    const size = new Vector3();
+    box.getSize(size);
+    return { meshParts: parts, modelSize: size };
+  }, [brickScene]);
+
+  const instances = useMemo(() => {
+    if (modelSize.x === 0 || modelSize.y === 0) return [];
+    const scale = WALL_HEIGHT / modelSize.y;
+    const tileW = modelSize.x * scale;
+    const result: { x: number; z: number; rotY: number }[] = [];
+
+    // North wall (z = -0.5)
+    for (let off = 0; off < w + 1; off += tileW) {
+      result.push({ x: -0.5 + off + tileW / 2, z: -0.5, rotY: 0 });
+    }
+    // South wall (z = h + 0.5)
+    for (let off = 0; off < w + 1; off += tileW) {
+      result.push({ x: -0.5 + off + tileW / 2, z: h + 0.5, rotY: Math.PI });
+    }
+    // West wall (x = -0.5)
+    for (let off = 0; off < h + 1; off += tileW) {
+      result.push({ x: -0.5, z: -0.5 + off + tileW / 2, rotY: Math.PI / 2 });
+    }
+    // East wall (x = w + 0.5)
+    for (let off = 0; off < h + 1; off += tileW) {
+      result.push({ x: w + 0.5, z: -0.5 + off + tileW / 2, rotY: -Math.PI / 2 });
+    }
+    return result;
+  }, [w, h, modelSize]);
+
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group || createdRef.current || instances.length === 0 || meshParts.length === 0) return;
+    createdRef.current = true;
+
+    const allMeshes: InstancedMesh[] = [];
+    const dummy = new Object3D();
+    const scale = WALL_HEIGHT / modelSize.y;
+
+    meshParts.forEach((part) => {
+      const mesh = new InstancedMesh(part.geometry, part.material, instances.length);
+      instances.forEach((inst, i) => {
+        dummy.position.set(inst.x, 0, inst.z);
+        dummy.rotation.set(0, inst.rotY, 0);
+        dummy.scale.setScalar(scale);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.frustumCulled = false;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+      allMeshes.push(mesh);
+    });
+
+    return () => {
+      allMeshes.forEach(mesh => {
+        group.remove(mesh);
+        mesh.geometry.dispose();
+        (mesh.material as Material).dispose();
+        mesh.dispose();
+      });
+      createdRef.current = false;
+    };
+  }, [instances, meshParts, modelSize]);
+
+  return <group ref={groupRef} />;
 };
 
 
