@@ -3249,7 +3249,7 @@ return (
       {<ambientLight intensity={0.9} color="#FFE4CC" />}
       
       {/* Main directional light - golden hour for corn, dim for cellar */}
-      {!isCellar && (
+      {(
         <directionalLight
           key={`shadow-light-${lowShadowRes ? 'lo' : 'hi'}`}
           ref={lightRef}
