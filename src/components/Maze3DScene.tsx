@@ -3041,17 +3041,32 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
-  // Pushable barrel state - initialized from maze data
-  const [pushableBarrelStates, setPushableBarrelStates] = useState<PushableBarrelState[]>(() => 
-    (maze.pushableBarrels || []).map(b => ({
+  const pushableBarrelSignature = useMemo(
+    () => (maze.pushableBarrels || [])
+      .map(b => `${b.id}:${b.model}:${b.position.x},${b.position.y}`)
+      .join('|'),
+    [maze.pushableBarrels]
+  );
+
+  const mazePushableBarrelStates = useMemo<PushableBarrelState[]>(
+    () => (maze.pushableBarrels || []).map(b => ({
       id: b.id,
       model: b.model,
       x: b.position.x,
       y: b.position.y,
       animX: b.position.x + 0.5,
       animY: b.position.y + 0.5,
-    }))
+    })),
+    [pushableBarrelSignature]
   );
+
+  // Pushable barrel state - initialized from maze data and reset on restart/schema changes
+  const [pushableBarrelStates, setPushableBarrelStates] = useState<PushableBarrelState[]>(mazePushableBarrelStates);
+
+  useEffect(() => {
+    setPushableBarrelStates(mazePushableBarrelStates);
+  }, [mazePushableBarrelStates, restartKey]);
+
   // Expose barrel states via ref for movement loop
   const pushableBarrelStatesRef = useRef(pushableBarrelStates);
   pushableBarrelStatesRef.current = pushableBarrelStates;
