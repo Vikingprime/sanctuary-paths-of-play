@@ -134,6 +134,13 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     debugPlaneColor: '#22aa44',
     animations: [],
   },
+  'Beer_Mug.glb': {
+    scale: 0.4,
+    yOffset: 0.0,
+    height: 0.8,
+    debugPlaneColor: '#cc8800',
+    animations: [],
+  },
   
   // Obstacle models (logs) - used for LOS blocking
   'Log.glb': {
