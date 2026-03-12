@@ -135,8 +135,8 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     animations: [],
   },
   'Beer_Mug.glb': {
-    scale: 80,
-    yOffset: 0.0,
+    scale: 1.2,
+    yOffset: 0.15,
     height: 0.8,
     debugPlaneColor: '#cc8800',
     animations: [],
