@@ -702,7 +702,7 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
   const w = maze.grid[0].length;
   const h = maze.grid.length;
   const WALL_HEIGHT = 4;
-  const PAD = 1.5;
+  const PAD = 4; // Well outside the maze to avoid barrel overlap
 
   const { meshParts, modelSize } = useMemo(() => {
     const parts: { geometry: BufferGeometry; material: Material }[] = [];
