@@ -198,9 +198,10 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
     if (isCellar) {
       const mat = new ShaderMaterial({
         uniforms: {
-          floorTex: { value: cellarFloorTexture },
-          crackedTex: { value: crackedConcreteTexture },
-          garageTex: { value: garageFloorTexture },
+          tex1: { value: crackedConcreteTexture },
+          tex2: { value: garageFloorTexture },
+          tex3: { value: damagedConcreteTexture },
+          tex4: { value: wornConcreteTexture },
           wallMap: { value: wallMapTex },
           mazeWidth: { value: mazeWidth },
           mazeHeight: { value: mazeHeight },
@@ -221,9 +222,10 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           }
         `,
         fragmentShader: `
-          uniform sampler2D floorTex;
-          uniform sampler2D crackedTex;
-          uniform sampler2D garageTex;
+          uniform sampler2D tex1;
+          uniform sampler2D tex2;
+          uniform sampler2D tex3;
+          uniform sampler2D tex4;
           uniform sampler2D wallMap;
           uniform float mazeWidth;
           uniform float mazeHeight;
@@ -252,39 +254,33 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
           void main() {
             vec2 worldUV = vWorldPos.xz;
             vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
-            float isWall = texture2D(wallMap, mazeUV).r;
 
-            float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) *
-                            step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
-
-            float edgeNoise = noise(worldUV * 1.5) * 0.3;
-            float wallMask = smoothstep(0.3, 0.7, isWall + edgeNoise);
-            wallMask = mix(1.0, wallMask, inBounds);
-
-            // Sample all 3 textures at different scales/offsets to break tiling
+            // Sample all 4 textures at different scales/offsets to break tiling
             vec2 uv1 = worldUV * tileScale;
             vec2 uv2 = worldUV * tileScale * 0.73 + vec2(17.3, 5.7);
             vec2 uv3 = worldUV * tileScale * 1.13 + vec2(-8.1, 23.4);
+            vec2 uv4 = worldUV * tileScale * 0.91 + vec2(11.2, -14.8);
 
-            vec3 col1 = texture2D(floorTex, uv1).rgb;
-            vec3 col2 = texture2D(crackedTex, uv2).rgb;
-            vec3 col3 = texture2D(garageTex, uv3).rgb;
+            vec3 col1 = texture2D(tex1, uv1).rgb;
+            vec3 col2 = texture2D(tex2, uv2).rgb;
+            vec3 col3 = texture2D(tex3, uv3).rgb;
+            vec3 col4 = texture2D(tex4, uv4).rgb;
 
             // Organic blend using multi-frequency noise — no grid patterns
             float n1 = noise(worldUV * 0.4 + vec2(0.0, 0.0));
             float n2 = noise(worldUV * 0.7 + vec2(50.0, 80.0));
             float n3 = noise(worldUV * 1.3 + vec2(-30.0, 60.0));
-            float blend = n1 * 0.5 + n2 * 0.3 + n3 * 0.2;
+            float n4 = noise(worldUV * 0.55 + vec2(-70.0, 25.0));
 
-            // Map blend value to 3-way mix using smooth thresholds
-            float w1 = smoothstep(0.0, 0.45, blend) * (1.0 - smoothstep(0.45, 0.7, blend));
-            float w2 = smoothstep(0.3, 0.6, blend) * (1.0 - smoothstep(0.7, 0.95, blend));
-            float w3 = smoothstep(0.55, 0.85, blend);
-            // Ensure weights don't all go to zero
-            float wSum = w1 + w2 + w3 + 0.001;
-            w1 /= wSum; w2 /= wSum; w3 /= wSum;
+            // 4-way blend using overlapping smooth bands
+            float w1 = smoothstep(0.0, 0.35, n1) * (1.0 - smoothstep(0.5, 0.75, n2));
+            float w2 = smoothstep(0.25, 0.55, n2) * (1.0 - smoothstep(0.6, 0.85, n3));
+            float w3 = smoothstep(0.35, 0.65, n3) * (1.0 - smoothstep(0.55, 0.8, n4));
+            float w4 = smoothstep(0.4, 0.7, n4) * (1.0 - smoothstep(0.45, 0.7, n1));
+            float wSum = w1 + w2 + w3 + w4 + 0.001;
+            w1 /= wSum; w2 /= wSum; w3 /= wSum; w4 /= wSum;
 
-            vec3 floorColor = col1 * w1 + col2 * w2 + col3 * w3;
+            vec3 floorColor = col1 * w1 + col2 * w2 + col3 * w3 + col4 * w4;
 
             vec3 finalColor = floorColor * 0.7;
 
