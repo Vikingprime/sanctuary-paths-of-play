@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Text, useGLTF } from '@react-three/drei';
 import { Button } from '@/components/ui/button';
@@ -68,7 +68,7 @@ function GrassPlatform({ position, type, isPlayerHere }: {
   );
 }
 
-function FarmCenter() {
+function FarmCenterModel() {
   const { scene } = useGLTF('/models/Farm.glb');
   const cloned = useMemo(() => {
     const c = scene.clone(true);
@@ -80,6 +80,23 @@ function FarmCenter() {
     <group position={[0, 0, 0]}>
       <primitive object={cloned} scale={0.02} />
     </group>
+  );
+}
+
+class FarmErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(e: Error) { console.warn('[FarmCenter] Failed to load Farm.glb:', e.message); }
+  render() { return this.state.hasError ? null : this.props.children; }
+}
+
+function FarmCenter() {
+  return (
+    <FarmErrorBoundary>
+      <Suspense fallback={null}>
+        <FarmCenterModel />
+      </Suspense>
+    </FarmErrorBoundary>
   );
 }
 
@@ -764,5 +781,5 @@ export const BoardGameMode = ({
 useGLTF.preload('/models/Grass_Platform.glb');
 useGLTF.preload('/models/Tree.glb');
 useGLTF.preload('/models/Tree_1.glb');
-useGLTF.preload('/models/Farm.glb');
+// Farm.glb preload removed - loaded lazily with error boundary
 useGLTF.preload('/models/Dice_2.glb');
