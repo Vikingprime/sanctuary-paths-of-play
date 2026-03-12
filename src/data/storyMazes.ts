@@ -1392,6 +1392,7 @@ export const storyMazeToMaze = (storyMaze: StoryMaze): Maze => {
     deletedSpineFineCells: storyMaze.deletedSpineFineCells,
     spineEndpointTrim: storyMaze.spineEndpointTrim ?? 5,
     obstacles: storyMaze.obstacles,
+    pushableBarrels: storyMaze.pushableBarrels,
     theme: storyMaze.theme,
     introDialogues: storyMaze.introDialogues,
     dialogueTriggerMode: storyMaze.dialogueTriggerMode,
