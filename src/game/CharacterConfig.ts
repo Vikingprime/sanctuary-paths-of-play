@@ -138,6 +138,7 @@ export const CharacterConfig: Record<string, CharacterModelConfig> = {
     scale: 1.2,
     yOffset: 0.15,
     height: 0.8,
+    tintColor: '#8B5A2B',
     debugPlaneColor: '#cc8800',
     animations: [],
   },
