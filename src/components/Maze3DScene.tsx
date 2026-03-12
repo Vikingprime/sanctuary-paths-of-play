@@ -3247,7 +3247,7 @@ return (
       
       {/* Lighting - theme-dependent */}
       {!isCellar && <ambientLight intensity={0.9} color="#FFE4CC" />}
-      {isCellar && <ambientLight intensity={0.55} color="#FFE0C0" />}
+      {isCellar && <ambientLight intensity={0.25} color="#3a2a20" />}
       
       {/* Main directional light - golden hour for corn, dim for cellar */}
       {!isCellar && (
