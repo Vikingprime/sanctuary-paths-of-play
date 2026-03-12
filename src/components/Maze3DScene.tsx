@@ -1071,12 +1071,14 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive, maze, showColl
   );
 };
 
-// Pushable barrel visual calibration (matches cellar wall barrel sizing)
+// Pushable barrel visual calibration — roughly half the cellar wall barrel size
+// so they read as movable obstacles, not structural walls.
+// Wall barrels: Barrel=350, Barrel_1=70, Beer_Keg=0.56, Keg=64
 const PUSHABLE_BARREL_BASE_SCALE: Record<string, number> = {
-  'Barrel.glb': 350,
-  'Barrel_1.glb': 70,
-  'Beer_Keg.glb': 0.56,
-  'Keg.glb': 64,
+  'Barrel.glb': 175,
+  'Barrel_1.glb': 35,
+  'Beer_Keg.glb': 0.28,
+  'Keg.glb': 32,
 };
 
 const PUSHABLE_BARREL_X_ROTATION: Record<string, number> = {
