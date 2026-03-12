@@ -229,43 +229,43 @@ const InstancedRoofTiles = ({ gridWidth, gridHeight, roofHeight }: { gridWidth: 
   return <group ref={groupRef} />;
 };
 
-// Instanced ceiling lights using imperative THREE.js + point lights
+// Wall-mounted sconce lights using imperative THREE.js + point lights
 const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number }) => {
   const groupRef = useRef<Group>(null);
   const createdRef = useRef(false);
-  const { scene } = useGLTF('/models/Ceiling_Light.glb');
+  const { scene } = useGLTF('/models/Sconce_light.glb');
 
-  const lightPositions = useMemo(() => {
-    const positions: { x: number; z: number }[] = [];
+  // Each sconce has position + rotation to face inward from the wall
+  const sconceData = useMemo(() => {
+    const data: { x: number; z: number; rotY: number }[] = [];
     const gridH = maze.grid.length;
     const gridW = maze.grid[0]?.length ?? 0;
-    
-    // Place lights along the perimeter walls so camera doesn't clip through them
-    const OFFSET = -0.8; // How far inside from the wall edge
-    const SPACING = 4;   // Space between lights along each wall
-    
-    // North wall (z = OFFSET)
+    const PAD = 2;
+    const WALL_OFFSET = 0.05; // Flush against the brick wall
+    const SPACING = 4;
+
+    // North wall - sconces face south (toward +Z)
     for (let x = 2; x < gridW; x += SPACING) {
-      positions.push({ x: x + 0.5, z: OFFSET });
+      data.push({ x: x + 0.5, z: -PAD + WALL_OFFSET, rotY: Math.PI });
     }
-    // South wall (z = gridH - OFFSET)
+    // South wall - sconces face north (toward -Z)
     for (let x = 2; x < gridW; x += SPACING) {
-      positions.push({ x: x + 0.5, z: gridH - OFFSET });
+      data.push({ x: x + 0.5, z: gridH + PAD - WALL_OFFSET, rotY: 0 });
     }
-    // West wall (x = OFFSET)
+    // West wall - sconces face east (toward +X)
     for (let y = 2; y < gridH; y += SPACING) {
-      positions.push({ x: OFFSET, z: y + 0.5 });
+      data.push({ x: -PAD + WALL_OFFSET, z: y + 0.5, rotY: -Math.PI / 2 });
     }
-    // East wall (x = gridW - OFFSET)
+    // East wall - sconces face west (toward -X)
     for (let y = 2; y < gridH; y += SPACING) {
-      positions.push({ x: gridW - OFFSET, z: y + 0.5 });
+      data.push({ x: gridW + PAD - WALL_OFFSET, z: y + 0.5, rotY: Math.PI / 2 });
     }
-    
-    console.log('[CELLAR] Ceiling light positions (perimeter):', positions.length);
-    return positions;
+
+    console.log('[CELLAR] Sconce light positions (perimeter walls):', data.length);
+    return data;
   }, [maze]);
 
-  // Extract mesh parts from the ceiling light GLB
+  // Extract mesh parts from the sconce GLB
   const meshParts = useMemo(() => {
     const parts: { geometry: BufferGeometry; material: Material }[] = [];
     scene.traverse((child: any) => {
@@ -276,8 +276,7 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
         });
       }
     });
-    
-    // Log bounding box to understand model size
+
     const box = new Box3();
     scene.traverse((child: any) => {
       if (child.isMesh && child.geometry) {
@@ -288,38 +287,42 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
     });
     const size = new Vector3();
     box.getSize(size);
-    console.log('[CELLAR] Ceiling light model size:', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2), '| parts:', parts.length);
-    
+    console.log('[CELLAR] Sconce model size:', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2), '| parts:', parts.length);
+
     return parts;
   }, [scene]);
 
+  const SCONCE_HEIGHT = roofHeight * 0.65; // Mount at ~65% wall height
+  const SCONCE_SCALE = 0.8;
+
   useEffect(() => {
     const group = groupRef.current;
-    if (!group || createdRef.current || lightPositions.length === 0 || meshParts.length === 0) return;
+    if (!group || createdRef.current || sconceData.length === 0 || meshParts.length === 0) return;
     createdRef.current = true;
 
     const allMeshes: ThreeInstancedMesh[] = [];
     const dummy = new Object3D();
-    const lightScale = 1.0;
 
     meshParts.forEach((part) => {
-      const mesh = new ThreeInstancedMesh(part.geometry, part.material, lightPositions.length);
+      const mesh = new ThreeInstancedMesh(part.geometry, part.material, sconceData.length);
 
-      lightPositions.forEach((pos, i) => {
-        dummy.position.set(pos.x, roofHeight - 0.05, pos.z);
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.setScalar(lightScale);
+      sconceData.forEach((s, i) => {
+        dummy.position.set(s.x, SCONCE_HEIGHT, s.z);
+        dummy.rotation.set(0, s.rotY, 0);
+        dummy.scale.setScalar(SCONCE_SCALE);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
       });
 
       mesh.instanceMatrix.needsUpdate = true;
       mesh.frustumCulled = false;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       group.add(mesh);
       allMeshes.push(mesh);
     });
 
-    console.log('[CELLAR] Created', allMeshes.length, 'ceiling light instanced meshes for', lightPositions.length, 'lights');
+    console.log('[CELLAR] Created', allMeshes.length, 'sconce instanced meshes for', sconceData.length, 'sconces');
 
     return () => {
       allMeshes.forEach(mesh => {
@@ -330,22 +333,28 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
       });
       createdRef.current = false;
     };
-  }, [lightPositions, meshParts, roofHeight]);
+  }, [sconceData, meshParts, SCONCE_HEIGHT, SCONCE_SCALE]);
 
-  // Point lights for illumination (these must be declarative R3F elements)
+  // Point lights slightly in front of each sconce for warm glow
   return (
     <group ref={groupRef}>
-      {lightPositions.map((pos, i) => (
-        <pointLight
-          key={`cellar-light-${i}`}
-          position={[pos.x, roofHeight - 0.25, pos.z]}
-          color="#FFE0A0"
-          intensity={10}
-          distance={12}
-          decay={1.4}
-          castShadow={false}
-        />
-      ))}
+      {sconceData.map((s, i) => {
+        // Offset light slightly inward from the wall
+        const inwardOffset = 0.5;
+        const lx = s.x + Math.sin(s.rotY) * inwardOffset;
+        const lz = s.z + Math.cos(s.rotY) * inwardOffset;
+        return (
+          <pointLight
+            key={`sconce-light-${i}`}
+            position={[lx, SCONCE_HEIGHT + 0.15, lz]}
+            color="#FFB36B"
+            intensity={8}
+            distance={10}
+            decay={1.6}
+            castShadow={false}
+          />
+        );
+      })}
     </group>
   );
 };
