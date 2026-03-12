@@ -1882,7 +1882,7 @@ const RefBasedPlayer = ({
           
           // Build barrel collision positions for mobile path
           const mobileBarrelColliders: CharacterPosition[] = (pushableBarrelStatesRef?.current ?? []).map(b => ({
-            x: b.x, y: b.y, radius: 0.4,
+            x: b.x + 0.5, y: b.y + 0.5, radius: 0.4,
           }));
           const mobileCharsWithBarrels = [...characters, ...mobileBarrelColliders];
           
