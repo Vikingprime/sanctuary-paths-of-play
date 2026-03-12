@@ -293,7 +293,7 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
   }, [scene]);
 
   const SCONCE_HEIGHT = roofHeight * 0.65; // Mount at ~65% wall height
-  const SCONCE_SCALE = 1.2;
+  const SCONCE_SCALE = 3.0;
 
   useEffect(() => {
     const group = groupRef.current;
