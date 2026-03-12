@@ -285,11 +285,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
 
             vec3 floorColor = col1 * w1 + col2 * w2 + col3 * w3;
 
-            // Path areas slightly brighter, barrel areas slightly darker
-            vec3 pathColor = floorColor * 0.75;
-            vec3 barrelColor = floorColor * 0.45;
-
-            vec3 finalColor = mix(pathColor, barrelColor, wallMask);
+            vec3 finalColor = floorColor * 0.7;
 
             // Fog
             float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
