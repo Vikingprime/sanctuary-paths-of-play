@@ -1263,9 +1263,9 @@ export function tryPushBarrel(
 }
 
 /**
- * Check if the player's current grid cell contains a pushable barrel,
- * and attempt to push it. Returns the updated barrel positions and
- * whether a push occurred.
+ * Check if the player is adjacent to a pushable barrel in the direction
+ * they're moving, and attempt to push it. Returns the updated barrel
+ * positions and whether a push occurred.
  */
 export function checkAndPushBarrels(
   maze: Maze,
@@ -1275,15 +1275,28 @@ export function checkAndPushBarrels(
   moveY: number,
   barrels: PushableBarrelState[]
 ): { barrels: PushableBarrelState[]; pushed: boolean } {
-  const gridX = Math.floor(playerX);
-  const gridY = Math.floor(playerY);
-  const barrelIndex = barrels.findIndex(b => b.x === gridX && b.y === gridY);
-  if (barrelIndex === -1) return { barrels, pushed: false };
   const dir = getPushDirection(moveX, moveY);
   if (!dir) return { barrels, pushed: false };
+  
+  const playerGridX = Math.floor(playerX);
+  const playerGridY = Math.floor(playerY);
+  
+  // Check the cell the player is facing (adjacent cell in movement direction)
+  const targetGridX = playerGridX + dir.dx;
+  const targetGridY = playerGridY + dir.dy;
+  
+  // Also check current cell (player might be overlapping barrel)
+  const barrelIndex = barrels.findIndex(b => 
+    (b.x === targetGridX && b.y === targetGridY) ||
+    (b.x === playerGridX && b.y === playerGridY)
+  );
+  if (barrelIndex === -1) return { barrels, pushed: false };
+  
+  const barrel = barrels[barrelIndex];
   const allPositions = barrels.map(b => ({ x: b.x, y: b.y }));
-  const result = tryPushBarrel(maze, gridX, gridY, dir.dx, dir.dy, allPositions.filter((_, i) => i !== barrelIndex));
+  const result = tryPushBarrel(maze, barrel.x, barrel.y, dir.dx, dir.dy, allPositions.filter((_, i) => i !== barrelIndex));
   if (!result) return { barrels, pushed: false };
+  
   const updated = [...barrels];
   updated[barrelIndex] = {
     ...updated[barrelIndex],
