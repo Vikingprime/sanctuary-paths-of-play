@@ -293,7 +293,7 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
   }, [scene]);
 
   const SCONCE_HEIGHT = roofHeight * 0.65; // Mount at ~65% wall height
-  const SCONCE_SCALE = 0.8;
+  const SCONCE_SCALE = 1.2;
 
   useEffect(() => {
     const group = groupRef.current;
@@ -308,7 +308,9 @@ const InstancedCellarLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: n
 
       sconceData.forEach((s, i) => {
         dummy.position.set(s.x, SCONCE_HEIGHT, s.z);
-        dummy.rotation.set(0, s.rotY, 0);
+        // Use YXZ rotation order to prevent gimbal issues (same as barrel pattern)
+        dummy.rotation.order = 'YXZ';
+        dummy.rotation.set(-Math.PI / 2, s.rotY, 0); // X correction for upright model
         dummy.scale.setScalar(SCONCE_SCALE);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);

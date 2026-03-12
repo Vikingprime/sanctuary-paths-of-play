@@ -3247,7 +3247,7 @@ return (
       
       {/* Lighting - theme-dependent */}
       {!isCellar && <ambientLight intensity={0.9} color="#FFE4CC" />}
-      {isCellar && <ambientLight intensity={0.55} color="#FFE0C0" />}
+      {isCellar && <ambientLight intensity={0.25} color="#3a2a20" />}
       
       {/* Main directional light - golden hour for corn, dim for cellar */}
       {!isCellar && (
@@ -3282,14 +3282,14 @@ return (
       
       {/* Hemisphere light for natural sky/ground color */}
       {!isCellar && <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
-      {isCellar && <hemisphereLight args={['#2a2018', '#1a1410', 0.3]} />}
+      {isCellar && <hemisphereLight args={['#1a1208', '#0a0806', 0.15]} />}
       
       {/* Sky orb - flat material, no fog/tonemapping (corn theme only) */}
       {skyEnabled && !isCellar && <SkyBackground />}
       
       {/* Fog - lighter in cellar */}
       {!isCellar && <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />}
-      {isCellar && <fogExp2 attach="fog" args={['#0a0806', 0.06]} />}
+      {isCellar && <fogExp2 attach="fog" args={['#1b120c', 0.035]} />}
 
       {/* Cellar environment - dark room enclosure, roof, ceiling lights */}
       {isCellar && <CellarEnvironment maze={maze} lightsEnabled={cellarLightsEnabled} roofEnabled={cellarRoofEnabled} roofHeight={cellarRoofHeight} />}
