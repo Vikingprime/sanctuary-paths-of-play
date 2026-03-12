@@ -3398,7 +3398,7 @@ return (
       {<fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />}
 
       {/* Ground */}
-      {<Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />}
+      {<Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={!isCellar && rocksEnabled} grassEnabled={!isCellar && grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />}
       
       {/* Maze Walls - corn or barrels based on theme */}
       {cornEnabled && !isCellar && (
