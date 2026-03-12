@@ -692,8 +692,43 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     </group>
   );
 };
+// Simple perimeter walls for the cellar - 4 tall planes at maze edges
+const CellarWalls = ({ maze }: { maze: Maze }) => {
+  const w = maze.grid[0].length;
+  const h = maze.grid.length;
+  const wallH = 4;
+  const y = wallH / 2;
+  const cx = w / 2;
+  const cz = h / 2;
+  const wallColor = '#2a1e14';
 
-// Ground with grass/path differentiation based on wall data
+  return (
+    <group>
+      {/* North wall */}
+      <mesh position={[cx, y, -0.5]}>
+        <planeGeometry args={[w + 1, wallH]} />
+        <meshStandardMaterial color={wallColor} roughness={0.95} />
+      </mesh>
+      {/* South wall */}
+      <mesh position={[cx, y, h + 0.5]} rotation-y={Math.PI}>
+        <planeGeometry args={[w + 1, wallH]} />
+        <meshStandardMaterial color={wallColor} roughness={0.95} />
+      </mesh>
+      {/* West wall */}
+      <mesh position={[-0.5, y, cz]} rotation-y={Math.PI / 2}>
+        <planeGeometry args={[h + 1, wallH]} />
+        <meshStandardMaterial color={wallColor} roughness={0.95} />
+      </mesh>
+      {/* East wall */}
+      <mesh position={[w + 0.5, y, cz]} rotation-y={-Math.PI / 2}>
+        <planeGeometry args={[h + 1, wallH]} />
+        <meshStandardMaterial color={wallColor} roughness={0.95} />
+      </mesh>
+    </group>
+  );
+};
+
+
 const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled = true, simpleGroundEnabled = false }: { 
   maze: Maze; 
   rocks: RockPosition[]; 
