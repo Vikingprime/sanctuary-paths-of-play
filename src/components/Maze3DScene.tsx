@@ -160,6 +160,8 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
   const leavesTexture = useTexture('/textures/ground-leaves.jpg');
   const dirtTexture = useTexture('/textures/dirt_floor.jpg');
   const cellarFloorTexture = useTexture('/textures/cellar-floor.jpg');
+  const crackedConcreteTexture = useTexture('/textures/cracked-concrete.jpg');
+  const garageFloorTexture = useTexture('/textures/garage-floor.jpg');
   
   const { material } = useMemo(() => {
     const mazeWidth = maze.grid[0].length;
