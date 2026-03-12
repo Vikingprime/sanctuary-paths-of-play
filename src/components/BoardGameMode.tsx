@@ -68,7 +68,7 @@ function GrassPlatform({ position, type, isPlayerHere }: {
   );
 }
 
-function FarmCenter() {
+function FarmCenterModel() {
   const { scene } = useGLTF('/models/Farm.glb');
   const cloned = useMemo(() => {
     const c = scene.clone(true);
@@ -80,6 +80,23 @@ function FarmCenter() {
     <group position={[0, 0, 0]}>
       <primitive object={cloned} scale={0.02} />
     </group>
+  );
+}
+
+class FarmErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(e: Error) { console.warn('[FarmCenter] Failed to load Farm.glb:', e.message); }
+  render() { return this.state.hasError ? null : this.props.children; }
+}
+
+function FarmCenter() {
+  return (
+    <FarmErrorBoundary>
+      <Suspense fallback={null}>
+        <FarmCenterModel />
+      </Suspense>
+    </FarmErrorBoundary>
   );
 }
 
