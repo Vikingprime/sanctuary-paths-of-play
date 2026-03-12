@@ -1071,14 +1071,14 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive, maze, showColl
   );
 };
 
-// Pushable barrel visual calibration — roughly half the cellar wall barrel size
-// so they read as movable obstacles, not structural walls.
-// Wall barrels: Barrel=350, Barrel_1=70, Beer_Keg=0.56, Keg=64
+// Pushable barrel visual calibration — target ~3x chicken size (chicken height ≈ 0.35 world units)
+// so pushable barrels should be roughly 1.0 world unit tall.
+// Wall barrels are much larger (Barrel=350) since they form imposing walls.
 const PUSHABLE_BARREL_BASE_SCALE: Record<string, number> = {
-  'Barrel.glb': 175,
-  'Barrel_1.glb': 35,
-  'Beer_Keg.glb': 0.28,
-  'Keg.glb': 32,
+  'Barrel.glb': 3.5,
+  'Barrel_1.glb': 0.7,
+  'Beer_Keg.glb': 0.003,
+  'Keg.glb': 0.64,
 };
 
 const PUSHABLE_BARREL_X_ROTATION: Record<string, number> = {
