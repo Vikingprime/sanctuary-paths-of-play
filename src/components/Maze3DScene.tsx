@@ -3282,18 +3282,14 @@ return (
       {/* Hemisphere light for natural sky/ground color */}
       {<hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
       
-      {/* Sky orb - flat material, no fog/tonemapping (corn theme only) */}
-      {skyEnabled && !isCellar && <SkyBackground />}
+      {/* Sky */}
+      {skyEnabled && <SkyBackground />}
       
-      {/* Fog - lighter in cellar */}
-      {!isCellar && <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />}
-      {isCellar && <fogExp2 attach="fog" args={['#1b120c', 0.035]} />}
+      {/* Fog */}
+      {<fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />}
 
-      {/* Cellar environment - dark room enclosure, roof, ceiling lights */}
-      {isCellar && <CellarEnvironment maze={maze} lightsEnabled={cellarLightsEnabled} roofEnabled={cellarRoofEnabled} roofHeight={cellarRoofHeight} />}
-      
-      {/* Ground (corn theme only - cellar has its own floor) */}
-      {!isCellar && <Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />}
+      {/* Ground */}
+      {<Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={rocksEnabled} grassEnabled={grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />}
       
       {/* Maze Walls - corn or barrels based on theme */}
       {cornEnabled && !isCellar && (
