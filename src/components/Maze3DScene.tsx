@@ -466,7 +466,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
     });
     
     return { material: mat };
-  }, [maze, simple, isCellar, pathTexture, grassTexture, leavesTexture, dirtTexture, cellarFloorTexture]);
+  }, [maze, simple, isCellar, pathTexture, grassTexture, leavesTexture, dirtTexture, cellarFloorTexture, crackedConcreteTexture, garageFloorTexture]);
   
   return <primitive object={material} attach="material" />;
 };
