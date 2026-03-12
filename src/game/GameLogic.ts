@@ -1281,6 +1281,10 @@ export function checkAndPushBarrels(
   const playerGridX = Math.floor(playerX);
   const playerGridY = Math.floor(playerY);
   
+  // Also check with rounded position (player at 4.4 should detect barrel at grid 4)
+  const playerRoundX = Math.round(playerX - 0.5);
+  const playerRoundY = Math.round(playerY - 0.5);
+  
   // Check the cell the player is facing (adjacent cell in movement direction)
   const targetGridX = playerGridX + dir.dx;
   const targetGridY = playerGridY + dir.dy;
