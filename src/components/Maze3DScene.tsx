@@ -3282,7 +3282,7 @@ return (
       
       {/* Hemisphere light for natural sky/ground color */}
       {!isCellar && <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
-      {isCellar && <hemisphereLight args={['#2a2018', '#1a1410', 0.3]} />}
+      {isCellar && <hemisphereLight args={['#1a1208', '#0a0806', 0.15]} />}
       
       {/* Sky orb - flat material, no fog/tonemapping (corn theme only) */}
       {skyEnabled && !isCellar && <SkyBackground />}
