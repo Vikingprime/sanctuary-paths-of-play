@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, MutableRefObject, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree, extend, useLoader } from '@react-three/fiber';
 import { PerspectiveCamera, ContactShadows, useGLTF, Html, useTexture } from '@react-three/drei';
-import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping, CanvasTexture, BufferGeometry, BufferAttribute, Float32BufferAttribute } from 'three';
+import { Vector3, ShaderMaterial, Color, DataTexture, LinearFilter, LinearMipmapLinearFilter, Object3D, InstancedMesh, MeshStandardMaterial, DodecahedronGeometry, Group, AnimationMixer, Mesh, Material, Raycaster, BoxGeometry, Box3, MeshBasicMaterial, DoubleSide, Matrix4, PlaneGeometry, BackSide, SRGBColorSpace, TextureLoader, RepeatWrapping, ClampToEdgeWrapping, CanvasTexture, BufferGeometry, BufferAttribute, Float32BufferAttribute } from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { NPCRuntimeState } from '@/game/NPCRuntime';
@@ -1071,11 +1071,58 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive, maze, showColl
   );
 };
 
+// Pushable barrel visual calibration (matches cellar wall barrel sizing)
+const PUSHABLE_BARREL_BASE_SCALE: Record<string, number> = {
+  'Barrel.glb': 350,
+  'Barrel_1.glb': 70,
+  'Beer_Keg.glb': 0.56,
+  'Keg.glb': 64,
+};
+
+const PUSHABLE_BARREL_X_ROTATION: Record<string, number> = {
+  'Barrel.glb': Math.PI / 2,
+  'Barrel_1.glb': Math.PI / 2,
+};
+
 // PushableBarrelModel - renders a barrel that can be pushed by the player
 const PushableBarrelModel = ({ barrel }: { barrel: PushableBarrelState }) => {
-  const { scene } = useGLTF(`/models/${barrel.model}`);
+  const modelPath = `/models/${barrel.model}`;
+  const { scene } = useGLTF(modelPath);
   const groupRef = useRef<Group>(null);
-  const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
+
+  const clonedScene = useMemo(() => {
+    const clone = SkeletonUtils.clone(scene);
+    clone.traverse((child: any) => {
+      if (child.isMesh) {
+        child.visible = true;
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [scene]);
+
+  const baseScale = PUSHABLE_BARREL_BASE_SCALE[barrel.model] ?? 1;
+  const rotationX = PUSHABLE_BARREL_X_ROTATION[barrel.model] ?? 0;
+
+  const modelYOffset = useMemo(() => {
+    const box = new Box3();
+    clonedScene.traverse((child: any) => {
+      if (child.isMesh && child.geometry) {
+        child.geometry.computeBoundingBox();
+        const bb = child.geometry.boundingBox;
+        if (bb) {
+          box.expandByPoint(bb.min);
+          box.expandByPoint(bb.max);
+        }
+      }
+    });
+
+    if (box.isEmpty()) return 0;
+
+    const effectiveMinY = Math.abs(rotationX) > 0.01 ? box.min.z : box.min.y;
+    return -effectiveMinY * baseScale;
+  }, [clonedScene, baseScale, rotationX]);
   
   // Smooth animation toward target position
   useFrame((_, delta) => {
@@ -1087,15 +1134,13 @@ const PushableBarrelModel = ({ barrel }: { barrel: PushableBarrelState }) => {
     groupRef.current.position.z += (targetZ - groupRef.current.position.z) * Math.min(1, delta * 8);
   });
 
-  // Need X-rotation for barrel models to stand upright
-  const needsXRotation = barrel.model === 'Barrel.glb' || barrel.model === 'Barrel_1.glb';
-
   return (
     <group ref={groupRef} position={[barrel.x + 0.5, 0, barrel.y + 0.5]}>
-      <primitive 
-        object={clonedScene} 
-        scale={0.7}
-        rotation={needsXRotation ? [Math.PI / 2, 0, 0] : [0, 0, 0]}
+      <primitive
+        object={clonedScene}
+        scale={baseScale}
+        rotation={[rotationX, 0, 0]}
+        position={[0, modelYOffset, 0]}
       />
     </group>
   );
@@ -2996,17 +3041,32 @@ const Scene = ({ maze, animalType, playerStateRef, isMovingRef, collectedPowerUp
   // Generate rock positions once (shared between visuals and collision)
   const rocks = useMemo(() => generateRockPositions(maze), [maze]);
 
-  // Pushable barrel state - initialized from maze data
-  const [pushableBarrelStates, setPushableBarrelStates] = useState<PushableBarrelState[]>(() => 
-    (maze.pushableBarrels || []).map(b => ({
+  const pushableBarrelSignature = useMemo(
+    () => (maze.pushableBarrels || [])
+      .map(b => `${b.id}:${b.model}:${b.position.x},${b.position.y}`)
+      .join('|'),
+    [maze.pushableBarrels]
+  );
+
+  const mazePushableBarrelStates = useMemo<PushableBarrelState[]>(
+    () => (maze.pushableBarrels || []).map(b => ({
       id: b.id,
       model: b.model,
       x: b.position.x,
       y: b.position.y,
       animX: b.position.x + 0.5,
       animY: b.position.y + 0.5,
-    }))
+    })),
+    [pushableBarrelSignature]
   );
+
+  // Pushable barrel state - initialized from maze data and reset on restart/schema changes
+  const [pushableBarrelStates, setPushableBarrelStates] = useState<PushableBarrelState[]>(mazePushableBarrelStates);
+
+  useEffect(() => {
+    setPushableBarrelStates(mazePushableBarrelStates);
+  }, [mazePushableBarrelStates, restartKey]);
+
   // Expose barrel states via ref for movement loop
   const pushableBarrelStatesRef = useRef(pushableBarrelStates);
   pushableBarrelStatesRef.current = pushableBarrelStates;
