@@ -3289,7 +3289,7 @@ return (
       
       {/* Fog - lighter in cellar */}
       {!isCellar && <fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />}
-      {isCellar && <fogExp2 attach="fog" args={['#0a0806', 0.06]} />}
+      {isCellar && <fogExp2 attach="fog" args={['#1b120c', 0.035]} />}
 
       {/* Cellar environment - dark room enclosure, roof, ceiling lights */}
       {isCellar && <CellarEnvironment maze={maze} lightsEnabled={cellarLightsEnabled} roofEnabled={cellarRoofEnabled} roofHeight={cellarRoofHeight} />}
