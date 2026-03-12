@@ -781,5 +781,5 @@ export const BoardGameMode = ({
 useGLTF.preload('/models/Grass_Platform.glb');
 useGLTF.preload('/models/Tree.glb');
 useGLTF.preload('/models/Tree_1.glb');
-useGLTF.preload('/models/Farm.glb');
+// Farm.glb preload removed - loaded lazily with error boundary
 useGLTF.preload('/models/Dice_2.glb');
