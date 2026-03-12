@@ -692,8 +692,43 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
     </group>
   );
 };
+// Simple perimeter walls for the cellar - 4 tall planes at maze edges
+const CellarWalls = ({ maze }: { maze: Maze }) => {
+  const w = maze.grid[0].length;
+  const h = maze.grid.length;
+  const wallH = 4;
+  const y = wallH / 2;
+  const cx = w / 2;
+  const cz = h / 2;
+  const wallColor = '#2a1e14';
 
-// Ground with grass/path differentiation based on wall data
+  return (
+    <group>
+      {/* North wall */}
+      <mesh position={[cx, y, -0.5]}>
+        <planeGeometry args={[w + 1, wallH]} />
+        <meshStandardMaterial color={wallColor} roughness={0.95} />
+      </mesh>
+      {/* South wall */}
+      <mesh position={[cx, y, h + 0.5]} rotation-y={Math.PI}>
+        <planeGeometry args={[w + 1, wallH]} />
+        <meshStandardMaterial color={wallColor} roughness={0.95} />
+      </mesh>
+      {/* West wall */}
+      <mesh position={[-0.5, y, cz]} rotation-y={Math.PI / 2}>
+        <planeGeometry args={[h + 1, wallH]} />
+        <meshStandardMaterial color={wallColor} roughness={0.95} />
+      </mesh>
+      {/* East wall */}
+      <mesh position={[w + 0.5, y, cz]} rotation-y={-Math.PI / 2}>
+        <planeGeometry args={[h + 1, wallH]} />
+        <meshStandardMaterial color={wallColor} roughness={0.95} />
+      </mesh>
+    </group>
+  );
+};
+
+
 const Ground = ({ maze, rocks, playerStateRef, rocksEnabled = true, grassEnabled = true, simpleGroundEnabled = false }: { 
   maze: Maze; 
   rocks: RockPosition[]; 
@@ -3355,10 +3390,11 @@ return (
     <>
       
       {/* Lighting - theme-dependent */}
-      {<ambientLight intensity={0.9} color="#FFE4CC" />}
+      {!isCellar && <ambientLight intensity={0.9} color="#FFE4CC" />}
+      {isCellar && <ambientLight intensity={0.3} color="#FFE0C0" />}
       
-      {/* Main directional light - golden hour for corn, dim for cellar */}
-      {(
+      {/* Main directional light - golden hour for corn only */}
+      {!isCellar && (
         <directionalLight
           key={`shadow-light-${lowShadowRes ? 'lo' : 'hi'}`}
           ref={lightRef}
@@ -3380,7 +3416,7 @@ return (
       )}
       
       {/* Fill light (corn theme only) */}
-      {(
+      {!isCellar && (
         <directionalLight
           position={[0, 15, 25]}
           intensity={0.45}
@@ -3389,13 +3425,33 @@ return (
       )}
       
       {/* Hemisphere light for natural sky/ground color */}
-      {<hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
+      {!isCellar && <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
+      
+      {/* Cellar: single overhead point light */}
+      {isCellar && (() => {
+        const cX = maze.grid[0].length / 2;
+        const cZ = maze.grid.length / 2;
+        return (
+          <pointLight
+            position={[cX, 3.5, cZ]}
+            color="#FFD4A0"
+            intensity={25}
+            distance={30}
+            decay={1.5}
+            castShadow={shadowsEnabled}
+            shadow-mapSize={[1024, 1024]}
+          />
+        );
+      })()}
+
+      {/* Cellar perimeter walls */}
+      {isCellar && <CellarWalls maze={maze} />}
       
       {/* Sky */}
-      {skyEnabled && <SkyBackground />}
+      {skyEnabled && !isCellar && <SkyBackground />}
       
       {/* Fog */}
-      {<fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />}
+      {<fogExp2 attach="fog" args={[isCellar ? '#1a1208' as any : FogConfig.COLOR_HEX, isCellar ? 0.06 : FogConfig.DENSITY]} />}
 
       {/* Ground */}
       {<Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={!isCellar && rocksEnabled} grassEnabled={!isCellar && grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />}
