@@ -1897,7 +1897,7 @@ const RefBasedPlayer = ({
               pushableBarrelStatesRef.current = pushResult.barrels;
               // Rebuild colliders with updated barrel positions
               const updatedBarrelColliders: CharacterPosition[] = pushResult.barrels.map(b => ({
-                x: b.x, y: b.y, radius: 0.4,
+                x: b.x + 0.5, y: b.y + 0.5, radius: 0.4,
               }));
               activeMobileChars = [...characters, ...updatedBarrelColliders];
             }
