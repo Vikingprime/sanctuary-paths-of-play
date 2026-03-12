@@ -169,7 +169,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
     const mazeHeight = maze.grid.length;
     
     // Configure textures for tiling
-    [pathTexture, grassTexture, leavesTexture, dirtTexture, cellarFloorTexture, crackedConcreteTexture, garageFloorTexture].forEach(tex => {
+    [pathTexture, grassTexture, leavesTexture, dirtTexture, crackedConcreteTexture, garageFloorTexture, damagedConcreteTexture, wornConcreteTexture].forEach(tex => {
       tex.wrapS = RepeatWrapping;
       tex.wrapT = RepeatWrapping;
       tex.minFilter = LinearMipmapLinearFilter;
