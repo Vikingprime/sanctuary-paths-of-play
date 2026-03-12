@@ -1762,22 +1762,46 @@ const RefBasedPlayer = ({
           while (cameraYawRef.current < 0) cameraYawRef.current += Math.PI * 2;
         }
         
-        // Calculate movement with clamped delta
+        // Calculate movement with barrels as collision obstacles
         const prev = playerStateRef.current;
-        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
-        playerStateRef.current = { x: newState.x, y: newState.y, rotation: newState.rotation };
-        collisionIntensityRef.current = newState.collisionIntensity;
         
-        // Check pushable barrel interactions
+        // Build barrel collision positions
+        const barrelColliders: CharacterPosition[] = (pushableBarrelStatesRef?.current ?? []).map(b => ({
+          x: b.x, y: b.y, radius: 0.4,
+        }));
+        const charsWithBarrels = [...characters, ...barrelColliders];
+        
+        // First pass: move with barrels as obstacles
+        const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, charsWithBarrels);
+        
+        // If blocked and we have barrels, try pushing
         if (pushableBarrelStatesRef && pushableBarrelStatesRef.current.length > 0) {
-          const moveX = newState.x - prev.x;
-          const moveY = newState.y - prev.y;
+          const moveX = Math.sin(prev.rotation) * (input.forward ? 1 : input.backward ? -1 : 0);
+          const moveY = -Math.cos(prev.rotation) * (input.forward ? 1 : input.backward ? -1 : 0);
           if (Math.abs(moveX) > 0.001 || Math.abs(moveY) > 0.001) {
-            const pushResult = checkAndPushBarrels(maze, newState.x, newState.y, moveX, moveY, pushableBarrelStatesRef.current);
+            const pushResult = checkAndPushBarrels(maze, prev.x, prev.y, moveX, moveY, pushableBarrelStatesRef.current);
             if (pushResult.pushed && onPushableBarrelPush) {
               onPushableBarrelPush(pushResult.barrels);
+              pushableBarrelStatesRef.current = pushResult.barrels;
+              // Re-run movement without the pushed barrel blocking
+              const updatedBarrelColliders: CharacterPosition[] = pushResult.barrels.map(b => ({
+                x: b.x, y: b.y, radius: 0.4,
+              }));
+              const updatedChars = [...characters, ...updatedBarrelColliders];
+              const retryState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, updatedChars);
+              playerStateRef.current = { x: retryState.x, y: retryState.y, rotation: retryState.rotation };
+              collisionIntensityRef.current = retryState.collisionIntensity;
+            } else {
+              playerStateRef.current = { x: newState.x, y: newState.y, rotation: newState.rotation };
+              collisionIntensityRef.current = newState.collisionIntensity;
             }
+          } else {
+            playerStateRef.current = { x: newState.x, y: newState.y, rotation: newState.rotation };
+            collisionIntensityRef.current = newState.collisionIntensity;
           }
+        } else {
+          playerStateRef.current = { x: newState.x, y: newState.y, rotation: newState.rotation };
+          collisionIntensityRef.current = newState.collisionIntensity;
         }
       } else if (mobileActive) {
         // MOBILE JOYSTICK MODE: Summer Afternoon style camera-relative movement
