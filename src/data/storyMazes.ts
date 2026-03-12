@@ -689,37 +689,39 @@ const chapter7LlamaBlockade: StoryMaze = {
 
 // === ACT 1 LEVEL 8: Rootbeer Cellar ===
 // Uses 'cellar' theme: barrels instead of corn, dark room, ceiling lights
-// Grid uses 2-wide corridors. CELL_SIZE=0.667 → 2 cells ≈ 1.33 world units.
+// Compact cellar puzzle with pushable barrels blocking the path to root beer.
 const chapter8RootbeerCellar: StoryMaze = {
   id: 108, name: "Root Beer Run", chapterId: 'rootbeer_cellar', difficulty: 'medium',
-  timeLimit: 200, timerDisabled: true, previewTime: 10, medalTimes: { gold: 50, silver: 80, bronze: 120 },
+  timeLimit: 200, timerDisabled: true, previewTime: 10, medalTimes: { gold: 15, silver: 25, bronze: 40 },
   theme: 'cellar',
   freeMapAccess: true,
   characters: [
-    { id: 'rootbeer', name: 'Root Beer', emoji: '🍺', model: 'Beer_Mug.glb', animation: 'idle', position: { x: 17, y: 13 } },
+    { id: 'rootbeer', name: 'Root Beer', emoji: '🍺', model: 'Beer_Mug.glb', animation: 'idle', position: { x: 8, y: 6 } },
   ],
-  storyCharacters: [], quest: { id: 'quest_rootbeer_cellar', title: "Root Beer Run", description: 'Navigate the cellar to find the root beer stash!', objectives: [{ id: 'find_rootbeer', type: 'talk_to', description: 'Find the root beer', targetCharacterId: 'rootbeer', completed: false }], rewards: { stars: 12, medal: true } },
+  pushableBarrels: [
+    { id: 'pushbarrel_rb1', model: 'Barrel.glb', position: { x: 4, y: 3 } },
+    { id: 'pushbarrel_rb2', model: 'Barrel.glb', position: { x: 3, y: 2 } },
+    { id: 'pushbarrel_rb3', model: 'Barrel.glb', position: { x: 3, y: 1 } },
+    { id: 'pushbarrel_rb4', model: 'Barrel.glb', position: { x: 5, y: 6 } },
+    { id: 'pushbarrel_rb5', model: 'Barrel.glb', position: { x: 6, y: 7 } },
+    { id: 'pushbarrel_rb6', model: 'Barrel.glb', position: { x: 8, y: 8 } },
+  ],
+  storyCharacters: [], quest: { id: 'quest_rootbeer_cellar', title: "Root Beer Run", description: 'Push barrels out of the way to find the root beer!', objectives: [{ id: 'find_rootbeer', type: 'talk_to', description: 'Find the root beer', targetCharacterId: 'rootbeer', completed: false }], rewards: { stars: 12, medal: true } },
   dialogues: [
-    { id: 'rootbeer_found', speaker: 'You', speakerEmoji: '🐷', message: "🍺 Found it! Perfect for the feast!", cells: [{ x: 16, y: 13 }, { x: 17, y: 13 }, { x: 16, y: 14 }, { x: 17, y: 14 }], speakerCharacterId: 'rootbeer', questAction: { type: 'complete_objective', objectiveId: 'find_rootbeer' } },
+    { id: 'rootbeer_found', speaker: 'You', speakerEmoji: '🐷', message: "🍺 You found the root beer! Perfect for the feast!", cells: [{ x: 7, y: 6 }, { x: 8, y: 6 }, { x: 8, y: 5 }, { x: 8, y: 7 }], speakerCharacterId: 'rootbeer', questAction: { type: 'complete_objective', objectiveId: 'find_rootbeer' } },
   ],
   endConditions: { requiredDialogues: ['rootbeer_found'] },
   grid: createGrid([
-    '######################',
-    '##SS              ####',
-    '##                ####',
-    '######  ########  ####',
-    '######  ########    ##',
-    '######  ########    ##',
-    '##                  ##',
-    '##                  ##',
-    '######  ########    ##',
-    '######  ########    ##',
-    '######  ########    ##',
-    '##                  ##',
-    '##                  ##',
-    '##            EE    ##',
-    '##            EE    ##',
-    '######################',
+    '##########',
+    '#S    ####',
+    '### ######',
+    '###   ####',
+    '#    #####',
+    '## ## ####',
+    '## ##  #E#',
+    '##       #',
+    '######   #',
+    '##########',
   ]),
 };
 
