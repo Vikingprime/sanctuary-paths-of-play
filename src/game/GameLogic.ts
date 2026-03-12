@@ -1278,6 +1278,7 @@ export function checkAndPushBarrels(
   const dir = getPushDirection(moveX, moveY);
   if (!dir) return { barrels, pushed: false };
   
+  // Player world position → grid cell (world pos is gridCell + 0.5)
   const playerGridX = Math.floor(playerX);
   const playerGridY = Math.floor(playerY);
   
@@ -1285,23 +1286,42 @@ export function checkAndPushBarrels(
   const targetGridX = playerGridX + dir.dx;
   const targetGridY = playerGridY + dir.dy;
   
-  // Also check current cell (player might be overlapping barrel)
+  // Find barrel in the target cell OR current cell
   const barrelIndex = barrels.findIndex(b => 
     (b.x === targetGridX && b.y === targetGridY) ||
     (b.x === playerGridX && b.y === playerGridY)
   );
-  if (barrelIndex === -1) return { barrels, pushed: false };
+  
+  if (barrelIndex === -1) {
+    // Debug: log near-misses
+    const nearBarrel = barrels.find(b => {
+      const dist = Math.abs(b.x + 0.5 - playerX) + Math.abs(b.y + 0.5 - playerY);
+      return dist < 2.0;
+    });
+    if (nearBarrel) {
+      console.log(`[PUSH] No barrel found at target(${targetGridX},${targetGridY}) or player(${playerGridX},${playerGridY}). Player world=(${playerX.toFixed(2)},${playerY.toFixed(2)}). Near barrel at grid(${nearBarrel.x},${nearBarrel.y}). dir=(${dir.dx},${dir.dy})`);
+    }
+    return { barrels, pushed: false };
+  }
   
   const barrel = barrels[barrelIndex];
+  console.log(`[PUSH] Pushing barrel ${barrel.id} at grid(${barrel.x},${barrel.y}) in dir(${dir.dx},${dir.dy}). Player at world(${playerX.toFixed(2)},${playerY.toFixed(2)}) grid(${playerGridX},${playerGridY})`);
+  
   const allPositions = barrels.map(b => ({ x: b.x, y: b.y }));
   const result = tryPushBarrel(maze, barrel.x, barrel.y, dir.dx, dir.dy, allPositions.filter((_, i) => i !== barrelIndex));
-  if (!result) return { barrels, pushed: false };
+  if (!result) {
+    console.log(`[PUSH] Push blocked - wall or barrel at (${barrel.x + dir.dx},${barrel.y + dir.dy})`);
+    return { barrels, pushed: false };
+  }
   
+  console.log(`[PUSH] Barrel moved to grid(${result.newX},${result.newY})`);
   const updated = [...barrels];
   updated[barrelIndex] = {
     ...updated[barrelIndex],
     x: result.newX,
     y: result.newY,
+    animX: result.newX + 0.5,
+    animY: result.newY + 0.5,
   };
   return { barrels: updated, pushed: true };
 }
