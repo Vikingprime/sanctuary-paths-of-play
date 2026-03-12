@@ -3355,10 +3355,11 @@ return (
     <>
       
       {/* Lighting - theme-dependent */}
-      {<ambientLight intensity={0.9} color="#FFE4CC" />}
+      {!isCellar && <ambientLight intensity={0.9} color="#FFE4CC" />}
+      {isCellar && <ambientLight intensity={0.3} color="#FFE0C0" />}
       
-      {/* Main directional light - golden hour for corn, dim for cellar */}
-      {(
+      {/* Main directional light - golden hour for corn only */}
+      {!isCellar && (
         <directionalLight
           key={`shadow-light-${lowShadowRes ? 'lo' : 'hi'}`}
           ref={lightRef}
@@ -3380,7 +3381,7 @@ return (
       )}
       
       {/* Fill light (corn theme only) */}
-      {(
+      {!isCellar && (
         <directionalLight
           position={[0, 15, 25]}
           intensity={0.45}
@@ -3389,13 +3390,33 @@ return (
       )}
       
       {/* Hemisphere light for natural sky/ground color */}
-      {<hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
+      {!isCellar && <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
+      
+      {/* Cellar: single overhead point light */}
+      {isCellar && (() => {
+        const cX = maze.grid[0].length / 2;
+        const cZ = maze.grid.length / 2;
+        return (
+          <pointLight
+            position={[cX, 3.5, cZ]}
+            color="#FFD4A0"
+            intensity={25}
+            distance={30}
+            decay={1.5}
+            castShadow={shadowsEnabled}
+            shadow-mapSize={[1024, 1024]}
+          />
+        );
+      })()}
+
+      {/* Cellar perimeter walls */}
+      {isCellar && <CellarWalls maze={maze} />}
       
       {/* Sky */}
-      {skyEnabled && <SkyBackground />}
+      {skyEnabled && !isCellar && <SkyBackground />}
       
       {/* Fog */}
-      {<fogExp2 attach="fog" args={[FogConfig.COLOR_HEX, FogConfig.DENSITY]} />}
+      {<fogExp2 attach="fog" args={[isCellar ? '#1a1208' as any : FogConfig.COLOR_HEX, isCellar ? 0.06 : FogConfig.DENSITY]} />}
 
       {/* Ground */}
       {<Ground maze={maze} rocks={rocks} playerStateRef={playerStateRef} rocksEnabled={!isCellar && rocksEnabled} grassEnabled={!isCellar && grassEnabled} simpleGroundEnabled={simpleGroundEnabled} />}
