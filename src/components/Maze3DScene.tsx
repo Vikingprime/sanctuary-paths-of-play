@@ -702,6 +702,7 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
   const w = maze.grid[0].length;
   const h = maze.grid.length;
   const WALL_HEIGHT = 4;
+  const PAD = 1.5;
 
   const { meshParts, modelSize } = useMemo(() => {
     const parts: { geometry: BufferGeometry; material: Material }[] = [];
@@ -725,21 +726,28 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
     const tileW = modelSize.x * scale;
     const result: { x: number; z: number; rotY: number }[] = [];
 
-    // North wall (z = -0.5)
-    for (let off = 0; off < w + 1; off += tileW) {
-      result.push({ x: -0.5 + off + tileW / 2, z: -0.5, rotY: 0 });
+    const minX = -PAD;
+    const maxX = w + PAD;
+    const minZ = -PAD;
+    const maxZ = h + PAD;
+    const spanX = maxX - minX;
+    const spanZ = maxZ - minZ;
+
+    // North wall - along X at minZ
+    for (let off = 0; off < spanX; off += tileW) {
+      result.push({ x: minX + off + tileW / 2, z: minZ, rotY: 0 });
     }
-    // South wall (z = h + 0.5)
-    for (let off = 0; off < w + 1; off += tileW) {
-      result.push({ x: -0.5 + off + tileW / 2, z: h + 0.5, rotY: Math.PI });
+    // South wall - along X at maxZ
+    for (let off = 0; off < spanX; off += tileW) {
+      result.push({ x: minX + off + tileW / 2, z: maxZ, rotY: Math.PI });
     }
-    // West wall (x = -0.5)
-    for (let off = 0; off < h + 1; off += tileW) {
-      result.push({ x: -0.5, z: -0.5 + off + tileW / 2, rotY: Math.PI / 2 });
+    // West wall - along Z at minX
+    for (let off = 0; off < spanZ; off += tileW) {
+      result.push({ x: minX, z: minZ + off + tileW / 2, rotY: Math.PI / 2 });
     }
-    // East wall (x = w + 0.5)
-    for (let off = 0; off < h + 1; off += tileW) {
-      result.push({ x: w + 0.5, z: -0.5 + off + tileW / 2, rotY: -Math.PI / 2 });
+    // East wall - along Z at maxX
+    for (let off = 0; off < spanZ; off += tileW) {
+      result.push({ x: maxX, z: minZ + off + tileW / 2, rotY: -Math.PI / 2 });
     }
     return result;
   }, [w, h, modelSize]);
