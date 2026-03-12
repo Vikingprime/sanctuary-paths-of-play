@@ -1877,9 +1877,33 @@ const RefBasedPlayer = ({
             rotation: newRotation,
           };
           
-          // Calculate movement
+          // Calculate movement with barrels as collision obstacles
           const prev = playerStateRef.current;
-          const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, characters);
+          
+          // Build barrel collision positions for mobile path
+          const mobileBarrelColliders: CharacterPosition[] = (pushableBarrelStatesRef?.current ?? []).map(b => ({
+            x: b.x, y: b.y, radius: 0.4,
+          }));
+          const mobileCharsWithBarrels = [...characters, ...mobileBarrelColliders];
+          
+          // Try pushing barrels before movement
+          let activeMobileChars = mobileCharsWithBarrels;
+          if (pushableBarrelStatesRef && pushableBarrelStatesRef.current.length > 0) {
+            const pushDirX = Math.sin(newRotation);
+            const pushDirY = -Math.cos(newRotation);
+            const pushResult = checkAndPushBarrels(maze, prev.x, prev.y, pushDirX, pushDirY, pushableBarrelStatesRef.current);
+            if (pushResult.pushed && onPushableBarrelPush) {
+              onPushableBarrelPush(pushResult.barrels);
+              pushableBarrelStatesRef.current = pushResult.barrels;
+              // Rebuild colliders with updated barrel positions
+              const updatedBarrelColliders: CharacterPosition[] = pushResult.barrels.map(b => ({
+                x: b.x, y: b.y, radius: 0.4,
+              }));
+              activeMobileChars = [...characters, ...updatedBarrelColliders];
+            }
+          }
+          
+          const newState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, activeMobileChars);
           
           // Apply tangent constraint at high magnetism strength (locks movement to corridor direction)
           // Now uses fresh polyline lookup with current position (no frame lag)
@@ -1925,18 +1949,6 @@ const RefBasedPlayer = ({
           
           playerStateRef.current = { x: constrained.x, y: constrained.z, rotation: newState.rotation };
           collisionIntensityRef.current = newState.collisionIntensity;
-          
-          // Check pushable barrel interactions (mobile)
-          if (pushableBarrelStatesRef && pushableBarrelStatesRef.current.length > 0) {
-            const pMoveX = constrained.x - prev.x;
-            const pMoveY = constrained.z - prev.y;
-            if (Math.abs(pMoveX) > 0.001 || Math.abs(pMoveY) > 0.001) {
-              const pushResult = checkAndPushBarrels(maze, constrained.x, constrained.z, pMoveX, pMoveY, pushableBarrelStatesRef.current);
-              if (pushResult.pushed && onPushableBarrelPush) {
-                onPushableBarrelPush(pushResult.barrels);
-              }
-            }
-          }
           
           // Update animation refs
           isMovingRef.current = true;
