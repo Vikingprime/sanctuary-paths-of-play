@@ -1320,6 +1320,8 @@ export function checkAndPushBarrels(
     ...updated[barrelIndex],
     x: result.newX,
     y: result.newY,
+    animX: result.newX + 0.5,
+    animY: result.newY + 0.5,
   };
   return { barrels: updated, pushed: true };
 }
