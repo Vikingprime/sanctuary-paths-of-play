@@ -1071,11 +1071,58 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive, maze, showColl
   );
 };
 
+// Pushable barrel visual calibration (matches cellar wall barrel sizing)
+const PUSHABLE_BARREL_BASE_SCALE: Record<string, number> = {
+  'Barrel.glb': 350,
+  'Barrel_1.glb': 70,
+  'Beer_Keg.glb': 0.56,
+  'Keg.glb': 64,
+};
+
+const PUSHABLE_BARREL_X_ROTATION: Record<string, number> = {
+  'Barrel.glb': Math.PI / 2,
+  'Barrel_1.glb': Math.PI / 2,
+};
+
 // PushableBarrelModel - renders a barrel that can be pushed by the player
 const PushableBarrelModel = ({ barrel }: { barrel: PushableBarrelState }) => {
-  const { scene } = useGLTF(`/models/${barrel.model}`);
+  const modelPath = `/models/${barrel.model}`;
+  const { scene } = useGLTF(modelPath);
   const groupRef = useRef<Group>(null);
-  const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
+
+  const clonedScene = useMemo(() => {
+    const clone = SkeletonUtils.clone(scene);
+    clone.traverse((child: any) => {
+      if (child.isMesh) {
+        child.visible = true;
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [scene]);
+
+  const baseScale = PUSHABLE_BARREL_BASE_SCALE[barrel.model] ?? 1;
+  const rotationX = PUSHABLE_BARREL_X_ROTATION[barrel.model] ?? 0;
+
+  const modelYOffset = useMemo(() => {
+    const box = new Box3();
+    clonedScene.traverse((child: any) => {
+      if (child.isMesh && child.geometry) {
+        child.geometry.computeBoundingBox();
+        const bb = child.geometry.boundingBox;
+        if (bb) {
+          box.expandByPoint(bb.min);
+          box.expandByPoint(bb.max);
+        }
+      }
+    });
+
+    if (box.isEmpty()) return 0;
+
+    const effectiveMinY = Math.abs(rotationX) > 0.01 ? box.min.z : box.min.y;
+    return -effectiveMinY * baseScale;
+  }, [clonedScene, baseScale, rotationX]);
   
   // Smooth animation toward target position
   useFrame((_, delta) => {
@@ -1087,15 +1134,13 @@ const PushableBarrelModel = ({ barrel }: { barrel: PushableBarrelState }) => {
     groupRef.current.position.z += (targetZ - groupRef.current.position.z) * Math.min(1, delta * 8);
   });
 
-  // Need X-rotation for barrel models to stand upright
-  const needsXRotation = barrel.model === 'Barrel.glb' || barrel.model === 'Barrel_1.glb';
-
   return (
     <group ref={groupRef} position={[barrel.x + 0.5, 0, barrel.y + 0.5]}>
-      <primitive 
-        object={clonedScene} 
-        scale={0.7}
-        rotation={needsXRotation ? [Math.PI / 2, 0, 0] : [0, 0, 0]}
+      <primitive
+        object={clonedScene}
+        scale={baseScale}
+        rotation={[rotationX, 0, 0]}
+        position={[0, modelYOffset, 0]}
       />
     </group>
   );
