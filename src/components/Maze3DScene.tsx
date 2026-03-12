@@ -152,18 +152,21 @@ interface Maze3DSceneProps {
 // Ground shader using multiple photo textures with random patches
 // Path mud, grass/leaves, rocks - blended organically
 const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean }) => {
+  const isCellar = maze.theme === 'cellar';
+  
   // Load all ground textures
   const pathTexture = useTexture('/textures/ground-path-v2.jpg');
   const grassTexture = useTexture('/textures/ground-grass.jpg');
   const leavesTexture = useTexture('/textures/ground-leaves.jpg');
   const dirtTexture = useTexture('/textures/dirt_floor.jpg');
+  const cellarFloorTexture = useTexture('/textures/cellar-floor.jpg');
   
   const { material } = useMemo(() => {
     const mazeWidth = maze.grid[0].length;
     const mazeHeight = maze.grid.length;
     
     // Configure textures for tiling
-    [pathTexture, grassTexture, leavesTexture, dirtTexture].forEach(tex => {
+    [pathTexture, grassTexture, leavesTexture, dirtTexture, cellarFloorTexture].forEach(tex => {
       tex.wrapS = RepeatWrapping;
       tex.wrapT = RepeatWrapping;
       tex.minFilter = LinearMipmapLinearFilter;
@@ -187,6 +190,92 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
     wallMapTex.needsUpdate = true;
     wallMapTex.magFilter = LinearFilter;
     wallMapTex.minFilter = LinearFilter;
+
+    // Cellar theme: concrete floor with subtle wall/path differentiation
+    if (isCellar) {
+      const mat = new ShaderMaterial({
+        uniforms: {
+          floorTex: { value: cellarFloorTexture },
+          wallMap: { value: wallMapTex },
+          mazeWidth: { value: mazeWidth },
+          mazeHeight: { value: mazeHeight },
+          tileScale: { value: 2.0 },
+          fogColor: { value: new Color(ATMOSPHERE_COLOR) },
+          fogDensity: { value: 0.14 },
+          fogHeightMax: { value: 2.5 },
+        },
+        fog: true,
+        vertexShader: `
+          varying vec3 vWorldPos;
+          varying float vFogDepth;
+          void main() {
+            vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            vFogDepth = -mvPosition.z;
+            gl_Position = projectionMatrix * mvPosition;
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D floorTex;
+          uniform sampler2D wallMap;
+          uniform float mazeWidth;
+          uniform float mazeHeight;
+          uniform float tileScale;
+          uniform vec3 fogColor;
+          uniform float fogDensity;
+          uniform float fogHeightMax;
+          varying vec3 vWorldPos;
+          varying float vFogDepth;
+
+          float hash(vec2 p) {
+            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+          }
+
+          float noise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            float a = hash(i);
+            float b = hash(i + vec2(1.0, 0.0));
+            float c = hash(i + vec2(0.0, 1.0));
+            float d = hash(i + vec2(1.0, 1.0));
+            return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+          }
+
+          void main() {
+            vec2 worldUV = vWorldPos.xz;
+            vec2 mazeUV = worldUV / vec2(mazeWidth, mazeHeight);
+            float isWall = texture2D(wallMap, mazeUV).r;
+
+            float inBounds = step(0.0, mazeUV.x) * step(mazeUV.x, 1.0) *
+                            step(0.0, mazeUV.y) * step(mazeUV.y, 1.0);
+
+            float edgeNoise = noise(worldUV * 1.5) * 0.3;
+            float wallMask = smoothstep(0.3, 0.7, isWall + edgeNoise);
+            wallMask = mix(1.0, wallMask, inBounds);
+
+            // Sample concrete floor texture
+            vec2 texUV = worldUV * tileScale;
+            vec3 floorColor = texture2D(floorTex, texUV).rgb;
+
+            // Path areas slightly brighter, barrel areas slightly darker
+            vec3 pathColor = floorColor * 0.75;
+            vec3 barrelColor = floorColor * 0.45;
+
+            vec3 finalColor = mix(pathColor, barrelColor, wallMask);
+
+            // Fog
+            float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
+            float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+            fogFactor *= heightAttenuation;
+            finalColor = mix(finalColor, fogColor, clamp(fogFactor, 0.0, 1.0));
+
+            gl_FragColor = vec4(finalColor, 1.0);
+          }
+        `,
+      });
+      return { material: mat };
+    }
     
     const mat = new ShaderMaterial({
       uniforms: {
@@ -350,7 +439,7 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
     });
     
     return { material: mat };
-  }, [maze, simple, pathTexture, grassTexture, leavesTexture, dirtTexture]);
+  }, [maze, simple, isCellar, pathTexture, grassTexture, leavesTexture, dirtTexture, cellarFloorTexture]);
   
   return <primitive object={material} attach="material" />;
 };
