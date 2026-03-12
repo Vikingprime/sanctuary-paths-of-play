@@ -3271,7 +3271,7 @@ return (
       )}
       
       {/* Fill light (corn theme only) */}
-      {!isCellar && (
+      {(
         <directionalLight
           position={[0, 15, 25]}
           intensity={0.45}
