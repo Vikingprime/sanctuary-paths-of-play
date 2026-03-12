@@ -2598,25 +2598,31 @@ const OverShoulderCameraController = ({
       
       // Determine if we're pushing in or relaxing out
       const isPushingIn = targetDist < currAutoDist;
-      const lerpSpeed = isPushingIn ? autopush.pushLerp : autopush.relaxLerp;
       
-      // Calculate desired change
-      let desiredChange = (targetDist - currAutoDist) * lerpSpeed;
-      
-      // Apply speed limits (units per second * deltaTime = max change this frame)
-      const maxZoomIn = AUTOPUSH_ZOOM_IN_SPEED * deltaTime;
-      const maxZoomOut = AUTOPUSH_ZOOM_OUT_SPEED * deltaTime;
-      
-      if (desiredChange < 0) {
-        // Zooming in (distance decreasing)
-        desiredChange = Math.max(desiredChange, -maxZoomIn);
+      // Hard wall hits: snap immediately to prevent any clipping
+      if (hardWallHit && isPushingIn) {
+        currentAutopushDist.current = targetDist;
       } else {
-        // Zooming out (distance increasing)
-        desiredChange = Math.min(desiredChange, maxZoomOut);
+        const lerpSpeed = isPushingIn ? autopush.pushLerp : autopush.relaxLerp;
+        
+        // Calculate desired change
+        let desiredChange = (targetDist - currAutoDist) * lerpSpeed;
+        
+        // Apply speed limits (units per second * deltaTime = max change this frame)
+        const maxZoomIn = AUTOPUSH_ZOOM_IN_SPEED * deltaTime;
+        const maxZoomOut = AUTOPUSH_ZOOM_OUT_SPEED * deltaTime;
+        
+        if (desiredChange < 0) {
+          // Zooming in (distance decreasing)
+          desiredChange = Math.max(desiredChange, -maxZoomIn);
+        } else {
+          // Zooming out (distance increasing)
+          desiredChange = Math.min(desiredChange, maxZoomOut);
+        }
+        
+        // Apply the speed-limited change
+        currentAutopushDist.current = currAutoDist + desiredChange;
       }
-      
-      // Apply the speed-limited change
-      currentAutopushDist.current = currAutoDist + desiredChange;
       
       // Clamp to valid range (use absoluteMinDist=0.5, not autopush.minDist which is for relaxed state)
       const absoluteMinDist = 0.5;
