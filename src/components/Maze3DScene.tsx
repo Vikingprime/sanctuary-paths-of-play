@@ -1785,7 +1785,7 @@ const RefBasedPlayer = ({
               pushableBarrelStatesRef.current = pushResult.barrels;
               // Re-run movement without the pushed barrel blocking
               const updatedBarrelColliders: CharacterPosition[] = pushResult.barrels.map(b => ({
-                x: b.x, y: b.y, radius: 0.4,
+                x: b.x + 0.5, y: b.y + 0.5, radius: 0.4,
               }));
               const updatedChars = [...characters, ...updatedBarrelColliders];
               const retryState = calculateMovement(maze, prev, input, clampedDelta, speedBoostActive, rocks, animalType, updatedChars);
