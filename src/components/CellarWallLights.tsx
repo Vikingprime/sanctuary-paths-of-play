@@ -16,7 +16,14 @@ interface FixturePlacement {
   rotY: number;
 }
 
-const enhanceMaterial = (material: Material) => {
+const BULB_KEYWORDS = ['bulb', 'light', 'lamp', 'glass', 'flame', 'glow', 'candle', 'fire', 'emission'];
+
+const isBulbMesh = (name: string) => {
+  const lower = name.toLowerCase();
+  return BULB_KEYWORDS.some((kw) => lower.includes(kw));
+};
+
+const makeBulbMaterial = (material: Material) => {
   const cloned = material.clone() as Material & {
     emissive?: Color;
     emissiveIntensity?: number;
@@ -24,11 +31,10 @@ const enhanceMaterial = (material: Material) => {
     needsUpdate?: boolean;
   };
 
-  if ('emissive' in cloned && cloned.emissive) {
+  if ('emissive' in cloned) {
     cloned.emissive = new Color('#ffdd99');
-    cloned.emissiveIntensity = 2.0;
+    cloned.emissiveIntensity = 3.0;
   }
-
   if ('toneMapped' in cloned) cloned.toneMapped = false;
   cloned.needsUpdate = true;
   return cloned;
@@ -77,16 +83,27 @@ export const CellarWallLights = ({ maze, roofHeight }: CellarWallLightsProps) =>
     return placements.map((p, i) => {
       const clone = sconceScene.clone(true) as Group;
 
+      // Log mesh names once for debugging
+      if (i === 0) {
+        clone.traverse((child: any) => {
+          if (child.isMesh) console.log('[Sconce] mesh name:', child.name);
+        });
+      }
+
       clone.traverse((child: any) => {
         if (!child.isMesh) return;
         child.visible = true;
         child.castShadow = true;
         child.receiveShadow = true;
 
-        if (Array.isArray(child.material)) {
-          child.material = child.material.map((mat: Material) => enhanceMaterial(mat));
-        } else if (child.material) {
-          child.material = enhanceMaterial(child.material as Material);
+        const applyGlow = isBulbMesh(child.name);
+
+        if (applyGlow) {
+          if (Array.isArray(child.material)) {
+            child.material = child.material.map((mat: Material) => makeBulbMaterial(mat));
+          } else if (child.material) {
+            child.material = makeBulbMaterial(child.material as Material);
+          }
         }
       });
 
