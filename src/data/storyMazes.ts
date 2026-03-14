@@ -38,7 +38,6 @@ const chapter1Maze: StoryMaze = {
   name: "The Missing Ring",
   chapterId: 'chapter_1',
   difficulty: 'easy',
-  theme: 'cellar', // TEMP for testing sconce lights
   timeLimit: 180,
   timerDisabled: true,
   previewTime: 10,
