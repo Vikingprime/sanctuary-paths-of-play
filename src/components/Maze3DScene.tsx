@@ -3515,22 +3515,8 @@ return (
       {/* Hemisphere light for natural sky/ground color */}
       {!isCellar && <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
       
-      {/* Cellar: single overhead point light */}
-      {isCellar && (() => {
-        const cX = maze.grid[0].length / 2;
-        const cZ = maze.grid.length / 2;
-        return (
-          <pointLight
-            position={[cX, 3.5, cZ]}
-            color="#FFD4A0"
-            intensity={25}
-            distance={30}
-            decay={1.5}
-            castShadow={shadowsEnabled}
-            shadow-mapSize={[1024, 1024]}
-          />
-        );
-      })()}
+      {/* Cellar: wall-mounted sconce lights along perimeter */}
+      {isCellar && cellarLightsEnabled && <CellarWallLights maze={maze} roofHeight={cellarRoofHeight} />}
 
       {/* Cellar perimeter walls */}
       {isCellar && <CellarWalls maze={maze} />}
