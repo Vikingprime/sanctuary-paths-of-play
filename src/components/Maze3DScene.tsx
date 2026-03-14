@@ -708,10 +708,10 @@ const CellarWallLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number
   const maxX = gridW + PAD;
   const maxZ = gridH + PAD;
 
-  const SCONCE_HEIGHT = roofHeight * 0.65;
-  const SCONCE_SCALE = 3.0;
-  const WALL_OFFSET = 0.05;
-  const SPACING = 4;
+  const SCONCE_HEIGHT = roofHeight * 0.6;
+  const SCONCE_SCALE = 5.0;
+  const WALL_OFFSET = 0.15;
+  const SPACING = 3;
 
   const sconceData = useMemo(() => {
     const data: { x: number; z: number; rotY: number }[] = [];
@@ -749,6 +749,9 @@ const CellarWallLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number
     // Center geometries
     const center = new Vector3();
     combinedBox.getCenter(center);
+    const size = new Vector3();
+    combinedBox.getSize(size);
+    console.log('[CellarWallLights] Sconce model size:', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2), 'center:', center.x.toFixed(2), center.y.toFixed(2), center.z.toFixed(2), 'parts:', parts.length);
     parts.forEach(p => p.geometry.translate(-center.x, -combinedBox.min.y, -center.z));
     return parts;
   }, [scene]);
@@ -800,10 +803,10 @@ const CellarWallLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number
           <pointLight
             key={`sconce-${i}`}
             position={[lx, SCONCE_HEIGHT + 0.15, lz]}
-            color="#FFB36B"
-            intensity={8}
-            distance={10}
-            decay={1.6}
+            color="#FFCC66"
+            intensity={15}
+            distance={12}
+            decay={1.4}
             castShadow={false}
           />
         );
