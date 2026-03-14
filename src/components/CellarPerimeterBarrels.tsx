@@ -7,20 +7,37 @@ useGLTF.preload('/models/Barrel.glb');
 useGLTF.preload('/models/Barrel_1.glb');
 useGLTF.preload('/models/Beer_Keg.glb');
 useGLTF.preload('/models/Keg.glb');
+useGLTF.preload('/models/Bags.glb');
+useGLTF.preload('/models/Sack.glb');
 
-const BARREL_CONFIGS = [
-  { model: '/models/Barrel.glb', baseScale: 120, rotationX: -Math.PI / 2 },
-  { model: '/models/Barrel_1.glb', baseScale: 24, rotationX: -Math.PI / 2 },
-  { model: '/models/Beer_Keg.glb', baseScale: 0.2, rotationX: 0 },
-  { model: '/models/Keg.glb', baseScale: 22, rotationX: 0 },
+// Scales matching BarrelWall BARREL_TYPES config, then scaled to ~0.5x for decorative perimeter size
+const DECOR_CONFIGS = [
+  { model: '/models/Barrel.glb', baseScale: 350 * 0.5, rotationX: -Math.PI / 2, weight: 3 },
+  { model: '/models/Barrel_1.glb', baseScale: 70 * 0.5, rotationX: -Math.PI / 2, weight: 3 },
+  { model: '/models/Beer_Keg.glb', baseScale: 0.56 * 0.5, rotationX: 0, weight: 2 },
+  { model: '/models/Keg.glb', baseScale: 64 * 0.5, rotationX: 0, weight: 2 },
+  { model: '/models/Bags.glb', baseScale: 1.0, rotationX: 0, weight: 3 },
+  { model: '/models/Sack.glb', baseScale: 1.0, rotationX: 0, weight: 3 },
 ];
+
+const TOTAL_WEIGHT = DECOR_CONFIGS.reduce((s, c) => s + c.weight, 0);
 
 const seededRandom = (seed: number) => {
   const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
 };
 
-interface PerimeterBarrelPlacement {
+const pickType = (seed: number) => {
+  const r = seededRandom(seed) * TOTAL_WEIGHT;
+  let acc = 0;
+  for (let i = 0; i < DECOR_CONFIGS.length; i++) {
+    acc += DECOR_CONFIGS[i].weight;
+    if (r < acc) return i;
+  }
+  return DECOR_CONFIGS.length - 1;
+};
+
+interface DecorPlacement {
   x: number;
   z: number;
   rotY: number;
@@ -37,11 +54,12 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
     useGLTF('/models/Barrel_1.glb').scene,
     useGLTF('/models/Beer_Keg.glb').scene,
     useGLTF('/models/Keg.glb').scene,
+    useGLTF('/models/Bags.glb').scene,
+    useGLTF('/models/Sack.glb').scene,
   ];
 
-  // Get model metrics for grounding
   const typeMetrics = useMemo(() => {
-    return scenes.map((scene, i) => {
+    return scenes.map((scene) => {
       const box = new Box3();
       scene.traverse((child: any) => {
         if (child.isMesh && child.geometry) {
@@ -52,13 +70,29 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
       });
       const size = new Vector3();
       box.getSize(size);
+      // Log size for sack/bag models to calibrate
       return { minY: box.min.y, minZ: box.min.z, size };
     });
   }, [scenes]);
 
+  // Auto-calibrate sack/bag scales: target ~0.6 world units tall
+  const calibratedConfigs = useMemo(() => {
+    return DECOR_CONFIGS.map((config, i) => {
+      if (i < 4) return config; // barrels already calibrated
+      const metrics = typeMetrics[i];
+      const rotX = config.rotationX;
+      const modelHeight = Math.abs(rotX) > 0.01 ? metrics.size.z : metrics.size.y;
+      if (modelHeight === 0) return config;
+      const targetHeight = 0.6;
+      const autoScale = targetHeight / modelHeight;
+      console.log(`[Perimeter] ${config.model} modelHeight=${modelHeight.toFixed(3)} autoScale=${autoScale.toFixed(3)}`);
+      return { ...config, baseScale: autoScale };
+    });
+  }, [typeMetrics]);
+
   const placements = useMemo(() => {
     const PAD = 4;
-    const SPACING = 1.8;
+    const SPACING = 1.6;
     const WALL_INSET = 0.8;
 
     const gridH = maze.grid.length;
@@ -68,39 +102,39 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
     const maxX = gridW + PAD;
     const maxZ = gridH + PAD;
 
-    const data: PerimeterBarrelPlacement[] = [];
+    const data: DecorPlacement[] = [];
     let seed = 42;
 
-    const addBarrel = (x: number, z: number, rotY: number) => {
+    const addItem = (x: number, z: number, rotY: number) => {
       seed++;
-      const typeIndex = Math.floor(seededRandom(seed * 7 + 3) * BARREL_CONFIGS.length);
-      const scaleVariation = 0.8 + seededRandom(seed * 13 + 5) * 0.4; // 0.8-1.2
-      const scale = BARREL_CONFIGS[typeIndex].baseScale * scaleVariation;
-      const jitterX = (seededRandom(seed * 17 + 11) - 0.5) * 0.3;
-      const jitterZ = (seededRandom(seed * 23 + 19) - 0.5) * 0.3;
+      const typeIndex = pickType(seed * 7 + 3);
+      const scaleVariation = 0.85 + seededRandom(seed * 13 + 5) * 0.3;
+      const scale = calibratedConfigs[typeIndex].baseScale * scaleVariation;
+      const jitterX = (seededRandom(seed * 17 + 11) - 0.5) * 0.25;
+      const jitterZ = (seededRandom(seed * 23 + 19) - 0.5) * 0.25;
       const rotJitter = seededRandom(seed * 29 + 7) * Math.PI * 2;
       data.push({ x: x + jitterX, z: z + jitterZ, rotY: rotY + rotJitter, typeIndex, scale });
     };
 
     // North wall
     for (let x = minX + 1; x <= maxX - 1; x += SPACING) {
-      if (seededRandom(++seed) > 0.3) addBarrel(x + 0.5, minZ + WALL_INSET, 0);
+      if (seededRandom(++seed) > 0.25) addItem(x + 0.5, minZ + WALL_INSET, 0);
     }
     // South wall
     for (let x = minX + 1; x <= maxX - 1; x += SPACING) {
-      if (seededRandom(++seed) > 0.3) addBarrel(x + 0.5, maxZ - WALL_INSET, Math.PI);
+      if (seededRandom(++seed) > 0.25) addItem(x + 0.5, maxZ - WALL_INSET, Math.PI);
     }
     // West wall
     for (let z = minZ + 1; z <= maxZ - 1; z += SPACING) {
-      if (seededRandom(++seed) > 0.3) addBarrel(minX + WALL_INSET, z + 0.5, Math.PI / 2);
+      if (seededRandom(++seed) > 0.25) addItem(minX + WALL_INSET, z + 0.5, Math.PI / 2);
     }
     // East wall
     for (let z = minZ + 1; z <= maxZ - 1; z += SPACING) {
-      if (seededRandom(++seed) > 0.3) addBarrel(maxX - WALL_INSET, z + 0.5, -Math.PI / 2);
+      if (seededRandom(++seed) > 0.25) addItem(maxX - WALL_INSET, z + 0.5, -Math.PI / 2);
     }
 
     return data;
-  }, [maze]);
+  }, [maze, calibratedConfigs]);
 
   useEffect(() => {
     const group = groupRef.current;
@@ -110,7 +144,7 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
     const allMeshes: InstancedMesh[] = [];
 
     // Group placements by type
-    const byType: Map<number, PerimeterBarrelPlacement[]> = new Map();
+    const byType: Map<number, DecorPlacement[]> = new Map();
     placements.forEach(p => {
       if (!byType.has(p.typeIndex)) byType.set(p.typeIndex, []);
       byType.get(p.typeIndex)!.push(p);
@@ -121,7 +155,7 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
 
     byType.forEach((typePlacements, typeIndex) => {
       const scene = scenes[typeIndex];
-      const config = BARREL_CONFIGS[typeIndex];
+      const config = calibratedConfigs[typeIndex];
       const metrics = typeMetrics[typeIndex];
 
       scene.traverse((child: any) => {
@@ -129,9 +163,7 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
 
         const geom = child.geometry.clone();
         const mat = child.material.clone();
-
-        // Vary material per-instance via instance color
-        if ('roughness' in mat) mat.roughness = 0.75;
+        if ('roughness' in mat) mat.roughness = 0.8;
         mat.needsUpdate = true;
 
         const mesh = new InstancedMesh(geom, mat, typePlacements.length);
@@ -147,10 +179,9 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
           dummy.updateMatrix();
           mesh.setMatrixAt(i, dummy.matrix);
 
-          // Subtle color variation
-          const seed = p.x * 73 + p.z * 137 + i * 31;
-          const hue = (seededRandom(seed) - 0.5) * 0.04;
-          const light = (seededRandom(seed + 1) - 0.5) * 0.1;
+          const sd = p.x * 73 + p.z * 137 + i * 31;
+          const hue = (seededRandom(sd) - 0.5) * 0.04;
+          const light = (seededRandom(sd + 1) - 0.5) * 0.1;
           instanceColor.set('#9B8B75');
           instanceColor.offsetHSL(hue, 0, light);
           mesh.setColorAt(i, instanceColor);
@@ -175,7 +206,7 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
       });
       createdRef.current = false;
     };
-  }, [placements, scenes, typeMetrics]);
+  }, [placements, scenes, typeMetrics, calibratedConfigs]);
 
   return <group ref={groupRef} />;
 };

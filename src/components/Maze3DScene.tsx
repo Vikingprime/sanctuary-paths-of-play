@@ -283,7 +283,16 @@ const GroundMaterial = ({ maze, simple = false }: { maze: Maze; simple?: boolean
 
             vec3 floorColor = col1 * w1 + col2 * w2 + col3 * w3 + col4 * w4;
 
-            vec3 finalColor = floorColor * 0.7;
+            // Add subtle stain patches for visual interest
+            float stain = noise(worldUV * 2.5 + vec2(100.0, -50.0));
+            float stainMask = smoothstep(0.55, 0.7, stain) * 0.15;
+            floorColor = mix(floorColor, vec3(0.12, 0.08, 0.05), stainMask);
+
+            // Slight warm tint variation
+            float warmth = noise(worldUV * 0.3 + vec2(-20.0, 40.0));
+            floorColor *= mix(vec3(0.95, 0.9, 0.85), vec3(1.0, 0.95, 0.88), warmth);
+
+            vec3 finalColor = floorColor * 0.75;
 
             // Fog
             float heightAttenuation = 1.0 - smoothstep(0.0, fogHeightMax, vWorldPos.y);
@@ -732,7 +741,7 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
         
         // Enhance brick material for richer look
         const mat = child.material.clone();
-        if ('roughness' in mat) mat.roughness = 0.85;
+        if ('roughness' in mat) mat.roughness = 0.95;
         if ('metalness' in mat) mat.metalness = 0.05;
         if ('normalScale' in mat && mat.normalScale) {
           mat.normalScale.set(1.4, 1.4);
