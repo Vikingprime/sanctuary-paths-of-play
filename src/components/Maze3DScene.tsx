@@ -727,10 +727,28 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
     brickScene.traverse((child: any) => {
       if (child.isMesh) {
         const geom = child.geometry.clone();
-        // Translate geometry so the model's combined center maps to origin
-        // We want the bottom of the wall at Y=0, so shift Y by -box.min.y instead of -center.y
         geom.translate(-center.x, -box.min.y, -center.z);
-        parts.push({ geometry: geom, material: child.material.clone() });
+        
+        // Enhance brick material for richer look
+        const mat = child.material.clone();
+        if ('roughness' in mat) mat.roughness = 0.85;
+        if ('metalness' in mat) mat.metalness = 0.05;
+        if ('normalScale' in mat && mat.normalScale) {
+          mat.normalScale.set(1.4, 1.4);
+        }
+        // Warm the brick color slightly
+        if ('color' in mat && mat.color) {
+          const c = mat.color.clone();
+          c.offsetHSL(0.01, 0.08, -0.04); // slightly warmer, more saturated, darker
+          mat.color = c;
+        }
+        // Subtle emissive for warmth from sconce light bounce
+        if ('emissive' in mat) {
+          mat.emissive = new Color('#1a0d05');
+          mat.emissiveIntensity = 0.3;
+        }
+        mat.needsUpdate = true;
+        parts.push({ geometry: geom, material: mat });
       }
     });
     
