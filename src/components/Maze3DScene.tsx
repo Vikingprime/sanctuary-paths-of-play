@@ -3639,7 +3639,8 @@ return (
       {!isCellar && <hemisphereLight args={['#FFB870', '#9B7B5A', 0.55]} />}
       
       {/* Cellar: wall-mounted sconce lights along perimeter */}
-      {isCellar && cellarLightsEnabled && <CellarWallLights maze={maze} roofHeight={cellarRoofHeight} />}
+      {isCellar && (() => { console.log('[Scene] Cellar lights check: isCellar=', isCellar, 'cellarLightsEnabled=', cellarLightsEnabled); return null; })()}
+      {isCellar && <CellarWallLights maze={maze} roofHeight={cellarRoofHeight} />}
 
       {/* Cellar perimeter walls */}
       {isCellar && <CellarWalls maze={maze} />}
