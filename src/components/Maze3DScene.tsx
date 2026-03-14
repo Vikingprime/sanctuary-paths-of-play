@@ -732,7 +732,7 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
         
         // Enhance brick material for richer look
         const mat = child.material.clone();
-        if ('roughness' in mat) mat.roughness = 0.85;
+        if ('roughness' in mat) mat.roughness = 0.95;
         if ('metalness' in mat) mat.metalness = 0.05;
         if ('normalScale' in mat && mat.normalScale) {
           mat.normalScale.set(1.4, 1.4);
