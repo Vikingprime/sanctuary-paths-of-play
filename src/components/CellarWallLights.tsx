@@ -83,16 +83,27 @@ export const CellarWallLights = ({ maze, roofHeight }: CellarWallLightsProps) =>
     return placements.map((p, i) => {
       const clone = sconceScene.clone(true) as Group;
 
+      // Log mesh names once for debugging
+      if (i === 0) {
+        clone.traverse((child: any) => {
+          if (child.isMesh) console.log('[Sconce] mesh name:', child.name);
+        });
+      }
+
       clone.traverse((child: any) => {
         if (!child.isMesh) return;
         child.visible = true;
         child.castShadow = true;
         child.receiveShadow = true;
 
-        if (Array.isArray(child.material)) {
-          child.material = child.material.map((mat: Material) => enhanceMaterial(mat));
-        } else if (child.material) {
-          child.material = enhanceMaterial(child.material as Material);
+        const applyGlow = isBulbMesh(child.name);
+
+        if (applyGlow) {
+          if (Array.isArray(child.material)) {
+            child.material = child.material.map((mat: Material) => makeBulbMaterial(mat));
+          } else if (child.material) {
+            child.material = makeBulbMaterial(child.material as Material);
+          }
         }
       });
 
