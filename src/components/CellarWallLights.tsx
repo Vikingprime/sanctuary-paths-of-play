@@ -4,23 +4,19 @@ import { Color, Group, Material } from 'three';
 import { Maze } from '@/types/game';
 
 useGLTF.preload('/models/Sconce_light.glb');
-useGLTF.preload('/models/Lantern.glb');
 
 interface CellarWallLightsProps {
   maze: Maze;
   roofHeight: number;
 }
 
-type FixtureType = 'sconce' | 'lamp';
-
 interface FixturePlacement {
   x: number;
   z: number;
   rotY: number;
-  type: FixtureType;
 }
 
-const enhanceMaterial = (material: Material, type: FixtureType) => {
+const enhanceMaterial = (material: Material) => {
   const cloned = material.clone() as Material & {
     emissive?: Color;
     emissiveIntensity?: number;
@@ -29,23 +25,22 @@ const enhanceMaterial = (material: Material, type: FixtureType) => {
   };
 
   if ('emissive' in cloned && cloned.emissive) {
-    cloned.emissive = new Color(type === 'lamp' ? '#ffe2a6' : '#ffd89a');
-    cloned.emissiveIntensity = type === 'lamp' ? 1.05 : 0.85;
+    cloned.emissive = new Color('#ffdd99');
+    cloned.emissiveIntensity = 2.0;
   }
 
-  if ('toneMapped' in cloned) cloned.toneMapped = true;
+  if ('toneMapped' in cloned) cloned.toneMapped = false;
   cloned.needsUpdate = true;
   return cloned;
 };
 
 export const CellarWallLights = ({ maze, roofHeight }: CellarWallLightsProps) => {
   const { scene: sconceScene } = useGLTF('/models/Sconce_light.glb');
-  const { scene: lampScene } = useGLTF('/models/Lantern.glb');
 
   const placements = useMemo(() => {
     const PAD = 4;
-    const WALL_INSET = 0.62; // pull fixtures inward so they are visible from inside the cellar
-    const SPACING = 3;
+    const WALL_INSET = 0.45;
+    const SPACING = 4;
 
     const gridH = maze.grid.length;
     const gridW = maze.grid[0]?.length ?? 0;
@@ -55,36 +50,32 @@ export const CellarWallLights = ({ maze, roofHeight }: CellarWallLightsProps) =>
     const maxZ = gridH + PAD;
 
     const data: FixturePlacement[] = [];
-    let index = 0;
 
-    const pickType = () => {
-      const type: FixtureType = index % 2 === 0 ? 'sconce' : 'lamp';
-      index += 1;
-      return type;
-    };
-
+    // North wall
     for (let x = minX + 2; x <= maxX - 2; x += SPACING) {
-      data.push({ x: x + 0.5, z: minZ + WALL_INSET, rotY: 0, type: pickType() });
+      data.push({ x: x + 0.5, z: minZ + WALL_INSET, rotY: 0 });
     }
+    // South wall
     for (let x = minX + 2; x <= maxX - 2; x += SPACING) {
-      data.push({ x: x + 0.5, z: maxZ - WALL_INSET, rotY: Math.PI, type: pickType() });
+      data.push({ x: x + 0.5, z: maxZ - WALL_INSET, rotY: Math.PI });
     }
+    // West wall
     for (let z = minZ + 2; z <= maxZ - 2; z += SPACING) {
-      data.push({ x: minX + WALL_INSET, z: z + 0.5, rotY: Math.PI / 2, type: pickType() });
+      data.push({ x: minX + WALL_INSET, z: z + 0.5, rotY: Math.PI / 2 });
     }
+    // East wall
     for (let z = minZ + 2; z <= maxZ - 2; z += SPACING) {
-      data.push({ x: maxX - WALL_INSET, z: z + 0.5, rotY: -Math.PI / 2, type: pickType() });
+      data.push({ x: maxX - WALL_INSET, z: z + 0.5, rotY: -Math.PI / 2 });
     }
 
     return data;
   }, [maze]);
 
-  const fixtures = useMemo(() => {
-    const mountHeight = roofHeight * 0.62;
+  const mountHeight = roofHeight * 0.55;
 
-    return placements.map((placement, i) => {
-      const source = placement.type === 'sconce' ? sconceScene : lampScene;
-      const clone = source.clone(true) as Group;
+  const fixtures = useMemo(() => {
+    return placements.map((p, i) => {
+      const clone = sconceScene.clone(true) as Group;
 
       clone.traverse((child: any) => {
         if (!child.isMesh) return;
@@ -93,32 +84,49 @@ export const CellarWallLights = ({ maze, roofHeight }: CellarWallLightsProps) =>
         child.receiveShadow = true;
 
         if (Array.isArray(child.material)) {
-          child.material = child.material.map((mat: Material) => enhanceMaterial(mat, placement.type));
+          child.material = child.material.map((mat: Material) => enhanceMaterial(mat));
         } else if (child.material) {
-          child.material = enhanceMaterial(child.material as Material, placement.type);
+          child.material = enhanceMaterial(child.material as Material);
         }
       });
 
-      clone.position.set(placement.x, mountHeight, placement.z);
+      clone.position.set(p.x, mountHeight, p.z);
       clone.rotation.order = 'YXZ';
-
-      if (placement.type === 'sconce') {
-        clone.rotation.set(-Math.PI / 2, placement.rotY, 0);
-        clone.scale.setScalar(5.4);
-      } else {
-        clone.rotation.set(0, placement.rotY, 0);
-        clone.scale.setScalar(2.25);
-      }
-
+      clone.rotation.set(-Math.PI / 2, p.rotY, 0);
+      clone.scale.setScalar(6.0);
       clone.updateMatrixWorld(true);
-      return { key: `${placement.type}-${i}`, object: clone };
+
+      return { key: `sconce-${i}`, object: clone, placement: p };
     });
-  }, [placements, roofHeight, sconceScene, lampScene]);
+  }, [placements, mountHeight, sconceScene]);
+
+  // Compute light offset direction (inward from wall) per fixture
+  const lightOffsets = useMemo(() => {
+    return placements.map((p) => {
+      const dx = Math.sin(p.rotY) * 0.4;
+      const dz = Math.cos(p.rotY) * 0.4;
+      return { dx, dz };
+    });
+  }, [placements]);
 
   return (
     <group>
-      {fixtures.map((fixture) => (
-        <primitive key={fixture.key} object={fixture.object} />
+      {fixtures.map((fixture, i) => (
+        <group key={fixture.key}>
+          <primitive object={fixture.object} />
+          <pointLight
+            position={[
+              fixture.placement.x + lightOffsets[i].dx,
+              mountHeight + 0.3,
+              fixture.placement.z + lightOffsets[i].dz,
+            ]}
+            color="#FFD080"
+            intensity={12}
+            distance={10}
+            decay={1.5}
+            castShadow={false}
+          />
+        </group>
       ))}
     </group>
   );
