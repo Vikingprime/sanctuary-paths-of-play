@@ -22,6 +22,7 @@ export const mazes: Maze[] = [
     id: 1,
     name: 'Sunny Meadow',
     difficulty: 'easy',
+    theme: 'cellar' as any, // TEMP: testing cellar walls
     timeLimit: 30,
     previewTime: 8,
     medalTimes: {
