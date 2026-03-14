@@ -758,7 +758,7 @@ const CellarWallLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number
     if (!group || createdRef.current || sconceData.length === 0 || meshParts.length === 0) return;
     createdRef.current = true;
 
-    const allMeshes: ThreeInstancedMesh[] = [];
+    const allMeshes: InstancedMesh[] = [];
     const dummy = new Object3D();
 
     meshParts.forEach((part) => {
