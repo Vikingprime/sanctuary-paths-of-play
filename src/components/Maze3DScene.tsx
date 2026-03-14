@@ -813,34 +813,7 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
     };
   }, [instances, meshParts, modelSize]);
 
-  // Debug green perimeter line at wall positions
-  const perimeterPoints = useMemo(() => {
-    const y = 1.5;
-    return [
-      new Vector3(minX, y, minZ),
-      new Vector3(maxX, y, minZ),
-      new Vector3(maxX, y, maxZ),
-      new Vector3(minX, y, maxZ),
-      new Vector3(minX, y, minZ),
-    ];
-  }, [minX, maxX, minZ, maxZ]);
-
-  return (
-    <group ref={groupRef}>
-      {/* Debug perimeter line - green */}
-      <line>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={perimeterPoints.length}
-            array={new Float32Array(perimeterPoints.flatMap(p => [p.x, p.y, p.z]))}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial color="lime" linewidth={2} />
-      </line>
-    </group>
-  );
+  return <group ref={groupRef} />;
 };
 
 
