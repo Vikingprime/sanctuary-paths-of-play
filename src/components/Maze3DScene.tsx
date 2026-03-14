@@ -749,6 +749,9 @@ const CellarWallLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number
     // Center geometries
     const center = new Vector3();
     combinedBox.getCenter(center);
+    const size = new Vector3();
+    combinedBox.getSize(size);
+    console.log('[CellarWallLights] Sconce model size:', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2), 'center:', center.x.toFixed(2), center.y.toFixed(2), center.z.toFixed(2), 'parts:', parts.length);
     parts.forEach(p => p.geometry.translate(-center.x, -combinedBox.min.y, -center.z));
     return parts;
   }, [scene]);
