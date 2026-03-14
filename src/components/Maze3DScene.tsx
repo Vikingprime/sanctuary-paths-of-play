@@ -693,8 +693,6 @@ const GrassTufts = ({ maze, playerStateRef }: { maze: Maze; playerStateRef: Muta
   );
 };
 // Brick wall perimeter for the cellar using instanced Brick_wall.glb
-
-// Brick wall perimeter for the cellar using instanced Brick_wall.glb
 useGLTF.preload('/models/Brick_wall.glb');
 
 const CellarWalls = ({ maze }: { maze: Maze }) => {
