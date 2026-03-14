@@ -10,14 +10,15 @@ useGLTF.preload('/models/Keg.glb');
 useGLTF.preload('/models/Bags.glb');
 useGLTF.preload('/models/Sack.glb');
 
-// Scales matching BarrelWall BARREL_TYPES config, then scaled to ~0.5x for decorative perimeter size
+// Scales matching BarrelWall BARREL_TYPES config, scaled to ~0.5x for decorative perimeter
+// isSack flag enables wall-leaning behavior
 const DECOR_CONFIGS = [
-  { model: '/models/Barrel.glb', baseScale: 350 * 0.5, rotationX: -Math.PI / 2, weight: 3 },
-  { model: '/models/Barrel_1.glb', baseScale: 70 * 0.5, rotationX: -Math.PI / 2, weight: 3 },
-  { model: '/models/Beer_Keg.glb', baseScale: 0.56 * 0.5, rotationX: 0, weight: 2 },
-  { model: '/models/Keg.glb', baseScale: 64 * 0.5, rotationX: 0, weight: 2 },
-  { model: '/models/Bags.glb', baseScale: 1.0, rotationX: 0, weight: 3 },
-  { model: '/models/Sack.glb', baseScale: 1.0, rotationX: 0, weight: 3 },
+  { model: '/models/Barrel.glb', baseScale: 350 * 0.5, rotationX: -Math.PI / 2, weight: 3, isSack: false },
+  { model: '/models/Barrel_1.glb', baseScale: 70 * 0.5, rotationX: -Math.PI / 2, weight: 3, isSack: false },
+  { model: '/models/Beer_Keg.glb', baseScale: 0.56 * 0.5, rotationX: 0, weight: 2, isSack: false },
+  { model: '/models/Keg.glb', baseScale: 64 * 0.5, rotationX: 0, weight: 2, isSack: false },
+  { model: '/models/Bags.glb', baseScale: 1.0, rotationX: 0, weight: 3, isSack: true },
+  { model: '/models/Sack.glb', baseScale: 1.0, rotationX: 0, weight: 3, isSack: true },
 ];
 
 const TOTAL_WEIGHT = DECOR_CONFIGS.reduce((s, c) => s + c.weight, 0);
@@ -40,9 +41,11 @@ const pickType = (seed: number) => {
 interface DecorPlacement {
   x: number;
   z: number;
-  rotY: number;
+  rotY: number;       // Y rotation (facing direction)
+  wallRotY: number;    // The wall's outward-facing angle (used for leaning sacks toward wall)
   typeIndex: number;
   scale: number;
+  leanAngle: number;   // Tilt toward wall (sacks only)
 }
 
 export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
@@ -59,7 +62,7 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
   ];
 
   const typeMetrics = useMemo(() => {
-    return scenes.map((scene) => {
+    return scenes.map((scene, i) => {
       const box = new Box3();
       scene.traverse((child: any) => {
         if (child.isMesh && child.geometry) {
@@ -70,7 +73,7 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
       });
       const size = new Vector3();
       box.getSize(size);
-      // Log size for sack/bag models to calibrate
+      console.log(`[Perimeter] type ${i} (${DECOR_CONFIGS[i].model}) size: ${size.x.toFixed(3)} x ${size.y.toFixed(3)} x ${size.z.toFixed(3)}`);
       return { minY: box.min.y, minZ: box.min.z, size };
     });
   }, [scenes]);
@@ -78,10 +81,9 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
   // Auto-calibrate sack/bag scales: target ~0.6 world units tall
   const calibratedConfigs = useMemo(() => {
     return DECOR_CONFIGS.map((config, i) => {
-      if (i < 4) return config; // barrels already calibrated
+      if (!config.isSack) return config;
       const metrics = typeMetrics[i];
-      const rotX = config.rotationX;
-      const modelHeight = Math.abs(rotX) > 0.01 ? metrics.size.z : metrics.size.y;
+      const modelHeight = metrics.size.y;
       if (modelHeight === 0) return config;
       const targetHeight = 0.6;
       const autoScale = targetHeight / modelHeight;
@@ -105,30 +107,47 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
     const data: DecorPlacement[] = [];
     let seed = 42;
 
-    const addItem = (x: number, z: number, rotY: number) => {
+    const addItem = (x: number, z: number, wallFacingRotY: number) => {
       seed++;
       const typeIndex = pickType(seed * 7 + 3);
+      const config = calibratedConfigs[typeIndex];
       const scaleVariation = 0.85 + seededRandom(seed * 13 + 5) * 0.3;
-      const scale = calibratedConfigs[typeIndex].baseScale * scaleVariation;
+      const scale = config.baseScale * scaleVariation;
       const jitterX = (seededRandom(seed * 17 + 11) - 0.5) * 0.25;
       const jitterZ = (seededRandom(seed * 23 + 19) - 0.5) * 0.25;
       const rotJitter = seededRandom(seed * 29 + 7) * Math.PI * 2;
-      data.push({ x: x + jitterX, z: z + jitterZ, rotY: rotY + rotJitter, typeIndex, scale });
+
+      // Sacks lean toward the wall; barrels just rotate randomly
+      let leanAngle = 0;
+      if (config.isSack) {
+        // Lean 15-25 degrees toward the wall
+        leanAngle = (0.15 + seededRandom(seed * 41 + 13) * 0.1) * Math.PI;
+      }
+
+      data.push({
+        x: x + jitterX,
+        z: z + jitterZ,
+        rotY: config.isSack ? wallFacingRotY + Math.PI : rotJitter, // sacks face the wall
+        wallRotY: wallFacingRotY,
+        typeIndex,
+        scale,
+        leanAngle,
+      });
     };
 
-    // North wall
+    // North wall (wall faces inward = rotY 0)
     for (let x = minX + 1; x <= maxX - 1; x += SPACING) {
       if (seededRandom(++seed) > 0.25) addItem(x + 0.5, minZ + WALL_INSET, 0);
     }
-    // South wall
+    // South wall (wall faces inward = rotY PI)
     for (let x = minX + 1; x <= maxX - 1; x += SPACING) {
       if (seededRandom(++seed) > 0.25) addItem(x + 0.5, maxZ - WALL_INSET, Math.PI);
     }
-    // West wall
+    // West wall (wall faces inward = rotY PI/2)
     for (let z = minZ + 1; z <= maxZ - 1; z += SPACING) {
       if (seededRandom(++seed) > 0.25) addItem(minX + WALL_INSET, z + 0.5, Math.PI / 2);
     }
-    // East wall
+    // East wall (wall faces inward = rotY -PI/2)
     for (let z = minZ + 1; z <= maxZ - 1; z += SPACING) {
       if (seededRandom(++seed) > 0.25) addItem(maxX - WALL_INSET, z + 0.5, -Math.PI / 2);
     }
@@ -163,7 +182,7 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
 
         const geom = child.geometry.clone();
         const mat = child.material.clone();
-        if ('roughness' in mat) mat.roughness = 0.8;
+        if ('roughness' in mat) mat.roughness = 0.85;
         mat.needsUpdate = true;
 
         const mesh = new InstancedMesh(geom, mat, typePlacements.length);
@@ -174,7 +193,16 @@ export const CellarPerimeterBarrels = ({ maze }: { maze: Maze }) => {
           const groundY = -effectiveMinY * p.scale;
 
           dummy.position.set(p.x, groundY, p.z);
-          dummy.rotation.set(rotX, p.rotY, 0);
+
+          if (config.isSack && p.leanAngle > 0) {
+            // Sacks lean toward the wall: rotate on the axis perpendicular to wall face
+            // wallRotY tells us which direction the wall is
+            // Lean is a tilt on X axis (toward the wall) after Y rotation
+            dummy.rotation.set(rotX - p.leanAngle, p.rotY, 0);
+          } else {
+            dummy.rotation.set(rotX, p.rotY, 0);
+          }
+
           dummy.scale.setScalar(p.scale);
           dummy.updateMatrix();
           mesh.setMatrixAt(i, dummy.matrix);
