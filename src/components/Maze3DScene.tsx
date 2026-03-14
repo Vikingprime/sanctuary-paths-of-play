@@ -7,7 +7,7 @@ import { Maze, AnimalType, DialogueTrigger, MazeCharacter } from '@/types/game';
 import { NPCRuntimeState } from '@/game/NPCRuntime';
 import { InstancedWalls, CornOptimizationSettings, DEFAULT_CORN_SETTINGS, CullStats, setCellOpacity } from './CornWall';
 import { InstancedBarrelWalls } from './BarrelWall';
-import { CellarEnvironment } from './CellarEnvironment';
+import { CellarWallLights } from './CellarWallLights';
 import { PlayerCube } from './PlayerCube';
 import { PlayerState, MovementInput, calculateMovement, generateRockPositions, RockPosition, CharacterPosition, checkCharacterCollision, checkCollision, PushableBarrelState, checkAndPushBarrels } from '@/game/GameLogic';
 import { getCharacterScale, getCharacterYOffset, getCharacterHeight, getCharacterDebugPlaneColor, getCharacterTintColor, getCharacterRotationOffset } from '@/game/CharacterConfig';
