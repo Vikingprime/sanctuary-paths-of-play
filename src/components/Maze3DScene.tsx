@@ -702,7 +702,7 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
   const w = maze.grid[0].length;
   const h = maze.grid.length;
   const WALL_HEIGHT = 4;
-  const PAD = 4; // Well outside the maze to avoid barrel overlap
+  const PAD = 4;
 
   const { meshParts, modelSize } = useMemo(() => {
     const parts: { geometry: BufferGeometry; material: Material }[] = [];
@@ -717,40 +717,56 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
     });
     const size = new Vector3();
     box.getSize(size);
+    const center = new Vector3();
+    box.getCenter(center);
+    console.log('[CellarWalls] Model size:', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2));
+    console.log('[CellarWalls] Model center:', center.x.toFixed(2), center.y.toFixed(2), center.z.toFixed(2));
+    console.log('[CellarWalls] Model min:', box.min.x.toFixed(2), box.min.y.toFixed(2), box.min.z.toFixed(2));
+    console.log('[CellarWalls] Model max:', box.max.x.toFixed(2), box.max.y.toFixed(2), box.max.z.toFixed(2));
     return { meshParts: parts, modelSize: size };
   }, [brickScene]);
+
+  // Perimeter coordinates
+  const minX = -PAD;
+  const maxX = w + PAD;
+  const minZ = -PAD;
+  const maxZ = h + PAD;
 
   const instances = useMemo(() => {
     if (modelSize.x === 0 || modelSize.y === 0) return [];
     const scale = WALL_HEIGHT / modelSize.y;
+    // The model's widest dimension for tiling - use X for walls facing Z, Z for walls facing X
     const tileW = modelSize.x * scale;
+    const tileD = modelSize.z * scale;
     const result: { x: number; z: number; rotY: number }[] = [];
 
-    const minX = -PAD;
-    const maxX = w + PAD;
-    const minZ = -PAD;
-    const maxZ = h + PAD;
+    console.log('[CellarWalls] scale:', scale.toFixed(3), 'tileW:', tileW.toFixed(2), 'tileD:', tileD.toFixed(2));
+    console.log('[CellarWalls] Perimeter: minX:', minX, 'maxX:', maxX, 'minZ:', minZ, 'maxZ:', maxZ);
+    console.log('[CellarWalls] Maze size: w:', w, 'h:', h);
+
     const spanX = maxX - minX;
     const spanZ = maxZ - minZ;
 
-    // North wall - along X at minZ
+    // North wall - along X at minZ, facing inward (+Z)
     for (let off = 0; off < spanX; off += tileW) {
       result.push({ x: minX + off + tileW / 2, z: minZ, rotY: 0 });
     }
-    // South wall - along X at maxZ
+    // South wall - along X at maxZ, facing inward (-Z)
     for (let off = 0; off < spanX; off += tileW) {
       result.push({ x: minX + off + tileW / 2, z: maxZ, rotY: Math.PI });
     }
-    // West wall - along Z at minX
+    // West wall - along Z at minX, facing inward (+X)
     for (let off = 0; off < spanZ; off += tileW) {
       result.push({ x: minX, z: minZ + off + tileW / 2, rotY: Math.PI / 2 });
     }
-    // East wall - along Z at maxX
+    // East wall - along Z at maxX, facing inward (-X)
     for (let off = 0; off < spanZ; off += tileW) {
       result.push({ x: maxX, z: minZ + off + tileW / 2, rotY: -Math.PI / 2 });
     }
+
+    console.log('[CellarWalls] Total instances:', result.length);
     return result;
-  }, [w, h, modelSize]);
+  }, [w, h, modelSize, minX, maxX, minZ, maxZ]);
 
   useEffect(() => {
     const group = groupRef.current;
@@ -788,7 +804,34 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
     };
   }, [instances, meshParts, modelSize]);
 
-  return <group ref={groupRef} />;
+  // Debug green perimeter line at wall positions
+  const perimeterPoints = useMemo(() => {
+    const y = 1.5; // visible height
+    return [
+      new Vector3(minX, y, minZ),
+      new Vector3(maxX, y, minZ),
+      new Vector3(maxX, y, maxZ),
+      new Vector3(minX, y, maxZ),
+      new Vector3(minX, y, minZ),
+    ];
+  }, [minX, maxX, minZ, maxZ]);
+
+  return (
+    <group ref={groupRef}>
+      {/* Debug perimeter line - green */}
+      <line>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={perimeterPoints.length}
+            array={new Float32Array(perimeterPoints.flatMap(p => [p.x, p.y, p.z]))}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial color="lime" linewidth={2} />
+      </line>
+    </group>
+  );
 };
 
 
