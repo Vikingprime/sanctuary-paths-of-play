@@ -705,11 +705,10 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
   const PAD = 4;
 
   const { meshParts, modelSize } = useMemo(() => {
-    const parts: { geometry: BufferGeometry; material: Material }[] = [];
+    // First pass: compute combined bounding box
     const box = new Box3();
     brickScene.traverse((child: any) => {
       if (child.isMesh) {
-        parts.push({ geometry: child.geometry.clone(), material: child.material.clone() });
         child.geometry.computeBoundingBox();
         const bb = child.geometry.boundingBox;
         if (bb) { box.expandByPoint(bb.min); box.expandByPoint(bb.max); }
@@ -719,10 +718,23 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
     box.getSize(size);
     const center = new Vector3();
     box.getCenter(center);
+    
     console.log('[CellarWalls] Model size:', size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2));
     console.log('[CellarWalls] Model center:', center.x.toFixed(2), center.y.toFixed(2), center.z.toFixed(2));
-    console.log('[CellarWalls] Model min:', box.min.x.toFixed(2), box.min.y.toFixed(2), box.min.z.toFixed(2));
-    console.log('[CellarWalls] Model max:', box.max.x.toFixed(2), box.max.y.toFixed(2), box.max.z.toFixed(2));
+
+    // Second pass: clone geometries and CENTER them at origin
+    const parts: { geometry: BufferGeometry; material: Material }[] = [];
+    brickScene.traverse((child: any) => {
+      if (child.isMesh) {
+        const geom = child.geometry.clone();
+        // Translate geometry so the model's combined center maps to origin
+        // We want the bottom of the wall at Y=0, so shift Y by -box.min.y instead of -center.y
+        geom.translate(-center.x, -box.min.y, -center.z);
+        parts.push({ geometry: geom, material: child.material.clone() });
+      }
+    });
+    
+    console.log('[CellarWalls] Centered geometry. Parts:', parts.length);
     return { meshParts: parts, modelSize: size };
   }, [brickScene]);
 
@@ -735,31 +747,28 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
   const instances = useMemo(() => {
     if (modelSize.x === 0 || modelSize.y === 0) return [];
     const scale = WALL_HEIGHT / modelSize.y;
-    // The model's widest dimension for tiling - use X for walls facing Z, Z for walls facing X
     const tileW = modelSize.x * scale;
-    const tileD = modelSize.z * scale;
     const result: { x: number; z: number; rotY: number }[] = [];
 
-    console.log('[CellarWalls] scale:', scale.toFixed(3), 'tileW:', tileW.toFixed(2), 'tileD:', tileD.toFixed(2));
+    console.log('[CellarWalls] scale:', scale.toFixed(6), 'tileW:', tileW.toFixed(2));
     console.log('[CellarWalls] Perimeter: minX:', minX, 'maxX:', maxX, 'minZ:', minZ, 'maxZ:', maxZ);
-    console.log('[CellarWalls] Maze size: w:', w, 'h:', h);
 
     const spanX = maxX - minX;
     const spanZ = maxZ - minZ;
 
-    // North wall - along X at minZ, facing inward (+Z)
+    // North wall - along X at minZ
     for (let off = 0; off < spanX; off += tileW) {
       result.push({ x: minX + off + tileW / 2, z: minZ, rotY: 0 });
     }
-    // South wall - along X at maxZ, facing inward (-Z)
+    // South wall - along X at maxZ
     for (let off = 0; off < spanX; off += tileW) {
       result.push({ x: minX + off + tileW / 2, z: maxZ, rotY: Math.PI });
     }
-    // West wall - along Z at minX, facing inward (+X)
+    // West wall - along Z at minX
     for (let off = 0; off < spanZ; off += tileW) {
       result.push({ x: minX, z: minZ + off + tileW / 2, rotY: Math.PI / 2 });
     }
-    // East wall - along Z at maxX, facing inward (-X)
+    // East wall - along Z at maxX
     for (let off = 0; off < spanZ; off += tileW) {
       result.push({ x: maxX, z: minZ + off + tileW / 2, rotY: -Math.PI / 2 });
     }
@@ -806,7 +815,7 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
 
   // Debug green perimeter line at wall positions
   const perimeterPoints = useMemo(() => {
-    const y = 1.5; // visible height
+    const y = 1.5;
     return [
       new Vector3(minX, y, minZ),
       new Vector3(maxX, y, minZ),
