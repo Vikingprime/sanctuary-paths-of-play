@@ -1337,10 +1337,10 @@ const GoalMarker = ({ position, playerStateRef, isDialogueActive, maze, showColl
 // so pushable barrels should be roughly 1.0 world unit tall.
 // Wall barrels are much larger (Barrel=350) since they form imposing walls.
 const PUSHABLE_BARREL_BASE_SCALE: Record<string, number> = {
-  'Barrel.glb': 3.5,
-  'Barrel_1.glb': 0.7,
-  'Beer_Keg.glb': 0.003,
-  'Keg.glb': 0.64,
+  'Barrel.glb': 3.5 * 1.2,
+  'Barrel_1.glb': 0.7 * 1.2,
+  'Beer_Keg.glb': 0.003 * 1.2,
+  'Keg.glb': 0.64 * 1.2,
 };
 
 const PUSHABLE_BARREL_X_ROTATION: Record<string, number> = {
