@@ -727,10 +727,28 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
     brickScene.traverse((child: any) => {
       if (child.isMesh) {
         const geom = child.geometry.clone();
-        // Translate geometry so the model's combined center maps to origin
-        // We want the bottom of the wall at Y=0, so shift Y by -box.min.y instead of -center.y
         geom.translate(-center.x, -box.min.y, -center.z);
-        parts.push({ geometry: geom, material: child.material.clone() });
+        
+        // Enhance brick material for richer look
+        const mat = child.material.clone();
+        if ('roughness' in mat) mat.roughness = 0.85;
+        if ('metalness' in mat) mat.metalness = 0.05;
+        if ('normalScale' in mat && mat.normalScale) {
+          mat.normalScale.set(1.4, 1.4);
+        }
+        // Warm the brick color slightly
+        if ('color' in mat && mat.color) {
+          const c = mat.color.clone();
+          c.offsetHSL(0.01, 0.08, -0.04); // slightly warmer, more saturated, darker
+          mat.color = c;
+        }
+        // Subtle emissive for warmth from sconce light bounce
+        if ('emissive' in mat) {
+          mat.emissive = new Color('#1a0d05');
+          mat.emissiveIntensity = 0.3;
+        }
+        mat.needsUpdate = true;
+        parts.push({ geometry: geom, material: mat });
       }
     });
     
@@ -786,18 +804,30 @@ const CellarWalls = ({ maze }: { maze: Maze }) => {
     const dummy = new Object3D();
     const scale = WALL_HEIGHT / modelSize.y;
 
+    const instanceColor = new Color();
     meshParts.forEach((part) => {
       const mesh = new InstancedMesh(part.geometry, part.material, instances.length);
+      mesh.instanceColor = null; // force re-init
       instances.forEach((inst, i) => {
         dummy.position.set(inst.x, 0, inst.z);
         dummy.rotation.set(0, inst.rotY, 0);
         dummy.scale.setScalar(scale);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
+        
+        // Per-instance color variation for visual interest
+        const seed = (inst.x * 73 + inst.z * 137 + i * 31) % 1000 / 1000;
+        const hueShift = (seed - 0.5) * 0.03;     // slight warm/cool shift
+        const lightShift = (seed - 0.5) * 0.08;    // brightness variation
+        instanceColor.set('#8B7355'); // base warm brick
+        instanceColor.offsetHSL(hueShift, 0, lightShift);
+        mesh.setColorAt(i, instanceColor);
       });
       mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       mesh.frustumCulled = false;
       mesh.receiveShadow = true;
+      mesh.castShadow = true;
       group.add(mesh);
       allMeshes.push(mesh);
     });
