@@ -803,10 +803,10 @@ const CellarWallLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number
           <pointLight
             key={`sconce-${i}`}
             position={[lx, SCONCE_HEIGHT + 0.15, lz]}
-            color="#FFB36B"
-            intensity={8}
-            distance={10}
-            decay={1.6}
+            color="#FFCC66"
+            intensity={15}
+            distance={12}
+            decay={1.4}
             castShadow={false}
           />
         );
