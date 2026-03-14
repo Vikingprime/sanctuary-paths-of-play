@@ -762,7 +762,7 @@ const CellarWallLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number
     const dummy = new Object3D();
 
     meshParts.forEach((part) => {
-      const mesh = new ThreeInstancedMesh(part.geometry, part.material, sconceData.length);
+      const mesh = new InstancedMesh(part.geometry, part.material, sconceData.length);
       sconceData.forEach((s, i) => {
         dummy.position.set(s.x, SCONCE_HEIGHT, s.z);
         dummy.rotation.order = 'YXZ';
