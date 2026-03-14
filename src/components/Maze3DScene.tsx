@@ -708,10 +708,10 @@ const CellarWallLights = ({ maze, roofHeight }: { maze: Maze; roofHeight: number
   const maxX = gridW + PAD;
   const maxZ = gridH + PAD;
 
-  const SCONCE_HEIGHT = roofHeight * 0.65;
-  const SCONCE_SCALE = 3.0;
-  const WALL_OFFSET = 0.05;
-  const SPACING = 4;
+  const SCONCE_HEIGHT = roofHeight * 0.6;
+  const SCONCE_SCALE = 5.0;
+  const WALL_OFFSET = 0.15;
+  const SPACING = 3;
 
   const sconceData = useMemo(() => {
     const data: { x: number; z: number; rotY: number }[] = [];
