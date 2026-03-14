@@ -3549,6 +3549,9 @@ return (
       {/* Cellar: wall-mounted fixtures (sconce + lamp GLBs) */}
       {isCellar && <CellarWallLights maze={maze} roofHeight={cellarRoofHeight} />}
 
+      {/* Cellar decorative perimeter barrels */}
+      {isCellar && <CellarPerimeterBarrels maze={maze} />}
+
       {/* Cellar perimeter walls */}
       {isCellar && <CellarWalls maze={maze} />}
       
