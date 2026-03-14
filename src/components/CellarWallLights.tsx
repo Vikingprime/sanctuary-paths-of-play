@@ -16,7 +16,14 @@ interface FixturePlacement {
   rotY: number;
 }
 
-const enhanceMaterial = (material: Material) => {
+const BULB_KEYWORDS = ['bulb', 'light', 'lamp', 'glass', 'flame', 'glow', 'candle', 'fire', 'emission'];
+
+const isBulbMesh = (name: string) => {
+  const lower = name.toLowerCase();
+  return BULB_KEYWORDS.some((kw) => lower.includes(kw));
+};
+
+const makeBulbMaterial = (material: Material) => {
   const cloned = material.clone() as Material & {
     emissive?: Color;
     emissiveIntensity?: number;
@@ -24,11 +31,10 @@ const enhanceMaterial = (material: Material) => {
     needsUpdate?: boolean;
   };
 
-  if ('emissive' in cloned && cloned.emissive) {
+  if ('emissive' in cloned) {
     cloned.emissive = new Color('#ffdd99');
-    cloned.emissiveIntensity = 2.0;
+    cloned.emissiveIntensity = 3.0;
   }
-
   if ('toneMapped' in cloned) cloned.toneMapped = false;
   cloned.needsUpdate = true;
   return cloned;
