@@ -9,6 +9,8 @@ export function useSave() {
 
   useEffect(() => {
     SaveManager.load().then((data) => {
+      // TEMP: force debug mode for testing
+      data.settings = { ...data.settings, debugMode: true };
       setSave(data);
       setLoading(false);
     });
