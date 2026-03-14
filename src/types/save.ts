@@ -60,6 +60,6 @@ export const DEFAULT_SAVE: SaveData = {
     musicVolume: 0.7,
     sfxVolume: 1.0,
     sensitivity: 1.0,
-    debugMode: false,
+    debugMode: true,
   },
 };
