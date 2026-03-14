@@ -109,7 +109,7 @@ export const CellarWallLights = ({ maze, roofHeight }: CellarWallLightsProps) =>
 
       clone.position.set(p.x, mountHeight, p.z);
       clone.rotation.order = 'YXZ';
-      clone.rotation.set(0, p.rotY, 0);
+      clone.rotation.set(0, p.rotY + Math.PI, 0);
       clone.scale.setScalar(1.5);
       clone.updateMatrixWorld(true);
 
